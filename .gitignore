@@ -36,3 +36,6 @@ pnpm-debug.log*
 
 # Benchmark results
 benchmark-results/
+
+# Claude AI
+.claude/

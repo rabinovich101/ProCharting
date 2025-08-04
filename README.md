@@ -1,5 +1,10 @@
 # ProCharting
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Bundle Size](https://img.shields.io/badge/Bundle%20Size-<25KB-green.svg)](https://bundlephobia.com/)
+[![Performance](https://img.shields.io/badge/Performance-10x%20Faster-orange.svg)](./benchmarks)
+
 Ultra-high-performance financial charting library that renders 10x faster than TradingView's lightweight-charts while maintaining a smaller bundle size.
 
 ## Features
