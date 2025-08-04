@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./.tsbuildinfo",
+    "types": ["@webgpu/types"]
+  },
+  "references": [
+    { "path": "../types" },
+    { "path": "../utils" }
+  ],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

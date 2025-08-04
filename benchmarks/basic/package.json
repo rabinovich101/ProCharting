@@ -1,0 +1,12 @@
+{
+  "name": "@procharting/benchmark-basic",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "node index.js"
+  },
+  "dependencies": {
+    "@procharting/core": "workspace:*"
+  }
+}
