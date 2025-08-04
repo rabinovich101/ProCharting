@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProCharting Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #chart-container {
+            width: 800px;
+            height: 400px;
+            border: 1px solid #ccc;
+            margin: 20px 0;
+        }
+        #error {
+            color: red;
+            margin: 10px 0;
+        }
+        #status {
+            color: green;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>ProCharting Library Test</h1>
+    <div id="status"></div>
+    <div id="error"></div>
+    <div id="chart-container"></div>
+    <button onclick="testChart()">Test Chart Creation</button>
+    
+    <script>
+        const statusEl = document.getElementById('status');
+        const errorEl = document.getElementById('error');
+        
+        function log(message, isError = false) {
+            const el = isError ? errorEl : statusEl;
+            el.innerHTML += message + '<br>';
+            console.log(message);
+        }
+        
+        async function testChart() {
+            try {
+                log('Testing chart creation...');
+                
+                // Create a simple div
+                const container = document.getElementById('chart-container');
+                container.innerHTML = ''; // Clear previous content
+                
+                // Try to load the library
+                log('Loading ProCharting library...');
+                const module = await import('/_next/static/chunks/node_modules_@procharting_core_dist_index_js.js');
+                log('Module loaded: ' + JSON.stringify(Object.keys(module)));
+                
+                if (module.createChart) {
+                    log('createChart function found!');
+                    
+                    // Try to create a chart
+                    const chart = module.createChart(container, {
+                        renderer: 'canvas2d',
+                        width: 800,
+                        height: 400
+                    });
+                    
+                    log('Chart created successfully!');
+                    
+                    // Add some test data
+                    const testData = Array.from({ length: 20 }, (_, i) => ({
+                        time: Date.now() - (20 - i) * 60000,
+                        open: 100 + Math.random() * 10,
+                        high: 110 + Math.random() * 10,
+                        low: 90 + Math.random() * 10,
+                        close: 100 + Math.random() * 10,
+                        volume: 1000000 + Math.random() * 500000
+                    }));
+                    
+                    chart.addSeries({
+                        type: 'candlestick',
+                        name: 'Test',
+                        data: testData
+                    });
+                    
+                    log('Series added successfully!');
+                } else {
+                    log('createChart function not found in module', true);
+                }
+            } catch (error) {
+                log('Error: ' + error.message, true);
+                console.error(error);
+            }
+        }
+        
+        // Test on load
+        window.addEventListener('load', () => {
+            log('Page loaded, ready to test');
+        });
+    </script>
+</body>
+</html>

@@ -42,6 +42,13 @@ export interface Chart {
   streamData(options: StreamingOptions): void;
   connect(options: ConnectionOptions): void;
   
+  // Zoom and pan controls
+  setVisibleRange(from: number, to: number): void;
+  zoomIn(factor?: number): void;
+  zoomOut(factor?: number): void;
+  pan(offset: number): void;
+  resetView(): void;
+  
   on<K extends keyof ChartEventMap>(event: K, handler: ChartEventMap[K]): void;
   off<K extends keyof ChartEventMap>(event: K, handler: ChartEventMap[K]): void;
 }
@@ -53,6 +60,10 @@ export interface Series<T extends SeriesOptions> {
   setData(data: T['data']): void;
   update(options: Partial<T>): void;
   remove(): void;
+  
+  // Real-time update methods
+  appendData(data: T['data'][0]): void;
+  updateLast(data: Partial<T['data'][0]>): void;
 }
 
 export interface ConnectionOptions {

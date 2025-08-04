@@ -273,4 +273,20 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
   remove(): void {
     this.chart.removeSeries(this);
   }
+  
+  appendData(data: T['data'][0]): void {
+    if (Array.isArray(this.options.data)) {
+      (this.options.data as any[]).push(data);
+    }
+  }
+  
+  updateLast(data: Partial<T['data'][0]>): void {
+    if (Array.isArray(this.options.data) && this.options.data.length > 0) {
+      const lastIndex = this.options.data.length - 1;
+      (this.options.data as any[])[lastIndex] = {
+        ...(this.options.data as any[])[lastIndex],
+        ...data
+      };
+    }
+  }
 }
