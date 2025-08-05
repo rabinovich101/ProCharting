@@ -24,10 +24,13 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     priceScale: 1,
     priceOffset: 0,
     isDragging: false,
+    isYAxisDragging: false,
     dragStart: { x: 0, y: 0 },
     lastOffset: { x: 0, y: 0 },
+    lastYRange: { min: 0, max: 0 },
     mousePosition: { x: 0, y: 0 },
     showCrosshair: false,
+    isOverYAxis: false,
   });
 
   // TradingView-style layout
@@ -91,15 +94,23 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    // Allow dragging anywhere on the chart area (not just inside chart bounds)
-    if (mouseX > chartWidth || mouseY > height - bottomAxisHeight) return;
-    
-    setViewState(prev => ({
-      ...prev,
-      isDragging: true,
-      dragStart: { x: e.clientX, y: e.clientY },
-      lastOffset: { x: prev.rightOffset, y: prev.priceOffset },
-    }));
+    // Check if clicking on Y-axis
+    if (mouseX > chartWidth && mouseX <= width && mouseY <= height - bottomAxisHeight) {
+      setViewState(prev => ({
+        ...prev,
+        isYAxisDragging: true,
+        dragStart: { x: e.clientX, y: e.clientY },
+      }));
+    }
+    // Regular chart dragging
+    else if (mouseX <= chartWidth && mouseY <= height - bottomAxisHeight) {
+      setViewState(prev => ({
+        ...prev,
+        isDragging: true,
+        dragStart: { x: e.clientX, y: e.clientY },
+        lastOffset: { x: prev.rightOffset, y: prev.priceOffset },
+      }));
+    }
     
     e.preventDefault(); // Prevent text selection while dragging
   };
@@ -109,14 +120,39 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
+    // Check if over Y-axis
+    const isOverYAxis = mouseX > chartWidth && mouseX <= width && mouseY <= height - bottomAxisHeight;
+    
     // Update mouse position for crosshair
     setViewState(prev => ({
       ...prev,
       mousePosition: { x: mouseX, y: mouseY },
-      showCrosshair: mouseX <= chartWidth && mouseY <= chartHeight,
+      showCrosshair: mouseX <= chartWidth && mouseY <= chartHeight && !prev.isDragging && !prev.isYAxisDragging,
+      isOverYAxis,
     }));
     
-    if (!viewState.isDragging) return;
+    // Handle Y-axis dragging
+    if (viewState.isYAxisDragging) {
+      const deltaY = e.clientY - viewState.dragStart.y;
+      
+      // Scale factor based on drag distance
+      const scaleFactor = 1 + (deltaY * 0.01); // Adjust sensitivity
+      
+      setViewState(prev => ({
+        ...prev,
+        priceScale: Math.max(0.1, Math.min(10, scaleFactor)), // Limit scale range
+      }));
+      
+      return;
+    }
+    
+    if (!viewState.isDragging) {
+      // Update cursor based on position
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = isOverYAxis ? 'ns-resize' : 'crosshair';
+      }
+      return;
+    }
     
     const deltaX = e.clientX - viewState.dragStart.x;
     const deltaY = e.clientY - viewState.dragStart.y;
@@ -137,7 +173,7 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
   };
 
   const handleMouseUp = () => {
-    setViewState(prev => ({ ...prev, isDragging: false }));
+    setViewState(prev => ({ ...prev, isDragging: false, isYAxisDragging: false }));
   };
 
   // Add mouse leave handler to stop dragging when mouse leaves window
@@ -215,8 +251,12 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
 
     const priceRange = maxPrice - minPrice;
     const pricePadding = priceRange * 0.1; // 10% padding like TradingView
-    minPrice -= pricePadding;
-    maxPrice += pricePadding;
+    
+    // Apply Y-axis scale
+    const centerPrice = (minPrice + maxPrice) / 2;
+    const halfRange = (priceRange + pricePadding * 2) / 2;
+    minPrice = centerPrice - halfRange * viewState.priceScale;
+    maxPrice = centerPrice + halfRange * viewState.priceScale;
 
     // Apply manual price offset
     const priceShift = (maxPrice - minPrice) * viewState.priceOffset / chartHeight;

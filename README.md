@@ -63,19 +63,42 @@ ProCharting includes professional-grade interactive features out of the box:
 // Mouse wheel zooming and drag panning enabled by default
 const chart = createChart('#container', {
   interactions: {
-    enableZoom: true,     // Scroll to zoom
-    enablePan: true,      // Drag to pan
-    zoomSpeed: 0.1,       // 10% zoom per scroll
-    panSpeed: 1.0         // Natural pan speed
+    enableZoom: true,        // Scroll to zoom
+    enablePan: true,         // Drag to pan
+    enableYAxisScale: true,  // Drag on Y-axis to scale vertically
+    zoomSpeed: 0.1,          // 10% zoom per scroll
+    panSpeed: 1.0,           // Natural pan speed
+    yAxisScaleSpeed: 0.01    // Y-axis scale sensitivity
   }
 });
 
 // Programmatic control
-chart.zoomIn(0.9);        // Zoom in by 10%
-chart.zoomOut(1.1);       // Zoom out by 10%
-chart.pan(0.1);           // Pan right by 10% of visible range
-chart.resetView();        // Reset to default view
-chart.setVisibleRange(startTime, endTime); // Set specific range
+chart.zoomIn(0.9);           // Zoom in by 10%
+chart.zoomOut(1.1);          // Zoom out by 10%
+chart.pan(0.1);              // Pan right by 10% of visible range
+chart.resetView();           // Reset to default view
+chart.setVisibleRange(startTime, endTime);  // Set X-axis range
+chart.setYAxisRange(minPrice, maxPrice);    // Set Y-axis range
+```
+
+### Y-Axis Price Scale Interaction
+
+Just like TradingView, you can adjust the vertical price scale by dragging on the Y-axis:
+
+```javascript
+// Enable Y-axis scaling (enabled by default)
+const chart = createChart('#container', {
+  interactions: {
+    enableYAxisScale: true,
+    yAxisScaleSpeed: 0.01  // Adjust sensitivity
+  }
+});
+
+// How it works:
+// 1. Hover over the right price axis - cursor changes to ↕
+// 2. Click and drag up - compress price range (zoom out vertically)
+// 3. Click and drag down - expand price range (zoom in vertically)
+// 4. Only affects Y-axis, time axis remains unchanged
 ```
 
 ### TradingView-style Crosshair

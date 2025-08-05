@@ -17,8 +17,10 @@ export interface InteractionOptions {
   readonly enableZoom?: boolean;
   readonly enablePan?: boolean;
   readonly enableCrosshair?: boolean;
+  readonly enableYAxisScale?: boolean;
   readonly zoomSpeed?: number;
   readonly panSpeed?: number;
+  readonly yAxisScaleSpeed?: number;
   readonly snapToCandle?: boolean;
 }
 
@@ -54,6 +56,7 @@ export interface Chart {
   
   // Zoom and pan controls
   setVisibleRange(from: number, to: number): void;
+  setYAxisRange(min: number, max: number): void;
   zoomIn(factor?: number): void;
   zoomOut(factor?: number): void;
   pan(offset: number): void;

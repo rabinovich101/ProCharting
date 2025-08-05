@@ -39,9 +39,11 @@ class ChartImpl implements Chart {
     dataMinY: 0,
     dataMaxY: 100,
     isDragging: false,
+    isYAxisDragging: false,
     dragStart: { x: 0, y: 0 },
     lastDataX: 0,
     lastDataY: 0,
+    lastYRange: { min: 0, max: 100 },
   };
   
   // Mouse state for interactions
@@ -50,7 +52,11 @@ class ChartImpl implements Chart {
     dataPosition: { x: 0, y: 0 },
     showCrosshair: false,
     isOverChart: false,
+    isOverYAxis: false,
   };
+  
+  // Layout constants
+  private readonly rightAxisWidth = 80;
 
   constructor(container: HTMLElement, private readonly options: ChartOptions) {
     this.container = container;
@@ -80,9 +86,10 @@ class ChartImpl implements Chart {
     const interactions = options.interactions ?? { 
       enableZoom: true, 
       enablePan: true, 
-      enableCrosshair: true 
+      enableCrosshair: true,
+      enableYAxisScale: true 
     };
-    if (interactions.enableZoom || interactions.enablePan || interactions.enableCrosshair) {
+    if (interactions.enableZoom || interactions.enablePan || interactions.enableCrosshair || interactions.enableYAxisScale) {
       this.setupMouseEvents();
     }
     
@@ -190,12 +197,25 @@ class ChartImpl implements Chart {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    this.viewState.isDragging = true;
-    this.viewState.dragStart = { x: e.clientX, y: e.clientY };
-    this.viewState.lastDataX = this.viewState.dataMinX;
-    this.viewState.lastDataY = this.viewState.dataMinY;
+    const interactions = this.options.interactions ?? {};
     
-    this.canvas.style.cursor = 'grabbing';
+    // Check if clicking on Y-axis area
+    if (this.mouseState.isOverYAxis && interactions.enableYAxisScale !== false) {
+      this.viewState.isYAxisDragging = true;
+      this.viewState.dragStart = { x: e.clientX, y: e.clientY };
+      this.viewState.lastYRange = { 
+        min: this.viewState.dataMinY, 
+        max: this.viewState.dataMaxY 
+      };
+      this.canvas.style.cursor = 'ns-resize';
+    } else {
+      this.viewState.isDragging = true;
+      this.viewState.dragStart = { x: e.clientX, y: e.clientY };
+      this.viewState.lastDataX = this.viewState.dataMinX;
+      this.viewState.lastDataY = this.viewState.dataMinY;
+      this.canvas.style.cursor = 'grabbing';
+    }
+    
     e.preventDefault();
   }
   
@@ -207,6 +227,10 @@ class ChartImpl implements Chart {
     // Update mouse position
     this.mouseState.position = { x, y };
     
+    // Check if over Y-axis
+    const chartWidth = rect.width - this.rightAxisWidth;
+    this.mouseState.isOverYAxis = x > chartWidth && x <= rect.width;
+    
     // Calculate data position
     const dataX = this.viewState.dataMinX + (x / rect.width) * (this.viewState.dataMaxX - this.viewState.dataMinX);
     const dataY = this.viewState.dataMaxY - (y / rect.height) * (this.viewState.dataMaxY - this.viewState.dataMinY);
@@ -214,7 +238,29 @@ class ChartImpl implements Chart {
     
     const interactions = this.options.interactions ?? {};
     
-    if (this.viewState.isDragging && interactions.enablePan !== false) {
+    // Handle Y-axis dragging
+    if (this.viewState.isYAxisDragging && interactions.enableYAxisScale !== false) {
+      const deltaY = e.clientY - this.viewState.dragStart.y;
+      
+      // Scale factor based on drag distance
+      const scaleSpeed = interactions.yAxisScaleSpeed ?? 0.01;
+      const scaleFactor = 1 + (deltaY * scaleSpeed);
+      
+      // Calculate new Y range
+      const centerY = (this.viewState.lastYRange.min + this.viewState.lastYRange.max) / 2;
+      const halfRange = (this.viewState.lastYRange.max - this.viewState.lastYRange.min) / 2;
+      
+      this.viewState.dataMinY = centerY - halfRange * scaleFactor;
+      this.viewState.dataMaxY = centerY + halfRange * scaleFactor;
+      
+      this.events.emit('zoom', {
+        level: scaleFactor,
+        centerX: (this.viewState.dataMinX + this.viewState.dataMaxX) / 2,
+        centerY: centerY,
+      });
+    }
+    // Handle regular pan
+    else if (this.viewState.isDragging && interactions.enablePan !== false) {
       // Calculate drag delta
       const deltaX = e.clientX - this.viewState.dragStart.x;
       const deltaY = e.clientY - this.viewState.dragStart.y;
@@ -237,7 +283,16 @@ class ChartImpl implements Chart {
         deltaX: -dataDeltaX,
         deltaY: dataDeltaY,
       });
-    } else if (!this.viewState.isDragging) {
+    } else if (!this.viewState.isDragging && !this.viewState.isYAxisDragging) {
+      // Update cursor based on position
+      if (this.mouseState.isOverYAxis && interactions.enableYAxisScale !== false) {
+        this.canvas.style.cursor = 'ns-resize';
+      } else if (this.mouseState.isOverChart && interactions.enableCrosshair !== false) {
+        this.canvas.style.cursor = 'crosshair';
+      } else {
+        this.canvas.style.cursor = 'default';
+      }
+      
       // Emit hover event
       this.events.emit('hover', {
         x,
@@ -250,7 +305,17 @@ class ChartImpl implements Chart {
   
   private handleMouseUp(): void {
     this.viewState.isDragging = false;
-    this.canvas.style.cursor = this.mouseState.isOverChart ? 'crosshair' : 'default';
+    this.viewState.isYAxisDragging = false;
+    
+    // Update cursor based on current position
+    const interactions = this.options.interactions ?? {};
+    if (this.mouseState.isOverYAxis && interactions.enableYAxisScale !== false) {
+      this.canvas.style.cursor = 'ns-resize';
+    } else if (this.mouseState.isOverChart && interactions.enableCrosshair !== false) {
+      this.canvas.style.cursor = 'crosshair';
+    } else {
+      this.canvas.style.cursor = 'default';
+    }
   }
   
   private handleMouseEnter(): void {
@@ -266,8 +331,10 @@ class ChartImpl implements Chart {
   
   private handleMouseLeave(): void {
     this.mouseState.isOverChart = false;
+    this.mouseState.isOverYAxis = false;
     this.mouseState.showCrosshair = false;
     this.viewState.isDragging = false;
+    this.viewState.isYAxisDragging = false;
     this.canvas.style.cursor = 'default';
   }
 
@@ -366,6 +433,11 @@ class ChartImpl implements Chart {
     
     // Auto-fit Y axis based on visible data
     this.autoFitYAxis();
+  }
+  
+  setYAxisRange(min: number, max: number): void {
+    this.viewState.dataMinY = min;
+    this.viewState.dataMaxY = max;
   }
   
   zoomIn(factor: number = 0.9): void {

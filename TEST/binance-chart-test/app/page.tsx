@@ -6,6 +6,13 @@ export default function Home() {
         
         <div className="space-y-4">
           <a 
+            href="/procharting-demo" 
+            className="block p-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+          >
+            <h2 className="text-xl font-semibold mb-2">🚀 ProCharting Library Demo (NEW!)</h2>
+            <p className="opacity-90">Test the ACTUAL ProCharting library with all new features!</p>
+          </a>
+          <a 
             href="/tradingview" 
             className="block p-6 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
           >
