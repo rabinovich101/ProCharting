@@ -31,8 +31,28 @@ class ChartImpl implements Chart {
   private resizeObserver: ResizeObserver;
   private wsClient: WebSocketClient | null = null;
   private streamingData = new Map<string, Float32Array>();
+  
+  // View state for zoom/pan
+  private viewState = {
+    dataMinX: 0,
+    dataMaxX: 100,
+    dataMinY: 0,
+    dataMaxY: 100,
+    isDragging: false,
+    dragStart: { x: 0, y: 0 },
+    lastDataX: 0,
+    lastDataY: 0,
+  };
+  
+  // Mouse state for interactions
+  private mouseState = {
+    position: { x: 0, y: 0 },
+    dataPosition: { x: 0, y: 0 },
+    showCrosshair: false,
+    isOverChart: false,
+  };
 
-  constructor(container: HTMLElement, options: ChartOptions) {
+  constructor(container: HTMLElement, private readonly options: ChartOptions) {
     this.container = container;
     
     // Create canvas
@@ -55,6 +75,16 @@ class ChartImpl implements Chart {
     // Setup resize observer
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
     this.resizeObserver.observe(this.container);
+    
+    // Setup mouse event handlers if interactions enabled
+    const interactions = options.interactions ?? { 
+      enableZoom: true, 
+      enablePan: true, 
+      enableCrosshair: true 
+    };
+    if (interactions.enableZoom || interactions.enablePan || interactions.enableCrosshair) {
+      this.setupMouseEvents();
+    }
     
     // Start render loop
     this.startRenderLoop();
@@ -85,6 +115,161 @@ class ChartImpl implements Chart {
       height: this.canvas.height,
     });
   }
+  
+  private setupMouseEvents(): void {
+    const interactions = this.options.interactions ?? {
+      enableZoom: true,
+      enablePan: true,
+      enableCrosshair: true,
+    };
+    
+    // Mouse wheel for zoom
+    if (interactions.enableZoom) {
+      this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+    }
+    
+    // Mouse down for drag start
+    if (interactions.enablePan) {
+      this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+      this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
+      window.addEventListener('mouseup', () => this.handleMouseUp());
+    }
+    
+    // Mouse move for drag and crosshair
+    this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+    
+    // Mouse enter/leave for crosshair
+    if (interactions.enableCrosshair) {
+      this.canvas.addEventListener('mouseenter', () => this.handleMouseEnter());
+      this.canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
+    }
+  }
+  
+  private handleWheel(e: WheelEvent): void {
+    e.preventDefault();
+    
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Calculate zoom factor
+    const zoomSpeed = this.options.interactions?.zoomSpeed ?? 0.1;
+    const zoomFactor = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
+    
+    // Get data coordinates at mouse position
+    const dataX = this.viewState.dataMinX + (x / rect.width) * (this.viewState.dataMaxX - this.viewState.dataMinX);
+    const dataY = this.viewState.dataMaxY - (y / rect.height) * (this.viewState.dataMaxY - this.viewState.dataMinY);
+    
+    // Apply zoom
+    const rangeX = this.viewState.dataMaxX - this.viewState.dataMinX;
+    const rangeY = this.viewState.dataMaxY - this.viewState.dataMinY;
+    
+    const newRangeX = rangeX * zoomFactor;
+    const newRangeY = rangeY * zoomFactor;
+    
+    // Calculate new bounds to zoom towards mouse position
+    const ratioX = (dataX - this.viewState.dataMinX) / rangeX;
+    const ratioY = (dataY - this.viewState.dataMinY) / rangeY;
+    
+    this.viewState.dataMinX = dataX - newRangeX * ratioX;
+    this.viewState.dataMaxX = dataX + newRangeX * (1 - ratioX);
+    this.viewState.dataMinY = dataY - newRangeY * ratioY;
+    this.viewState.dataMaxY = dataY + newRangeY * (1 - ratioY);
+    
+    this.events.emit('zoom', {
+      level: 1 / zoomFactor,
+      centerX: dataX,
+      centerY: dataY,
+    });
+  }
+  
+  private handleMouseDown(e: MouseEvent): void {
+    if (e.button !== 0) return; // Only left mouse button
+    
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    this.viewState.isDragging = true;
+    this.viewState.dragStart = { x: e.clientX, y: e.clientY };
+    this.viewState.lastDataX = this.viewState.dataMinX;
+    this.viewState.lastDataY = this.viewState.dataMinY;
+    
+    this.canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  }
+  
+  private handleMouseMove(e: MouseEvent): void {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Update mouse position
+    this.mouseState.position = { x, y };
+    
+    // Calculate data position
+    const dataX = this.viewState.dataMinX + (x / rect.width) * (this.viewState.dataMaxX - this.viewState.dataMinX);
+    const dataY = this.viewState.dataMaxY - (y / rect.height) * (this.viewState.dataMaxY - this.viewState.dataMinY);
+    this.mouseState.dataPosition = { x: dataX, y: dataY };
+    
+    const interactions = this.options.interactions ?? {};
+    
+    if (this.viewState.isDragging && interactions.enablePan !== false) {
+      // Calculate drag delta
+      const deltaX = e.clientX - this.viewState.dragStart.x;
+      const deltaY = e.clientY - this.viewState.dragStart.y;
+      
+      // Convert pixel delta to data delta
+      const dataRangeX = this.viewState.dataMaxX - this.viewState.dataMinX;
+      const dataRangeY = this.viewState.dataMaxY - this.viewState.dataMinY;
+      
+      const panSpeed = interactions.panSpeed ?? 1;
+      const dataDeltaX = (deltaX / rect.width) * dataRangeX * panSpeed;
+      const dataDeltaY = (deltaY / rect.height) * dataRangeY * panSpeed;
+      
+      // Update view bounds
+      this.viewState.dataMinX = this.viewState.lastDataX - dataDeltaX;
+      this.viewState.dataMaxX = this.viewState.dataMinX + dataRangeX;
+      this.viewState.dataMinY = this.viewState.lastDataY + dataDeltaY;
+      this.viewState.dataMaxY = this.viewState.dataMinY + dataRangeY;
+      
+      this.events.emit('pan', {
+        deltaX: -dataDeltaX,
+        deltaY: dataDeltaY,
+      });
+    } else if (!this.viewState.isDragging) {
+      // Emit hover event
+      this.events.emit('hover', {
+        x,
+        y,
+        dataX,
+        dataY,
+      });
+    }
+  }
+  
+  private handleMouseUp(): void {
+    this.viewState.isDragging = false;
+    this.canvas.style.cursor = this.mouseState.isOverChart ? 'crosshair' : 'default';
+  }
+  
+  private handleMouseEnter(): void {
+    this.mouseState.isOverChart = true;
+    const interactions = this.options.interactions ?? {};
+    if (interactions.enableCrosshair !== false) {
+      this.mouseState.showCrosshair = true;
+      if (!this.viewState.isDragging) {
+        this.canvas.style.cursor = 'crosshair';
+      }
+    }
+  }
+  
+  private handleMouseLeave(): void {
+    this.mouseState.isOverChart = false;
+    this.mouseState.showCrosshair = false;
+    this.viewState.isDragging = false;
+    this.canvas.style.cursor = 'default';
+  }
 
   private startRenderLoop(): void {
     const render = (): void => {
@@ -101,10 +286,10 @@ class ChartImpl implements Chart {
         y: 0,
         width: this.canvas.width,
         height: this.canvas.height,
-        dataMinX: 0,
-        dataMaxX: 100,
-        dataMinY: 0,
-        dataMaxY: 100,
+        dataMinX: this.viewState.dataMinX,
+        dataMaxX: this.viewState.dataMaxX,
+        dataMinY: this.viewState.dataMinY,
+        dataMaxY: this.viewState.dataMaxY,
       },
       series: Array.from(this.series.values()).map(s => ({
         type: s.type,
@@ -112,7 +297,7 @@ class ChartImpl implements Chart {
         style: {},
         visible: true,
       })),
-      overlays: [],
+      overlays: this.createOverlays(),
       theme: {
         backgroundColor: '#ffffff',
         gridColor: '#e0e0e0',
@@ -120,9 +305,35 @@ class ChartImpl implements Chart {
         fontFamily: 'system-ui',
         fontSize: 12,
       },
+      mouseState: this.mouseState,
     };
     
     this.rendererInstance.render(renderScene);
+  }
+  
+  private createOverlays(): any[] {
+    const overlays: any[] = [];
+    
+    // Add crosshair overlay if enabled and mouse is over chart
+    if (this.mouseState.showCrosshair && this.mouseState.isOverChart) {
+      overlays.push({
+        type: 'crosshair',
+        data: {
+          x: this.mouseState.position.x,
+          y: this.mouseState.position.y,
+          dataX: this.mouseState.dataPosition.x,
+          dataY: this.mouseState.dataPosition.y,
+          snapToCandle: this.options.interactions?.snapToCandle ?? false,
+        },
+        style: {
+          color: '#999999',
+          lineWidth: 1,
+          lineDash: [5, 5],
+        },
+      });
+    }
+    
+    return overlays;
   }
 
   resize(width: number, height: number): void {
@@ -145,6 +356,142 @@ class ChartImpl implements Chart {
     if (this.wsClient) {
       this.wsClient.close();
       this.wsClient = null;
+    }
+  }
+  
+  // Zoom and pan control methods
+  setVisibleRange(from: number, to: number): void {
+    this.viewState.dataMinX = from;
+    this.viewState.dataMaxX = to;
+    
+    // Auto-fit Y axis based on visible data
+    this.autoFitYAxis();
+  }
+  
+  zoomIn(factor: number = 0.9): void {
+    const centerX = (this.viewState.dataMinX + this.viewState.dataMaxX) / 2;
+    const centerY = (this.viewState.dataMinY + this.viewState.dataMaxY) / 2;
+    
+    const rangeX = this.viewState.dataMaxX - this.viewState.dataMinX;
+    const rangeY = this.viewState.dataMaxY - this.viewState.dataMinY;
+    
+    const newRangeX = rangeX * factor;
+    const newRangeY = rangeY * factor;
+    
+    this.viewState.dataMinX = centerX - newRangeX / 2;
+    this.viewState.dataMaxX = centerX + newRangeX / 2;
+    this.viewState.dataMinY = centerY - newRangeY / 2;
+    this.viewState.dataMaxY = centerY + newRangeY / 2;
+    
+    this.events.emit('zoom', {
+      level: 1 / factor,
+      centerX,
+      centerY,
+    });
+  }
+  
+  zoomOut(factor: number = 1.1): void {
+    this.zoomIn(factor);
+  }
+  
+  pan(offset: number): void {
+    const range = this.viewState.dataMaxX - this.viewState.dataMinX;
+    const delta = range * offset;
+    
+    this.viewState.dataMinX += delta;
+    this.viewState.dataMaxX += delta;
+    
+    this.events.emit('pan', {
+      deltaX: delta,
+      deltaY: 0,
+    });
+  }
+  
+  resetView(): void {
+    // Find data bounds from all series
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    
+    for (const series of this.series.values()) {
+      if (Array.isArray(series.options.data)) {
+        const data = series.options.data as any[];
+        for (const point of data) {
+          if (point.time !== undefined) {
+            minX = Math.min(minX, point.time);
+            maxX = Math.max(maxX, point.time);
+          }
+          if (point.value !== undefined) {
+            minY = Math.min(minY, point.value);
+            maxY = Math.max(maxY, point.value);
+          }
+          if (point.high !== undefined && point.low !== undefined) {
+            minY = Math.min(minY, point.low);
+            maxY = Math.max(maxY, point.high);
+          }
+        }
+      }
+    }
+    
+    if (minX !== Infinity) {
+      const paddingX = (maxX - minX) * 0.05;
+      const paddingY = (maxY - minY) * 0.1;
+      
+      this.viewState.dataMinX = minX - paddingX;
+      this.viewState.dataMaxX = maxX + paddingX;
+      this.viewState.dataMinY = minY - paddingY;
+      this.viewState.dataMaxY = maxY + paddingY;
+    } else {
+      // Default view
+      this.viewState.dataMinX = 0;
+      this.viewState.dataMaxX = 100;
+      this.viewState.dataMinY = 0;
+      this.viewState.dataMaxY = 100;
+    }
+  }
+  
+  private autoFitYAxis(): void {
+    // Find min/max Y values in visible range
+    let minY = Infinity, maxY = -Infinity;
+    
+    for (const series of this.series.values()) {
+      if (Array.isArray(series.options.data)) {
+        const data = series.options.data as any[];
+        for (const point of data) {
+          const time = point.time || point.x;
+          if (time >= this.viewState.dataMinX && time <= this.viewState.dataMaxX) {
+            if (point.value !== undefined) {
+              minY = Math.min(minY, point.value);
+              maxY = Math.max(maxY, point.value);
+            }
+            if (point.high !== undefined && point.low !== undefined) {
+              minY = Math.min(minY, point.low);
+              maxY = Math.max(maxY, point.high);
+            }
+          }
+        }
+      }
+    }
+    
+    if (minY !== Infinity) {
+      const padding = (maxY - minY) * 0.1;
+      this.viewState.dataMinY = minY - padding;
+      this.viewState.dataMaxY = maxY + padding;
+    }
+  }
+  
+  updateInteractions(options: Partial<InteractionOptions>): void {
+    // Merge with existing options
+    this.options = {
+      ...this.options,
+      interactions: {
+        ...this.options.interactions,
+        ...options,
+      },
+    };
+    
+    // Update cursor if needed
+    if (!this.viewState.isDragging && this.mouseState.isOverChart) {
+      this.canvas.style.cursor = options.enableCrosshair ? 'crosshair' : 'default';
     }
   }
 

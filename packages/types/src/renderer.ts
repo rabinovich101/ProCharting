@@ -33,6 +33,14 @@ export interface RenderScene {
   readonly series: RenderableSeries[];
   readonly overlays: RenderableOverlay[];
   readonly theme: RenderTheme;
+  readonly mouseState?: MouseState;
+}
+
+export interface MouseState {
+  readonly position: { x: number; y: number };
+  readonly dataPosition: { x: number; y: number };
+  readonly showCrosshair: boolean;
+  readonly isOverChart: boolean;
 }
 
 export interface Viewport {

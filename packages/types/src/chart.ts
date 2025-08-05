@@ -10,6 +10,16 @@ export interface ChartOptions {
   readonly pixelRatio?: number;
   readonly theme?: 'light' | 'dark' | ChartTheme;
   readonly performance?: PerformanceOptions;
+  readonly interactions?: InteractionOptions;
+}
+
+export interface InteractionOptions {
+  readonly enableZoom?: boolean;
+  readonly enablePan?: boolean;
+  readonly enableCrosshair?: boolean;
+  readonly zoomSpeed?: number;
+  readonly panSpeed?: number;
+  readonly snapToCandle?: boolean;
 }
 
 export interface PerformanceOptions {
@@ -48,6 +58,9 @@ export interface Chart {
   zoomOut(factor?: number): void;
   pan(offset: number): void;
   resetView(): void;
+  
+  // Update interaction settings
+  updateInteractions(options: Partial<InteractionOptions>): void;
   
   on<K extends keyof ChartEventMap>(event: K, handler: ChartEventMap[K]): void;
   off<K extends keyof ChartEventMap>(event: K, handler: ChartEventMap[K]): void;

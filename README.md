@@ -35,7 +35,13 @@ import { createChart } from '@procharting/core';
 
 const chart = createChart('#container', {
   renderer: 'auto', // 'webgpu' | 'webgl2' | 'canvas2d' | 'auto'
-  theme: 'dark'
+  theme: 'dark',
+  interactions: {
+    enableZoom: true,
+    enablePan: true,
+    enableCrosshair: true,
+    snapToCandle: true
+  }
 });
 
 // Add candlestick series
@@ -45,6 +51,82 @@ const candlestickSeries = chart.addSeries({
     { time: 1642425322, open: 100, high: 110, low: 90, close: 105, volume: 1000 }
   ]
 });
+```
+
+## Interactive Features
+
+ProCharting includes professional-grade interactive features out of the box:
+
+### Zoom & Pan
+
+```javascript
+// Mouse wheel zooming and drag panning enabled by default
+const chart = createChart('#container', {
+  interactions: {
+    enableZoom: true,     // Scroll to zoom
+    enablePan: true,      // Drag to pan
+    zoomSpeed: 0.1,       // 10% zoom per scroll
+    panSpeed: 1.0         // Natural pan speed
+  }
+});
+
+// Programmatic control
+chart.zoomIn(0.9);        // Zoom in by 10%
+chart.zoomOut(1.1);       // Zoom out by 10%
+chart.pan(0.1);           // Pan right by 10% of visible range
+chart.resetView();        // Reset to default view
+chart.setVisibleRange(startTime, endTime); // Set specific range
+```
+
+### TradingView-style Crosshair
+
+```javascript
+// Enable professional crosshair with snap-to-candle
+const chart = createChart('#container', {
+  interactions: {
+    enableCrosshair: true,
+    snapToCandle: true    // Vertical line snaps to nearest candle
+  }
+});
+
+// Listen to hover events for price/time at cursor
+chart.on('hover', (event) => {
+  console.log('Price:', event.dataY);
+  console.log('Time:', event.dataX);
+});
+```
+
+### Real-time Data Updates
+
+```javascript
+// Append new candle
+series.appendData({
+  time: Date.now(),
+  open: 64500,
+  high: 64800,
+  low: 64400,
+  close: 64700,
+  volume: 150.5
+});
+
+// Update the last candle (for live price updates)
+series.updateLast({
+  high: 64900,
+  close: 64850,
+  volume: 160.2
+});
+```
+
+### WebSocket Integration
+
+```javascript
+// Connect to real-time data feed
+chart.connect({
+  url: 'wss://stream.example.com',
+  protocol: 'binary'  // or 'json'
+});
+
+// Chart automatically updates as data arrives
 ```
 
 ## Architecture
@@ -119,12 +201,17 @@ This is a high-performance charting library implementation based on the provided
 - ✅ WebGPU renderer with compute shader support
 - ✅ Type-safe API design
 - ✅ Zero runtime dependencies
+- ✅ Professional zoom & pan with mouse wheel and drag
+- ✅ TradingView-style crosshair cursor
+- ✅ Real-time data updates (appendData, updateLast)
+- ✅ WebSocket support for live streaming
+- ✅ Interactive features with customizable options
 
 ### Next Steps
 
-1. Complete WebGL2 renderer implementation
-2. Implement data streaming and WebSocket support
-3. Add remaining chart types (line, bar, etc.)
-4. Create comprehensive benchmark suite
-5. Implement AI-powered pattern recognition
-6. Add multi-threading with SharedArrayBuffer
+1. Complete WebGL2 renderer crosshair implementation
+2. Add remaining chart types (line, bar, etc.)
+3. Create comprehensive benchmark suite
+4. Implement AI-powered pattern recognition
+5. Add multi-threading with SharedArrayBuffer
+6. Optimize crosshair rendering for millions of data points
