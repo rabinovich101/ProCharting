@@ -53,10 +53,18 @@ export default function LiveCanvasChart({ data: initialData, width = 800, height
     let startOffset = 0;
 
     const handleMouseDown = (e: MouseEvent) => {
+      // Only respond to left mouse button
+      if (e.button !== 0) return;
+      
       isDragging = true;
       startX = e.clientX;
       startOffset = offsetCandles;
       e.preventDefault();
+      
+      // Update cursor
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = 'grabbing';
+      }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -73,6 +81,10 @@ export default function LiveCanvasChart({ data: initialData, width = 800, height
 
     const handleMouseUp = () => {
       isDragging = false;
+      // Reset cursor
+      if (canvasRef.current) {
+        canvasRef.current.style.cursor = 'grab';
+      }
     };
 
     return { handleMouseDown, handleMouseMove, handleMouseUp };

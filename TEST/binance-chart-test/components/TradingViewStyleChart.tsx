@@ -82,11 +82,15 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
 
   // Handle mouse drag (TradingView style)
   const handleMouseDown = (e: MouseEvent) => {
+    // Only respond to left mouse button
+    if (e.button !== 0) return;
+    
     const rect = canvasRef.current!.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    if (mouseX > chartWidth || mouseY > chartHeight + topPadding) return;
+    // Allow dragging anywhere on the chart area (not just inside chart bounds)
+    if (mouseX > chartWidth || mouseY > height - bottomAxisHeight) return;
     
     setViewState(prev => ({
       ...prev,
@@ -94,6 +98,8 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
       dragStart: { x: e.clientX, y: e.clientY },
       lastOffset: { x: prev.rightOffset, y: prev.priceOffset },
     }));
+    
+    e.preventDefault(); // Prevent text selection while dragging
   };
 
   const handleMouseMove = (e: MouseEvent) => {
@@ -104,16 +110,24 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     
     // Calculate how many candles to shift
     const { total: candleWidth } = getCandleWidth();
-    const candlesShift = deltaX / candleWidth;
+    const candlesShift = deltaX / candleWidth; // Positive for natural drag direction
+    
+    // Update offsets with bounds checking
+    const newRightOffset = Math.max(-50, Math.min(data.length - 10, viewState.lastOffset.x + candlesShift));
     
     setViewState(prev => ({
       ...prev,
-      rightOffset: Math.max(0, prev.lastOffset.x - candlesShift),
-      priceOffset: prev.lastOffset.y + deltaY,
+      rightOffset: newRightOffset,
+      priceOffset: prev.lastOffset.y - deltaY, // Negative to move with mouse direction
     }));
   };
 
   const handleMouseUp = () => {
+    setViewState(prev => ({ ...prev, isDragging: false }));
+  };
+
+  // Add mouse leave handler to stop dragging when mouse leaves window
+  const handleMouseLeave = () => {
     setViewState(prev => ({ ...prev, isDragging: false }));
   };
 
@@ -398,16 +412,16 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('mouseleave', handleMouseUp);
+    window.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
       canvas.removeEventListener('wheel', handleWheel);
       canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('mouseleave', handleMouseUp);
+      window.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [viewState]);
+  }, [viewState, data.length]);
 
   // Update initial data
   useEffect(() => {
@@ -429,8 +443,8 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     <div className="relative bg-[#131722] rounded-lg shadow-xl overflow-hidden">
       <canvas 
         ref={canvasRef} 
-        className="cursor-crosshair"
-        style={{ display: 'block' }}
+        className={viewState.isDragging ? "cursor-grabbing" : "cursor-crosshair"}
+        style={{ display: 'block', userSelect: 'none' }}
       />
       <div className="absolute bottom-2 right-24 text-xs text-gray-500">
         <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse mr-1"></span>
