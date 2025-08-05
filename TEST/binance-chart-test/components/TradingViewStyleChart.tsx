@@ -26,6 +26,8 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     isDragging: false,
     dragStart: { x: 0, y: 0 },
     lastOffset: { x: 0, y: 0 },
+    mousePosition: { x: 0, y: 0 },
+    showCrosshair: false,
   });
 
   // TradingView-style layout
@@ -103,6 +105,17 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
   };
 
   const handleMouseMove = (e: MouseEvent) => {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Update mouse position for crosshair
+    setViewState(prev => ({
+      ...prev,
+      mousePosition: { x: mouseX, y: mouseY },
+      showCrosshair: mouseX <= chartWidth && mouseY <= chartHeight,
+    }));
+    
     if (!viewState.isDragging) return;
     
     const deltaX = e.clientX - viewState.dragStart.x;
@@ -112,8 +125,9 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     const { total: candleWidth } = getCandleWidth();
     const candlesShift = deltaX / candleWidth; // Positive for natural drag direction
     
-    // Update offsets with bounds checking
-    const newRightOffset = Math.max(-50, Math.min(data.length - 10, viewState.lastOffset.x + candlesShift));
+    // Update offsets with more flexible bounds
+    // Allow scrolling far into the past (negative values) and future (positive values)
+    const newRightOffset = Math.max(-data.length - 100, Math.min(data.length + 100, viewState.lastOffset.x + candlesShift));
     
     setViewState(prev => ({
       ...prev,
@@ -128,7 +142,19 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
 
   // Add mouse leave handler to stop dragging when mouse leaves window
   const handleMouseLeave = () => {
-    setViewState(prev => ({ ...prev, isDragging: false }));
+    setViewState(prev => ({ 
+      ...prev, 
+      isDragging: false,
+      showCrosshair: false 
+    }));
+  };
+  
+  // Handle mouse enter to show crosshair
+  const handleMouseEnter = () => {
+    setViewState(prev => ({ 
+      ...prev, 
+      showCrosshair: true 
+    }));
   };
 
   // Draw chart (TradingView style)
@@ -151,23 +177,41 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, width, height);
 
-    // Calculate visible data range
-    const endIndex = Math.max(0, data.length - Math.floor(viewState.rightOffset));
-    const startIndex = Math.max(0, endIndex - viewState.candlesVisible);
-    const visibleData = data.slice(startIndex, endIndex);
-
-    if (visibleData.length === 0) return;
+    // Calculate visible data range - handle both positive and negative offsets
+    // rightOffset: positive = scroll left (into past), negative = scroll right (into future)
+    const endIndex = data.length - Math.floor(viewState.rightOffset);
+    const startIndex = endIndex - viewState.candlesVisible;
+    
+    // Get the actual visible data, but don't return early if empty
+    const visibleData = data.filter((_, index) => index >= Math.max(0, startIndex) && index < Math.min(data.length, endIndex));
+    
+    // If no data visible, we still want to draw the grid and axes
+    if (visibleData.length === 0 && Math.abs(startIndex) > data.length * 2) return; // Only return for extreme cases
 
     // Calculate price range (with padding like TradingView)
     let minPrice = Infinity;
     let maxPrice = -Infinity;
     let maxVolume = 0;
     
-    visibleData.forEach(candle => {
-      minPrice = Math.min(minPrice, candle.low);
-      maxPrice = Math.max(maxPrice, candle.high);
-      maxVolume = Math.max(maxVolume, candle.volume);
-    });
+    // If we have visible data, use it for price range
+    if (visibleData.length > 0) {
+      visibleData.forEach(candle => {
+        minPrice = Math.min(minPrice, candle.low);
+        maxPrice = Math.max(maxPrice, candle.high);
+        maxVolume = Math.max(maxVolume, candle.volume);
+      });
+    } else if (data.length > 0) {
+      // If no visible data but we have data, use the last known price range
+      const lastCandle = data[data.length - 1];
+      minPrice = lastCandle.low * 0.99;
+      maxPrice = lastCandle.high * 1.01;
+      maxVolume = lastCandle.volume;
+    } else {
+      // Fallback values
+      minPrice = 0;
+      maxPrice = 100;
+      maxVolume = 1;
+    }
 
     const priceRange = maxPrice - minPrice;
     const pricePadding = priceRange * 0.1; // 10% padding like TradingView
@@ -211,10 +255,14 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
 
     // Draw volume bars (bottom 20% of chart like TradingView)
     const volumeHeight = chartHeight * 0.2;
-    const volumeScale = volumeHeight / maxVolume;
+    const volumeScale = volumeHeight / (maxVolume || 1);
     
-    visibleData.forEach((candle, i) => {
-      const x = i * candleWidth;
+    data.forEach((candle, dataIndex) => {
+      // Calculate position based on the actual data index
+      const positionIndex = dataIndex - startIndex;
+      if (positionIndex < 0 || positionIndex >= viewState.candlesVisible) return;
+      
+      const x = positionIndex * candleWidth;
       const volHeight = candle.volume * volumeScale;
       const isGreen = candle.close >= candle.open;
       
@@ -223,8 +271,12 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
     });
 
     // Draw candles
-    visibleData.forEach((candle, i) => {
-      const x = i * candleWidth + candleWidth / 2;
+    data.forEach((candle, dataIndex) => {
+      // Calculate position based on the actual data index
+      const positionIndex = dataIndex - startIndex;
+      if (positionIndex < 0 || positionIndex >= viewState.candlesVisible) return;
+      
+      const x = positionIndex * candleWidth + candleWidth / 2;
       const openY = topPadding + chartHeight - (candle.open - minPrice) * priceScale;
       const closeY = topPadding + chartHeight - (candle.close - minPrice) * priceScale;
       const highY = topPadding + chartHeight - (candle.high - minPrice) * priceScale;
@@ -356,6 +408,92 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
       ctx.fillStyle = changeColor;
       ctx.fillText(`${lastCandle.close.toFixed(2)} ${change >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`, 465, 15);
     }
+    
+    // Draw crosshair
+    if (viewState.showCrosshair && !viewState.isDragging) {
+      const { x: mouseX, y: mouseY } = viewState.mousePosition;
+      const { total: candleWidth } = getCandleWidth();
+      
+      // Find the nearest candle index
+      const candleIndex = Math.floor(mouseX / candleWidth) + startIndex;
+      const snappedX = (candleIndex - startIndex) * candleWidth + candleWidth / 2;
+      
+      // Only draw if we have valid candle data
+      if (candleIndex >= 0 && candleIndex < data.length && snappedX >= 0 && snappedX <= chartWidth) {
+        const candle = data[candleIndex];
+        
+        // Calculate price at mouse Y position
+        const price = maxPrice - (mouseY - topPadding) / priceScale;
+        
+        // Draw vertical line (snapped to candle)
+        ctx.strokeStyle = colors.crosshair;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(snappedX, topPadding);
+        ctx.lineTo(snappedX, topPadding + chartHeight);
+        ctx.stroke();
+        
+        // Draw horizontal line
+        ctx.beginPath();
+        ctx.moveTo(0, mouseY);
+        ctx.lineTo(chartWidth, mouseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Time label box at bottom
+        const time = new Date(candle.time);
+        const timeStr = time.toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+        
+        ctx.fillStyle = colors.background;
+        ctx.fillRect(snappedX - 60, height - bottomAxisHeight + 2, 120, bottomAxisHeight - 4);
+        ctx.fillStyle = colors.textStrong;
+        ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(timeStr, snappedX, height - 10);
+        
+        // Price label box on right
+        if (mouseY >= topPadding && mouseY <= topPadding + chartHeight) {
+          ctx.fillStyle = colors.background;
+          ctx.fillRect(chartWidth + 1, mouseY - 10, rightAxisWidth - 1, 20);
+          ctx.strokeStyle = colors.crosshair;
+          ctx.strokeRect(chartWidth + 1, mouseY - 10, rightAxisWidth - 1, 20);
+          ctx.fillStyle = colors.textStrong;
+          ctx.textAlign = 'left';
+          ctx.fillText(price.toFixed(2), chartWidth + 8, mouseY + 3);
+        }
+        
+        // Candle info tooltip
+        const tooltipX = snappedX + 10;
+        const tooltipY = mouseY - 60;
+        const tooltipWidth = 150;
+        const tooltipHeight = 80;
+        
+        if (tooltipX + tooltipWidth <= chartWidth) {
+          // Background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+          ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+          ctx.strokeStyle = colors.grid;
+          ctx.strokeRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+          
+          // Candle data
+          ctx.fillStyle = colors.textStrong;
+          ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(`O: ${candle.open.toFixed(2)}`, tooltipX + 10, tooltipY + 20);
+          ctx.fillText(`H: ${candle.high.toFixed(2)}`, tooltipX + 10, tooltipY + 35);
+          ctx.fillText(`L: ${candle.low.toFixed(2)}`, tooltipX + 10, tooltipY + 50);
+          ctx.fillText(`C: ${candle.close.toFixed(2)}`, tooltipX + 10, tooltipY + 65);
+          
+          ctx.fillText(`V: ${candle.volume.toFixed(2)}`, tooltipX + 80, tooltipY + 20);
+        }
+      }
+    }
   };
 
   // Animation loop
@@ -410,16 +548,18 @@ export default function TradingViewStyleChart({ data: initialData, width = 1200,
 
     canvas.addEventListener('wheel', handleWheel);
     canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mouseenter', handleMouseEnter);
+    canvas.addEventListener('mouseleave', handleMouseLeave);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
       canvas.removeEventListener('wheel', handleWheel);
       canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mouseenter', handleMouseEnter);
+      canvas.removeEventListener('mouseleave', handleMouseLeave);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [viewState, data.length]);
 
