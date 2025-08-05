@@ -6,10 +6,18 @@ export default function Home() {
         
         <div className="space-y-4">
           <a 
+            href="/tradingview" 
+            className="block p-6 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+          >
+            <h2 className="text-xl font-semibold mb-2">📈 TradingView Style (PROFESSIONAL!)</h2>
+            <p className="opacity-90">Exact TradingView look & feel - Professional proportions, colors, and scaling!</p>
+          </a>
+          
+          <a 
             href="/floating" 
             className="block p-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
           >
-            <h2 className="text-xl font-semibold mb-2">🎮 Floating Chart (NEWEST!)</h2>
+            <h2 className="text-xl font-semibold mb-2">🎮 Floating Chart</h2>
             <p className="opacity-90">Full 2D freedom - Move the chart in ANY direction! Up, down, left, right!</p>
           </a>
           
