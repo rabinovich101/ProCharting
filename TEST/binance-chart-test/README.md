@@ -1,14 +1,4 @@
-# Binance Chart Test
-
-This is a test Next.js application that demonstrates the ProCharting library with live BTCUSDT data from Binance API.
-
-## Features
-
-- Real-time candlestick chart for BTCUSDT
-- Multiple timeframe options (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1M)
-- Auto-refresh every 60 seconds
-- Manual refresh button
-- Responsive design
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
@@ -16,42 +6,31 @@ First, run the development server:
 
 ```bash
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## How It Works
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-1. **Binance API Service** (`services/binanceApi.ts`):
-   - Fetches kline/candlestick data from Binance's public API
-   - Transforms data to ProCharting format
-   - No API key required
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-2. **BinanceCandleChart Component** (`components/BinanceCandleChart.tsx`):
-   - Manages chart state and data fetching
-   - Handles interval selection
-   - Auto-refreshes every minute
-   - Responsive to window resizing
+## Learn More
 
-3. **Main Page** (`app/page.tsx`):
-   - Renders the candle chart component
+To learn more about Next.js, take a look at the following resources:
 
-## API Endpoint
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-The app uses Binance's public API endpoint:
-```
-https://api.binance.com/api/v3/klines
-```
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-Parameters:
-- `symbol`: BTCUSDT
-- `interval`: Selected timeframe
-- `limit`: Number of candles (default: 200)
+## Deploy on Vercel
 
-## Built With
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-- Next.js 15.4.5
-- ProCharting library (local)
-- Axios for API calls
-- Tailwind CSS for styling
-- TypeScript
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
