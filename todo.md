@@ -1310,3 +1310,40 @@ Verification results:
   `http://host.docker.internal:3002/`: desktop controls rendered on the left
   beside the symbol block, mobile controls stayed within the viewport, chart
   canvas rendered, and browser console/devtools warnings were clean.
+
+# Browser-Use MCP Install
+
+## Goal
+
+Install the official local `browser-use/browser-use` MCP server for Codex by
+adding a minimal stdio MCP entry that runs the current documented command:
+`uvx --from 'browser-use[cli]' browser-use --mcp`.
+
+## Checklist
+
+- [x] Inspect existing Codex MCP configuration and project state.
+- [x] Verify the current official Browser Use MCP command from primary docs.
+- [x] Add the `browser-use` MCP server entry to Codex configuration.
+- [x] Smoke-test the CLI/server startup path.
+- [x] Add a review summary.
+
+## Review
+
+Installed Browser Use MCP in the global Codex config at
+`/Users/olegrabinovich/.codex/config.toml`.
+
+- Added `[mcp_servers.browser-use]` using the official local command:
+  `/Users/olegrabinovich/.local/bin/uvx --from browser-use[cli] browser-use
+  --mcp`.
+- Set `startup_timeout_sec = 120.0` so the server has enough time on cold uvx
+  startup.
+- Confirmed the Codex TOML parses and the new MCP entry is present.
+- Confirmed the Browser Use CLI resolves and exposes the `--mcp` flag.
+- Smoke-tested the server through an MCP client: initialization succeeded,
+  `tools/list` returned 16 tools, `browser_navigate` opened
+  `https://example.com/`, `browser_get_state` returned the expected page state,
+  and `browser_close_all` cleaned up the session.
+
+No project runtime architecture changed, so `ARCHITECTURE.md` was not modified.
+Codex may need to be restarted or a new thread opened before the newly added
+MCP server appears as callable tools in the tool list.
