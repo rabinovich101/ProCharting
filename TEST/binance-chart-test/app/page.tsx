@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface Candle {
   time: number;
@@ -47,13 +47,31 @@ type BinanceKline = [number, string, string, string, string, string];
 type ChartStyle = 'candles' | 'line' | 'area';
 type ThemeName = 'dark' | 'light';
 type FeedStatus = 'connecting' | 'live' | 'offline';
+type MenuKey = 'timeframe' | 'chartStyle' | 'indicators';
 
-const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+interface MenuOption<T extends string> {
+  value: T;
+  label: string;
+  shortLabel?: string;
+  description?: string;
+}
+
+const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
+  { value: '1m', label: '1m', description: '1 minute' },
+  { value: '5m', label: '5m', description: '5 minutes' },
+  { value: '15m', label: '15m', description: '15 minutes' },
+  { value: '30m', label: '30m', description: '30 minutes' },
+  { value: '1h', label: '1H', description: '1 hour' },
+  { value: '4h', label: '4H', description: '4 hours' },
+  { value: '1d', label: '1D', description: '1 day' },
+  { value: '1w', label: '1W', description: '1 week' },
+  { value: '1M', label: '1M', description: '1 month' },
+];
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
-const CHART_STYLE_OPTIONS: Array<{ value: ChartStyle; label: string }> = [
-  { value: 'candles', label: 'Candles' },
-  { value: 'line', label: 'Line' },
-  { value: 'area', label: 'Area' },
+const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
+  { value: 'candles', label: 'Candles', shortLabel: 'Candle', description: 'OHLC candles' },
+  { value: 'line', label: 'Line', description: 'Close price line' },
+  { value: 'area', label: 'Area', description: 'Filled close price line' },
 ];
 
 const PALETTES: Record<ThemeName, Palette> = {
@@ -177,10 +195,287 @@ const movingAverage = (candles: Candle[], period: number) => {
   return values;
 };
 
+const focusMenuItem = (menuKey: MenuKey, index: number) => {
+  window.requestAnimationFrame(() => {
+    const items = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(`[data-menu-key="${menuKey}"]`)
+    );
+    items[index]?.focus();
+  });
+};
+
+interface ToolbarDropdownProps<T extends string> {
+  menuKey: MenuKey;
+  label: string;
+  options: Array<MenuOption<T>>;
+  value: T;
+  openMenu: MenuKey | null;
+  setOpenMenu: (menu: MenuKey | null) => void;
+  onChange: (value: T) => void;
+  renderIcon?: (value: T) => ReactNode;
+  align?: 'left' | 'right';
+  className?: string;
+}
+
+function ToolbarDropdown<T extends string>({
+  menuKey,
+  label,
+  options,
+  value,
+  openMenu,
+  setOpenMenu,
+  onChange,
+  renderIcon,
+  align = 'left',
+  className = '',
+}: ToolbarDropdownProps<T>) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const isOpen = openMenu === menuKey;
+  const menuId = `${menuKey}-menu`;
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
+  const selectedOption = options[selectedIndex] || options[0];
+
+  const closeMenu = () => {
+    setOpenMenu(null);
+    triggerRef.current?.focus();
+  };
+
+  const selectOption = (nextValue: T) => {
+    onChange(nextValue);
+    closeMenu();
+  };
+
+  const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setOpenMenu(menuKey);
+      focusMenuItem(menuKey, selectedIndex);
+    }
+  };
+
+  const handleOptionKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    option: MenuOption<T>,
+    index: number
+  ) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusMenuItem(menuKey, (index + 1) % options.length);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusMenuItem(menuKey, (index - 1 + options.length) % options.length);
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      focusMenuItem(menuKey, 0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      focusMenuItem(menuKey, options.length - 1);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu();
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectOption(option.value);
+    }
+  };
+
+  return (
+    <div className={`toolbar-dropdown align-${align} ${className}`} data-open={isOpen}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="toolbar-trigger"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        onClick={() => setOpenMenu(isOpen ? null : menuKey)}
+        onKeyDown={handleTriggerKeyDown}
+      >
+        {renderIcon?.(selectedOption.value)}
+        <span className="trigger-label">{selectedOption.shortLabel || selectedOption.label}</span>
+        <span className="trigger-caret" aria-hidden="true" />
+      </button>
+
+      {isOpen && (
+        <div className="toolbar-menu" id={menuId} role="menu" aria-label={label}>
+          {options.map((option, index) => (
+            <button
+              key={option.value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={option.value === value}
+              className="toolbar-menu-item"
+              data-active={option.value === value}
+              data-menu-key={menuKey}
+              data-menu-value={option.value}
+              onClick={() => selectOption(option.value)}
+              onKeyDown={(event) => handleOptionKeyDown(event, option, index)}
+            >
+              <span className="menu-check" aria-hidden="true" />
+              {renderIcon?.(option.value)}
+              <span className="menu-item-copy">
+                <strong>{option.label}</strong>
+                {option.description && <small>{option.description}</small>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface IndicatorsDropdownProps {
+  count: number;
+  openMenu: MenuKey | null;
+  setOpenMenu: (menu: MenuKey | null) => void;
+  showMovingAverage: boolean;
+  showVolume: boolean;
+  onToggleMovingAverage: () => void;
+  onToggleVolume: () => void;
+}
+
+function IndicatorsDropdown({
+  count,
+  openMenu,
+  setOpenMenu,
+  showMovingAverage,
+  showVolume,
+  onToggleMovingAverage,
+  onToggleVolume,
+}: IndicatorsDropdownProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const isOpen = openMenu === 'indicators';
+  const options = [
+    {
+      id: 'ma20',
+      label: 'MA20',
+      description: 'Moving average',
+      enabled: showMovingAverage,
+      onToggle: onToggleMovingAverage,
+    },
+    {
+      id: 'volume',
+      label: 'Volume',
+      description: 'Volume pane',
+      enabled: showVolume,
+      onToggle: onToggleVolume,
+    },
+  ];
+
+  const closeMenu = () => {
+    setOpenMenu(null);
+    triggerRef.current?.focus();
+  };
+
+  const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setOpenMenu('indicators');
+      focusMenuItem('indicators', 0);
+    }
+  };
+
+  const handleItemKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    option: (typeof options)[number],
+    index: number
+  ) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusMenuItem('indicators', (index + 1) % options.length);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusMenuItem('indicators', (index - 1 + options.length) % options.length);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu();
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      option.onToggle();
+    }
+  };
+
+  return (
+    <div className="toolbar-dropdown indicator-dropdown align-right" data-open={isOpen}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="toolbar-trigger"
+        aria-label={`Indicators, ${count} active`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls="indicators-menu"
+        onClick={() => setOpenMenu(isOpen ? null : 'indicators')}
+        onKeyDown={handleTriggerKeyDown}
+      >
+        <span className="indicator-glyph" aria-hidden="true" />
+        <span className="trigger-label">Indicators</span>
+        <span className="indicator-count">{count}</span>
+        <span className="trigger-caret" aria-hidden="true" />
+      </button>
+
+      {isOpen && (
+        <div className="toolbar-menu indicator-menu-panel" id="indicators-menu" role="menu" aria-label="Indicators">
+          {options.map((option, index) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={option.enabled}
+              className="toolbar-menu-item indicator-menu-item"
+              data-active={option.enabled}
+              data-menu-key="indicators"
+              data-menu-value={option.id}
+              onClick={option.onToggle}
+              onKeyDown={(event) => handleItemKeyDown(event, option, index)}
+            >
+              <span className="menu-check" aria-hidden="true" />
+              <span className="menu-item-copy">
+                <strong>{option.label}</strong>
+                <small>{option.description}</small>
+              </span>
+              <span className="indicator-switch" data-enabled={option.enabled} aria-hidden="true">
+                <span />
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
+  const controlRackRef = useRef<HTMLDivElement>(null);
   const activeStreamRef = useRef('');
   const selectedMarketRef = useRef({ symbol: 'BTCUSDT', timeframe: '1m' });
   const viewRangeRef = useRef<ViewRange>({
@@ -204,6 +499,7 @@ export default function Home() {
   const [showVolume, setShowVolume] = useState(true);
   const [showMovingAverage, setShowMovingAverage] = useState(true);
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('connecting');
+  const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [mousePos, setMousePos] = useState<MousePosition | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -236,6 +532,28 @@ export default function Home() {
   useEffect(() => {
     viewRangeRef.current = viewRange;
   }, [viewRange]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!controlRackRef.current?.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenMenu(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     selectedMarketRef.current = { symbol, timeframe };
@@ -406,7 +724,7 @@ export default function Home() {
       });
     }
 
-    if (timeframe.includes('d')) {
+    if (timeframe.includes('d') || timeframe.includes('w') || timeframe.includes('M')) {
       return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     }
     if (timeframe.includes('h')) {
@@ -887,69 +1205,40 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="control-rack" aria-label="Chart controls">
-          <label className="toolbar-select-wrap">
-            <span className="sr-only">Timeframe</span>
-            <select
-              aria-label="Timeframe"
-              className="toolbar-select"
-              value={timeframe}
-              onChange={(event) => setTimeframe(event.target.value)}
-            >
-              {TIMEFRAMES.map((option) => (
-                <option key={option} value={option}>
-                  {option.toUpperCase()}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div ref={controlRackRef} className="control-rack" aria-label="Chart controls">
+          <ToolbarDropdown
+            menuKey="timeframe"
+            label="Timeframe"
+            className="timeframe-dropdown"
+            options={TIMEFRAME_OPTIONS}
+            value={timeframe}
+            openMenu={openMenu}
+            setOpenMenu={setOpenMenu}
+            onChange={setTimeframe}
+          />
 
-          <label className="toolbar-select-wrap chart-style-select">
-            <span className="sr-only">Chart type</span>
-            <select
-              aria-label="Chart type"
-              className="toolbar-select"
-              value={chartStyle}
-              onChange={(event) => setChartStyle(event.target.value as ChartStyle)}
-            >
-              {CHART_STYLE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <ToolbarDropdown
+            menuKey="chartStyle"
+            label="Chart type"
+            align="right"
+            className="chart-style-dropdown"
+            options={CHART_STYLE_OPTIONS}
+            value={chartStyle}
+            openMenu={openMenu}
+            setOpenMenu={setOpenMenu}
+            onChange={setChartStyle}
+            renderIcon={(optionValue) => <span className={`chart-type-glyph ${optionValue}`} aria-hidden="true" />}
+          />
 
-          <details className="indicator-menu">
-            <summary>
-              <span>Indicators</span>
-              <span className="indicator-count">{indicatorCount}</span>
-            </summary>
-            <div className="indicator-popover">
-              <label className="indicator-option">
-                <input
-                  type="checkbox"
-                  checked={showMovingAverage}
-                  onChange={() => setShowMovingAverage((value) => !value)}
-                />
-                <span>
-                  <strong>MA20</strong>
-                  <small>Moving average</small>
-                </span>
-              </label>
-              <label className="indicator-option">
-                <input
-                  type="checkbox"
-                  checked={showVolume}
-                  onChange={() => setShowVolume((value) => !value)}
-                />
-                <span>
-                  <strong>Volume</strong>
-                  <small>Volume pane</small>
-                </span>
-              </label>
-            </div>
-          </details>
+          <IndicatorsDropdown
+            count={indicatorCount}
+            openMenu={openMenu}
+            setOpenMenu={setOpenMenu}
+            showMovingAverage={showMovingAverage}
+            showVolume={showVolume}
+            onToggleMovingAverage={() => setShowMovingAverage((value) => !value)}
+            onToggleVolume={() => setShowVolume((value) => !value)}
+          />
 
           <button
             type="button"

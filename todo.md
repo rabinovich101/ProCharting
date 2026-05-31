@@ -1,3 +1,89 @@
+# Compact Chart Toolbar Plan
+
+## Goal
+
+Redesign the `TEST/binance-chart-test` chart toolbar into a compact,
+TradingView-inspired control row that groups timeframe, chart type, and
+indicators into polished dropdown controls while preserving the existing Binance
+data loading, websocket updates, chart rendering, and indicator state.
+
+## Reference / Constraints
+
+- The pasted task references an attached TradingView screenshot, but no image
+  file exists in the provided attachment folder or broader Codex attachments
+  directory. Use the pasted description as the visual reference.
+- Keep the scope inside the standalone Next chart QA app:
+  `TEST/binance-chart-test/app/page.tsx`, its route validation, and CSS.
+- Do not add heavy dependencies. Use React state, semantic buttons, ARIA, and
+  existing CSS patterns.
+- Add weekly/monthly timeframes only if the local Binance proxy accepts them.
+- Do not add unsupported chart styles unless their canvas rendering is fully
+  implemented.
+
+## Checklist
+
+- [x] Inspect attached task text, available attachments, CodeGraph context, and
+      current chart toolbar implementation.
+- [x] Replace native toolbar selects/details with compact accessible dropdown
+      components for timeframe, chart type, and indicators.
+- [x] Add common timeframe options `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`,
+      `1w`, and `1M`, and update Binance route validation to match.
+- [x] Preserve existing chart style support and indicator toggles without
+      changing chart data flow.
+- [x] Tighten responsive CSS so the toolbar remains one compact row where
+      possible and avoids horizontal scrolling down to 360px.
+- [x] Update `ARCHITECTURE.md` only for the discovered/current chart-app control
+      architecture.
+- [x] Run typecheck/build/lint verification relevant to touched files.
+- [x] Run Playwright browser QA at 1440px, 1024px, 768px, 430px, 390px, and
+      360px, including dropdown interaction checks.
+- [x] Add review summary with changed files, limitations, and verification
+      results.
+
+## Review
+
+Completed the compact chart toolbar pass for the standalone
+`TEST/binance-chart-test` app.
+
+- Replaced native timeframe/chart-style selects and the `<details>` indicators
+  menu with custom compact dropdown controls that support Escape closing,
+  outside-click closing, radio/checkbox ARIA roles, active states, and keyboard
+  arrow navigation inside menus.
+- Added `1w` and `1M` timeframe options and updated the Binance proxy interval
+  allow-list so the UI and API route remain aligned.
+- Kept supported chart styles limited to Candles, Line, and Area. Bars and
+  Heikin Ashi remain intentionally hidden because they are not part of the
+  current chart rendering contract.
+- Tightened the toolbar CSS from the older tall control block into a compact
+  row on desktop/tablet and icon/count-sized controls on mobile. Dropdowns are
+  constrained to the viewport at 430px, 390px, and 360px.
+- Updated `ARCHITECTURE.md` with the current chart-app toolbar architecture.
+
+Browser QA:
+
+| Viewport | Result |
+| --- | --- |
+| 1440x900 | Pass; 46px toolbar, no horizontal overflow, menus inside viewport. |
+| 1024x768 | Pass; 46px toolbar, no horizontal overflow, menus inside viewport. |
+| 768x900 | Pass after fixing tablet menu alignment; no overflow. |
+| 430x932 | Pass; mobile fixed-width dropdowns stay inside viewport. |
+| 390x844 | Pass; no horizontal overflow. |
+| 360x800 | Pass; no horizontal overflow and chart remains usable. |
+
+Interaction QA passed for opening/closing all three dropdowns, selecting every
+timeframe, selecting every supported chart style, toggling MA20 and Volume down
+to zero active indicators and restoring them, Escape close, and outside-click
+close. Browser console/dev logs returned no warnings or errors.
+
+Verification results:
+
+- `pnpm run typecheck` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `npm run build` in `TEST/binance-chart-test` passed. Next still warns about
+  multiple lockfiles and the local test app ESLint plugin setup, both preexisting
+  project/tooling warnings rather than this toolbar change.
+- `git diff --check` passed.
+
 # TradingView-Style Chart UX Improvement Plan
 
 ## Goal
