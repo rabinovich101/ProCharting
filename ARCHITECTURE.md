@@ -39,6 +39,11 @@ the root TypeScript path aliases. Generated `dist/` outputs and `.tsbuildinfo` f
 are build artifacts, not source-of-truth architecture inputs. The current source
 baseline passes `pnpm typecheck`; lint still surfaces broader legacy cleanup debt.
 
+Workspace packages are local source packages until they are explicitly published.
+As of May 31, 2026, npm registry lookups for `@procharting/core` and
+`@procharting/prices` return `E404`, so public registry install commands are
+post-publication instructions rather than the current development path.
+
 ### 3. Renderer Architecture
 
 The library uses a pluggable renderer architecture with three implementations:

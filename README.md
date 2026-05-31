@@ -26,11 +26,23 @@ Ultra-high-performance financial charting.
 
 ## Quick Start
 
-```bash
-# Install
-npm install @procharting/core
+`@procharting/core` is not published to npm right now. Use the local workspace
+for development and examples:
 
-# Basic usage
+```bash
+git clone https://github.com/yourusername/procharting
+cd procharting
+pnpm install
+pnpm build
+
+# Run the local example app
+cd examples/basic
+pnpm dev
+```
+
+After `@procharting/core` is published, application code can import it like this:
+
+```ts
 import { createChart } from '@procharting/core';
 
 const chart = createChart('#container', {
@@ -61,11 +73,22 @@ with ProCharting, another charting layer, or a backend service.
 
 ### Install
 
+`@procharting/prices` is also not published to npm right now. These commands
+are the intended install commands after publication:
+
 ```bash
 npm install @procharting/prices
 pnpm add @procharting/prices
 yarn add @procharting/prices
 bun add @procharting/prices
+```
+
+For local package verification before publication, build and pack the package:
+
+```bash
+pnpm --filter @procharting/prices build
+cd packages/prices
+npm pack
 ```
 
 ### Default Provider
@@ -313,7 +336,10 @@ pnpm dev
 ### Publishing Packages
 
 Do not publish from the repository root. Build and test first, then publish the
-specific package:
+specific package. At the time of this documentation update,
+`@procharting/core` and `@procharting/prices` both return npm registry `E404`
+responses, so registry install commands should not be advertised as currently
+usable until the package has actually been published.
 
 ```bash
 pnpm install --frozen-lockfile

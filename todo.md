@@ -509,3 +509,53 @@ Remaining risks:
 - Yarn 4 Plug'n'Play installs the tarball, but plain `node` resolution requires
   Yarn's PnP loader. The Node-resolution smoke was verified with Yarn configured
   to `nodeLinker: node-modules`.
+
+# NPM Publication Status Documentation Fix Plan
+
+## Goal
+
+Correct documentation that implies `@procharting/core` or `@procharting/prices`
+can be installed from the public npm registry before those packages are
+published.
+
+## Checklist
+
+- [x] Verify current npm registry status for `@procharting/core`.
+- [x] Review README install and publishing wording for registry-install claims.
+- [x] Update README to describe local workspace usage and mark npm commands as post-publication commands.
+- [x] Update architecture notes with the current package publication status.
+- [x] Run documentation-focused verification commands.
+- [ ] Commit the documentation correction and attempt to push.
+
+## Review
+
+Completed the npm publication-status documentation correction.
+
+Changes made:
+
+- Updated `README.md` so the Quick Start says `@procharting/core` is not
+  published to npm right now and points users to the local workspace flow.
+- Updated the `@procharting/prices` install section so npm, pnpm, Yarn, and bun
+  commands are clearly labeled as post-publication install commands.
+- Added local `@procharting/prices` pack instructions for pre-publication
+  verification.
+- Updated `ARCHITECTURE.md` to record that `@procharting/core` and
+  `@procharting/prices` currently return npm registry `E404` responses.
+
+Verification results:
+
+- `npm view @procharting/core version` returned `E404`, confirming the package
+  is not currently public on npm.
+- `rg` confirmed the README now marks both package install sections as
+  not-yet-published/post-publication guidance.
+- `git diff --check` passed.
+- `pnpm typecheck` passed.
+- `pnpm --filter @procharting/prices test` passed with 10 tests.
+- Browser verification of the local README through `file://` was attempted, but
+  the in-app Browser blocked the URL under its security policy. No workaround was
+  attempted.
+
+Remaining risks:
+
+- The packages still need to be published before public npm install commands can
+  work.
