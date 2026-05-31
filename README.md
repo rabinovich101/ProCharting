@@ -5,7 +5,7 @@
 [![Bundle Size](https://img.shields.io/badge/Bundle%20Size-<25KB-green.svg)](https://bundlephobia.com/)
 [![Performance](https://img.shields.io/badge/Performance-10x%20Faster-orange.svg)](./benchmarks)
 
-Ultra-high-performance financial charting library that renders 10x faster than TradingView's lightweight-charts while maintaining a smaller bundle size.
+Ultra-high-performance financial charting.
 
 ## Features
 
