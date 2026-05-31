@@ -66,7 +66,7 @@ export interface FetchResponseLike {
   text(): Promise<string>;
 }
 
-export type FetchLike = (input: URL, init?: RequestInit) => Promise<FetchResponseLike>;
+export type FetchLike = (input: string) => Promise<FetchResponseLike>;
 
 export interface DefaultProviderOptions {
   readonly fetch?: FetchLike;

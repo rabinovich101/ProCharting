@@ -4,6 +4,7 @@ import {
   InvalidSymbolError,
   PriceNormalizationError,
   ProviderConfigurationError,
+  ProviderRequestError,
   createPriceClient,
   type CreatePriceClientOptions,
   type FetchLike,
@@ -136,6 +137,22 @@ describe('createPriceClient', () => {
     });
 
     await expect(client.getPrices({ limit: 0 })).rejects.toThrow(InvalidPriceQueryError);
+  });
+
+  it('wraps async custom provider failures with a package error', async () => {
+    const client = createPriceClient({
+      symbol: 'MSFT',
+      provider: 'custom',
+      pricesApi: async () => {
+        throw new Error('network unavailable');
+      }
+    });
+
+    await expect(client.getPrices()).rejects.toThrow(ProviderRequestError);
+    await expect(client.getPrices()).rejects.toMatchObject({
+      code: 'PROVIDER_REQUEST_FAILED',
+      message: 'Custom price API failed for MSFT.'
+    });
   });
 
   it('returns clear configuration errors for missing custom APIs', () => {

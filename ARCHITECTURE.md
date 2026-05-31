@@ -102,6 +102,11 @@ Provider architecture:
   may exist in Codex or another MCP runtime, but they are not a stable npm
   runtime dependency for all end users.
 
+The default provider keeps its public fetch override portable by passing request
+URLs as strings. This avoids leaking DOM-only `URL` or `RequestInit` globals into
+the published TypeScript declarations, so Node-style consumers can import the
+package without enabling DOM libs just for package types.
+
 All providers normalize to:
 
 ```typescript

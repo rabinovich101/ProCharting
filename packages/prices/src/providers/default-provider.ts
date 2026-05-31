@@ -76,7 +76,7 @@ export class DefaultPriceProvider implements PriceProvider {
 
   private async fetchCsv(url: URL, symbol: string): Promise<string> {
     try {
-      const response = await this.fetchImpl(url);
+      const response = await this.fetchImpl(url.toString());
 
       if (!response.ok) {
         throw new ProviderRequestError(

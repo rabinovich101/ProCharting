@@ -246,3 +246,109 @@ Verification results:
 - `git diff --check` passed.
 - `pnpm lint` still fails on pre-existing legacy lint debt outside the new
   package. The new `packages/prices/src` code is lint-clean.
+
+# Price Package End-User Readiness Review Plan
+
+## Goal
+
+Review the completed `@procharting/prices` implementation as an installable
+end-user package. Verify package metadata, public API ergonomics, provider
+architecture, symbol handling, normalized price formats, documentation, security,
+build outputs, tests, and clean consumer installs across npm, pnpm, yarn, and
+bun where the local toolchain is available. Fix package-readiness issues with
+small scoped changes only.
+
+## Findings
+
+- CodeGraph was initialized with `codegraph init -i`; the index reports 71
+  indexed files, 787 nodes, and 1,563 edges.
+- `@procharting/prices` is already separated from chart rendering packages and
+  exposes `createPriceClient`, provider classes, normalization helpers, typed
+  errors, and public data types.
+- Package metadata currently declares ESM, CommonJS, TypeScript declarations,
+  an export map, and a `files` allowlist.
+- The default provider is documented as Stooq historical CSV data rather than
+  live TradingView MCP support.
+- Clean TypeScript consumer verification found that the public `FetchLike` type
+  leaked DOM-only `URL` and `RequestInit` globals. The fetch override now accepts
+  URL strings, avoiding DOM type requirements for Node-style consumers.
+- `npm view @procharting/prices version` returned 404 on 2026-05-31, so the
+  package is package-ready locally but not publicly installable from the npm
+  registry until it is published.
+
+## Checklist
+
+- [x] Review package metadata, workspace wiring, publish allowlist, and exports.
+- [x] Review public API, symbol handling, custom/default/TradingView MCP provider behavior, and price normalization.
+- [x] Review README/package documentation for install commands, examples, provider honesty, and publishing safety.
+- [x] Run package build, test, typecheck, lint, and tarball verification.
+- [x] Simulate clean consumer installs/imports with npm, pnpm, yarn, and bun when available.
+- [x] Verify TypeScript and JavaScript consumers can call custom/default provider flows without live external API dependencies.
+- [x] Add or adjust focused tests/docs/code if verification exposes package-readiness gaps.
+- [x] Update `ARCHITECTURE.md` if the review changes or clarifies architecture.
+- [x] Run final verification, including Playwright/browser smoke if a local browser check is relevant.
+- [x] Commit, push, and clean the repository state after successful verification.
+- [x] Add a review summary with what works, what failed, and any remaining risks.
+
+## Review
+
+Completed the end-user package readiness review and made one scoped
+package-readiness fix.
+
+What works:
+
+- `packages/prices/package.json` has a valid package name, version,
+  description, MIT license, keywords, `files` allowlist, `main`, `module`,
+  `types`, and conditional `exports`.
+- The package builds ESM, CommonJS, and TypeScript declarations. CommonJS works
+  through the nested `dist/cjs/package.json` with `type: commonjs`.
+- `createPriceClient` supports the requested custom provider shape and default
+  provider shape. Symbols are normalized and validated with clear typed errors.
+- Custom, default, and TradingView MCP providers stay separated behind the
+  provider interface. TradingView MCP is documented and implemented as an
+  adapter-only option, not as a fake default runtime dependency.
+- Price candles and latest prices normalize to the documented formats.
+- Documentation includes npm, pnpm, yarn, and bun install commands, custom and
+  default examples, CommonJS usage, error handling, TradingView MCP limitations,
+  and safe publish guidance.
+- No hardcoded secrets or API keys were found by repository scan.
+
+Fixes made:
+
+- Changed the public `FetchLike` override from DOM-dependent `URL`/`RequestInit`
+  parameters to a string URL parameter. This keeps package declarations usable
+  in Node-style TypeScript consumers without DOM libs.
+- Added a focused test proving async custom provider failures are wrapped as a
+  `ProviderRequestError` with code `PROVIDER_REQUEST_FAILED`.
+- Updated `ARCHITECTURE.md` with the fetch-override portability detail.
+- Initialized CodeGraph for this repository and kept local database files
+  ignored.
+
+Verification results:
+
+- `pnpm --filter @procharting/prices build` passed.
+- `pnpm --filter @procharting/prices test` passed with 10 tests.
+- `pnpm --filter @procharting/prices exec tsc -p tsconfig.json --noEmit --pretty false` passed.
+- `pnpm exec eslint packages/prices/src --ext .ts` passed.
+- `npm pack --dry-run --json` and `npm pack --pack-destination /tmp/procharting-prices-review --json` passed; the tarball contains only package metadata, README, and built `dist` output.
+- Clean npm, pnpm, and yarn consumers installed the local tarball and passed ESM
+  import, CommonJS require, custom provider runtime, mocked default provider
+  runtime, and TypeScript declaration checks.
+- Bun verification was skipped because `bun` is not installed in this
+  environment.
+- `pnpm build`, `pnpm test`, and `pnpm typecheck` passed at the repository root.
+- Playwright browser smoke passed at
+  `http://host.docker.internal:4187/browser-smoke.html`: the built ESM package
+  imported in a browser, rendered normalized price JSON, and console checks had
+  no warnings or errors after adding a temporary test favicon.
+- `pnpm lint` still fails with 270 pre-existing lint problems outside
+  `@procharting/prices`. The price package source is lint-clean.
+
+Remaining risks:
+
+- `@procharting/prices` is not published to npm yet; `npm view` returned 404 on
+  2026-05-31. It is ready for local tarball installation and publish flow
+  testing, but end users cannot install it from the public registry until
+  publication.
+- Root lint debt remains outside the package reviewed here and should be handled
+  separately to avoid broad unrelated changes.
