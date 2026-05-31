@@ -29,6 +29,10 @@ uses package-level TypeScript configs for library packages, the standalone Next 
 config for `TEST/binance-chart-test`, and typed ESLint only over package `src` folders
 plus the test app `app` folder.
 
+GitHub Actions pins pnpm to the repository package-manager version. Install, build, and
+test are blocking CI checks. Typecheck and lint currently run as audit checks because
+the legacy source has known issues that are tracked in `todo.md`.
+
 ### 3. Renderer Architecture
 
 The library uses a pluggable renderer architecture with three implementations:
