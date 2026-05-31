@@ -1,3 +1,79 @@
+# TradingView Top Command Bar Plan
+
+## Goal
+
+Make the `TEST/binance-chart-test` ProCharting toolbar match the TradingView
+top command line more closely: one compact horizontal strip with the symbol,
+timeframe, chart style, Indicators, and utility controls arranged in the same
+visual order, while preserving the existing chart data flow and canvas
+rendering.
+
+## Reference / Decisions
+
+- Camoufox loaded TradingView's generic `/chart/` route successfully, and the
+  attached screenshot shows the desired top-line pattern.
+- Implement only controls backed by current app behavior: symbol, timeframe,
+  chart style, indicators, theme, reset/latest view, live status, and price
+  change.
+- Do not add nonfunctional TradingView controls such as Alert, Replay, Publish,
+  or Trading unless they are backed by real app behavior.
+- Keep this scoped to `TEST/binance-chart-test/app/page.tsx`,
+  `TEST/binance-chart-test/app/globals.css`, and architecture/todo docs.
+- Preserve the existing Binance REST route and websocket subscription logic
+  unless browser QA exposes a root-cause bug.
+
+## Checklist
+
+- [x] Inspect the existing chart test app toolbar and current architecture notes.
+- [x] Use Camoufox to inspect the TradingView chart reference.
+- [x] Convert the topbar markup into a TradingView-style single command bar.
+- [x] Restyle controls into compact bordered cells and icon-sized actions.
+- [x] Keep mobile/tablet responsive behavior without horizontal overflow.
+- [x] Update `ARCHITECTURE.md` if the toolbar architecture changes.
+- [x] Run typecheck/lint/build checks relevant to the touched files.
+- [x] Run Camoufox or Playwright browser QA, including desktop and mobile
+      screenshots plus dropdown interactions.
+- [x] Add review notes with changed files and verification results.
+
+## Review
+
+Completed the TradingView-style top command bar pass for
+`TEST/binance-chart-test`.
+
+- Replaced the split instrument/control header with one compact command bar
+  containing Symbol, live-feed dot, Timeframe, chart-style icon, Indicators,
+  theme, reset, and latest price/change.
+- Converted the native symbol select into the same accessible dropdown pattern
+  as the timeframe/chart/indicator controls.
+- Restyled toolbar controls into flatter TradingView-like cells and converted
+  theme/reset from text buttons into icon-sized actions with accessible labels.
+- Kept the app behavior scoped to existing capabilities; no fake Alert, Replay,
+  Trading, or Publish controls were added.
+- Updated `ARCHITECTURE.md` to document the current single command-bar control
+  architecture.
+
+Browser QA:
+
+| Viewport | Result |
+| --- | --- |
+| 1440x900 | Pass; 42px single command row, no horizontal overflow. |
+| 430x932 | Pass; one compact mobile row, no horizontal overflow. |
+| 360x800 | Pass; controls fit within 360px and dropdowns stay inside viewport. |
+
+Interaction QA passed for opening Symbol, Timeframe, Chart type, and Indicators
+menus; selecting `ETHUSDT`, selecting `1H`, selecting Line chart style, toggling
+MA20 and Volume, toggling theme, and resetting the chart view. Camoufox was used
+for the TradingView reference; its local/private URL policy blocked local app
+access, so local app QA used Playwright at `http://host.docker.internal:3002`.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `npm run build` in `TEST/binance-chart-test` passed. Next still reports the
+  preexisting multiple-lockfile and missing Next ESLint plugin warnings.
+- `git diff --check` passed.
+
 # Compact Chart Toolbar Plan
 
 ## Goal

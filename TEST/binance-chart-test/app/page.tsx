@@ -47,7 +47,7 @@ type BinanceKline = [number, string, string, string, string, string];
 type ChartStyle = 'candles' | 'line' | 'area';
 type ThemeName = 'dark' | 'light';
 type FeedStatus = 'connecting' | 'live' | 'offline';
-type MenuKey = 'timeframe' | 'chartStyle' | 'indicators';
+type MenuKey = 'symbol' | 'timeframe' | 'chartStyle' | 'indicators';
 
 interface MenuOption<T extends string> {
   value: T;
@@ -68,6 +68,11 @@ const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
   { value: '1M', label: '1M', description: '1 month' },
 ];
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
+const SYMBOL_OPTIONS: Array<MenuOption<string>> = SYMBOLS.map((value) => ({
+  value,
+  label: value,
+  description: `${value.slice(0, -4)}/${value.slice(-4)} Binance spot`,
+}));
 const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
   { value: 'candles', label: 'Candles', shortLabel: 'Candle', description: 'OHLC candles' },
   { value: 'line', label: 'Line', description: 'Close price line' },
@@ -1176,36 +1181,27 @@ export default function Home() {
 
   return (
     <main className="chart-terminal" data-theme={theme}>
-      <header className="chart-topbar">
-        <div className="instrument-block">
-          <div className="symbol-row">
-            <select
-              aria-label="Symbol"
-              className="symbol-select"
-              value={symbol}
-              onChange={(event) => setSymbol(event.target.value)}
-            >
-              {SYMBOLS.map((option) => (
-                <option key={option} value={option}>
-                  {formatSymbol(option)}
-                </option>
-              ))}
-            </select>
-            <span className={`feed-pill ${feedStatus}`}>{feedStatus}</span>
-          </div>
+      <header className="chart-topbar" aria-label="Chart command bar">
+        <div ref={controlRackRef} className="top-command-bar" aria-label="Chart controls">
+          <ToolbarDropdown
+            menuKey="symbol"
+            label="Symbol"
+            className="symbol-dropdown"
+            options={SYMBOL_OPTIONS}
+            value={symbol}
+            openMenu={openMenu}
+            setOpenMenu={setOpenMenu}
+            onChange={setSymbol}
+            renderIcon={(optionValue) => (
+              <span className="symbol-badge" aria-hidden="true">
+                {optionValue.slice(0, 1)}
+              </span>
+            )}
+          />
+          <span className={`feed-dot ${feedStatus}`} aria-label={`Feed ${feedStatus}`} role="status" />
 
-          <div className="price-row">
-            <span className="last-price">{latestCandle ? formatPrice(latestCandle.close) : '-'}</span>
-            <span className={`price-change ${changeTone}`}>
-              {priceChange >= 0 ? '+' : ''}
-              {formatPrice(priceChange)} ({priceChangePercent >= 0 ? '+' : ''}
-              {priceChangePercent.toFixed(2)}%)
-            </span>
-            <span className="muted">Binance Spot</span>
-          </div>
-        </div>
+          <span className="command-divider" aria-hidden="true" />
 
-        <div ref={controlRackRef} className="control-rack" aria-label="Chart controls">
           <ToolbarDropdown
             menuKey="timeframe"
             label="Timeframe"
@@ -1242,14 +1238,38 @@ export default function Home() {
 
           <button
             type="button"
-            className="tool-toggle"
-            onClick={() => setTheme((value) => (value === 'dark' ? 'light' : 'dark'))}
+            className="tool-toggle icon-tool"
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            onClick={() => {
+              setOpenMenu(null);
+              setTheme((value) => (value === 'dark' ? 'light' : 'dark'));
+            }}
           >
-            {theme === 'dark' ? 'Light' : 'Dark'}
+            <span className={`theme-glyph ${theme === 'dark' ? 'moon' : 'sun'}`} aria-hidden="true" />
           </button>
-          <button type="button" className="tool-toggle" onClick={() => resetView()}>
-            Reset
+          <button
+            type="button"
+            className="tool-toggle icon-tool"
+            aria-label="Reset chart view"
+            title="Reset chart view"
+            onClick={() => {
+              setOpenMenu(null);
+              resetView();
+            }}
+          >
+            <span className="reset-glyph" aria-hidden="true" />
           </button>
+
+          <div className="command-market-readout" aria-label="Latest market price">
+            <span className="last-price">{latestCandle ? formatPrice(latestCandle.close) : '-'}</span>
+            <span className={`price-change ${changeTone}`}>
+              {priceChange >= 0 ? '+' : ''}
+              {formatPrice(priceChange)} ({priceChangePercent >= 0 ? '+' : ''}
+              {priceChangePercent.toFixed(2)}%)
+            </span>
+            <span className="muted">Binance Spot</span>
+          </div>
         </div>
       </header>
 

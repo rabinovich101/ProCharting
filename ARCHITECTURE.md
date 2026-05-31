@@ -189,6 +189,7 @@ than a direct example of the packaged renderer architecture.
 The chart app supports:
 
 - Binance spot symbols selected from a fixed crypto list.
+- Binance spot symbols selected from a compact top command-bar dropdown.
 - Timeframes `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`, and `1M`,
   exposed through a compact custom toolbar dropdown that keeps the selected
   value short on mobile.
@@ -201,6 +202,12 @@ The chart app supports:
 - Dark/light UI themes.
 - Wheel zoom, drag pan, reset, crosshair, OHLC legend, current price marker, and
   responsive desktop/tablet/mobile layouts.
+
+As of May 31, 2026, the chart test app uses a TradingView-style single top
+command bar rather than separate instrument and control blocks. That command
+bar owns the symbol dropdown, live-feed dot, timeframe dropdown, chart-style
+icon dropdown, Indicators menu, theme toggle, reset action, and compact latest
+price/change readout.
 
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent
