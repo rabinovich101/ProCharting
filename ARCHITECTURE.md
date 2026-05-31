@@ -44,6 +44,16 @@ As of May 31, 2026, npm registry lookups for `@procharting/core` and
 `@procharting/prices` return `E404`, so public registry install commands are
 post-publication instructions rather than the current development path.
 
+`@procharting/core` builds its runtime ESM output with Vite and then removes the
+package `.tsbuildinfo` file before emitting TypeScript declarations with
+`tsc --emitDeclarationOnly`. This keeps Vite's cleaned runtime output and the
+package `types` entry in sync for npm publication.
+
+The core renderer factory lazy-loads WebGPU and WebGL packages. The wrappers do
+not expose the concrete renderer to the render loop until its async
+`initialize(canvas)` call completes, so auto-selected GPU renderers cannot be
+called while their device/context fields are still unset.
+
 ### 3. Renderer Architecture
 
 The library uses a pluggable renderer architecture with three implementations:

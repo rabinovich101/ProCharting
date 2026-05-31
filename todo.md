@@ -660,3 +660,76 @@ Remaining risks:
 
 - The packages still need to be published before public npm install commands can
   work.
+
+# NPM Publish Attempt Plan
+
+## Goal
+
+Publish the currently unpublished ProCharting workspace packages to npm if the
+authenticated npm account has permission for the `@procharting` scope.
+
+## Expert Decisions
+
+- Do not publish the root package because it is a private monorepo wrapper.
+- Treat all package manifests under `packages/*` as the intended npm packages:
+  `@procharting/types`, `@procharting/utils`, `@procharting/webgl`,
+  `@procharting/webgpu`, `@procharting/data`, `@procharting/core`, and
+  `@procharting/prices`.
+- Use `pnpm publish` for packages with `workspace:*` dependencies so published
+  manifests are resolved consistently with the workspace.
+- Publish scoped packages with public access.
+
+## Checklist
+
+- [x] Confirm npm authentication and registry status for each workspace package.
+- [x] Run package build and test verification before publishing.
+- [x] Run package dry-run/pack verification for publish contents.
+- [x] Fix any packaging blockers found during dry-run verification.
+- [x] Attempt npm publication for unpublished packages in dependency order.
+- [x] Update documentation only if publication succeeds or publish behavior
+      requires a packaging change.
+- [x] Fix browser smoke runtime blockers found before publication can be retried.
+- [x] Run final verification, including browser/Playwright smoke QA where
+      applicable.
+- [x] Add a review summary with publish results and any follow-up needed.
+
+## Review
+
+Attempted npm publication for the unpublished ProCharting workspace packages.
+
+- npm authentication is active as `oler_r`.
+- Registry checks confirmed `@procharting/types`, `@procharting/utils`,
+  `@procharting/webgl`, `@procharting/webgpu`, `@procharting/data`,
+  `@procharting/core`, and `@procharting/prices` are not published.
+- The root package remains private and was not treated as publishable.
+- Dry-run/package verification found that `@procharting/core` advertised
+  `dist/index.d.ts` but did not reliably include declaration files after Vite
+  cleaned `dist`. The core build now removes `.tsbuildinfo` before declaration
+  emission so the npm tarball includes TypeScript declarations.
+- Browser smoke verification found an async renderer initialization race where
+  lazy WebGPU/WebGL wrappers exposed a concrete renderer before initialization
+  completed. The wrappers now assign the renderer only after `initialize(canvas)`
+  resolves.
+- The real publish attempt reached npm but failed before publishing the first
+  package because npm requires two-factor authentication or a granular access
+  token with 2FA bypass for publishing.
+- A post-attempt registry check confirmed none of the workspace packages were
+  published.
+
+Verification results:
+
+- `pnpm install --frozen-lockfile` passed.
+- `pnpm build` passed.
+- `pnpm test` passed.
+- `pnpm typecheck` passed.
+- `pnpm -r --filter './packages/*' publish --dry-run --access public
+  --no-git-checks` passed after the packaging fix.
+- Playwright smoke against `examples/basic` at `http://localhost:4173/` passed
+  with one canvas, `webgpu` renderer selected, 1,000 data points shown, no page
+  errors, and no `createCommandEncoder` runtime error. The only console error
+  observed was the existing missing favicon 404.
+
+Follow-up required:
+
+- To publish, rerun the publish command with a current npm OTP or a granular npm
+  automation token that can publish under the `@procharting` scope.

@@ -60,8 +60,9 @@ export class RendererFactory {
         if (!initPromise) {
           initPromise = (async (): Promise<void> => {
             const { WebGPURenderer } = await import('@procharting/webgpu');
-            renderer = new WebGPURenderer();
-            await renderer.initialize(canvas);
+            const nextRenderer = new WebGPURenderer();
+            await nextRenderer.initialize(canvas);
+            renderer = nextRenderer;
           })();
         }
         await initPromise;
@@ -69,7 +70,6 @@ export class RendererFactory {
       
       render(scene): void {
         if (!renderer) {
-          console.warn('WebGPU renderer not initialized');
           return;
         }
         renderer.render(scene);
@@ -105,8 +105,9 @@ export class RendererFactory {
         if (!initPromise) {
           initPromise = (async (): Promise<void> => {
             const { WebGL2Renderer } = await import('@procharting/webgl');
-            renderer = new WebGL2Renderer();
-            await renderer.initialize(canvas);
+            const nextRenderer = new WebGL2Renderer();
+            await nextRenderer.initialize(canvas);
+            renderer = nextRenderer;
           })();
         }
         await initPromise;
@@ -114,7 +115,6 @@ export class RendererFactory {
       
       render(scene): void {
         if (!renderer) {
-          console.warn('WebGL2 renderer not initialized');
           return;
         }
         renderer.render(scene);
