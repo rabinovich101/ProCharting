@@ -50,6 +50,11 @@ type FeedStatus = 'connecting' | 'live' | 'offline';
 
 const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
+const CHART_STYLE_OPTIONS: Array<{ value: ChartStyle; label: string }> = [
+  { value: 'candles', label: 'Candles' },
+  { value: 'line', label: 'Line' },
+  { value: 'area', label: 'Area' },
+];
 
 const PALETTES: Record<ThemeName, Palette> = {
   dark: {
@@ -215,6 +220,7 @@ export default function Home() {
   const priceChange = latestCandle && previousCandle ? latestCandle.close - previousCandle.close : 0;
   const priceChangePercent = previousCandle ? (priceChange / previousCandle.close) * 100 : 0;
   const changeTone = priceChange >= 0 ? 'positive' : 'negative';
+  const indicatorCount = Number(showMovingAverage) + Number(showVolume);
 
   const resetView = (sourceCandles = candles) => {
     const candlesPerView = Math.min(140, Math.max(60, sourceCandles.length || 100));
@@ -882,46 +888,69 @@ export default function Home() {
         </div>
 
         <div className="control-rack" aria-label="Chart controls">
-          <div className="segmented-control" aria-label="Timeframe">
-            {TIMEFRAMES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={timeframe === option ? 'active' : ''}
-                onClick={() => setTimeframe(option)}
-              >
-                {option.toUpperCase()}
-              </button>
-            ))}
-          </div>
+          <label className="toolbar-select-wrap">
+            <span className="sr-only">Timeframe</span>
+            <select
+              aria-label="Timeframe"
+              className="toolbar-select"
+              value={timeframe}
+              onChange={(event) => setTimeframe(event.target.value)}
+            >
+              {TIMEFRAMES.map((option) => (
+                <option key={option} value={option}>
+                  {option.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </label>
 
-          <div className="segmented-control compact" aria-label="Chart type">
-            {(['candles', 'line', 'area'] as ChartStyle[]).map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={chartStyle === option ? 'active' : ''}
-                onClick={() => setChartStyle(option)}
-              >
-                {option === 'candles' ? 'Candle' : option === 'line' ? 'Line' : 'Area'}
-              </button>
-            ))}
-          </div>
+          <label className="toolbar-select-wrap chart-style-select">
+            <span className="sr-only">Chart type</span>
+            <select
+              aria-label="Chart type"
+              className="toolbar-select"
+              value={chartStyle}
+              onChange={(event) => setChartStyle(event.target.value as ChartStyle)}
+            >
+              {CHART_STYLE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
-          <button
-            type="button"
-            className={`tool-toggle ${showMovingAverage ? 'active' : ''}`}
-            onClick={() => setShowMovingAverage((value) => !value)}
-          >
-            MA
-          </button>
-          <button
-            type="button"
-            className={`tool-toggle ${showVolume ? 'active' : ''}`}
-            onClick={() => setShowVolume((value) => !value)}
-          >
-            Vol
-          </button>
+          <details className="indicator-menu">
+            <summary>
+              <span>Indicators</span>
+              <span className="indicator-count">{indicatorCount}</span>
+            </summary>
+            <div className="indicator-popover">
+              <label className="indicator-option">
+                <input
+                  type="checkbox"
+                  checked={showMovingAverage}
+                  onChange={() => setShowMovingAverage((value) => !value)}
+                />
+                <span>
+                  <strong>MA20</strong>
+                  <small>Moving average</small>
+                </span>
+              </label>
+              <label className="indicator-option">
+                <input
+                  type="checkbox"
+                  checked={showVolume}
+                  onChange={() => setShowVolume((value) => !value)}
+                />
+                <span>
+                  <strong>Volume</strong>
+                  <small>Volume pane</small>
+                </span>
+              </label>
+            </div>
+          </details>
+
           <button
             type="button"
             className="tool-toggle"

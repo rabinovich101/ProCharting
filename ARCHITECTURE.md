@@ -189,9 +189,11 @@ than a direct example of the packaged renderer architecture.
 The chart app supports:
 
 - Binance spot symbols selected from a fixed crypto list.
-- Timeframes `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, and `1d`.
-- Candlestick, line, and area drawing modes.
-- MA20 and volume overlays.
+- Timeframes `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, and `1d`, exposed
+  through a compact toolbar dropdown.
+- Candlestick, line, and area drawing modes, exposed through a compact toolbar
+  dropdown.
+- MA20 and volume overlays, grouped under a compact Indicators dropdown.
 - Dark/light UI themes.
 - Wheel zoom, drag pan, reset, crosshair, OHLC legend, current price marker, and
   responsive desktop/tablet/mobile layouts.

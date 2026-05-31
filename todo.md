@@ -969,3 +969,69 @@ Remaining risks:
 - The example dev server required Vite `--force` after a renderer source change
   because optimized workspace dependencies can otherwise stay stale during the
   same session.
+
+# Compact Chart Toolbar Plan
+
+## Goal
+
+Compact the `TEST/binance-chart-test` chart controls so timeframe, chart type,
+and indicators use TradingView-style dropdowns instead of wide button groups.
+The chart should keep the same behavior while saving horizontal space and
+remaining usable on smaller screens.
+
+## Project Map
+
+- Main chart UI: `TEST/binance-chart-test/app/page.tsx`.
+- Chart styling: `TEST/binance-chart-test/app/globals.css`.
+- Architecture notes: `ARCHITECTURE.md`.
+- Existing chart state already has the needed controls: `timeframe`,
+  `chartStyle`, `showMovingAverage`, and `showVolume`.
+
+## Expert Decisions
+
+- Keep the existing chart data flow, canvas renderer, websocket behavior, and
+  chart interactions unchanged.
+- Replace only the toolbar chrome: timeframe becomes a compact select, chart
+  style becomes a compact select, and MA/Volume move into one Indicators menu.
+- Leave theme and reset as compact command buttons because they are chart
+  actions, not chart configuration groups.
+- Use native form controls and a small `details` dropdown for simple,
+  accessible behavior without adding dependencies.
+
+## Checklist
+
+- [x] Add this compact-toolbar checklist.
+- [x] Replace the wide timeframe and chart-style segmented controls with compact dropdowns.
+- [x] Combine MA20 and Volume toggles into one Indicators dropdown.
+- [x] Update responsive toolbar CSS so controls fit smaller screens without horizontal overflow.
+- [x] Update `ARCHITECTURE.md` with the chart-test-app toolbar architecture note.
+- [x] Run relevant typecheck/build verification.
+- [x] Run Playwright/browser QA for desktop and small mobile viewports.
+- [x] Add a review summary.
+
+## Review
+
+Completed the compact TradingView-style toolbar pass for
+`TEST/binance-chart-test`.
+
+- Replaced the wide timeframe button group with a compact `Timeframe` dropdown.
+- Replaced the wide chart-style button group with a compact `Chart type`
+  dropdown.
+- Moved MA20 and Volume into one `Indicators` dropdown with checkbox toggles and
+  an active count badge.
+- Updated responsive toolbar CSS so desktop stays compact and small mobile
+  widths use a two/three-column control grid without horizontal overflow.
+- Updated `ARCHITECTURE.md` with the chart-test-app toolbar grouping.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `npm run build` in `TEST/binance-chart-test` passed. Next.js repeated the
+  existing multiple-lockfile warning but completed successfully.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `git diff --check` passed.
+- Playwright browser QA passed at `1440x900` and `360x800` against
+  `http://host.docker.internal:3002/`: dropdowns rendered, chart canvas was
+  visible, Indicators opened correctly, timeframe/chart-type selections worked,
+  no horizontal overflow was visible, and browser console/devtools warnings were
+  clean.
