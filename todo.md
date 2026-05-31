@@ -1050,7 +1050,7 @@ of the top toolbar beside the symbol area, matching the TradingView screenshot.
 - [x] Keep tablet/mobile wrapping behavior intact.
 - [x] Update `ARCHITECTURE.md` with the left-aligned toolbar note.
 - [x] Run focused verification and browser QA.
-- [ ] Commit, push, and clean.
+- [x] Commit, push, and clean.
 
 ## Review
 
