@@ -43,6 +43,9 @@ Workspace packages are local source packages until they are explicitly published
 As of May 31, 2026, npm registry lookups for `@procharting/core` and
 `@procharting/prices` return `E404`, so public registry install commands are
 post-publication instructions rather than the current development path.
+Authenticated publish attempts also require the `@procharting` npm scope to
+exist and be writable by the publishing account; npm currently returns
+`E404 Scope not found` for the first package publish attempt.
 
 `@procharting/core` builds its runtime ESM output with Vite and then removes the
 package `.tsbuildinfo` file before emitting TypeScript declarations with

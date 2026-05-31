@@ -713,6 +713,10 @@ Attempted npm publication for the unpublished ProCharting workspace packages.
 - The real publish attempt reached npm but failed before publishing the first
   package because npm requires two-factor authentication or a granular access
   token with 2FA bypass for publishing.
+- A retry using the npm token from `.env` authenticated successfully as `oler_r`,
+  but npm rejected `@procharting/prices` with `E404 Scope not found`. The
+  `@procharting` npm scope must exist and be writable before these scoped
+  package names can be published.
 - A post-attempt registry check confirmed none of the workspace packages were
   published.
 
@@ -732,4 +736,5 @@ Verification results:
 Follow-up required:
 
 - To publish, rerun the publish command with a current npm OTP or a granular npm
-  automation token that can publish under the `@procharting` scope.
+  automation token after creating or gaining publish access to the
+  `@procharting` npm scope.
