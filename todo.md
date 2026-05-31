@@ -116,3 +116,30 @@ Verification results:
 - `pnpm test` passed locally.
 - `pnpm typecheck` still fails on known legacy source errors, primarily in `packages/core/src/chart.ts` and worker files.
 - `git diff --check` passes.
+
+# README Accuracy Review Plan
+
+## Goal
+
+Review `README.md` against the actual repository source, examples, benchmarks, package metadata, and supporting documentation. Produce a clear accuracy/readability report and a safer README draft without changing library functionality.
+
+## Checklist
+
+- [x] Map repository packages, examples, benchmarks, build files, public APIs, and supporting documentation.
+- [x] Verify README installation, package names, imports, usage examples, and development commands.
+- [x] Verify implemented chart, renderer, interaction, WebSocket, and data features against source files.
+- [x] Verify benchmark, bundle-size, performance, and browser-support claims against repo evidence.
+- [x] Review README readability, structure, tone, and onboarding clarity for new developers.
+- [x] Produce a section-by-section report with claim statuses, evidence, and recommended fixes.
+- [x] Provide a revised README draft while leaving source functionality unchanged.
+
+## Review
+
+Completed the README accuracy review without changing library functionality or source files.
+
+- `@procharting/core` exists as a workspace package and exports `createChart`, but `npm view @procharting/core` returned 404 on 2026-05-31, so public npm install instructions are not currently verified.
+- `pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm bench` run; `pnpm test` currently finds no test files, and `pnpm lint` still fails with existing lint audit debt.
+- README performance and TradingView comparison claims are not supported by the benchmark files. The basic benchmark measures synthetic typed-array processing and prints targets, not chart rendering comparisons.
+- Browser smoke test of `examples/basic` at `http://localhost:3000/` loaded the page and showed one canvas, but the canvas was blank and dev logs included WebGPU renderer initialization/rendering errors.
+- Source inspection found renderer and interaction scaffolding, but chart series data is currently passed to renderers as an empty `ArrayBuffer`, streaming is TODO, and WebSocket updates are parsed/logged rather than applied to series data.
+- The final report recommends safer README wording that separates implemented API scaffolding from experimental/planned performance work.
