@@ -45,7 +45,8 @@ As of May 31, 2026, npm registry lookups for `@procharting/core` and
 post-publication instructions rather than the current development path.
 Authenticated publish attempts also require the `@procharting` npm scope to
 exist and be writable by the publishing account; npm currently returns
-`E404 Scope not found` for the first package publish attempt.
+`E404 Scope not found` for package publish attempts and `E403` for org/team
+inspection with the current `.env` npm token.
 
 `@procharting/core` builds its runtime ESM output with Vite and then removes the
 package `.tsbuildinfo` file before emitting TypeScript declarations with

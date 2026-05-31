@@ -717,6 +717,11 @@ Attempted npm publication for the unpublished ProCharting workspace packages.
   but npm rejected `@procharting/prices` with `E404 Scope not found`. The
   `@procharting` npm scope must exist and be writable before these scoped
   package names can be published.
+- After the user reported adding the npm scope, a manual dependency-ordered
+  publish retry still failed on `@procharting/types` with `E404 Scope not
+  found`. `npm org ls procharting` and `npm team ls procharting` with the same
+  token returned `E403`, so the current token/account still cannot access or
+  administer the `procharting` npm organization.
 - A post-attempt registry check confirmed none of the workspace packages were
   published.
 
@@ -737,4 +742,6 @@ Follow-up required:
 
 - To publish, rerun the publish command with a current npm OTP or a granular npm
   automation token after creating or gaining publish access to the
-  `@procharting` npm scope.
+  `@procharting` npm scope. If using a granular token, regenerate it after the
+  npm organization membership/permissions are in place so it includes that
+  organization.
