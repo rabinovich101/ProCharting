@@ -84,6 +84,8 @@ The library uses a pluggable renderer architecture with three implementations:
 - Transform feedback
 - Vertex array objects
 - Texture atlases
+- Multisample color renderbuffers match the default framebuffer alpha/format
+  choice so MSAA resolves can blit without WebGL format-mismatch warnings.
 
 #### Canvas2D Renderer (Compatibility)
 - Software rendering fallback
@@ -102,6 +104,11 @@ Raw Data → Binary Encoding → GPU Buffer → Compute Shader → Decimation �
 2. **Ring Buffers**: Zero-copy streaming updates
 3. **GPU Decimation**: Douglas-Peucker algorithm in compute shaders
 4. **LOD System**: Automatic level-of-detail based on zoom
+
+The public chart `CandlestickData` contract uses six numeric fields: `time`,
+`open`, `high`, `low`, `close`, and `volume`. The binary chart pipeline writes
+all six fields into fixed-width candle records, so consumers should pass
+`volume: 0` when their market data source has no volume.
 
 ### 5. Price Data Package
 

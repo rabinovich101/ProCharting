@@ -110,10 +110,13 @@ export class WebGL2Renderer implements Renderer {
     // Create multisample renderbuffer for color
     this.msaaRenderbuffer = gl.createRenderbuffer();
     gl.bindRenderbuffer(gl.RENDERBUFFER, this.msaaRenderbuffer);
+    const contextAttributes = gl.getContextAttributes();
+    const colorFormat = contextAttributes?.alpha === false ? gl.RGB8 : gl.RGBA8;
+
     gl.renderbufferStorageMultisample(
       gl.RENDERBUFFER,
       this.samples,
-      gl.RGBA8,
+      colorFormat,
       this.canvas.width,
       this.canvas.height
     );

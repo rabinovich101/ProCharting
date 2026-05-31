@@ -211,9 +211,11 @@ type CandlestickData = {
   high: number;
   low: number;
   close: number;
-  volume?: number;
+  volume: number;
 };
 ```
+
+Use `volume: 0` when your source does not provide volume data.
 
 Line data:
 

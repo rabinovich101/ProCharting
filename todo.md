@@ -888,3 +888,84 @@ Remaining risks:
   behavior.
 - Public npm install for `@procharting/*` packages remains blocked until the npm
   scope access issue is resolved.
+
+# Package Readiness Test Pass - May 31, 2026
+
+## Goal
+
+Run a fresh verification pass for the current ProCharting repository so we know
+whether users can install, build, test, import, and visually smoke-test the
+package facade and example.
+
+## Expert Decisions
+
+- Treat pnpm as the authoritative repository package manager because the root
+  manifest declares `packageManager: pnpm@10.17.0` and the workspace uses
+  `pnpm-workspace.yaml`.
+- Test npm only through clean consumer/package-install checks if needed, rather
+  than pretending npm is the supported monorepo development installer.
+- Use the existing root `procharting` facade and `examples/basic` app as the
+  package/import/browser smoke surface.
+- Avoid code changes unless verification exposes a real root-cause bug.
+- Do not change `AGENTS.md`.
+
+## Checklist
+
+- [x] Confirm repository state, package scripts, and CodeGraph index health.
+- [x] Run dependency verification with `pnpm install --frozen-lockfile`.
+- [x] Run the full package build with `pnpm build`.
+- [x] Run TypeScript verification with `pnpm typecheck`.
+- [x] Run automated tests with `pnpm test`.
+- [x] Run lint audit with `pnpm lint` and record any existing failures.
+- [x] Verify package tarball/import behavior from a clean consumer when the
+      build succeeds.
+- [x] Run browser smoke verification for the basic example with Playwright.
+- [x] Review whether `ARCHITECTURE.md` needs updates based on new findings.
+- [x] Add final test results and any risks to this review section.
+
+## Review
+
+Fresh package-readiness test pass completed.
+
+Changes made:
+
+- Fixed the WebGL2 MSAA resolve path so the multisample color renderbuffer uses
+  `RGB8` when the canvas context is opaque (`alpha: false`) and `RGBA8`
+  otherwise. This removes repeated browser `GL_INVALID_OPERATION` warnings
+  during WebGL2 smoke testing.
+- Corrected README data-format documentation: chart `CandlestickData.volume` is
+  required by the public type and binary renderer pipeline. Consumers without
+  source volume should pass `volume: 0`.
+- Updated `ARCHITECTURE.md` with the MSAA framebuffer format behavior and the
+  six-field chart candle contract.
+
+Verification results:
+
+- CodeGraph index health confirmed: 74 indexed files, 808 nodes, 1,538 edges.
+- `pnpm install --frozen-lockfile` passed and ran the prepare build.
+- `pnpm build` passed after the WebGL fix.
+- `pnpm typecheck` passed after the WebGL fix.
+- `pnpm test` passed after the WebGL fix, including 10 price-client tests.
+- `pnpm lint` still fails with the known repository-wide legacy lint debt: 223
+  problems, mostly existing `any`, non-null assertion, and unsafe-access rules.
+- `pnpm pack --pack-destination /tmp/procharting-test-pass-pack --json` passed.
+- Fresh pnpm and npm scratch consumers installed the packed
+  `procharting-0.0.1.tgz` and successfully imported `procharting` and
+  `procharting/prices`.
+- A strict TypeScript scratch consumer passed `tsc` with imports from
+  `procharting` and `procharting/prices`.
+- Camoufox could not browse `localhost` because local hostnames are blocked by
+  its policy, so browser QA used Playwright against Vite's network URL
+  `http://10.0.0.3:4188/`.
+- Playwright smoke passed after restarting Vite with `--force`: page title
+  `ProCharting - Basic Example`, one 740x600 canvas, renderer `webgl2`, data
+  points `1,000`, FPS `60`, and 0 console errors/warnings.
+- `git diff --check` passed.
+
+Remaining risks:
+
+- Repo-wide lint remains a known cleanup task before lint can be a blocking
+  release gate.
+- The example dev server required Vite `--force` after a renderer source change
+  because optimized workspace dependencies can otherwise stay stale during the
+  same session.
