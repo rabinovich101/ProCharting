@@ -21,7 +21,15 @@ ProCharting/
 └── benchmarks/        # Performance tests
 ```
 
-### 2. Renderer Architecture
+### 2. Verification Tooling
+
+The root TypeScript config is a solution-style project that references the package
+projects and does not include generated outputs as root source files. Root verification
+uses package-level TypeScript configs for library packages, the standalone Next test app
+config for `TEST/binance-chart-test`, and typed ESLint only over package `src` folders
+plus the test app `app` folder.
+
+### 3. Renderer Architecture
 
 The library uses a pluggable renderer architecture with three implementations:
 
@@ -42,7 +50,7 @@ The library uses a pluggable renderer architecture with three implementations:
 - Basic functionality
 - Maximum compatibility
 
-### 3. Data Pipeline
+### 4. Data Pipeline
 
 ```
 Raw Data → Binary Encoding → GPU Buffer → Compute Shader → Decimation → Rendering
@@ -55,7 +63,7 @@ Raw Data → Binary Encoding → GPU Buffer → Compute Shader → Decimation �
 3. **GPU Decimation**: Douglas-Peucker algorithm in compute shaders
 4. **LOD System**: Automatic level-of-detail based on zoom
 
-### 4. Multi-Threading Strategy
+### 5. Multi-Threading Strategy
 
 ```
 Main Thread          Render Thread         Data Thread         Network Thread
@@ -65,7 +73,7 @@ Main Thread          Render Thread         Data Thread         Network Thread
     └─ Coordination       └─ OffscreenCanvas   └─ Decimation       └─ Compression
 ```
 
-### 5. Memory Management
+### 6. Memory Management
 
 - **SharedArrayBuffer**: Zero-copy data sharing between threads
 - **Memory Pools**: Object recycling to minimize GC pressure

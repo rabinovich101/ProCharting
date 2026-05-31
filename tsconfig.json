@@ -47,5 +47,16 @@
     { "path": "./packages/webgl" },
     { "path": "./packages/core" }
   ],
-  "exclude": ["node_modules", "dist", "build", "coverage"]
+  "files": [],
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "dist",
+    "**/dist",
+    "build",
+    "**/build",
+    "coverage",
+    "**/coverage",
+    "TEST/binance-chart-test/.next"
+  ]
 }

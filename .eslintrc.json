@@ -4,7 +4,10 @@
   "parserOptions": {
     "ecmaVersion": 2022,
     "sourceType": "module",
-    "project": "./tsconfig.json"
+    "project": [
+      "./packages/*/tsconfig.json",
+      "./TEST/binance-chart-test/tsconfig.json"
+    ]
   },
   "plugins": ["@typescript-eslint"],
   "extends": [
@@ -21,5 +24,18 @@
     "@typescript-eslint/no-non-null-assertion": "error",
     "no-console": ["warn", { "allow": ["warn", "error"] }]
   },
-  "ignorePatterns": ["dist", "build", "node_modules", "coverage", "*.js", "*.mjs"]
+  "ignorePatterns": [
+    "dist",
+    "**/dist",
+    "build",
+    "**/build",
+    "node_modules",
+    "**/node_modules",
+    "coverage",
+    "**/coverage",
+    ".next",
+    "**/.next",
+    "*.js",
+    "*.mjs"
+  ]
 }

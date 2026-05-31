@@ -13,8 +13,10 @@
     "dev": "pnpm -r --parallel dev",
     "test": "pnpm -r test",
     "bench": "pnpm -r bench",
-    "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit",
+    "lint": "eslint packages/*/src TEST/binance-chart-test/app --ext .ts,.tsx",
+    "typecheck": "pnpm run typecheck:packages && pnpm run typecheck:test",
+    "typecheck:packages": "pnpm --filter './packages/*' exec tsc -p tsconfig.json --noEmit --composite false --incremental false --pretty false",
+    "typecheck:test": "tsc -p TEST/binance-chart-test/tsconfig.json --noEmit --pretty false",
     "clean": "pnpm -r clean && rm -rf node_modules"
   },
   "devDependencies": {
