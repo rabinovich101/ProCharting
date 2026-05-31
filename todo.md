@@ -427,3 +427,85 @@ Remaining risks:
   it is published.
 - Root `pnpm lint` still fails with 270 existing lint problems outside
   `@procharting/prices`. The reviewed package source is lint-clean.
+
+# Current Price Package End-User Review Plan
+
+## Goal
+
+Review the current `@procharting/prices` source and built package as an
+installable end-user package. Verify npm package metadata, public API behavior,
+provider architecture, symbol validation, normalized price formats, TypeScript
+declarations, documentation honesty, local tarball installs, and browser ESM
+consumption. Fix only package-readiness defects that are proven by this pass.
+
+## Checklist
+
+- [x] Load the package-readiness request and confirm `@procharting/prices` is the target package.
+- [x] Inspect the package structure, metadata, README, tests, build configs, and architecture notes.
+- [x] Run package build, tests, typecheck, source lint, and tarball checks.
+- [x] Simulate clean consumer installation/import checks with npm, pnpm, yarn, and bun when available.
+- [x] Verify custom provider, default provider with mocked fetch, ESM, CommonJS, and TypeScript consumer paths.
+- [x] Run browser/Playwright smoke verification for the built ESM package.
+- [x] Fix any scoped package defects found during verification.
+- [x] Update `ARCHITECTURE.md` only if this review changes or clarifies package architecture.
+- [x] Add this pass's review summary, commands, results, and remaining risks.
+
+## Review
+
+Completed the current end-user readiness review for `@procharting/prices`.
+
+Overall verdict:
+
+- Almost ready. The package is correctly structured and works from local npm
+  tarballs with npm, pnpm, and Yarn, but `npm view @procharting/prices version`
+  returned 404 on May 31, 2026, so it is not publicly installable from the npm
+  registry until it is published.
+
+What works:
+
+- `package.json` has a valid package name, version, description, MIT license,
+  keywords, `files`, `main`, `module`, `types`, and conditional `exports`.
+- ESM import and CommonJS `require` both work from a clean consumer project.
+- The public API supports the requested custom-provider shape with
+  `createPriceClient({ symbol, provider: 'custom', pricesApi })`.
+- The documented default-provider shape works when fetch is mocked, and the
+  default provider is documented honestly as delayed Stooq historical data.
+- Symbols `AAPL`, `MSFT`, `SPY`, `QQQ`, `BTCUSD`, and `ETHUSD` are accepted.
+  Invalid and missing symbols throw typed package errors.
+- Custom, default, and TradingView MCP provider concerns are separated. TradingView
+  MCP remains adapter-only and is not presented as a guaranteed npm runtime
+  dependency.
+- Price candles and latest prices normalize to the documented shapes with Unix
+  millisecond timestamps.
+- No hardcoded secrets, API keys, `.env` files, or obvious secret patterns were
+  found in the price package scan.
+
+Verification results:
+
+- `pnpm --filter @procharting/prices build` passed.
+- `pnpm --filter @procharting/prices test` passed with 10 tests.
+- `pnpm --filter @procharting/prices exec tsc -p tsconfig.json --noEmit --pretty false` passed.
+- `pnpm exec eslint packages/prices/src --ext .ts` passed.
+- `npm pack --dry-run --json` passed and showed only package metadata, README,
+  and built `dist` output in the tarball.
+- `npm pack --pack-destination /tmp/procharting-prices-review --json` passed.
+- Clean npm, pnpm, and Yarn consumers installed the local tarball and passed ESM
+  import, CommonJS require, mocked custom provider runtime, mocked default
+  provider runtime, common-symbol validation, invalid-symbol validation, and
+  TypeScript declaration checks without DOM libs.
+- Bun verification was skipped because `bun` is not installed in this environment.
+- `pnpm build`, `pnpm test`, and `pnpm typecheck` passed at the repository root.
+- Browser/Playwright smoke passed at
+  `http://127.0.0.1:4187/browser-smoke.html`: the built ESM package imported,
+  rendered normalized `BTCUSD` output, and browser dev logs had no warnings or
+  errors.
+
+Remaining risks:
+
+- `@procharting/prices` is locally tarball-ready but not public-registry ready
+  until the npm package is published.
+- Root `pnpm lint` still fails with 270 existing lint problems outside
+  `packages/prices`. The reviewed price package source is lint-clean.
+- Yarn 4 Plug'n'Play installs the tarball, but plain `node` resolution requires
+  Yarn's PnP loader. The Node-resolution smoke was verified with Yarn configured
+  to `nodeLinker: node-modules`.
