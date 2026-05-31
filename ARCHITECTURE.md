@@ -48,6 +48,17 @@ exist and be writable by the publishing account; npm currently returns
 `E404 Scope not found` for package publish attempts and `E403` for org/team
 inspection with the current `.env` npm token.
 
+The repository root also acts as a narrow GitHub-install facade named
+`procharting`. Package managers install the repository root for a dependency
+like `github:rabinovich101/ProCharting`, so the root package builds a
+self-contained ESM chart facade under `dist/` for `procharting` and exposes the
+built price client at `procharting/prices`. This facade is intentionally
+separate from the internal workspace package names: workspace development and
+eventual npm publishing still use the `@procharting/*` package boundaries, while
+direct GitHub consumers use the root `procharting` import. Installing only
+`#path:/packages/core` is not a supported direct GitHub path because the
+subpackage depends on sibling workspace packages through `workspace:*`.
+
 `@procharting/core` builds its runtime ESM output with Vite and then removes the
 package `.tsbuildinfo` file before emitting TypeScript declarations with
 `tsc --emitDeclarationOnly`. This keeps Vite's cleaned runtime output and the

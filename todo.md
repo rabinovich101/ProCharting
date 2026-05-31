@@ -218,6 +218,38 @@ Verification results:
 - `pnpm typecheck` still fails on known legacy source errors, primarily in `packages/core/src/chart.ts` and worker files.
 - `git diff --check` passes.
 
+# Local Chart Run Plan
+
+## Goal
+
+Run the local chart app so the BTC/USDT chart can be inspected in a browser.
+
+## Checklist
+
+- [x] Identify the intended chart app and local dev command.
+- [x] Start the chart app locally on an available port.
+- [x] Open the chart route in the in-app browser.
+- [x] Verify the chart canvas renders and key controls are present.
+- [x] Add a review summary with the local URL and verification result.
+
+## Review
+
+Started the standalone Next chart app from `TEST/binance-chart-test` on port
+`3001` because port `3000` was already in use by an existing Node process. The
+server is running in detached `screen` session `procharting-chart`.
+
+Verification result:
+
+- Local URL: `http://localhost:3001/`.
+- Browser title: `ProCharting Market Desk`.
+- Chart canvas rendered at 1280x615 CSS pixels with 2560x1230 backing pixels.
+- Visible chart content included BTC/USDT candles, MA line, volume bars, live
+  status, symbol controls, timeframe controls, chart mode controls, and reset.
+- Browser console returned no warnings or errors for the chart tab.
+- Post-detach Playwright smoke passed at `http://host.docker.internal:3001/`
+  with canvas, BTC/USDT label, timeframe controls, mode controls, and zero
+  console warnings/errors.
+
 # README Accuracy Review Plan
 
 ## Goal
@@ -745,3 +777,114 @@ Follow-up required:
   `@procharting` npm scope. If using a granular token, regenerate it after the
   npm organization membership/permissions are in place so it includes that
   organization.
+
+# Direct GitHub Install Usage Plan
+
+## Goal
+
+Make the "Option 2: install directly from GitHub" usage path from the package
+readiness brief accurate and usable for the chart package while preserving the
+existing pnpm workspace architecture.
+
+## Findings
+
+- `pnpm add github:rabinovich101/ProCharting` currently installs the private
+  monorepo wrapper as `@procharting/monorepo`, but importing it fails because
+  the root package has no runtime entry point.
+- `pnpm add github:rabinovich101/ProCharting#path:/packages/core` currently
+  fails because `@procharting/core` depends on workspace packages via
+  `workspace:*`, and those packages are not present when only the subdirectory
+  is installed.
+- The npm packages under `@procharting/*` are still unpublished because npm
+  scope access is blocked, so GitHub install documentation must not pretend
+  public npm registry install works today.
+- The repository already builds the chart API through `@procharting/core`, whose
+  public browser API is `createChart`, not a React `ProChart` component.
+
+## Expert Decisions
+
+- Treat the direct GitHub path as a root package facade named `procharting`,
+  because package managers install the repository root when using
+  `github:rabinovich101/ProCharting`.
+- Keep the existing workspace packages and internal `@procharting/*` package
+  boundaries unchanged for development and eventual npm publishing.
+- Document pnpm as the supported direct GitHub installer for now because this
+  repository is a pnpm workspace and the direct GitHub package must build from
+  workspace sources before use.
+- Keep README examples aligned with the implemented `createChart` API instead
+  of inventing chart components that do not exist in the source.
+
+## Checklist
+
+- [x] Add root package metadata and export entries for the GitHub-installed
+      `procharting` facade.
+- [x] Add only the minimal internal package dependencies needed by the root
+      facade at runtime.
+- [x] Update README with clone/build instructions, local link usage, direct
+      GitHub usage, API table, data format, folder structure, and troubleshooting.
+- [x] Update `ARCHITECTURE.md` with the root GitHub-install facade details.
+- [x] Run build, typecheck, tests, focused package checks, and package dry-run.
+- [x] Verify direct GitHub-style installation from a clean consumer project.
+- [x] Run Playwright/browser smoke verification for the chart example.
+- [ ] Commit, push, and clean the worktree.
+- [x] Add a review summary with verification results and remaining risks.
+
+## Review
+
+Implemented the direct GitHub usage path as a root `procharting` facade package.
+
+Changes made:
+
+- Renamed the root package facade from `@procharting/monorepo` to
+  `procharting` while keeping it private to avoid accidental npm publication.
+- Added root `main`, `module`, `types`, `exports`, package metadata, and a
+  focused `files` allowlist.
+- Added `vite.facade.config.ts` to build a self-contained root ESM facade from
+  the existing `@procharting/core` source.
+- Added `scripts/write-root-facade-types.cjs` to generate flat root
+  declarations so GitHub/tarball consumers do not need unpublished internal
+  `@procharting/types` packages.
+- Changed `packages/core/src/index.ts` to re-export shared types with
+  `export type *`, avoiding a type-only package as a runtime dependency.
+- Added professional metadata to `packages/core/package.json`.
+- Rewrote `README.md` around the actual `createChart` API, local link usage,
+  direct GitHub usage, API tables, data formats, development commands, folder
+  structure, and troubleshooting.
+- Updated `ARCHITECTURE.md` with the root GitHub-install facade architecture.
+
+Verification results:
+
+- `pnpm install --frozen-lockfile` passed and ran the package-only prepare build.
+- `pnpm build` passed.
+- `pnpm typecheck` passed.
+- `pnpm test` passed, including 10 `@procharting/prices` tests.
+- `pnpm exec eslint packages/core/src/index.ts --ext .ts` passed.
+- `git diff --check` passed.
+- `pnpm pack --pack-destination /tmp/procharting-root-pack-final --json` passed
+  and showed the root tarball contains `dist/`, price-client dist files,
+  package metadata, README, and LICENSE.
+- Clean pnpm and npm consumers installed the packed `procharting-0.0.1.tgz` and
+  successfully imported `procharting` and `procharting/prices`.
+- Clean pnpm and npm TypeScript consumers passed `tsc` with
+  `moduleResolution: NodeNext`, `strict: true`, and DOM libs enabled.
+- A clean pnpm consumer installed the committed repository through
+  `git+file:///Users/olegrabinovich/Documents/ooo/ProCharting`; the git
+  dependency ran `prepare`, built the root facade, and successfully imported
+  `procharting` and `procharting/prices`.
+- Camoufox still blocked local/private addresses, so browser QA used Playwright
+  against `http://host.docker.internal:4188/browser-smoke.html`.
+- Playwright browser smoke passed: the packed `procharting` facade imported in
+  the browser, `createChart` created one 720x420 canvas, `procharting/prices`
+  returned two mocked candles, status rendered
+  `{"renderer":"canvas2d","candles":2}`, and the second run had no console
+  warnings/errors after adding a temporary favicon.
+
+Remaining risks:
+
+- `pnpm lint` still fails as a repository-wide audit with 223 pre-existing
+  legacy lint problems outside this packaging change.
+- The core Canvas 2D fallback still paints a blank canvas because actual Canvas
+  series rendering is an existing TODO; this task did not change renderer
+  behavior.
+- Public npm install for `@procharting/*` packages remains blocked until the npm
+  scope access issue is resolved.

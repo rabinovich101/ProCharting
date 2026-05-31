@@ -1,16 +1,62 @@
 {
-  "name": "@procharting/monorepo",
+  "name": "procharting",
   "version": "0.0.1",
   "private": true,
-  "description": "Ultra-high-performance financial charting library",
+  "description": "High-performance financial charting library with WebGPU, WebGL2, and Canvas rendering",
   "type": "module",
+  "license": "MIT",
   "packageManager": "pnpm@10.17.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rabinovich101/ProCharting.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rabinovich101/ProCharting/issues"
+  },
+  "homepage": "https://github.com/rabinovich101/ProCharting#readme",
+  "keywords": [
+    "chart",
+    "charting-library",
+    "financial-charts",
+    "candlestick",
+    "ohlc",
+    "webgpu",
+    "webgl",
+    "typescript"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./prices": {
+      "types": "./packages/prices/dist/esm/index.d.ts",
+      "import": "./packages/prices/dist/esm/index.js",
+      "require": "./packages/prices/dist/cjs/index.js",
+      "default": "./packages/prices/dist/esm/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "README.md",
+    "LICENSE",
+    "dist",
+    "packages/prices/dist",
+    "packages/prices/package.json",
+    "packages/prices/README.md"
+  ],
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "build": "pnpm -r build",
+    "prepare": "pnpm --filter './packages/*' build && pnpm run build:facade",
+    "build": "pnpm -r build && pnpm run build:facade",
+    "build:facade": "vite build --config vite.facade.config.ts && node scripts/write-root-facade-types.cjs",
     "dev": "pnpm -r --parallel dev",
     "test": "pnpm -r test",
     "bench": "pnpm -r bench",
