@@ -12,6 +12,7 @@ ProCharting is a next-generation financial charting library built for extreme pe
 ProCharting/
 ├── packages/
 │   ├── core/          # Main API and renderer orchestration
+│   ├── prices/        # Provider-based market price client
 │   ├── webgpu/        # WebGPU renderer with compute shaders
 │   ├── webgl/         # WebGL 2.0 fallback renderer
 │   ├── data/          # Data management and streaming
@@ -72,7 +73,61 @@ Raw Data → Binary Encoding → GPU Buffer → Compute Shader → Decimation �
 3. **GPU Decimation**: Douglas-Peucker algorithm in compute shaders
 4. **LOD System**: Automatic level-of-detail based on zoom
 
-### 5. Multi-Threading Strategy
+### 5. Price Data Package
+
+`@procharting/prices` is a publishable package boundary for market data access.
+It is intentionally separate from the rendering packages and from
+`@procharting/data`, which remains focused on binary buffers, decimation,
+encoding, and streaming internals.
+
+The public API is centered on:
+
+```typescript
+import { createPriceClient } from '@procharting/prices';
+
+const client = createPriceClient({
+  symbol: 'AAPL',
+  provider: 'default',
+});
+
+const candles = await client.getPrices({ interval: '1d', limit: 30 });
+```
+
+Provider architecture:
+
+- `CustomPriceProvider` wraps user-supplied `pricesApi` functions.
+- `DefaultPriceProvider` uses a no-key Stooq CSV adapter for daily, weekly, and
+  monthly historical candles.
+- `TradingViewMcpProvider` is an adapter-only integration. TradingView MCP tools
+  may exist in Codex or another MCP runtime, but they are not a stable npm
+  runtime dependency for all end users.
+
+All providers normalize to:
+
+```typescript
+type PriceCandle = {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+};
+
+type LatestPrice = {
+  symbol: string;
+  price: number;
+  timestamp: number;
+  source: string;
+};
+```
+
+The package builds ESM, CommonJS, and TypeScript declaration outputs under
+`packages/prices/dist`. The CommonJS output includes a nested package metadata
+file so `require('@procharting/prices')` works even though the package root is
+`type: module`.
+
+### 6. Multi-Threading Strategy
 
 ```
 Main Thread          Render Thread         Data Thread         Network Thread
@@ -82,7 +137,7 @@ Main Thread          Render Thread         Data Thread         Network Thread
     └─ Coordination       └─ OffscreenCanvas   └─ Decimation       └─ Compression
 ```
 
-### 6. Memory Management
+### 7. Memory Management
 
 - **SharedArrayBuffer**: Zero-copy data sharing between threads
 - **Memory Pools**: Object recycling to minimize GC pressure

@@ -143,3 +143,106 @@ Completed the README accuracy review without changing library functionality or s
 - Browser smoke test of `examples/basic` at `http://localhost:3000/` loaded the page and showed one canvas, but the canvas was blank and dev logs included WebGPU renderer initialization/rendering errors.
 - Source inspection found renderer and interaction scaffolding, but chart series data is currently passed to renderers as an empty `ArrayBuffer`, streaming is TODO, and WebSocket updates are parsed/logged rather than applied to series data.
 - The final report recommends safer README wording that separates implemented API scaffolding from experimental/planned performance work.
+
+# Price Package Readiness Plan
+
+## Goal
+
+Add a reusable TypeScript/JavaScript package that lets end users configure a
+market symbol and fetch normalized price data, while keeping the existing chart
+rendering packages stable.
+
+## Findings
+
+- CodeGraph is not initialized in this checkout, so structural inspection used
+  direct file reads and repository metadata instead of the CodeGraph MCP index.
+- The repository is a pnpm TypeScript monorepo with package workspaces under
+  `packages/*`.
+- Existing packages are chart/rendering/data-buffer focused. `@procharting/data`
+  contains binary buffers, decimation, encoding, and streaming helpers, not a
+  user-facing market data client.
+- Existing package outputs are ESM-oriented. A focused price package can add
+  dual ESM/CommonJS output without changing the rendering packages.
+- TradingView MCP tools are available in this Codex environment, but MCP tools
+  are not a stable npm package runtime dependency for end users. A package
+  should expose an adapter interface instead of pretending the MCP server exists
+  inside consumer applications.
+
+## Proposed Architecture
+
+- Add `@procharting/prices` as a new workspace package.
+- Export a clean public API centered on `createPriceClient`.
+- Implement provider-based internals:
+  - `CustomPriceProvider` for user-supplied API functions.
+  - `DefaultPriceProvider` for a bundled no-key daily/weekly/monthly provider.
+  - `TradingViewMcpProvider` as an adapter that only works when the consuming
+    app supplies an MCP-compatible bridge.
+- Normalize all providers to:
+  - `PriceCandle`
+  - `LatestPrice`
+- Validate symbols and query inputs at runtime with clear custom errors.
+- Build ESM, CommonJS, and TypeScript declarations from the package.
+- Document installation, usage, provider behavior, TradingView MCP limitations,
+  publishing readiness, and provider extension points.
+
+## Checklist
+
+- [x] Create `@procharting/prices` package metadata and TypeScript build configs.
+- [x] Add price types, symbol validation, custom errors, and normalization logic.
+- [x] Implement custom, default, and TradingView MCP adapter providers.
+- [x] Implement `createPriceClient` and the public package exports.
+- [x] Add unit tests for symbol validation, custom provider behavior, default
+      provider fallback, price normalization, error handling, and a mocked
+      integration-style API flow.
+- [x] Update root TypeScript project references and path aliases.
+- [x] Update `README.md` with installation, API examples, TypeScript usage,
+      error handling, TradingView MCP notes, and publishing guidance.
+- [x] Update `ARCHITECTURE.md` with the price package architecture.
+- [x] Run install/build/typecheck/test verification.
+- [x] Run a Playwright package smoke check for ESM and CommonJS consumption.
+- [x] Add a review summary.
+
+## Review
+
+Completed the price package readiness implementation.
+
+- Added `@procharting/prices` as a workspace package with ESM, CommonJS, and
+  TypeScript declaration outputs.
+- Added a provider-based public API centered on `createPriceClient`.
+- Added runtime symbol validation, query validation, custom error classes, and
+  price normalization for candles and latest price responses.
+- Added `CustomPriceProvider`, `DefaultPriceProvider`, and
+  `TradingViewMcpProvider`.
+- The default provider uses no-key Stooq CSV historical data for daily, weekly,
+  and monthly candles. It is documented as delayed historical data, not a
+  guaranteed real-time trading feed.
+- TradingView MCP was not used as the default runtime provider because MCP tools
+  are environment/tooling integrations, not a stable npm dependency available to
+  every package consumer. A `TradingViewMcpProvider` adapter is exported for
+  applications that explicitly supply an MCP-compatible bridge.
+- Added mocked tests for symbol validation, custom provider behavior, default
+  provider latest-price fallback, normalization, error handling, and an
+  integration-style custom API flow.
+- Updated root TypeScript path aliases/references, `README.md`,
+  `ARCHITECTURE.md`, and `pnpm-lock.yaml`.
+
+Verification results:
+
+- `pnpm install --lockfile-only` passed and added the new workspace importer.
+- `pnpm --filter @procharting/prices test` passed with 9 tests.
+- `pnpm --filter @procharting/prices exec tsc -p tsconfig.json --noEmit --pretty false` passed.
+- `pnpm --filter @procharting/prices build` passed.
+- `pnpm exec eslint packages/prices/src --ext .ts` passed.
+- `pnpm build` passed.
+- `pnpm test` passed.
+- `pnpm typecheck` passed.
+- ESM runtime import from `dist/esm/index.js` passed.
+- CommonJS `require('./packages/prices')` passed.
+- `npm pack --dry-run` passed and showed only package metadata, README, and
+  built `dist` output in the tarball.
+- Browser smoke verification passed at `http://127.0.0.1:4187/browser-smoke.html`:
+  the built ESM package imported successfully, rendered the expected latest
+  price JSON, and browser dev logs contained no errors.
+- `git diff --check` passed.
+- `pnpm lint` still fails on pre-existing legacy lint debt outside the new
+  package. The new `packages/prices/src` code is lint-clean.

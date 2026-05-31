@@ -53,6 +53,118 @@ const candlestickSeries = chart.addSeries({
 });
 ```
 
+## Price Data Package
+
+`@procharting/prices` is the reusable package for fetching normalized market
+price data. It is separate from the chart renderer so applications can use it
+with ProCharting, another charting layer, or a backend service.
+
+### Install
+
+```bash
+npm install @procharting/prices
+pnpm add @procharting/prices
+yarn add @procharting/prices
+bun add @procharting/prices
+```
+
+### Default Provider
+
+The default provider uses Stooq historical CSV data for no-key daily, weekly,
+and monthly candles. It is useful for demos and delayed historical data, not
+guaranteed real-time trading feeds.
+
+```ts
+import { createPriceClient } from '@procharting/prices';
+
+const client = createPriceClient({
+  symbol: 'AAPL',
+  provider: 'default'
+});
+
+const prices = await client.getPrices({ interval: '1d', limit: 30 });
+const latest = await client.getLatestPrice();
+```
+
+### Custom Provider
+
+Use a custom provider for production feeds, authenticated APIs, intraday data,
+or provider-specific symbol mapping.
+
+```ts
+import { createPriceClient } from '@procharting/prices';
+
+const client = createPriceClient({
+  symbol: 'BTCUSD',
+  provider: 'custom',
+  pricesApi: async ({ symbol, interval }) => {
+    const res = await fetch(`https://my-api.com/prices?symbol=${symbol}&interval=${interval ?? '1d'}`);
+    return res.json();
+  }
+});
+
+const prices = await client.getPrices({ interval: '1d' });
+```
+
+Custom APIs may return an array of candles or an object with `candles`,
+`prices`, or `data`. All providers normalize to:
+
+```ts
+type PriceCandle = {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+};
+
+type LatestPrice = {
+  symbol: string;
+  price: number;
+  timestamp: number;
+  source: string;
+};
+```
+
+`timestamp` is Unix epoch milliseconds. Numeric second-based timestamps are
+converted to milliseconds during normalization.
+
+### TypeScript And Errors
+
+```ts
+import {
+  InvalidSymbolError,
+  PriceNormalizationError,
+  createPriceClient,
+  type PriceCandle
+} from '@procharting/prices';
+
+try {
+  const client = createPriceClient({ symbol: 'QQQ', provider: 'default' });
+  const candles: PriceCandle[] = await client.getPrices({ limit: 50 });
+} catch (error) {
+  if (error instanceof InvalidSymbolError) {
+    console.error('Fix the symbol before retrying.');
+  } else if (error instanceof PriceNormalizationError) {
+    console.error('The provider returned an unsupported price shape.');
+  }
+}
+```
+
+### TradingView MCP
+
+TradingView MCP is available as a Codex/tooling integration in this workspace,
+but it is not a stable runtime dependency that npm users automatically have
+inside their applications. `@procharting/prices` therefore does not use it as
+the default provider. It exports `TradingViewMcpProvider` and accepts a
+`provider: 'tradingview-mcp'` client adapter when an application explicitly
+supplies an MCP-compatible bridge.
+
+For production market data, prefer an official provider with documented API
+terms and keys, such as Twelve Data or Alpha Vantage, through the custom
+provider interface.
+
 ## Interactive Features
 
 ProCharting includes professional-grade interactive features out of the box:
@@ -157,6 +269,7 @@ chart.connect({
 ### Package Structure
 
 - `@procharting/core` - Core chart API and renderer abstraction
+- `@procharting/prices` - Provider-based normalized price data client
 - `@procharting/webgpu` - WebGPU renderer with compute shaders
 - `@procharting/webgl` - WebGL 2.0 fallback renderer
 - `@procharting/data` - High-performance data management
@@ -183,12 +296,30 @@ pnpm install
 # Build all packages
 pnpm build
 
+# Test all packages
+pnpm test
+
+# Typecheck all packages
+pnpm typecheck
+
 # Run development mode
 pnpm dev
 
 # Run examples
 cd examples/basic
 pnpm dev
+```
+
+### Publishing Packages
+
+Do not publish from the repository root. Build and test first, then publish the
+specific package:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --filter @procharting/prices build
+pnpm --filter @procharting/prices test
+pnpm --filter @procharting/prices exec npm publish --access public
 ```
 
 ## Benchmarks

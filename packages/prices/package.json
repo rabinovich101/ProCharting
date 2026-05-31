@@ -1,0 +1,43 @@
+{
+  "name": "@procharting/prices",
+  "version": "0.0.1",
+  "description": "Provider-based market price client for ProCharting",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "pnpm run clean && tsc -b && tsc -p tsconfig.cjs.json && node ./scripts/write-cjs-package.cjs",
+    "dev": "tsc -b --watch",
+    "test": "vitest run",
+    "clean": "rm -rf dist .tsbuildinfo"
+  },
+  "keywords": [
+    "prices",
+    "market-data",
+    "ohlc",
+    "candles",
+    "finance",
+    "stocks",
+    "crypto"
+  ],
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}

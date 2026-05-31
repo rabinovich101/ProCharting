@@ -33,6 +33,7 @@
     "paths": {
       "@procharting/core": ["./packages/core/src"],
       "@procharting/data": ["./packages/data/src"],
+      "@procharting/prices": ["./packages/prices/src"],
       "@procharting/webgpu": ["./packages/webgpu/src"],
       "@procharting/webgl": ["./packages/webgl/src"],
       "@procharting/types": ["./packages/types/src"],
@@ -43,6 +44,7 @@
     { "path": "./packages/types" },
     { "path": "./packages/utils" },
     { "path": "./packages/data" },
+    { "path": "./packages/prices" },
     { "path": "./packages/webgpu" },
     { "path": "./packages/webgl" },
     { "path": "./packages/core" }
