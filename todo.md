@@ -1,3 +1,104 @@
+# TradingView-Style Chart UX Improvement Plan
+
+## Goal
+
+Improve the live BTC/USDT chart experience in `TEST/binance-chart-test` so it
+feels closer to a professional TradingView-style charting surface while keeping
+the existing data flow, routes, and chart interactions simple and stable.
+
+## Project Map
+
+- Chart UI route: `TEST/binance-chart-test/app/page.tsx`.
+- Data route: `TEST/binance-chart-test/app/api/binance/route.ts`, which proxies
+  Binance klines for `symbol`, `interval`, and `limit`.
+- Styling entry point: `TEST/binance-chart-test/app/globals.css`.
+- App metadata/layout: `TEST/binance-chart-test/app/layout.tsx`.
+- Current chart display is a client-rendered Canvas 2D implementation, not the
+  `@procharting/core` renderer path.
+- Existing chart controls: fixed `BTCUSDT` symbol, `1m/5m/15m/30m/1h/4h/1d`
+  timeframes, mouse-wheel zoom, drag pan, crosshair, live Binance websocket.
+- Existing states: loading text only; error/empty states are not clearly handled.
+- Core library architecture remains under `packages/core`, `packages/webgl`,
+  `packages/webgpu`, `packages/types`, and should not be refactored for this UI
+  pass.
+
+## Expert Decisions
+
+- Treat “like TradingView” as: denser chart chrome, stronger financial visual
+  hierarchy, readable axes/legend, volume pane, price marker, theme controls,
+  polished loading/error/empty states, and responsive desktop/mobile behavior.
+- Keep the scope centered on `TEST/binance-chart-test` because that is the real
+  chart page surfaced by this task.
+- Preserve Binance API usage and websocket behavior unless a root-cause bug
+  requires a small fix.
+- Avoid adding a new charting library; the existing hand-drawn canvas is already
+  the chart under test.
+
+## Checklist
+
+- [x] Attempt Camoufox baseline and capture a Playwright fallback baseline for
+      the local chart route.
+- [x] Improve chart state handling for loading, error, and empty data.
+- [x] Add TradingView-style chart chrome: symbol stats, status, grouped controls,
+      theme toggle, and viewport-aware toolbar layout.
+- [x] Improve canvas rendering: chart padding, axis readability, current price
+      marker, OHLC legend, crosshair labels, volume bars, and better colors.
+- [x] Improve responsive behavior for desktop, tablet, and mobile chart heights.
+- [x] Add or document reusable browser QA coverage for the chart route.
+- [x] Update `ARCHITECTURE.md` with the discovered chart-test-app architecture.
+- [x] Run typecheck/build/test verification relevant to the touched files.
+- [x] Run Camoufox/Playwright visual QA across desktop, tablet, and mobile.
+- [x] Add this task review summary.
+
+## Review
+
+Completed the TradingView-style chart UX pass for the standalone
+`TEST/binance-chart-test` Next app.
+
+- Camoufox MCP is installed, but its local/private address policy blocked
+  `127.0.0.1` access, so visual QA used Playwright against
+  `http://host.docker.internal:3001`.
+- Reworked the chart screen into a denser market terminal with symbol selection,
+  live status, price/change stats, timeframe controls, Candle/Line/Area modes,
+  MA20, volume, light/dark theme, and reset.
+- Improved Canvas 2D rendering with a better chart background, readable axes,
+  current price marker, OHLC legend, crosshair labels, MA20 line, volume pane,
+  clamped time labels, and responsive chart sizing.
+- Added robust REST payload parsing and user-visible loading/error/empty states.
+- Tightened the Binance proxy route with symbol/interval validation, no-store
+  fetches, upstream error forwarding, and unexpected-payload handling.
+- Replaced reconnect-on-control-change websocket behavior with one persistent
+  Binance websocket plus `SUBSCRIBE`/`UNSUBSCRIBE`, avoiding console errors when
+  switching symbols/timeframes.
+- Added `TEST/binance-chart-test/CHART_QA.md` as the reusable browser QA
+  checklist.
+- Added a local test-app ESLint config so `next build` resolves the test app
+  TypeScript project from the correct directory.
+- Updated `ARCHITECTURE.md` with the discovered chart-test-app architecture.
+
+Browser QA:
+
+| Viewport | Result |
+| --- | --- |
+| 1440x900 | Pass; canvas filled stage, no overflow, live status. |
+| 1280x800 | Pass; no overflow, chart nonblank. |
+| 1024x768 | Pass; controls stayed in one row, chart nonblank. |
+| 768x900 | Pass; controls wrapped cleanly, chart nonblank. |
+| 430x932 | Pass; mobile toolbar and labels stayed inside viewport. |
+| 390x844 | Pass; no horizontal overflow, chart nonblank. |
+| 360x800 | Pass; no horizontal overflow, chart remained usable. |
+
+Interaction QA passed for timeframe switching, symbol switching, Candle/Line/Area,
+MA, Vol, Light/Dark, wheel zoom, drag pan, Reset, and invalid API responses.
+
+Verification results:
+
+- `pnpm run typecheck` passed.
+- `pnpm test` passed.
+- `npm run build` in `TEST/binance-chart-test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `git diff --check` passed.
+
 # Verification Cleanup Plan
 
 ## Goal

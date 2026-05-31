@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #070a10;
+  --foreground: #e7edf7;
 }
 
 @theme inline {
@@ -12,15 +12,341 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  margin: 0;
+  min-height: 100%;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.chart-terminal {
+  --surface-0: #070a10;
+  --surface-1: #0d121b;
+  --surface-2: #121925;
+  --surface-3: #182334;
+  --border-subtle: rgba(132, 146, 170, 0.18);
+  --border-strong: rgba(132, 146, 170, 0.28);
+  --text-strong: #e7edf7;
+  --text-muted: #8f9bad;
+  --accent: #2f81f7;
+  --positive: #16b99a;
+  --negative: #f05662;
+  background: var(--surface-0);
+  color: var(--text-strong);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.chart-terminal[data-theme="light"] {
+  --surface-0: #e8eef6;
+  --surface-1: #f7f9fc;
+  --surface-2: #eef3f8;
+  --surface-3: #dde6f0;
+  --border-subtle: rgba(70, 85, 105, 0.2);
+  --border-strong: rgba(70, 85, 105, 0.32);
+  --text-strong: #142033;
+  --text-muted: #65758a;
+  --accent: #0b72d9;
+  --positive: #049981;
+  --negative: #dc3f4b;
+}
+
+.chart-topbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-1) 90%, transparent);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  min-height: 70px;
+  padding: 10px 14px;
+}
+
+.instrument-block {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 220px;
+}
+
+.symbol-row,
+.price-row,
+.control-rack,
+.market-strip {
+  align-items: center;
+  display: flex;
+}
+
+.symbol-row {
+  gap: 10px;
+}
+
+.symbol-select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--text-strong);
+  font-size: 20px;
+  font-weight: 680;
+  letter-spacing: 0;
+  line-height: 1.1;
+  outline: 0;
+  padding: 0 18px 0 0;
+}
+
+.feed-pill {
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+  text-transform: uppercase;
+}
+
+.feed-pill.live {
+  border-color: color-mix(in srgb, var(--positive) 38%, transparent);
+  color: var(--positive);
+}
+
+.feed-pill.offline {
+  border-color: color-mix(in srgb, var(--negative) 38%, transparent);
+  color: var(--negative);
+}
+
+.price-row {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.last-price {
+  color: var(--text-strong);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.price-change {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.price-change.positive {
+  color: var(--positive);
+}
+
+.price-change.negative {
+  color: var(--negative);
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.control-rack {
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.segmented-control {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  display: flex;
+  min-height: 34px;
+  overflow: hidden;
+}
+
+.segmented-control button,
+.tool-toggle {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  min-height: 32px;
+  padding: 0 12px;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.segmented-control button + button {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.segmented-control button:hover,
+.tool-toggle:hover {
+  background: var(--surface-3);
+  color: var(--text-strong);
+}
+
+.segmented-control button.active,
+.tool-toggle.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.segmented-control.compact button {
+  text-transform: capitalize;
+}
+
+.tool-toggle {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+}
+
+.market-strip {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 16px;
+  min-height: 34px;
+  padding: 8px 14px;
+}
+
+.chart-stage {
+  background: var(--surface-0);
+  flex: 1;
+  min-height: 0;
+  overscroll-behavior: contain;
+  position: relative;
+}
+
+.chart-canvas {
+  display: block;
+  height: 100%;
+  inset: 0;
+  min-height: 420px;
+  position: absolute;
+  touch-action: none;
+  width: 100%;
+}
+
+.chart-overlay {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-0) 58%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+}
+
+.loading-panel,
+.state-panel {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-1) 86%, transparent);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: min(320px, calc(100vw - 32px));
+  padding: 18px;
+}
+
+.loading-line {
+  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+  border-radius: 999px;
+  height: 9px;
+  overflow: hidden;
+  width: 180px;
+}
+
+.loading-line.short {
+  width: 126px;
+}
+
+.state-copy,
+.state-panel span {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.state-panel strong {
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.state-panel button {
+  background: var(--accent);
+  border: 0;
+  border-radius: 7px;
+  color: #ffffff;
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+@media (max-width: 900px) {
+  .chart-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .control-rack {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .chart-terminal {
+    overflow: auto;
+  }
+
+  .chart-topbar {
+    padding: 10px;
+  }
+
+  .symbol-select {
+    font-size: 18px;
+  }
+
+  .control-rack {
+    gap: 6px;
+  }
+
+  .segmented-control {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .segmented-control button,
+  .tool-toggle {
+    min-width: 42px;
+    padding: 0 9px;
+  }
+
+  .market-strip {
+    gap: 10px;
+    padding: 8px 10px;
+  }
+
+  .chart-canvas {
+    min-height: 520px;
+  }
 }

@@ -142,7 +142,41 @@ clear the Yarn cache. Yarn 1 may reuse a cached `file:` tarball when the package
 name, version, and filename are unchanged, which can make declaration checks read
 stale package contents even after `npm pack` produced a correct tarball.
 
-### 6. Multi-Threading Strategy
+### 6. Chart Test App
+
+`TEST/binance-chart-test` is a standalone Next.js app used for visual browser
+verification of a live Binance market chart. Its main chart route lives in
+`TEST/binance-chart-test/app/page.tsx`, and the Binance REST proxy lives in
+`TEST/binance-chart-test/app/api/binance/route.ts`.
+
+As of May 31, 2026, this app draws its chart directly with Canvas 2D inside the
+client component. It does not instantiate `@procharting/core` or the WebGPU/WebGL
+renderer factory path. The app is therefore a live chart UX and QA harness rather
+than a direct example of the packaged renderer architecture.
+
+The chart app supports:
+
+- Binance spot symbols selected from a fixed crypto list.
+- Timeframes `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, and `1d`.
+- Candlestick, line, and area drawing modes.
+- MA20 and volume overlays.
+- Dark/light UI themes.
+- Wheel zoom, drag pan, reset, crosshair, OHLC legend, current price marker, and
+  responsive desktop/tablet/mobile layouts.
+
+Historical candles are loaded through the local API route, which validates symbol
+and interval inputs before proxying Binance klines. Live updates use a persistent
+Binance websocket with `SUBSCRIBE` and `UNSUBSCRIBE` messages so changing symbols
+or timeframes does not churn browser websocket connections.
+
+The reusable browser QA checklist for this app is
+`TEST/binance-chart-test/CHART_QA.md`.
+
+The test app owns a local ESLint config so `next build` resolves its TypeScript
+project from `TEST/binance-chart-test` instead of inheriting root workspace
+parser paths relative to the wrong working directory.
+
+### 7. Multi-Threading Strategy
 
 ```
 Main Thread          Render Thread         Data Thread         Network Thread
@@ -152,7 +186,7 @@ Main Thread          Render Thread         Data Thread         Network Thread
     └─ Coordination       └─ OffscreenCanvas   └─ Decimation       └─ Compression
 ```
 
-### 7. Memory Management
+### 8. Memory Management
 
 - **SharedArrayBuffer**: Zero-copy data sharing between threads
 - **Memory Pools**: Object recycling to minimize GC pressure
