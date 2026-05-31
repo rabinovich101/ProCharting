@@ -1035,3 +1035,44 @@ Verification results:
   visible, Indicators opened correctly, timeframe/chart-type selections worked,
   no horizontal overflow was visible, and browser console/devtools warnings were
   clean.
+
+# Left-Aligned Chart Toolbar Follow-Up
+
+## Goal
+
+Move the compact timeframe, chart type, and indicators controls to the left side
+of the top toolbar beside the symbol area, matching the TradingView screenshot.
+
+## Checklist
+
+- [x] Add this follow-up checklist.
+- [x] Update the topbar flex layout so controls no longer sit on the far right.
+- [x] Keep tablet/mobile wrapping behavior intact.
+- [x] Update `ARCHITECTURE.md` with the left-aligned toolbar note.
+- [x] Run focused verification and browser QA.
+- [ ] Commit, push, and clean.
+
+## Review
+
+Completed the left-alignment follow-up.
+
+- Updated the topbar flex layout so the symbol block no longer consumes all
+  available horizontal space.
+- The compact timeframe, chart type, Indicators, Light, and Reset controls now
+  start immediately beside the symbol/price area on desktop, like the supplied
+  TradingView reference.
+- Kept the existing small-screen grid behavior intact.
+- Updated `ARCHITECTURE.md` to note the left-aligned toolbar grouping.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `npm run build` in `TEST/binance-chart-test` passed. Next.js repeated the
+  existing multiple-lockfile and ESLint-plugin warnings but completed
+  successfully.
+- `git diff --check` passed.
+- Playwright QA passed at `1440x900` and `360x800` against
+  `http://host.docker.internal:3002/`: desktop controls rendered on the left
+  beside the symbol block, mobile controls stayed within the viewport, chart
+  canvas rendered, and browser console/devtools warnings were clean.
