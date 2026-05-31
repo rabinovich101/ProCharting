@@ -57,6 +57,7 @@ export interface Viewport {
 export interface RenderableSeries {
   readonly type: string;
   readonly data: ArrayBuffer;
+  readonly sourceData?: readonly unknown[];
   readonly style: SeriesStyle;
   readonly visible: boolean;
 }

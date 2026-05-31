@@ -1,13 +1,25 @@
-import type { Chart, ChartOptions, ChartEventMap, ConnectionOptions, InteractionOptions, Series, SeriesOptions } from '@procharting/types';
+import type { Chart, ChartOptions, ChartEventMap, ConnectionOptions, InteractionOptions, Renderer, RenderableSeries, Series, SeriesOptions } from '@procharting/types';
 import type { StreamingOptions } from '@procharting/types';
 import { EventEmitter, type EventHandler } from '@procharting/utils';
 import { RendererFactory } from './renderer-factory';
-import type { Renderer } from '@procharting/types';
 import { WebSocketClient } from './websocket/websocket-client';
 import { BinaryProtocol, MessageType } from './websocket/binary-protocol';
 
 type ChartEventPayloadMap = {
   [K in keyof ChartEventMap]: Parameters<ChartEventMap[K]>[0];
+};
+
+type NumericRecord = Record<string, unknown>;
+
+type RenderSeriesStyle = {
+  color?: string;
+  lineWidth?: number;
+  fillOpacity?: number;
+  strokeOpacity?: number;
+  upColor?: string;
+  downColor?: string;
+  wickUpColor?: string;
+  wickDownColor?: string;
 };
 
 export function createChart(container: HTMLElement | string, options: ChartOptions = {}): Chart {
@@ -357,12 +369,7 @@ class ChartImpl implements Chart {
         dataMinY: this.viewState.dataMinY,
         dataMaxY: this.viewState.dataMaxY,
       },
-      series: Array.from(this.series.values()).map(s => ({
-        type: s.type,
-        data: new ArrayBuffer(0), // TODO: Convert series data to binary
-        style: {},
-        visible: true,
-      })),
+      series: Array.from(this.series.values()).map((series) => this.createRenderableSeries(series)),
       overlays: this.createOverlays(),
       theme: {
         backgroundColor: '#ffffff',
@@ -375,6 +382,80 @@ class ChartImpl implements Chart {
     };
     
     this.rendererInstance.render(renderScene);
+  }
+
+  private createRenderableSeries(series: SeriesImpl<SeriesOptions>): RenderableSeries {
+    const options = series.options;
+
+    return {
+      type: series.type,
+      data: this.encodeSeriesData(options),
+      sourceData: options.data,
+      style: this.createSeriesStyle(options),
+      visible: options.visible !== false,
+    };
+  }
+
+  private createSeriesStyle(options: SeriesOptions): RenderSeriesStyle {
+    const style: RenderSeriesStyle = {};
+
+    if (typeof options.color === 'string') {
+      style.color = options.color;
+    }
+    if ('lineWidth' in options && typeof options.lineWidth === 'number') {
+      style.lineWidth = options.lineWidth;
+    }
+    if ('upColor' in options && typeof options.upColor === 'string') {
+      style.upColor = options.upColor;
+    }
+    if ('downColor' in options && typeof options.downColor === 'string') {
+      style.downColor = options.downColor;
+    }
+    if ('wickUpColor' in options && typeof options.wickUpColor === 'string') {
+      style.wickUpColor = options.wickUpColor;
+    }
+    if ('wickDownColor' in options && typeof options.wickDownColor === 'string') {
+      style.wickDownColor = options.wickDownColor;
+    }
+
+    return style;
+  }
+
+  private encodeSeriesData(options: SeriesOptions): ArrayBuffer {
+    switch (options.type) {
+      case 'candlestick':
+        return this.encodeNumericRows(options.data, ['time', 'open', 'high', 'low', 'close', 'volume']);
+      case 'line':
+        return this.encodeNumericRows(options.data, ['time', 'value']);
+      case 'bar':
+      case 'volume':
+        return this.encodeNumericRows(options.data, ['time', 'value', 'colorCode']);
+    }
+  }
+
+  private encodeNumericRows(data: readonly unknown[], fields: readonly string[]): ArrayBuffer {
+    const bytesPerValue = Float32Array.BYTES_PER_ELEMENT;
+    const buffer = new ArrayBuffer(data.length * fields.length * bytesPerValue);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    for (const point of data) {
+      for (const field of fields) {
+        view.setFloat32(offset, this.readNumberField(point, field), true);
+        offset += bytesPerValue;
+      }
+    }
+
+    return buffer;
+  }
+
+  private readNumberField(point: unknown, field: string): number {
+    if (typeof point !== 'object' || point === null) {
+      return 0;
+    }
+
+    const value = (point as NumericRecord)[field];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
   
   private createOverlays(): any[] {
@@ -504,8 +585,10 @@ class ChartImpl implements Chart {
     }
     
     if (minX !== Infinity) {
-      const paddingX = (maxX - minX) * 0.05;
-      const paddingY = (maxY - minY) * 0.1;
+      const rangeX = maxX - minX;
+      const rangeY = maxY - minY;
+      const paddingX = rangeX > 0 ? rangeX * 0.05 : 1;
+      const paddingY = rangeY > 0 ? rangeY * 0.1 : Math.max(Math.abs(maxY) * 0.01, 1);
       
       this.viewState.dataMinX = minX - paddingX;
       this.viewState.dataMaxX = maxX + paddingX;
@@ -544,7 +627,8 @@ class ChartImpl implements Chart {
     }
     
     if (minY !== Infinity) {
-      const padding = (maxY - minY) * 0.1;
+      const rangeY = maxY - minY;
+      const padding = rangeY > 0 ? rangeY * 0.1 : Math.max(Math.abs(maxY) * 0.01, 1);
       this.viewState.dataMinY = minY - padding;
       this.viewState.dataMaxY = maxY + padding;
     }
@@ -570,6 +654,7 @@ class ChartImpl implements Chart {
     const id = `series-${this.nextSeriesId++}`;
     const series = new SeriesImpl(id, options, this);
     this.series.set(id, series as unknown as SeriesImpl<SeriesOptions>);
+    this.resetView();
     return series;
   }
 
@@ -682,6 +767,7 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
 
   setData(data: T['data']): void {
     (this.options as { data: T['data'] }).data = data;
+    this.chart.resetView();
   }
 
   update(options: Partial<T>): void {
@@ -695,6 +781,7 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
   appendData(data: T['data'][0]): void {
     if (Array.isArray(this.options.data)) {
       (this.options.data as any[]).push(data);
+      this.chart.resetView();
     }
   }
   
@@ -705,6 +792,7 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
         ...(this.options.data as any[])[lastIndex],
         ...data
       };
+      this.chart.resetView();
     }
   }
 }

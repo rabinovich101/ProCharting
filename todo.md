@@ -1,3 +1,75 @@
+# Actual Runnable ProCharting App Plan
+
+## Goal
+
+Find the real ProCharting page a user should run and verify in a browser,
+without treating `TEST/binance-chart-test` as the product unless that is the
+opened product surface.
+
+## Findings / Decisions
+
+- The supported runnable ProCharting demo documented in `README.md` is
+  `examples/basic`, served by Vite.
+- The workspace includes `examples/*`, so `examples/basic` participates in the
+  pnpm monorepo.
+- `TEST/binance-chart-test` is a standalone Next.js visual QA/live Binance
+  harness and is not included in `pnpm-workspace.yaml`.
+- The app URL to verify for the actual ProCharting package demo is the Vite URL
+  printed by `pnpm --filter @procharting/example-basic dev`.
+- Browser verification showed `http://localhost:3000` is already running that
+  exact Vite app, but the chart surface was blank because `auto` selected the
+  placeholder WebGPU path, the core render scene passed empty series buffers,
+  and the Canvas2D fallback did not draw series data yet.
+- The smallest product-path fix is to make `auto` select the functional
+  Canvas2D renderer for now, pass real series data through the render scene, fit
+  the viewport when data is added, and implement basic Canvas2D series drawing.
+
+## Checklist
+
+- [x] Inspect CodeGraph project structure and runnable app candidates.
+- [x] Compare root, example, and test app package scripts.
+- [x] Identify the product/demo URL that matches the repository docs and
+      workspace layout.
+- [x] Start the exact app server for the selected ProCharting page.
+- [x] Open the exact app URL in a browser and capture the blank-chart baseline.
+- [x] Fix the actual package/demo rendering path without changing
+      `TEST/binance-chart-test`.
+- [x] Update architecture notes for the current `auto` renderer behavior and
+      demo rendering path.
+- [x] Run typecheck/build verification for the touched package/example path.
+- [x] Re-open the exact app URL in a browser and verify the chart renders.
+- [x] Capture/share the browser verification result.
+- [x] Add review notes with final URL, verification, and any caveats.
+
+## Review
+
+Completed the actual ProCharting package demo rendering fix.
+
+- Confirmed the product/demo page is `examples/basic`, not
+  `TEST/binance-chart-test`.
+- Kept `TEST/binance-chart-test` untouched.
+- Fixed `@procharting/core` so render scenes carry real series data and reset
+  the visible range when series data changes.
+- Made `renderer: auto` select the functional Canvas2D renderer until the GPU
+  renderers have complete data upload/draw paths.
+- Implemented Canvas2D drawing for candlestick, line/area, and bar/volume
+  series with grid/axis labels and crosshair overlay support.
+- Updated `ARCHITECTURE.md` with the current renderer selection and demo
+  rendering architecture.
+
+Verification:
+
+- `pnpm run typecheck:packages` passed.
+- `pnpm --filter @procharting/types build` passed.
+- `pnpm --filter @procharting/core build` passed.
+- `pnpm --filter @procharting/example-basic build` passed.
+- `pnpm exec eslint packages/core/src packages/types/src --ext .ts` still fails
+  on preexisting strict-lint debt in `packages/core`; the new
+  Canvas2D `require-await` issue found during this pass was fixed.
+- Browser verified the exact app URL `http://127.0.0.1:3002/`: the page renders
+  candlesticks with `Renderer: canvas2d`, `Data Points: 1,000`, no console
+  warnings/errors, and the `Add Random Data` control updates to `1,100`.
+
 # TradingView Top Command Bar Plan
 
 ## Goal
