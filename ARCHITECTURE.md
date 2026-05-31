@@ -22,6 +22,12 @@ ProCharting/
 └── benchmarks/        # Performance tests
 ```
 
+The primary runnable ProCharting package demo is `examples/basic`, a Vite app
+inside the pnpm workspace that imports `@procharting/core` and exercises the
+packaged chart API. The `TEST/binance-chart-test` Next.js app is outside the
+workspace and remains a standalone live-market QA harness rather than the
+default product/demo page.
+
 ### 2. Verification Tooling
 
 The root TypeScript config is a solution-style project that references the package
@@ -64,10 +70,16 @@ package `.tsbuildinfo` file before emitting TypeScript declarations with
 `tsc --emitDeclarationOnly`. This keeps Vite's cleaned runtime output and the
 package `types` entry in sync for npm publication.
 
-The core renderer factory lazy-loads WebGPU and WebGL packages. The wrappers do
-not expose the concrete renderer to the render loop until its async
-`initialize(canvas)` call completes, so auto-selected GPU renderers cannot be
-called while their device/context fields are still unset.
+The core renderer factory lazy-loads WebGPU and WebGL packages when those
+renderers are explicitly requested. The wrappers do not expose the concrete
+renderer to the render loop until their async `initialize(canvas)` call
+completes, so explicit GPU renderers cannot be called while their
+device/context fields are still unset.
+
+As of May 31, 2026, the automatic renderer path selects Canvas2D because it is
+the complete package-rendering path for the runnable `examples/basic` product
+demo. The WebGPU and WebGL packages remain available behind explicit renderer
+selection while their full data upload and draw paths continue to mature.
 
 ### 3. Renderer Architecture
 
@@ -89,7 +101,9 @@ The library uses a pluggable renderer architecture with three implementations:
 
 #### Canvas2D Renderer (Compatibility)
 - Software rendering fallback
-- Basic functionality
+- Draws candlestick, line/area, and bar/volume series from the render scene's
+  source data.
+- Draws basic grid, price-axis labels, time-axis labels, and crosshair overlay.
 - Maximum compatibility
 
 ### 4. Data Pipeline
@@ -109,6 +123,11 @@ The public chart `CandlestickData` contract uses six numeric fields: `time`,
 `open`, `high`, `low`, `close`, and `volume`. The binary chart pipeline writes
 all six fields into fixed-width candle records, so consumers should pass
 `volume: 0` when their market data source has no volume.
+
+`@procharting/core` render scenes currently carry both `sourceData` and binary
+series buffers. Canvas2D renders directly from `sourceData` to preserve
+timestamp precision and keep the runnable package demo usable, while the binary
+buffer remains the handoff shape for GPU-oriented renderer work.
 
 ### 5. Price Data Package
 
@@ -298,7 +317,8 @@ chart.on('click', (event) => {
 ## Future Enhancements
 
 ### Phase 1: Core Features (Current)
-- ✅ WebGPU/WebGL2 renderers
+- ✅ Functional Canvas2D renderer for the package demo
+- [ ] Complete WebGPU/WebGL2 data upload and draw paths
 - ✅ Basic chart types
 - ✅ Type-safe API
 - ✅ Performance benchmarks
