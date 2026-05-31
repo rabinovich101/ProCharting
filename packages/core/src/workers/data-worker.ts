@@ -5,11 +5,6 @@ import { BinaryDecoder, BinaryEncoder, douglasPeucker, Vec2 } from '@procharting
 
 declare const self: DedicatedWorkerGlobalScope;
 
-// Shared memory for zero-copy data transfer
-let sharedDataBuffer: SharedArrayBuffer | null = null;
-let sharedDataView: DataView | null = null;
-let sharedMetadata: Int32Array | null = null;
-
 // Message handlers
 self.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
   const { id, type, data } = event.data;
@@ -53,20 +48,18 @@ self.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
   }
 });
 
-function handleInit(data: any): void {
+function handleInit(data: any): { dataBuffer: SharedArrayBuffer; metadataBuffer: SharedArrayBuffer } {
   const { bufferSize } = data;
   
   // Create shared buffers
   if (typeof SharedArrayBuffer !== 'undefined') {
-    sharedDataBuffer = new SharedArrayBuffer(bufferSize);
-    sharedDataView = new DataView(sharedDataBuffer);
+    const dataBuffer = new SharedArrayBuffer(bufferSize);
     
     // Metadata: [writeOffset, readOffset, dataCount, isProcessing]
     const metadataBuffer = new SharedArrayBuffer(16);
-    sharedMetadata = new Int32Array(metadataBuffer);
     
     return {
-      dataBuffer: sharedDataBuffer,
+      dataBuffer,
       metadataBuffer,
     };
   }
@@ -162,7 +155,7 @@ function handleDecimate(data: any): ArrayBuffer {
 }
 
 function handleAggregate(data: any): ArrayBuffer {
-  const { input, interval, method } = data;
+  const { input, interval } = data;
   
   // Decode OHLC data
   const decoder = new BinaryDecoder(input);

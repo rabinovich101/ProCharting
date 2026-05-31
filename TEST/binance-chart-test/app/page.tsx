@@ -51,7 +51,7 @@ export default function Home() {
     endIndex: 100,
     candlesPerView: 100
   });
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
 
   // Chart dimensions and data bounds
   const chartBounds = useRef({

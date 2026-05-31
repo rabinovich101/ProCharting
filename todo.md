@@ -31,6 +31,58 @@ Verification results:
 - `pnpm lint` runs without typed-project parse errors and reports 306 existing lint problems across source files.
 - `git diff --check` passes.
 
+# Phase 1 Source Verification Plan
+
+## Goal
+
+Make the source verification baseline trustworthy by aligning TypeScript
+resolution and source contracts without changing runtime behavior, UI behavior,
+routes, APIs, or feature semantics.
+
+## Checklist
+
+- [x] Confirm why package typechecking reads stale generated declarations.
+- [x] Point source verification at source package contracts instead of stale local outputs.
+- [x] Align `ChartImpl` typing with the current public source API without changing behavior.
+- [x] Fix worker and helper type-only issues that block `pnpm typecheck`.
+- [x] Keep existing lint debt visible without broad cosmetic cleanup.
+- [x] Update `ARCHITECTURE.md` with the source-verification finding.
+- [x] Run `pnpm typecheck`.
+- [x] Run relevant build/test checks.
+- [x] Run browser/Playwright smoke verification if an app can be served.
+- [x] Add a review summary.
+
+## Review
+
+Completed the approved Phase 1 source verification cleanup without changing
+runtime behavior, UI behavior, routes, API contracts, database behavior, or
+feature semantics.
+
+- Package source imports resolve to `packages/*/src`; generated `dist/` outputs
+  are untracked build artifacts and are not the source of truth.
+- `ChartImpl` now uses an internal event payload map while preserving the public
+  `chart.on(event, handler)` and `chart.off(event, handler)` API.
+- Internal series storage is typed as the existing `SeriesImpl` so current data
+  access compiles without exposing implementation details publicly.
+- Worker stubs and helper modules had unused/type-only blockers removed or typed
+  locally, preserving their current behavior.
+- The standalone Next test app animation ref now has the same initial value with
+  an explicit TypeScript type.
+- `ARCHITECTURE.md` documents the source-verification baseline.
+
+Verification results:
+
+- `pnpm typecheck` passes.
+- `pnpm build` passes.
+- `pnpm test` passes.
+- `git diff --check` passes.
+- Browser smoke test for `TEST/binance-chart-test` at `http://127.0.0.1:3001`
+  passed: page shell rendered `BTC/USDT`, timeframe buttons were present, one
+  canvas existed, `/api/binance` returned 200, and browser dev logs had no
+  errors.
+- `pnpm lint` still fails as an audit with 270 existing problems; this was kept
+  out of scope to avoid broad cosmetic or behavior-risky cleanup.
+
 # CI Install Error Fix Plan
 
 ## Goal

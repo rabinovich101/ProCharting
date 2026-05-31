@@ -33,6 +33,11 @@ GitHub Actions pins pnpm to the repository package-manager version. Install, bui
 test are blocking CI checks. Typecheck and lint currently run as audit checks because
 the legacy source has known issues that are tracked in `todo.md`.
 
+Source typechecking resolves workspace package imports to `packages/*/src` through
+the root TypeScript path aliases. Generated `dist/` outputs and `.tsbuildinfo` files
+are build artifacts, not source-of-truth architecture inputs. The current source
+baseline passes `pnpm typecheck`; lint still surfaces broader legacy cleanup debt.
+
 ### 3. Renderer Architecture
 
 The library uses a pluggable renderer architecture with three implementations:

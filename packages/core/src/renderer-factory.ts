@@ -165,7 +165,7 @@ export class RendererFactory {
         // TODO: Implement actual rendering
       },
       
-      resize(width: number, height: number): void {
+      resize(_width: number, _height: number): void {
         // Canvas2D doesn't need special resize handling
       },
       

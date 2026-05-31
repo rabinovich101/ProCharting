@@ -1,4 +1,4 @@
-import { Platform, createSharedBuffer } from '@procharting/utils';
+import { Platform } from '@procharting/utils';
 import type { CandlestickData } from '@procharting/types';
 
 export interface SharedDataConfig {

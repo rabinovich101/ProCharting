@@ -14,7 +14,7 @@ export class WebSocketClient extends EventEmitter<WebSocketEvents> {
   private reconnectTimer: number | null = null;
   private reconnectAttempts = 0;
   private isClosing = false;
-  private messageQueue: ArrayBuffer[] = [];
+  private messageQueue: Array<ArrayBuffer | Uint8Array> = [];
   private decoder?: TextDecoder;
   
   constructor(private options: ConnectionOptions) {

@@ -4,9 +4,30 @@ import type { WorkerMessage, WorkerResponse } from '@procharting/utils';
 
 declare const self: DedicatedWorkerGlobalScope;
 
+type WorkerGPUAdapter = {
+  requestDevice(): Promise<unknown>;
+};
+
+type WorkerGPU = {
+  requestAdapter(): Promise<WorkerGPUAdapter | null>;
+  getPreferredCanvasFormat(): string;
+};
+
+type WorkerNavigator = Navigator & {
+  gpu?: WorkerGPU;
+};
+
+type WorkerGPUCanvasContext = {
+  configure(options: {
+    device: unknown;
+    format: string;
+    alphaMode: 'premultiplied';
+  }): void;
+};
+
 // OffscreenCanvas for rendering
 let offscreenCanvas: OffscreenCanvas | null = null;
-let renderContext: GPUCanvasContext | WebGL2RenderingContext | null = null;
+let renderContext: WorkerGPUCanvasContext | WebGL2RenderingContext | null = null;
 let renderer: 'webgpu' | 'webgl2' | null = null;
 
 self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
@@ -49,7 +70,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
 });
 
 async function handleInit(data: any, transfer?: Transferable[]): Promise<void> {
-  const { canvas, rendererType } = data;
+  const { rendererType } = data;
   
   if (!transfer || !transfer[0]) {
     throw new Error('No canvas transferred');
@@ -66,23 +87,24 @@ async function handleInit(data: any, transfer?: Transferable[]): Promise<void> {
 }
 
 async function initWebGPU(): Promise<void> {
-  if (!navigator.gpu) {
+  const gpu = (navigator as WorkerNavigator).gpu;
+  if (!gpu) {
     throw new Error('WebGPU not supported in worker');
   }
   
-  const adapter = await navigator.gpu.requestAdapter();
+  const adapter = await gpu.requestAdapter();
   if (!adapter) {
     throw new Error('No WebGPU adapter found');
   }
   
   const device = await adapter.requestDevice();
   
-  const context = offscreenCanvas!.getContext('webgpu');
+  const context = offscreenCanvas!.getContext('webgpu') as WorkerGPUCanvasContext | null;
   if (!context) {
     throw new Error('Failed to get WebGPU context');
   }
   
-  const format = navigator.gpu.getPreferredCanvasFormat();
+  const format = gpu.getPreferredCanvasFormat();
   context.configure({
     device,
     format,
@@ -125,14 +147,12 @@ function handleRender(data: any): void {
   }
 }
 
-function renderWebGPU(scene: any): void {
-  const context = renderContext as GPUCanvasContext;
-  
+function renderWebGPU(_scene: any): void {
   // TODO: Implement WebGPU rendering in worker
   // This would require porting the WebGPU renderer to work with OffscreenCanvas
 }
 
-function renderWebGL2(scene: any): void {
+function renderWebGL2(_scene: any): void {
   const gl = renderContext as WebGL2RenderingContext;
   
   // Clear

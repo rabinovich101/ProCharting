@@ -1,10 +1,14 @@
-import type { Chart, ChartOptions, ChartEventMap, ConnectionOptions, Series, SeriesOptions } from '@procharting/types';
+import type { Chart, ChartOptions, ChartEventMap, ConnectionOptions, InteractionOptions, Series, SeriesOptions } from '@procharting/types';
 import type { StreamingOptions } from '@procharting/types';
-import { EventEmitter } from '@procharting/utils';
+import { EventEmitter, type EventHandler } from '@procharting/utils';
 import { RendererFactory } from './renderer-factory';
 import type { Renderer } from '@procharting/types';
 import { WebSocketClient } from './websocket/websocket-client';
 import { BinaryProtocol, MessageType } from './websocket/binary-protocol';
+
+type ChartEventPayloadMap = {
+  [K in keyof ChartEventMap]: Parameters<ChartEventMap[K]>[0];
+};
 
 export function createChart(container: HTMLElement | string, options: ChartOptions = {}): Chart {
   const element = typeof container === 'string' 
@@ -20,17 +24,16 @@ export function createChart(container: HTMLElement | string, options: ChartOptio
 
 class ChartImpl implements Chart {
   readonly container: HTMLElement;
-  readonly renderer: 'webgpu' | 'webgl2' | 'canvas2d';
+  readonly renderer: Chart['renderer'];
   
-  private readonly events = new EventEmitter<ChartEventMap>();
+  private readonly events = new EventEmitter<ChartEventPayloadMap>();
   private readonly canvas: HTMLCanvasElement;
   private readonly rendererInstance: Renderer;
-  private readonly series = new Map<string, Series<SeriesOptions>>();
+  private readonly series = new Map<string, SeriesImpl<SeriesOptions>>();
   private nextSeriesId = 0;
   private animationFrame: number | null = null;
   private resizeObserver: ResizeObserver;
   private wsClient: WebSocketClient | null = null;
-  private streamingData = new Map<string, Float32Array>();
   
   // View state for zoom/pan
   private viewState = {
@@ -58,7 +61,7 @@ class ChartImpl implements Chart {
   // Layout constants
   private readonly rightAxisWidth = 80;
 
-  constructor(container: HTMLElement, private readonly options: ChartOptions) {
+  constructor(container: HTMLElement, private options: ChartOptions) {
     this.container = container;
     
     // Create canvas
@@ -192,10 +195,6 @@ class ChartImpl implements Chart {
   
   private handleMouseDown(e: MouseEvent): void {
     if (e.button !== 0) return; // Only left mouse button
-    
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     
     const interactions = this.options.interactions ?? {};
     
@@ -570,7 +569,7 @@ class ChartImpl implements Chart {
   addSeries<T extends SeriesOptions>(options: T): Series<T> {
     const id = `series-${this.nextSeriesId++}`;
     const series = new SeriesImpl(id, options, this);
-    this.series.set(id, series as Series<SeriesOptions>);
+    this.series.set(id, series as unknown as SeriesImpl<SeriesOptions>);
     return series;
   }
 
@@ -659,11 +658,11 @@ class ChartImpl implements Chart {
   }
 
   on<K extends keyof ChartEventMap>(event: K, handler: ChartEventMap[K]): void {
-    this.events.on(event, handler);
+    this.events.on(event, handler as EventHandler<ChartEventPayloadMap[K]>);
   }
 
   off<K extends keyof ChartEventMap>(event: K, handler: ChartEventMap[K]): void {
-    this.events.off(event, handler);
+    this.events.off(event, handler as EventHandler<ChartEventPayloadMap[K]>);
   }
 }
 
@@ -682,7 +681,7 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
   }
 
   setData(data: T['data']): void {
-    this.options.data = data;
+    (this.options as { data: T['data'] }).data = data;
   }
 
   update(options: Partial<T>): void {
