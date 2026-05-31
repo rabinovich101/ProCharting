@@ -352,3 +352,78 @@ Remaining risks:
   publication.
 - Root lint debt remains outside the package reviewed here and should be handled
   separately to avoid broad unrelated changes.
+
+# Price Package Re-Verification Plan
+
+## Goal
+
+Re-review the completed `@procharting/prices` package against the current source
+tree and verify that it is installable, importable, documented honestly, and safe
+for end users across supported JavaScript and TypeScript consumption paths.
+
+## Checklist
+
+- [x] Load the actual package prompt and identify the target package.
+- [x] Check CodeGraph health and use it to inspect the price-client architecture.
+- [x] Review package metadata, exports, build configs, README, tests, and architecture notes.
+- [x] Run package build, tests, typecheck, lint, and tarball verification.
+- [x] Simulate clean consumer installs/imports with available package managers.
+- [x] Verify JavaScript, CommonJS, ESM, and TypeScript consumer examples without live external APIs.
+- [x] Run repository-level verification commands relevant to package readiness.
+- [x] Run a browser/Playwright smoke test for the built ESM package.
+- [x] Fix any package-readiness bugs found with minimal scoped changes.
+- [x] Update `ARCHITECTURE.md` if this review changes or clarifies architecture.
+- [x] Add this review's results, remaining risks, and final status.
+
+## Review
+
+Completed the re-verification pass against the current source and built package.
+
+What works:
+
+- `@procharting/prices` has a valid package boundary with `main`, `module`,
+  `types`, conditional `exports`, MIT license, keywords, and a `files`
+  allowlist.
+- `createPriceClient` supports the requested custom-provider usage and the
+  documented default-provider usage.
+- Symbol validation accepts common symbols including `AAPL`, `MSFT`, `SPY`,
+  `QQQ`, `BTCUSD`, and `ETHUSD`, and invalid/missing symbols use typed errors.
+- Custom, default, and TradingView MCP providers remain separated behind a clean
+  provider interface. TradingView MCP is adapter-only and is not presented as a
+  guaranteed npm runtime dependency.
+- Price candles and latest prices normalize to the documented shapes with Unix
+  millisecond timestamps.
+- No hardcoded secrets, API keys, `.env` files, or obvious secret patterns were
+  found in the package scan.
+
+Verification results:
+
+- `pnpm --filter @procharting/prices test` passed with 10 tests.
+- `pnpm --filter @procharting/prices exec tsc -p tsconfig.json --noEmit --pretty false` passed.
+- `pnpm exec eslint packages/prices/src --ext .ts` passed.
+- `pnpm --filter @procharting/prices build` passed.
+- `npm pack --pack-destination /tmp/procharting-prices-review --json` passed and
+  produced a tarball containing package metadata, README, ESM output, CJS
+  output, declarations, and source maps.
+- Clean npm and pnpm consumers installed the local tarball and passed ESM import,
+  CommonJS require, mocked custom provider runtime, mocked default provider
+  runtime, and TypeScript declaration checks without DOM libs.
+- Clean Yarn 1 verification passed after forcing a fresh tarball path and
+  clearing cache. A stale Yarn 1 cache initially reused an older local tarball
+  with the same filename/version, which is now documented in `ARCHITECTURE.md`.
+- Bun verification was skipped because `bun` is not installed in this
+  environment.
+- `pnpm build`, `pnpm test`, and `pnpm typecheck` passed at the repository root.
+- Browser/Playwright smoke passed at
+  `http://127.0.0.1:4187/browser-smoke.html`: the built ESM package imported,
+  rendered normalized `BTCUSD` output, and browser dev logs had no warnings or
+  errors.
+- `git diff --check` passed.
+
+Remaining risks:
+
+- `npm view @procharting/prices version` returned 404 on 2026-05-31, so the
+  package is locally tarball-ready but not publicly installable from npm until
+  it is published.
+- Root `pnpm lint` still fails with 270 existing lint problems outside
+  `@procharting/prices`. The reviewed package source is lint-clean.

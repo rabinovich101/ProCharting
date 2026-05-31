@@ -132,6 +132,11 @@ The package builds ESM, CommonJS, and TypeScript declaration outputs under
 file so `require('@procharting/prices')` works even though the package root is
 `type: module`.
 
+When verifying repacked local tarballs with Yarn 1, use a fresh tarball path or
+clear the Yarn cache. Yarn 1 may reuse a cached `file:` tarball when the package
+name, version, and filename are unchanged, which can make declaration checks read
+stale package contents even after `npm pack` produced a correct tarball.
+
 ### 6. Multi-Threading Strategy
 
 ```
