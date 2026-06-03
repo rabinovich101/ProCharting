@@ -216,6 +216,73 @@ Verification results:
 
 # Compact Chart Toolbar Plan
 
+# TradingView Supercharts Grid3 Deep Price Scale Plan
+
+## Goal
+
+Analyze only the TradingView Supercharts chart area deeply enough to create a
+builder-agent JSON file named `tradingview_grid3.json`. The emphasis is the
+chart grid geometry, candle/series coordinate model, hover/crosshair behavior,
+zoom/pan mechanics, and especially the right-side price-scale and price-line
+interaction behavior when the mouse moves or drags up, down, left, and right.
+
+## Evidence / Decisions
+
+- Use the Prompt Engineering Guide principles as the working method: break the
+  task into specific subtasks, gather direct evidence, iterate measurements, and
+  separate confirmed behavior from uncertainty.
+- Use the existing `tradingview _grid1.json` and `tradingview _grid2.json` only
+  as local context, then re-measure live TradingView behavior for this pass.
+- Focus on the live `https://www.tradingview.com/chart/` Supercharts chart area
+  only; surrounding TradingView UI is setup context and out of scope.
+- Treat this as a documentation/spec deliverable. Runtime architecture is not
+  changed unless the analysis itself forces a repository architecture update.
+- Do not ask product questions because the requested inspection scope is clear:
+  infer the necessary chart-only tests independently.
+
+## Checklist
+
+- [x] Inspect repository context, prior TradingView grid specs, and current
+      planning notes.
+- [x] Study the Prompt Engineering Guide repository/pages for methodology.
+- [x] Discover and use the best available browser automation/devtools tools for
+      the live TradingView chart.
+- [x] Measure clean chart, plot, right price scale, time scale, and corner
+      geometry at desktop and narrow viewports.
+- [x] Inspect gridline spacing, tick labels, current-price line, and candle
+      positioning logic from screenshots/DOM/canvas observations.
+- [x] Perform hover, chart drag, price-scale vertical drag, price-scale
+      horizontal drag, time-scale drag, and wheel zoom tests.
+- [x] Derive builder-facing pixel-to-price, price-to-pixel, pixel-to-time, and
+      time-to-pixel formulas from the observed behavior.
+- [x] Create `tradingview_grid3.json` with valid JSON only.
+- [x] Validate `tradingview_grid3.json` parses successfully.
+- [x] Add review notes with changed files, verification, and caveats.
+
+## Review
+
+Created `tradingview_grid3.json` as a builder-facing chart-only specification.
+
+- Studied the Prompt Engineering Guide repository and guide pages first, then
+  applied its decomposition, specificity, measurement, and uncertainty-tracking
+  principles to the inspection.
+- Used Playwright MCP as the primary live-inspection surface for TradingView
+  DOM rectangles, canvas layer inventory, canvas pixel sampling, gridline
+  detection, public chart API range state, hover tests, drag tests, wheel zoom,
+  desktop geometry, compact geometry, and narrow viewport geometry.
+- Used Browser-use MCP as a secondary reachability/visual check.
+- Attempted Camoufox MCP; it was available, but TradingView static bundle
+  resolution was blocked in this environment, so it is documented as a
+  limitation in the JSON.
+- The JSON documents chart container geometry, plot geometry, gridline spacing,
+  price/time coordinate formulas, candle positioning, current-price marker
+  behavior, crosshair/hover labels, plot pan, time-axis zoom, wheel zoom, and
+  right price-scale vertical/horizontal drag behavior.
+- The right price-scale drag finding is now explicit: vertical drags scale the
+  y-range and disable auto scale; horizontal drags did not resize the axis or
+  alter ranges in the measured tests.
+- `node -e` JSON parsing passed for `tradingview_grid3.json`.
+
 ## Goal
 
 Redesign the `TEST/binance-chart-test` chart toolbar into a compact,

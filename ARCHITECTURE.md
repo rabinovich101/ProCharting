@@ -117,6 +117,14 @@ The library uses a pluggable renderer architecture with three implementations:
   scene for the Canvas2D path.
 - Maximum compatibility
 
+`tradingview_grid3.json` is the current external reference for TradingView-like
+chart-grid behavior. It refines the earlier `_grid2` notes with live
+measurements for right price-scale auto/manual state, 72-80px observed
+price-axis sizing, horizontal no-op price-axis drags, vertical price-axis scale
+drags, crosshair labels, gridline spacing, and pixel/price/time formulas. This
+is a spec artifact; it does not change the runtime renderer architecture by
+itself.
+
 `ChartOptions.grid` exposes the implemented grid knobs for consumers:
 `priceScaleWidth`, `timeScaleHeight`, minimum plot dimensions, bottom controls,
 and legend visibility. The defaults follow the verified `tradingview
