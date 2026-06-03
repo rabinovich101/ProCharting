@@ -1415,3 +1415,76 @@ Installed Browser Use MCP in the global Codex config at
 No project runtime architecture changed, so `ARCHITECTURE.md` was not modified.
 Codex may need to be restarted or a new thread opened before the newly added
 MCP server appears as callable tools in the tool list.
+
+# TradingView Grid Library Implementation
+
+## Goal
+
+Use `tradingview _grid1.json` to implement a TradingView-style chart grid in
+the reusable ProCharting Canvas2D renderer, while keeping the standalone
+Binance test app unchanged unless verification shows it needs a direct fix.
+
+## Findings / Decisions
+
+- The JSON spec recommends `TEST/binance-chart-test/app/page.tsx` when building
+  the existing local chart harness, but this task asks for "our charts library",
+  so the primary implementation target is `packages/core/src/renderer-factory.ts`.
+- The reusable Canvas2D renderer already owns the grid, right price labels,
+  bottom time labels, series drawing, and crosshair overlay.
+- The current plot geometry is close but responsive; the spec calls for stable
+  TradingView-like 80px right price axis and 28px bottom time axis, including
+  small viewports.
+- The current time-axis formatter treats input as seconds, while the local chart
+  data contract and spec use milliseconds. The library should support
+  millisecond timestamps while preserving older second-based example data.
+- Keep the change isolated to renderer grid/crosshair behavior and the basic
+  example timestamp generation needed to exercise the millisecond contract.
+
+## Checklist
+
+- [x] Inspect CodeGraph and local files for chart grid ownership.
+- [x] Read `tradingview _grid1.json` and identify reusable-library requirements.
+- [x] Update `todo.md` with this implementation plan.
+- [x] Patch the Canvas2D renderer grid, axes, current price marker, and crosshair labels.
+- [x] Update the basic example to generate millisecond timestamps.
+- [x] Update `ARCHITECTURE.md` for the renderer behavior change.
+- [x] Run typecheck/build/test verification.
+- [x] Run Playwright browser QA and canvas pixel checks on desktop/mobile.
+- [x] Add review notes with changes and verification results.
+
+## Review
+
+Implemented the TradingView grid contract in the reusable Canvas2D renderer.
+
+- Updated `packages/core/src/renderer-factory.ts` with stable 80px right price
+  axis and 28px bottom time axis geometry, responsive nice price/time ticks,
+  clipped plot-pane series drawing, TradingView bull/bear defaults, candle
+  volume overlay, current-price dotted line with right-axis marker, and
+  crosshair price/time axis labels.
+- Updated `packages/core/src/chart.ts` so light, dark, and custom chart theme
+  tokens feed the render scene instead of the previous hard-coded gray theme.
+- Updated `examples/basic/main.js` to generate millisecond timestamps, matching
+  the public candle data contract in `tradingview _grid1.json`.
+- Updated `ARCHITECTURE.md` with the new Canvas2D renderer behavior and
+  millisecond timestamp compatibility note.
+
+Verification results:
+
+- `pnpm run typecheck` passed.
+- `pnpm test` passed, including the 10 price-client tests. Core still has no
+  test files, and `vitest run --passWithNoTests` passed.
+- `pnpm build` passed.
+- `pnpm run lint` still fails on the existing repository-wide legacy lint debt
+  (222 problems across core/utils/data/webgl/webgpu); the changed renderer only
+  reports the pre-existing static-class rule.
+- `git diff --check` passed.
+- Playwright browser QA passed against `http://10.0.0.3:4188/` at `1440x900`:
+  one nonblank 1400x600 Canvas2D chart, derived plot area 1320x572 after the
+  80px/28px axes, visible grid/candle/current-price pixels, no horizontal
+  overflow, and hover/wheel/drag interactions left the canvas nonblank.
+- Playwright browser QA passed at `430x932`: one nonblank 390x600 chart, derived
+  plot area 310x572 after the 80px/28px axes, readable right price axis, no
+  horizontal overflow, and visible grid/candle/current-price pixels.
+- Browser console/devtools showed only the existing missing `favicon.ico` 404;
+  the Canvas2D readback warning came from the QA script's repeated
+  `getImageData` calls, not from application runtime behavior.

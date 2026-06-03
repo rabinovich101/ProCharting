@@ -17,7 +17,7 @@ let dataPoints = [];
 // Generate random OHLC data
 function generateRandomData(count) {
   const data = [];
-  let time = Date.now() / 1000 - count * 60;
+  let time = Date.now() - count * 60_000;
   let lastClose = 100;
   
   for (let i = 0; i < count; i++) {
@@ -31,7 +31,7 @@ function generateRandomData(count) {
     const volume = Math.floor(1000 + Math.random() * 9000);
     
     data.push({
-      time: Math.floor(time),
+      time,
       open,
       high,
       low,
@@ -40,7 +40,7 @@ function generateRandomData(count) {
     });
     
     lastClose = close;
-    time += 60; // 1 minute intervals
+    time += 60_000; // 1 minute intervals
   }
   
   return data;

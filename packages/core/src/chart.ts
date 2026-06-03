@@ -1,4 +1,4 @@
-import type { Chart, ChartOptions, ChartEventMap, ConnectionOptions, InteractionOptions, Renderer, RenderableSeries, Series, SeriesOptions } from '@procharting/types';
+import type { Chart, ChartOptions, ChartEventMap, ConnectionOptions, InteractionOptions, Renderer, RenderableSeries, RenderTheme, Series, SeriesOptions } from '@procharting/types';
 import type { StreamingOptions } from '@procharting/types';
 import { EventEmitter, type EventHandler } from '@procharting/utils';
 import { RendererFactory } from './renderer-factory';
@@ -20,6 +20,22 @@ type RenderSeriesStyle = {
   downColor?: string;
   wickUpColor?: string;
   wickDownColor?: string;
+};
+
+const LIGHT_RENDER_THEME: RenderTheme = {
+  backgroundColor: '#ffffff',
+  gridColor: 'rgba(42, 46, 57, 0.08)',
+  textColor: '#131722',
+  fontFamily: 'system-ui',
+  fontSize: 12,
+};
+
+const DARK_RENDER_THEME: RenderTheme = {
+  backgroundColor: '#0f0f0f',
+  gridColor: 'rgba(255, 255, 255, 0.08)',
+  textColor: '#d1d4dc',
+  fontFamily: 'system-ui',
+  fontSize: 12,
 };
 
 export function createChart(container: HTMLElement | string, options: ChartOptions = {}): Chart {
@@ -371,13 +387,7 @@ class ChartImpl implements Chart {
       },
       series: Array.from(this.series.values()).map((series) => this.createRenderableSeries(series)),
       overlays: this.createOverlays(),
-      theme: {
-        backgroundColor: '#ffffff',
-        gridColor: '#e0e0e0',
-        textColor: '#333333',
-        fontFamily: 'system-ui',
-        fontSize: 12,
-      },
+      theme: this.createRenderTheme(),
       mouseState: this.mouseState,
     };
     
@@ -419,6 +429,31 @@ class ChartImpl implements Chart {
     }
 
     return style;
+  }
+
+  private createRenderTheme(): RenderTheme {
+    const theme = this.options.theme;
+
+    if (typeof theme === 'object') {
+      return {
+        backgroundColor: theme.background,
+        gridColor: theme.grid,
+        textColor: theme.text,
+        fontFamily: 'system-ui',
+        fontSize: 12,
+      };
+    }
+
+    return theme === 'dark' ? DARK_RENDER_THEME : LIGHT_RENDER_THEME;
+  }
+
+  private getCrosshairColor(): string {
+    const theme = this.options.theme;
+    if (typeof theme === 'object') {
+      return theme.crosshair;
+    }
+
+    return theme === 'dark' ? 'rgba(160, 160, 160, 0.9)' : 'rgba(120, 123, 134, 0.85)';
   }
 
   private encodeSeriesData(options: SeriesOptions): ArrayBuffer {
@@ -473,9 +508,9 @@ class ChartImpl implements Chart {
           snapToCandle: this.options.interactions?.snapToCandle ?? false,
         },
         style: {
-          color: '#999999',
+          color: this.getCrosshairColor(),
           lineWidth: 1,
-          lineDash: [5, 5],
+          lineDash: [4, 4],
         },
       });
     }
