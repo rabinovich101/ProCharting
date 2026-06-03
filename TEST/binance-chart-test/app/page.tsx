@@ -23,6 +23,11 @@ interface ViewRange {
   candlesPerView: number;
 }
 
+interface PriceRange {
+  minPrice: number;
+  maxPrice: number;
+}
+
 interface Palette {
   canvasTop: string;
   canvasBottom: string;
@@ -48,6 +53,17 @@ type ChartStyle = 'candles' | 'line' | 'area';
 type ThemeName = 'dark' | 'light';
 type FeedStatus = 'connecting' | 'live' | 'offline';
 type MenuKey = 'symbol' | 'timeframe' | 'chartStyle' | 'indicators';
+type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
+type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
+
+interface ChartDragState {
+  mode: ChartDragMode;
+  startX: number;
+  startY: number;
+  startViewRange: ViewRange;
+  startPriceRange: PriceRange | null;
+  anchorPrice: number;
+}
 
 interface MenuOption<T extends string> {
   value: T;
@@ -120,7 +136,36 @@ const PALETTES: Record<ThemeName, Palette> = {
   },
 };
 
+const MIN_VISIBLE_BARS = 18;
+const MAX_VISIBLE_BARS = 420;
+const MAX_FUTURE_BARS = 120;
+const Y_AXIS_SCALE_SPEED = 1.7;
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const getMaxStartIndex = (candleCount: number, candlesPerView: number) =>
+  Math.max(0, candleCount + MAX_FUTURE_BARS - candlesPerView);
+
+const timeframeToMilliseconds = (value: string) => {
+  const amount = Number.parseInt(value, 10) || 1;
+
+  if (value.endsWith('m')) return amount * 60_000;
+  if (value.endsWith('h')) return amount * 60 * 60_000;
+  if (value.endsWith('d')) return amount * 24 * 60 * 60_000;
+  if (value.endsWith('w')) return amount * 7 * 24 * 60 * 60_000;
+  if (value.endsWith('M')) return amount * 30 * 24 * 60 * 60_000;
+
+  return 60_000;
+};
+
+const scalePriceRange = (range: PriceRange, anchorPrice: number, scaleFactor: number): PriceRange => {
+  const factor = clamp(scaleFactor, 0.05, 20);
+
+  return {
+    minPrice: anchorPrice - (anchorPrice - range.minPrice) * factor,
+    maxPrice: anchorPrice + (range.maxPrice - anchorPrice) * factor,
+  };
+};
 
 const formatPrice = (price: number) => {
   if (!Number.isFinite(price)) return '-';
@@ -483,10 +528,23 @@ export default function Home() {
   const controlRackRef = useRef<HTMLDivElement>(null);
   const activeStreamRef = useRef('');
   const selectedMarketRef = useRef({ symbol: 'BTCUSDT', timeframe: '1m' });
+  const manualPriceRangeRef = useRef<PriceRange | null>(null);
   const viewRangeRef = useRef<ViewRange>({
     startIndex: 0,
     endIndex: 100,
     candlesPerView: 100,
+  });
+  const dragStateRef = useRef<ChartDragState>({
+    mode: 'none',
+    startX: 0,
+    startY: 0,
+    startViewRange: {
+      startIndex: 0,
+      endIndex: 100,
+      candlesPerView: 100,
+    },
+    startPriceRange: null,
+    anchorPrice: 0,
   });
   const chartBounds = useRef({
     minPrice: 0,
@@ -507,8 +565,9 @@ export default function Home() {
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [mousePos, setMousePos] = useState<MousePosition | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragMode, setDragMode] = useState<ChartDragMode>('none');
+  const [pointerArea, setPointerArea] = useState<ChartPointerArea>('outside');
+  const [manualPriceRange, setManualPriceRange] = useState<PriceRange | null>(null);
   const [viewRange, setViewRange] = useState<ViewRange>({
     startIndex: 0,
     endIndex: 100,
@@ -527,6 +586,7 @@ export default function Home() {
     const candlesPerView = Math.min(140, Math.max(60, sourceCandles.length || 100));
     const endIndex = sourceCandles.length;
 
+    setManualPriceRange(null);
     setViewRange({
       startIndex: Math.max(0, endIndex - candlesPerView),
       endIndex,
@@ -537,6 +597,10 @@ export default function Home() {
   useEffect(() => {
     viewRangeRef.current = viewRange;
   }, [viewRange]);
+
+  useEffect(() => {
+    manualPriceRangeRef.current = manualPriceRange;
+  }, [manualPriceRange]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -657,7 +721,9 @@ export default function Home() {
       setCandles((previous) => {
         const updated = [...previous];
         const lastCandle = updated[updated.length - 1];
-        const wasPinnedToLatest = viewRangeRef.current.endIndex >= previous.length;
+        const currentRange = viewRangeRef.current;
+        const wasPinnedToLatest = currentRange.endIndex >= previous.length;
+        const futureBars = Math.max(0, currentRange.endIndex - previous.length);
 
         if (lastCandle && lastCandle.time === newCandle.time) {
           updated[updated.length - 1] = newCandle;
@@ -665,11 +731,19 @@ export default function Home() {
           updated.push(newCandle);
 
           if (wasPinnedToLatest) {
-            setViewRange((current) => ({
-              ...current,
-              startIndex: Math.max(0, updated.length - current.candlesPerView),
-              endIndex: updated.length,
-            }));
+            setViewRange((current) => {
+              const nextStartIndex = clamp(
+                updated.length + futureBars - current.candlesPerView,
+                0,
+                getMaxStartIndex(updated.length, current.candlesPerView)
+              );
+
+              return {
+                ...current,
+                startIndex: nextStartIndex,
+                endIndex: nextStartIndex + current.candlesPerView,
+              };
+            });
           }
         }
 
@@ -739,49 +813,115 @@ export default function Home() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const getPointerArea = (x: number, y: number): ChartPointerArea => {
+    const { chartArea } = chartBounds.current;
+    const right = chartArea.left + chartArea.width;
+    const bottom = chartArea.top + chartArea.height;
+
+    if (chartArea.width <= 0 || chartArea.height <= 0) return 'outside';
+
+    if (x >= right && y >= chartArea.top && y <= bottom) return 'price-scale';
+    if (x >= chartArea.left && x <= right && y >= chartArea.top && y <= bottom) return 'plot';
+    if (x >= chartArea.left && x <= right && y > bottom) return 'time-scale';
+
+    return 'outside';
+  };
+
+  const getCurrentPriceRange = (): PriceRange | null => {
+    const manual = manualPriceRangeRef.current;
+    if (manual && manual.maxPrice > manual.minPrice) return manual;
+
+    const { minPrice, maxPrice } = chartBounds.current;
+    if (Number.isFinite(minPrice) && Number.isFinite(maxPrice) && maxPrice > minPrice) {
+      return { minPrice, maxPrice };
+    }
+
+    return null;
+  };
+
+  const getPriceAtY = (y: number, range: PriceRange) => {
+    const { chartArea } = chartBounds.current;
+    const localY = clamp(y - chartArea.top, 0, Math.max(1, chartArea.height));
+    return range.maxPrice - (localY / Math.max(1, chartArea.height)) * (range.maxPrice - range.minPrice);
+  };
+
   const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
     if (!candles.length) return;
+    event.preventDefault();
 
     const zoomSpeed = 0.12;
     const delta = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-    const newCandlesPerView = clamp(
-      Math.round(viewRange.candlesPerView * delta),
-      18,
-      Math.min(420, Math.max(18, candles.length))
-    );
-
     const rect = event.currentTarget.getBoundingClientRect();
     const { chartArea } = chartBounds.current;
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const area = getPointerArea(x, y);
+
+    if (area === 'price-scale') {
+      const currentPriceRange = getCurrentPriceRange();
+      if (!currentPriceRange) return;
+
+      const anchorPrice = getPriceAtY(y, currentPriceRange);
+      setManualPriceRange(scalePriceRange(currentPriceRange, anchorPrice, delta));
+      return;
+    }
+
+    if (area !== 'plot' && area !== 'time-scale') return;
+
+    const newCandlesPerView = clamp(
+      Math.round(viewRange.candlesPerView * delta),
+      MIN_VISIBLE_BARS,
+      Math.min(MAX_VISIBLE_BARS, Math.max(MIN_VISIBLE_BARS, candles.length + MAX_FUTURE_BARS))
+    );
     const mouseRatio = clamp((event.clientX - rect.left - chartArea.left) / chartArea.width, 0, 1);
-    const currentVisibleCandles = viewRange.endIndex - viewRange.startIndex;
-    const candleDiff = newCandlesPerView - currentVisibleCandles;
-    const leftShift = Math.round(candleDiff * mouseRatio);
-
-    let newStartIndex = viewRange.startIndex - leftShift;
-    let newEndIndex = newStartIndex + newCandlesPerView;
-
-    if (newEndIndex > candles.length) {
-      newEndIndex = candles.length;
-      newStartIndex = Math.max(0, newEndIndex - newCandlesPerView);
-    }
-    if (newStartIndex < 0) {
-      newStartIndex = 0;
-      newEndIndex = Math.min(candles.length, newCandlesPerView);
-    }
+    const pointerIndex = viewRange.startIndex + mouseRatio * viewRange.candlesPerView;
+    const maxStartIndex = getMaxStartIndex(candles.length, newCandlesPerView);
+    const newStartIndex = clamp(pointerIndex - newCandlesPerView * mouseRatio, 0, maxStartIndex);
 
     setViewRange({
       startIndex: newStartIndex,
-      endIndex: newEndIndex,
+      endIndex: newStartIndex + newCandlesPerView,
       candlesPerView: newCandlesPerView,
     });
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    setIsDragging(true);
-    setDragStart({ x: event.clientX, y: event.clientY });
+    if (!candles.length) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const area = getPointerArea(x, y);
+
+    if (area === 'outside') return;
+
+    const currentPriceRange = getCurrentPriceRange();
+    const mode: ChartDragMode = area === 'price-scale' ? 'price-scale' : 'chart-pan';
+
+    if (mode === 'price-scale' && !currentPriceRange) return;
+    if (mode === 'price-scale' && currentPriceRange) {
+      setManualPriceRange(currentPriceRange);
+    }
+
+    dragStateRef.current = {
+      mode,
+      startX: event.clientX,
+      startY: event.clientY,
+      startViewRange: viewRangeRef.current,
+      startPriceRange: mode === 'price-scale' || manualPriceRangeRef.current ? currentPriceRange : null,
+      anchorPrice: currentPriceRange ? getPriceAtY(y, currentPriceRange) : 0,
+    };
+    setDragMode(mode);
+    event.preventDefault();
   };
 
-  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseUp = () => {
+    dragStateRef.current = {
+      ...dragStateRef.current,
+      mode: 'none',
+    };
+    setDragMode('none');
+  };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return;
@@ -789,44 +929,55 @@ export default function Home() {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+    const area = getPointerArea(x, y);
+    setPointerArea(area);
 
-    if (isDragging && candles.length) {
+    const dragState = dragStateRef.current;
+    if (dragState.mode !== 'none' && candles.length) {
       const { chartArea } = chartBounds.current;
-      const deltaX = event.clientX - dragStart.x;
-      const candleWidth = chartArea.width / viewRange.candlesPerView;
-      const candlesDelta = Math.round(deltaX / candleWidth);
+      const deltaX = event.clientX - dragState.startX;
+      const deltaY = event.clientY - dragState.startY;
 
-      if (candlesDelta !== 0) {
-        let newStartIndex = viewRange.startIndex - candlesDelta;
-        let newEndIndex = viewRange.endIndex - candlesDelta;
-
-        if (newStartIndex < 0) {
-          newStartIndex = 0;
-          newEndIndex = viewRange.candlesPerView;
-        }
-        if (newEndIndex > candles.length) {
-          newEndIndex = candles.length;
-          newStartIndex = Math.max(0, candles.length - viewRange.candlesPerView);
-        }
+      if (dragState.mode === 'price-scale' && dragState.startPriceRange) {
+        const scaleFactor = Math.exp((deltaY / Math.max(1, chartArea.height)) * Y_AXIS_SCALE_SPEED);
+        setManualPriceRange(scalePriceRange(dragState.startPriceRange, dragState.anchorPrice, scaleFactor));
+      } else if (dragState.mode === 'chart-pan') {
+        const { startViewRange } = dragState;
+        const candleWidth = chartArea.width / Math.max(1, startViewRange.candlesPerView);
+        const candlesDelta = deltaX / Math.max(1, candleWidth);
+        const maxStartIndex = getMaxStartIndex(candles.length, startViewRange.candlesPerView);
+        const newStartIndex = clamp(startViewRange.startIndex - candlesDelta, 0, maxStartIndex);
 
         setViewRange({
-          ...viewRange,
+          ...startViewRange,
           startIndex: newStartIndex,
-          endIndex: newEndIndex,
+          endIndex: newStartIndex + startViewRange.candlesPerView,
         });
-        setDragStart({ x: event.clientX, y: event.clientY });
+
+        if (dragState.startPriceRange && manualPriceRangeRef.current) {
+          const priceRange = dragState.startPriceRange.maxPrice - dragState.startPriceRange.minPrice;
+          const priceDelta = (deltaY / Math.max(1, chartArea.height)) * priceRange;
+
+          setManualPriceRange({
+            minPrice: dragState.startPriceRange.minPrice + priceDelta,
+            maxPrice: dragState.startPriceRange.maxPrice + priceDelta,
+          });
+        }
       }
     }
 
-    const { chartArea, minPrice, maxPrice } = chartBounds.current;
-    const priceRange = maxPrice - minPrice || 1;
-    const dataY = maxPrice - ((y - chartArea.top) / chartArea.height) * priceRange;
-    setMousePos({ x, y, dataY });
+    const currentPriceRange = getCurrentPriceRange();
+    if (currentPriceRange) {
+      setMousePos({ x, y, dataY: getPriceAtY(y, currentPriceRange) });
+    } else {
+      setMousePos({ x, y, dataY: 0 });
+    }
   };
 
   const handleMouseLeave = () => {
     setMousePos(null);
-    setIsDragging(false);
+    setPointerArea('outside');
+    handleMouseUp();
   };
 
   const drawLinePath = (
@@ -888,16 +1039,32 @@ export default function Home() {
       height: Math.max(0, volumeHeight - 14),
     };
 
-    const visibleCandles = candles.slice(viewRange.startIndex, viewRange.endIndex);
-    if (visibleCandles.length === 0) return;
+    const visibleIndexedCandles: Array<{ candle: Candle; index: number }> = [];
+    const firstVisibleIndex = Math.max(0, Math.floor(viewRange.startIndex));
+    const lastVisibleIndex = Math.min(candles.length - 1, Math.ceil(viewRange.endIndex) - 1);
 
-    const prices = visibleCandles.flatMap((candle) => [candle.high, candle.low]);
+    for (let index = firstVisibleIndex; index <= lastVisibleIndex; index += 1) {
+      if (index + 1 > viewRange.startIndex && index < viewRange.endIndex) {
+        const candle = candles[index];
+        if (candle) visibleIndexedCandles.push({ candle, index });
+      }
+    }
+
+    const priceSource = visibleIndexedCandles.length > 0
+      ? visibleIndexedCandles.map(({ candle }) => candle)
+      : [latestCandle!];
+    const prices = priceSource.flatMap((candle) => [candle.high, candle.low]);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const rawPriceRange = maxPrice - minPrice || Math.max(1, maxPrice * 0.001);
     const padding = rawPriceRange * 0.08;
-    const minPaddedPrice = minPrice - padding;
-    const maxPaddedPrice = maxPrice + padding;
+    const autoPriceRange = {
+      minPrice: minPrice - padding,
+      maxPrice: maxPrice + padding,
+    };
+    const activePriceRange = manualPriceRange ?? autoPriceRange;
+    const minPaddedPrice = activePriceRange.minPrice;
+    const maxPaddedPrice = activePriceRange.maxPrice;
     const paddedPriceRange = maxPaddedPrice - minPaddedPrice || 1;
 
     chartBounds.current = {
@@ -908,16 +1075,42 @@ export default function Home() {
 
     const priceToY = (price: number) =>
       chartArea.top + ((maxPaddedPrice - price) / paddedPriceRange) * chartArea.height;
-    const candleSpacing = chartArea.width / visibleCandles.length;
+    const candleSpacing = chartArea.width / Math.max(1, viewRange.candlesPerView);
     const candleWidth = clamp(candleSpacing * 0.64, 1, 12);
-    const xForIndex = (index: number) => chartArea.left + (index + 0.5) * candleSpacing;
+    const xForIndex = (index: number) => chartArea.left + (index - viewRange.startIndex + 0.5) * candleSpacing;
+    const intervalMs = timeframeToMilliseconds(timeframe);
+    const timeForIndex = (index: number) => {
+      const exactCandle = candles[Math.floor(index)];
+      if (exactCandle) return exactCandle.time;
+
+      const firstCandle = candles[0];
+      const lastCandleInData = candles[candles.length - 1];
+      if (!firstCandle || !lastCandleInData) return Date.now();
+      if (index < 0) return firstCandle.time + index * intervalMs;
+
+      return lastCandleInData.time + (index - (candles.length - 1)) * intervalMs;
+    };
+    const timeTickStep = Math.max(1, Math.ceil(viewRange.candlesPerView / (rect.width < 620 ? 4 : 9)));
+    const firstTimeTick = Math.ceil(viewRange.startIndex / timeTickStep) * timeTickStep;
+    const timeTicks: Array<{ index: number; x: number; label: string }> = [];
+
+    for (let index = firstTimeTick; index < viewRange.endIndex; index += timeTickStep) {
+      const x = xForIndex(index);
+      if (x < chartArea.left || x > chartArea.left + chartArea.width) continue;
+
+      timeTicks.push({
+        index,
+        x,
+        label: formatTime(timeForIndex(index)),
+      });
+    }
 
     ctx.save();
     ctx.beginPath();
     ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
     ctx.clip();
 
-    const priceStep = calculateNiceInterval(rawPriceRange);
+    const priceStep = calculateNiceInterval(paddedPriceRange);
     const startPrice = Math.floor(minPaddedPrice / priceStep) * priceStep;
     ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
     ctx.lineWidth = 1;
@@ -933,17 +1126,15 @@ export default function Home() {
       ctx.stroke();
     }
 
-    const timeInterval = Math.max(1, Math.ceil(visibleCandles.length / (rect.width < 620 ? 4 : 9)));
-    for (let index = 0; index < visibleCandles.length; index += timeInterval) {
-      const x = xForIndex(index);
+    for (const tick of timeTicks) {
       ctx.strokeStyle = palette.grid;
       ctx.beginPath();
-      ctx.moveTo(x, chartArea.top);
-      ctx.lineTo(x, chartArea.top + chartArea.height);
+      ctx.moveTo(tick.x, chartArea.top);
+      ctx.lineTo(tick.x, chartArea.top + chartArea.height);
       ctx.stroke();
     }
 
-    const closePoints = visibleCandles.map((candle, index) => ({
+    const closePoints = visibleIndexedCandles.map(({ candle, index }) => ({
       x: xForIndex(index),
       y: priceToY(candle.close),
     }));
@@ -970,7 +1161,7 @@ export default function Home() {
     } else if (chartStyle === 'line') {
       drawLinePath(ctx, closePoints, palette.line, 2.2);
     } else {
-      visibleCandles.forEach((candle, index) => {
+      visibleIndexedCandles.forEach(({ candle, index }) => {
         const x = xForIndex(index);
         const highY = priceToY(candle.high);
         const lowY = priceToY(candle.low);
@@ -994,9 +1185,9 @@ export default function Home() {
 
     if (showMovingAverage) {
       const averages = movingAverage(candles, 20);
-      const averagePoints = visibleCandles
-        .map((_, index) => {
-          const average = averages[viewRange.startIndex + index];
+      const averagePoints = visibleIndexedCandles
+        .map(({ index }) => {
+          const average = averages[index];
           return average === null
             ? null
             : {
@@ -1020,14 +1211,14 @@ export default function Home() {
     ctx.restore();
 
     if (showVolume && volumeArea.height > 0) {
-      const maxVolume = Math.max(...visibleCandles.map((candle) => candle.volume), 1);
+      const maxVolume = Math.max(...visibleIndexedCandles.map(({ candle }) => candle.volume), 1);
       ctx.strokeStyle = palette.grid;
       ctx.beginPath();
       ctx.moveTo(volumeArea.left, volumeArea.top);
       ctx.lineTo(volumeArea.left + volumeArea.width, volumeArea.top);
       ctx.stroke();
 
-      visibleCandles.forEach((candle, index) => {
+      visibleIndexedCandles.forEach(({ candle, index }) => {
         const x = xForIndex(index);
         const barHeight = Math.max(1, (candle.volume / maxVolume) * volumeArea.height);
         ctx.fillStyle = candle.close >= candle.open ? palette.greenSoft : palette.redSoft;
@@ -1065,19 +1256,17 @@ export default function Home() {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = palette.text;
-    for (let index = 0; index < visibleCandles.length; index += timeInterval) {
-      const x = xForIndex(index);
-      const label = formatTime(visibleCandles[index].time);
-      const labelWidth = ctx.measureText(label).width;
+    for (const tick of timeTicks) {
+      const labelWidth = ctx.measureText(tick.label).width;
       const labelX = clamp(
-        x,
+        tick.x,
         chartArea.left + labelWidth / 2,
         chartArea.left + chartArea.width - labelWidth / 2
       );
-      ctx.fillText(label, labelX, rect.height - 10);
+      ctx.fillText(tick.label, labelX, rect.height - 10);
     }
 
-    let activeCandleIndex = visibleCandles.length - 1;
+    let activeLogicalIndex = visibleIndexedCandles[visibleIndexedCandles.length - 1]?.index ?? candles.length - 1;
     const crosshairInside =
       mousePos &&
       mousePos.x >= chartArea.left &&
@@ -1086,11 +1275,9 @@ export default function Home() {
       mousePos.y <= chartArea.top + chartArea.height;
 
     if (crosshairInside) {
-      activeCandleIndex = clamp(
-        Math.floor(((mousePos.x - chartArea.left) / chartArea.width) * visibleCandles.length),
-        0,
-        visibleCandles.length - 1
-      );
+      const crosshairRatio = clamp((mousePos.x - chartArea.left) / chartArea.width, 0, 1);
+      const crosshairLogicalIndex = Math.floor(viewRange.startIndex + crosshairRatio * viewRange.candlesPerView);
+      activeLogicalIndex = clamp(crosshairLogicalIndex, 0, candles.length - 1);
 
       ctx.strokeStyle = palette.crosshair;
       ctx.lineWidth = 1;
@@ -1113,7 +1300,7 @@ export default function Home() {
       ctx.textAlign = 'left';
       ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, mousePos.y + 4);
 
-      const timeLabel = formatTime(visibleCandles[activeCandleIndex].time, true);
+      const timeLabel = formatTime(timeForIndex(crosshairLogicalIndex), true);
       const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
       const labelX = clamp(mousePos.x - timeLabelWidth / 2, chartArea.left, chartArea.left + chartArea.width - timeLabelWidth);
       ctx.fillStyle = palette.axisBg;
@@ -1123,7 +1310,7 @@ export default function Home() {
       ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, chartArea.top + chartArea.height + 17);
     }
 
-    const activeCandle = visibleCandles[activeCandleIndex];
+    const activeCandle = candles[activeLogicalIndex] ?? latestCandle!;
     const activeChange = activeCandle.close - activeCandle.open;
     const activeTone = activeChange >= 0 ? palette.green : palette.red;
     const ohlc = [
@@ -1146,11 +1333,14 @@ export default function Home() {
     ctx.fillStyle = palette.text;
     ctx.textAlign = 'right';
     ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
-    ctx.fillText(
-      `${viewRange.startIndex + 1}-${viewRange.endIndex} of ${candles.length}`,
-      chartArea.left + chartArea.width - 4,
-      chartArea.top + 14
-    );
+    const visibleFrom = Math.min(candles.length, Math.max(1, Math.floor(viewRange.startIndex) + 1));
+    const visibleThrough = Math.min(candles.length, Math.max(visibleFrom, Math.ceil(viewRange.endIndex)));
+    const futureBars = Math.max(0, Math.ceil(viewRange.endIndex - candles.length));
+    const rangeLabel = futureBars > 0
+      ? `${visibleFrom}-${visibleThrough} +${futureBars} of ${candles.length}`
+      : `${visibleFrom}-${visibleThrough} of ${candles.length}`;
+
+    ctx.fillText(rangeLabel, chartArea.left + chartArea.width - 4, chartArea.top + 14);
   };
 
   useEffect(() => {
@@ -1170,7 +1360,7 @@ export default function Home() {
     candles,
     mousePos,
     viewRange,
-    isDragging,
+    manualPriceRange,
     chartStyle,
     showVolume,
     showMovingAverage,
@@ -1178,6 +1368,17 @@ export default function Home() {
     symbol,
     timeframe,
   ]);
+
+  const canvasCursor =
+    dragMode === 'price-scale'
+      ? 'ns-resize'
+      : dragMode === 'chart-pan'
+        ? 'grabbing'
+        : pointerArea === 'price-scale'
+          ? 'ns-resize'
+          : pointerArea === 'time-scale'
+            ? 'ew-resize'
+            : 'crosshair';
 
   return (
     <main className="chart-terminal" data-theme={theme}>
@@ -1275,7 +1476,7 @@ export default function Home() {
 
       <section className="market-strip" aria-label="Market status">
         <span>{candles.length.toLocaleString()} candles</span>
-        <span>{viewRange.candlesPerView} bars visible</span>
+        <span>{Math.round(viewRange.candlesPerView)} bars visible</span>
         <span>{latestCandle ? `Vol ${formatCompact(latestCandle.volume)}` : 'Vol -'}</span>
         <span>{showMovingAverage ? 'MA20 on' : 'MA20 off'}</span>
       </section>
@@ -1285,7 +1486,14 @@ export default function Home() {
           ref={canvasRef}
           aria-label={`${formatSymbol(symbol)} ${timeframe} chart`}
           className="chart-canvas"
-          style={{ cursor: isDragging ? 'grabbing' : 'crosshair' }}
+          data-drag-mode={dragMode}
+          data-manual-price-scale={manualPriceRange ? 'true' : 'false'}
+          data-pointer-area={pointerArea}
+          data-price-max={manualPriceRange ? manualPriceRange.maxPrice.toFixed(2) : ''}
+          data-price-min={manualPriceRange ? manualPriceRange.minPrice.toFixed(2) : ''}
+          data-view-end={viewRange.endIndex.toFixed(2)}
+          data-view-start={viewRange.startIndex.toFixed(2)}
+          style={{ cursor: canvasCursor }}
           onMouseMove={handleMouseMove}
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
