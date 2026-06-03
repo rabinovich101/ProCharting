@@ -103,13 +103,26 @@ The library uses a pluggable renderer architecture with three implementations:
 - Software rendering fallback
 - Draws candlestick, line/area, and bar/volume series from the render scene's
   source data.
-- Draws a TradingView-style chart grid using an 80px right price axis, 28px
-  bottom time axis, nice price/time ticks, clipped plot-pane series drawing,
-  candle volume overlay, current-price dotted line with right-axis marker, and
-  crosshair price/time axis labels.
+- Draws a TradingView `_grid2`-style single-pane chart grid using a 64px right
+  price axis, 28px bottom time axis, nice price/time ticks, clipped plot-pane
+  series drawing, candle volume overlay, current-price dotted line with
+  right-axis marker, crosshair price/time axis labels, a top-left OHLC/volume
+  legend, and hover-revealed bottom zoom/scroll/reset/latest controls.
+- Uses shared grid geometry in `packages/core/src/grid-layout.ts` so Canvas2D
+  drawing and pointer hit-testing agree on plot, price-scale, time-scale,
+  bottom-control, and axis-corner areas.
+- Plot and time-axis drags pan the time range without mutating pane geometry.
+  Price-axis vertical drags scale the Y range without resizing the chart pane.
 - Honors light, dark, and custom chart theme tokens when building the render
   scene for the Canvas2D path.
 - Maximum compatibility
+
+`ChartOptions.grid` exposes the implemented grid knobs for consumers:
+`priceScaleWidth`, `timeScaleHeight`, minimum plot dimensions, bottom controls,
+and legend visibility. The defaults follow the verified `tradingview
+_grid2.json` single-pane measurements. Multi-pane splitters and pane
+maximize/minimize remain intentionally outside the runtime contract until the
+JSON's live-inspection-only areas are verified.
 
 ### 4. Data Pipeline
 

@@ -1,5 +1,6 @@
 import type { RenderScene, RenderableSeries, Renderer, RendererType, Viewport } from '@procharting/types';
 import { Platform } from '@procharting/utils';
+import { getBottomControlRects, resolveGridOptions } from './grid-layout';
 
 type NumericRecord = Record<string, unknown>;
 
@@ -28,10 +29,6 @@ type CanvasSeriesStyle = {
   wickDownColor?: string;
 };
 
-const PRICE_AXIS_WIDTH_PX = 80;
-const TIME_AXIS_HEIGHT_PX = 28;
-const MIN_PLOT_WIDTH_PX = 120;
-const MIN_PLOT_HEIGHT_PX = 160;
 const VOLUME_HEIGHT_SHARE = 0.16;
 const MIN_VOLUME_HEIGHT_PX = 64;
 const MAX_VOLUME_HEIGHT_PX = 132;
@@ -232,7 +229,7 @@ function renderCanvasScene(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
   const width = canvas.width;
   const height = canvas.height;
   const dpr = getCanvasPixelRatio(canvas);
-  const plot = createPlotArea(width, height, dpr);
+  const plot = createPlotArea(width, height, dpr, scene);
 
   ctx.save();
   ctx.clearRect(0, 0, width, height);
@@ -264,7 +261,9 @@ function renderCanvasScene(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
   }
 
   drawCurrentPrice(ctx, scene, plot);
+  drawPaneLegend(ctx, scene, plot);
   drawCrosshair(ctx, scene, plot);
+  drawBottomControls(ctx, scene, plot);
   ctx.restore();
 }
 
@@ -277,11 +276,12 @@ function getCanvasPixelRatio(canvas: HTMLCanvasElement): number {
   return Math.max(1, canvas.width / cssWidth);
 }
 
-function createPlotArea(width: number, height: number, dpr: number): PlotArea {
-  const targetAxisWidth = PRICE_AXIS_WIDTH_PX * dpr;
-  const targetTimeAxisHeight = TIME_AXIS_HEIGHT_PX * dpr;
-  const minPlotWidth = MIN_PLOT_WIDTH_PX * dpr;
-  const minPlotHeight = MIN_PLOT_HEIGHT_PX * dpr;
+function createPlotArea(width: number, height: number, dpr: number, scene: RenderScene): PlotArea {
+  const grid = resolveGridOptions(scene.grid);
+  const targetAxisWidth = grid.priceScaleWidth * dpr;
+  const targetTimeAxisHeight = grid.timeScaleHeight * dpr;
+  const minPlotWidth = grid.minPlotWidth * dpr;
+  const minPlotHeight = grid.minPlotHeight * dpr;
   const axisWidth = width >= targetAxisWidth + minPlotWidth
     ? targetAxisWidth
     : Math.max(56 * dpr, Math.min(targetAxisWidth, width * 0.32));
@@ -824,6 +824,178 @@ function drawHoverTimeMarker(
   ctx.fillText(text, markerX + markerWidth / 2, markerY + markerHeight / 2);
 }
 
+function drawPaneLegend(ctx: CanvasRenderingContext2D, scene: RenderScene, plot: PlotArea): void {
+  if (!resolveGridOptions(scene.grid).legend) {
+    return;
+  }
+
+  const entry = getLegendEntry(scene);
+  if (!entry) {
+    return;
+  }
+
+  const padding = 8 * plot.dpr;
+  const markerSize = 6 * plot.dpr;
+  const fontSize = Math.max(11 * plot.dpr, scene.theme.fontSize * plot.dpr);
+  const x = plot.left + padding;
+  const y = plot.top + padding;
+  const maxTextWidth = Math.max(0, plot.width - padding * 3 - markerSize);
+
+  ctx.save();
+  ctx.font = `${fontSize}px ${scene.theme.fontFamily}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = entry.color;
+  ctx.fillRect(x, y + fontSize * 0.45, markerSize, markerSize);
+  ctx.fillStyle = scene.theme.textColor;
+  ctx.globalAlpha = 0.92;
+  ctx.fillText(trimTextToWidth(ctx, entry.text, maxTextWidth), x + markerSize + padding * 0.75, y);
+  ctx.restore();
+}
+
+function drawBottomControls(ctx: CanvasRenderingContext2D, scene: RenderScene, plot: PlotArea): void {
+  if (!resolveGridOptions(scene.grid).bottomControls || !shouldShowBottomControls(scene, plot)) {
+    return;
+  }
+
+  const mouseX = (scene.mouseState?.position.x ?? -Infinity) * plot.dpr;
+  const mouseY = (scene.mouseState?.position.y ?? -Infinity) * plot.dpr;
+  const controls = getBottomControlRects(
+    {
+      x: plot.left,
+      y: plot.top,
+      width: plot.width,
+      height: plot.height,
+    },
+    plot.dpr,
+  );
+  const fontSize = 12 * plot.dpr;
+
+  ctx.save();
+  ctx.font = `${fontSize}px ${scene.theme.fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(1, plot.dpr);
+
+  for (const control of controls) {
+    const hovered = isPointInsideRect(mouseX, mouseY, control);
+    ctx.fillStyle = getControlBackground(scene.theme.backgroundColor, hovered);
+    ctx.strokeStyle = hexToRgba(scene.theme.textColor, hovered ? 0.42 : 0.22);
+    ctx.fillRect(control.x, control.y, control.width, control.height);
+    ctx.strokeRect(alignStroke(control.x), alignStroke(control.y), control.width, control.height);
+    ctx.fillStyle = scene.theme.textColor;
+    ctx.globalAlpha = hovered ? 0.95 : 0.78;
+    ctx.fillText(getControlLabel(control.id), control.x + control.width / 2, control.y + control.height / 2);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+function shouldShowBottomControls(scene: RenderScene, plot: PlotArea): boolean {
+  const mouse = scene.mouseState;
+  if (!mouse?.isOverChart) {
+    return false;
+  }
+
+  if (mouse.area === 'bottom-control' || mouse.area === 'time-scale') {
+    return true;
+  }
+
+  return mouse.area === 'plot' && mouse.position.y * plot.dpr >= plot.bottom - 96 * plot.dpr;
+}
+
+function getLegendEntry(scene: RenderScene): { text: string; color: string } | null {
+  const targetX = scene.mouseState?.showCrosshair ? scene.mouseState.dataPosition.x : null;
+
+  for (const series of scene.series) {
+    if (!series.visible || series.type === 'volume') {
+      continue;
+    }
+
+    const records = getVisibleRecords(series, scene.viewport);
+    if (records.length === 0) {
+      continue;
+    }
+
+    const point = targetX === null ? records[records.length - 1] : getClosestRecordByTime(records, targetX);
+    if (point) {
+      return formatLegendEntry(series, point);
+    }
+  }
+
+  return null;
+}
+
+function getClosestRecordByTime(records: NumericRecord[], targetX: number): NumericRecord | null {
+  let closest: NumericRecord | null = null;
+  let closestDistance = Infinity;
+
+  for (const record of records) {
+    const time = readNumber(record, 'time');
+    if (time === null) {
+      continue;
+    }
+
+    const distance = Math.abs(time - targetX);
+    if (distance < closestDistance) {
+      closest = record;
+      closestDistance = distance;
+    }
+  }
+
+  return closest;
+}
+
+function formatLegendEntry(series: RenderableSeries, point: NumericRecord): { text: string; color: string } {
+  const style = series.style as CanvasSeriesStyle;
+  const name = series.name ?? series.type;
+  const open = readNumber(point, 'open');
+  const high = readNumber(point, 'high');
+  const low = readNumber(point, 'low');
+  const close = readNumber(point, 'close');
+  const value = readNumber(point, 'value');
+  const volume = readNumber(point, 'volume');
+
+  if (open !== null && high !== null && low !== null && close !== null) {
+    const isUp = close >= open;
+    const color = isUp
+      ? style.upColor ?? style.color ?? TRADING_VIEW_BULL
+      : style.downColor ?? style.color ?? TRADING_VIEW_BEAR;
+    const volumeText = volume === null ? '' : ` Vol ${formatCompactNumber(volume)}`;
+
+    return {
+      color,
+      text: `${name} O ${formatPrice(open)} H ${formatPrice(high)} L ${formatPrice(low)} C ${formatPrice(close)}${volumeText}`,
+    };
+  }
+
+  const nextValue = value ?? close ?? 0;
+  return {
+    color: style.color ?? TRADING_VIEW_BULL,
+    text: `${name} ${formatPrice(nextValue)}`,
+  };
+}
+
+function getControlLabel(id: string): string {
+  switch (id) {
+    case 'zoom-out':
+      return '-';
+    case 'zoom-in':
+      return '+';
+    case 'scroll-left':
+      return '<';
+    case 'scroll-right':
+      return '>';
+    case 'reset':
+      return 'R';
+    case 'latest':
+      return '>|';
+    default:
+      return '';
+  }
+}
+
 function getLatestPricePoint(seriesList: readonly RenderableSeries[]): { price: number; color: string } | null {
   for (const series of seriesList) {
     if (!series.visible || series.type === 'volume') {
@@ -940,6 +1112,48 @@ function getHoverMarkerBackground(backgroundColor: string): string {
   return isDarkColor(backgroundColor) ? '#2a2e39' : '#f0f3fa';
 }
 
+function getControlBackground(backgroundColor: string, hovered: boolean): string {
+  const rgb = parseColorToRgb(backgroundColor);
+  if (!rgb) {
+    return backgroundColor;
+  }
+
+  const alpha = hovered ? 0.92 : 0.78;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function trimTextToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) {
+    return text;
+  }
+
+  const suffix = '...';
+  if (ctx.measureText(suffix).width >= maxWidth) {
+    return suffix;
+  }
+
+  let low = 0;
+  let high = text.length;
+  let best = suffix;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = `${text.slice(0, mid)}${suffix}`;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      best = candidate;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return best;
+}
+
+function isPointInsideRect(x: number, y: number, rect: { x: number; y: number; width: number; height: number }): boolean {
+  return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+}
+
 function isDarkColor(color: string): boolean {
   const rgb = parseColorToRgb(color);
   if (!rgb) {
@@ -1004,6 +1218,21 @@ function formatTime(time: number, rangeMs: number = HOUR_MS): string {
 function formatCrosshairTime(time: number): string {
   const date = new Date(normalizeTimeToMs(time));
   return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function formatCompactNumber(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (abs >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)}M`;
+  }
+  if (abs >= 1_000) {
+    return `${(value / 1_000).toFixed(2)}K`;
+  }
+
+  return value.toFixed(0);
 }
 
 function pad2(value: number): string {

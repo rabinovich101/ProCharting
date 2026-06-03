@@ -1,6 +1,7 @@
 import type { RendererType, RenderingHints } from './renderer';
 import type { SeriesOptions } from './series';
 import type { StreamingOptions } from './data';
+import type { ChartGridArea, ChartGridOptions } from './grid';
 
 export interface ChartOptions {
   readonly renderer?: RendererType;
@@ -9,6 +10,7 @@ export interface ChartOptions {
   readonly height?: number;
   readonly pixelRatio?: number;
   readonly theme?: 'light' | 'dark' | ChartTheme;
+  readonly grid?: ChartGridOptions;
   readonly performance?: PerformanceOptions;
   readonly interactions?: InteractionOptions;
 }
@@ -109,6 +111,7 @@ export interface ChartClickEvent {
   readonly y: number;
   readonly dataX: number;
   readonly dataY: number;
+  readonly area?: ChartGridArea;
   readonly series?: Series<SeriesOptions>;
 }
 
