@@ -1,3 +1,71 @@
+# TradingView Supercharts Grid Builder Spec Plan
+
+## Goal
+
+Analyze only the TradingView Supercharts chart grid, excluding the top command
+bar, side drawing toolbar, watchlist/details panel, bottom range toolbar, and
+marketing/page chrome. Create a builder-agent JSON spec named
+`tradingview _grid1.json` that describes the grid surface, axes, panes,
+overlays, interactions, responsive behavior, and verification criteria needed
+to build a TradingView-like chart grid in this repository.
+
+## Evidence / Decisions
+
+- Use the live TradingView chart route for `BINANCE:BTCUSDT` as the visual and
+  DOM reference because the requested target is the Supercharts grid itself.
+- Use CodeGraph and direct reads only to anchor the spec to the local
+  `TEST/binance-chart-test` Canvas2D chart surface.
+- Treat the builder scope as the chart grid only: chart plot pane, right price
+  scale, bottom time scale, current-price line/label, candles, volume overlay,
+  legend overlays, cursor crosshair, and grid interactions.
+- Do not ask the builder to recreate TradingView's surrounding app chrome,
+  account flows, watchlist, news/details panels, drawing tools, alerts, replay,
+  publishing, or brokerage features.
+- Keep this task as a spec/documentation deliverable. No runtime architecture is
+  changed, so `ARCHITECTURE.md` should not be modified for this pass.
+
+## Checklist
+
+- [x] Inspect repository structure and existing task notes.
+- [x] Use CodeGraph to confirm the local charting implementation context.
+- [x] Read the local chart page and stylesheet sections that define the current
+      chart canvas/grid surface.
+- [x] Inspect TradingView Supercharts with Playwright at desktop size.
+- [x] Collapse the right-side TradingView panel and measure the clean grid.
+- [x] Inspect TradingView dark-grid behavior.
+- [x] Inspect TradingView narrow/mobile grid behavior.
+- [x] Cross-check the reference with browser-use.
+- [x] Create `tradingview _grid1.json` for the builder agent.
+- [x] Validate the JSON file parses cleanly.
+- [x] Add review notes with evidence, file path, and caveats.
+
+## Review
+
+Created `tradingview _grid1.json` as a builder-agent contract for the
+TradingView Supercharts grid only.
+
+- The spec excludes TradingView chrome such as the top command bar, side
+  drawing toolbar, watchlist/details panels, bottom range toolbar, alerts,
+  replay, publish, trade, social, and brokerage features.
+- The spec includes the plot pane, right price scale, bottom time scale,
+  bottom-right corner, candles, volume overlay, gridlines, current-price line,
+  crosshair labels, legend behavior, interactions, responsive rules, and QA
+  acceptance criteria.
+- Playwright measured the collapsed desktop grid at 1440x900 as a 1335x819
+  chart region with a 1255x791 plot pane, 80px right price axis, and 28px
+  bottom time axis.
+- Playwright measured the narrow 430x932 dark grid as a 374x851 chart region
+  with a 294x823 plot pane, the same 80px right price axis, and the same 28px
+  bottom time axis.
+- Browser-use loaded the same dark TradingView reference as a secondary visual
+  check.
+- Camoufox was attempted first but failed on TradingView static bundle
+  resolution; MCP-Docker Playwright was attempted but its browser executable was
+  not installed in that MCP context.
+- `node -e` JSON parsing passed for `tradingview _grid1.json`.
+- `ARCHITECTURE.md` was not updated because this was a spec-only deliverable
+  and did not change runtime architecture.
+
 # Actual Runnable ProCharting App Plan
 
 ## Goal
