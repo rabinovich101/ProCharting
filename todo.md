@@ -1,3 +1,71 @@
+# TradingView Supercharts Grid Builder Spec Plan
+
+## Goal
+
+Analyze only the TradingView Supercharts chart grid, excluding the top command
+bar, side drawing toolbar, watchlist/details panel, bottom range toolbar, and
+marketing/page chrome. Create a builder-agent JSON spec named
+`tradingview _grid1.json` that describes the grid surface, axes, panes,
+overlays, interactions, responsive behavior, and verification criteria needed
+to build a TradingView-like chart grid in this repository.
+
+## Evidence / Decisions
+
+- Use the live TradingView chart route for `BINANCE:BTCUSDT` as the visual and
+  DOM reference because the requested target is the Supercharts grid itself.
+- Use CodeGraph and direct reads only to anchor the spec to the local
+  `TEST/binance-chart-test` Canvas2D chart surface.
+- Treat the builder scope as the chart grid only: chart plot pane, right price
+  scale, bottom time scale, current-price line/label, candles, volume overlay,
+  legend overlays, cursor crosshair, and grid interactions.
+- Do not ask the builder to recreate TradingView's surrounding app chrome,
+  account flows, watchlist, news/details panels, drawing tools, alerts, replay,
+  publishing, or brokerage features.
+- Keep this task as a spec/documentation deliverable. No runtime architecture is
+  changed, so `ARCHITECTURE.md` should not be modified for this pass.
+
+## Checklist
+
+- [x] Inspect repository structure and existing task notes.
+- [x] Use CodeGraph to confirm the local charting implementation context.
+- [x] Read the local chart page and stylesheet sections that define the current
+      chart canvas/grid surface.
+- [x] Inspect TradingView Supercharts with Playwright at desktop size.
+- [x] Collapse the right-side TradingView panel and measure the clean grid.
+- [x] Inspect TradingView dark-grid behavior.
+- [x] Inspect TradingView narrow/mobile grid behavior.
+- [x] Cross-check the reference with browser-use.
+- [x] Create `tradingview _grid1.json` for the builder agent.
+- [x] Validate the JSON file parses cleanly.
+- [x] Add review notes with evidence, file path, and caveats.
+
+## Review
+
+Created `tradingview _grid1.json` as a builder-agent contract for the
+TradingView Supercharts grid only.
+
+- The spec excludes TradingView chrome such as the top command bar, side
+  drawing toolbar, watchlist/details panels, bottom range toolbar, alerts,
+  replay, publish, trade, social, and brokerage features.
+- The spec includes the plot pane, right price scale, bottom time scale,
+  bottom-right corner, candles, volume overlay, gridlines, current-price line,
+  crosshair labels, legend behavior, interactions, responsive rules, and QA
+  acceptance criteria.
+- Playwright measured the collapsed desktop grid at 1440x900 as a 1335x819
+  chart region with a 1255x791 plot pane, 80px right price axis, and 28px
+  bottom time axis.
+- Playwright measured the narrow 430x932 dark grid as a 374x851 chart region
+  with a 294x823 plot pane, the same 80px right price axis, and the same 28px
+  bottom time axis.
+- Browser-use loaded the same dark TradingView reference as a secondary visual
+  check.
+- Camoufox was attempted first but failed on TradingView static bundle
+  resolution; MCP-Docker Playwright was attempted but its browser executable was
+  not installed in that MCP context.
+- `node -e` JSON parsing passed for `tradingview _grid1.json`.
+- `ARCHITECTURE.md` was not updated because this was a spec-only deliverable
+  and did not change runtime architecture.
+
 # Actual Runnable ProCharting App Plan
 
 ## Goal
@@ -1310,3 +1378,194 @@ Verification results:
   `http://host.docker.internal:3002/`: desktop controls rendered on the left
   beside the symbol block, mobile controls stayed within the viewport, chart
   canvas rendered, and browser console/devtools warnings were clean.
+
+# Browser-Use MCP Install
+
+## Goal
+
+Install the official local `browser-use/browser-use` MCP server for Codex by
+adding a minimal stdio MCP entry that runs the current documented command:
+`uvx --from 'browser-use[cli]' browser-use --mcp`.
+
+## Checklist
+
+- [x] Inspect existing Codex MCP configuration and project state.
+- [x] Verify the current official Browser Use MCP command from primary docs.
+- [x] Add the `browser-use` MCP server entry to Codex configuration.
+- [x] Smoke-test the CLI/server startup path.
+- [x] Add a review summary.
+
+## Review
+
+Installed Browser Use MCP in the global Codex config at
+`/Users/olegrabinovich/.codex/config.toml`.
+
+- Added `[mcp_servers.browser-use]` using the official local command:
+  `/Users/olegrabinovich/.local/bin/uvx --from browser-use[cli] browser-use
+  --mcp`.
+- Set `startup_timeout_sec = 120.0` so the server has enough time on cold uvx
+  startup.
+- Confirmed the Codex TOML parses and the new MCP entry is present.
+- Confirmed the Browser Use CLI resolves and exposes the `--mcp` flag.
+- Smoke-tested the server through an MCP client: initialization succeeded,
+  `tools/list` returned 16 tools, `browser_navigate` opened
+  `https://example.com/`, `browser_get_state` returned the expected page state,
+  and `browser_close_all` cleaned up the session.
+
+No project runtime architecture changed, so `ARCHITECTURE.md` was not modified.
+Codex may need to be restarted or a new thread opened before the newly added
+MCP server appears as callable tools in the tool list.
+
+# TradingView Grid Library Implementation
+
+## Goal
+
+Use `tradingview _grid1.json` to implement a TradingView-style chart grid in
+the reusable ProCharting Canvas2D renderer, while keeping the standalone
+Binance test app unchanged unless verification shows it needs a direct fix.
+
+## Findings / Decisions
+
+- The JSON spec recommends `TEST/binance-chart-test/app/page.tsx` when building
+  the existing local chart harness, but this task asks for "our charts library",
+  so the primary implementation target is `packages/core/src/renderer-factory.ts`.
+- The reusable Canvas2D renderer already owns the grid, right price labels,
+  bottom time labels, series drawing, and crosshair overlay.
+- The current plot geometry is close but responsive; the spec calls for stable
+  TradingView-like 80px right price axis and 28px bottom time axis, including
+  small viewports.
+- The current time-axis formatter treats input as seconds, while the local chart
+  data contract and spec use milliseconds. The library should support
+  millisecond timestamps while preserving older second-based example data.
+- Keep the change isolated to renderer grid/crosshair behavior and the basic
+  example timestamp generation needed to exercise the millisecond contract.
+
+## Checklist
+
+- [x] Inspect CodeGraph and local files for chart grid ownership.
+- [x] Read `tradingview _grid1.json` and identify reusable-library requirements.
+- [x] Update `todo.md` with this implementation plan.
+- [x] Patch the Canvas2D renderer grid, axes, current price marker, and crosshair labels.
+- [x] Update the basic example to generate millisecond timestamps.
+- [x] Update `ARCHITECTURE.md` for the renderer behavior change.
+- [x] Run typecheck/build/test verification.
+- [x] Run Playwright browser QA and canvas pixel checks on desktop/mobile.
+- [x] Add review notes with changes and verification results.
+
+## Review
+
+Implemented the TradingView grid contract in the reusable Canvas2D renderer.
+
+- Updated `packages/core/src/renderer-factory.ts` with stable 80px right price
+  axis and 28px bottom time axis geometry, responsive nice price/time ticks,
+  clipped plot-pane series drawing, TradingView bull/bear defaults, candle
+  volume overlay, current-price dotted line with right-axis marker, and
+  crosshair price/time axis labels.
+- Updated `packages/core/src/chart.ts` so light, dark, and custom chart theme
+  tokens feed the render scene instead of the previous hard-coded gray theme.
+- Updated `examples/basic/main.js` to generate millisecond timestamps, matching
+  the public candle data contract in `tradingview _grid1.json`.
+- Updated `ARCHITECTURE.md` with the new Canvas2D renderer behavior and
+  millisecond timestamp compatibility note.
+
+Verification results:
+
+- `pnpm run typecheck` passed.
+- `pnpm test` passed, including the 10 price-client tests. Core still has no
+  test files, and `vitest run --passWithNoTests` passed.
+- `pnpm build` passed.
+- `pnpm run lint` still fails on the existing repository-wide legacy lint debt
+  (222 problems across core/utils/data/webgl/webgpu); the changed renderer only
+  reports the pre-existing static-class rule.
+- `git diff --check` passed.
+- Playwright browser QA passed against `http://10.0.0.3:4188/` at `1440x900`:
+  one nonblank 1400x600 Canvas2D chart, derived plot area 1320x572 after the
+  80px/28px axes, visible grid/candle/current-price pixels, no horizontal
+  overflow, and hover/wheel/drag interactions left the canvas nonblank.
+- Playwright browser QA passed at `430x932`: one nonblank 390x600 chart, derived
+  plot area 310x572 after the 80px/28px axes, readable right price axis, no
+  horizontal overflow, and visible grid/candle/current-price pixels.
+- Browser console/devtools showed only the existing missing `favicon.ico` 404;
+  the Canvas2D readback warning came from the QA script's repeated
+  `getImageData` calls, not from application runtime behavior.
+
+# TradingView Multi-Pane Grid Reverse Engineering Spec
+
+## Goal
+
+Inspect only the live TradingView Supercharts chart grid at
+`https://www.tradingview.com/chart/` and create a valid JSON deliverable named
+`tradingview _grid2.json`. The JSON must document chart-grid layout structure,
+pane sizing, splitter behavior, hover/click/drag behavior, maximize/restore,
+minimize availability, active-pane focus behavior, mathematical layout models,
+and exact implementation requirements for a builder agent.
+
+## Findings / Decisions
+
+- This is a documentation/spec deliverable, not a runtime code change.
+- The required output structure and filename are explicit, so no user business
+  question is needed before proceeding.
+- The live site must be physically interacted with; prior `tradingview
+  _grid1.json` can provide context but cannot substitute for this inspection.
+- Scope is the chart grid only: panes, canvases, price/time axes, dividers,
+  hover/active states, pane controls, and resize/maximize/minimize behavior.
+- Surrounding TradingView app chrome remains out of scope except when needed to
+  choose a multi-chart layout for testing.
+- `ARCHITECTURE.md` should not be modified unless this task changes local
+  runtime architecture or uncovers architecture-relevant project information.
+
+## Checklist
+
+- [x] Read the attached request and inspect existing repo notes/spec context.
+- [x] Add this task plan and checklist to `todo.md`.
+- [x] Connect to the in-app browser and open TradingView Supercharts.
+- [x] Inspect DOM, visible structure, CSS geometry, console/devtools logs, and
+      available accessibility information for the chart-grid surface.
+- [x] Configure or reach a multi-pane chart layout so pane splitters and active
+      pane behavior can be tested.
+- [x] Move the mouse across canvas, candles, price scale, time scale, borders,
+      splitters, active/inactive panes, top-right controls, maximize, and any
+      minimize/collapse target.
+- [x] Click each chart pane, canvas, price scale, time scale, dividers,
+      maximize, restore, and chart-grid-only controls.
+- [x] Drag chart canvas, price scale, time scale, vertical splitters, horizontal
+      splitters, and pane dividers while recording deltas and constraints.
+- [x] Test maximize/restore for every available pane and verify layout recovery.
+- [x] Verify whether minimize/collapse exists; if absent, document that as
+      verified.
+- [x] Create `tradingview _grid2.json` with the exact requested top-level
+      structure and implementation-ready mathematical models.
+- [x] Validate the JSON parses.
+- [x] Test the deliverable with browser/Playwright/devtools as applicable.
+- [x] Add review notes with evidence, limitations, and verification results.
+
+## Review
+
+Created `tradingview _grid2.json` as the requested chart-grid-only JSON
+deliverable.
+
+- Used the in-app Browser with Playwright DOM/CSS evaluation, DOM snapshots,
+  mouse move/click/drag simulation, clipped screenshots, console log inspection,
+  and page asset inventory.
+- Verified the single-pane grid at `1440x900`: chart container `1335x819`,
+  plot pane `1271x791`, right price scale `64px`, and bottom time scale `28px`.
+- Verified the narrow/mobile grid at `430x932`: chart container `374x851`,
+  plot pane `310x823`, right price scale `64px`, and bottom time scale `28px`.
+- Verified hover/click/drag behavior for the plot canvas, price scale, time
+  scale, axis corner, pane/price-axis join, zoom controls, scroll controls,
+  reset, and latest-bar control.
+- Verified crosshair behavior after pane focus: dashed crosshair lines, right
+  price label, bottom time label, and hovered-bar legend updates.
+- Attempted multi-chart layout setup. TradingView showed a plan gate saying the
+  session has a one-chart-per-tab limit, so multi-pane splitters, inactive-pane
+  switching, pane maximize/restore, and any multi-pane minimize behavior are
+  marked `requires_live_inspection` in the JSON rather than guessed.
+- Verified no direct pane minimize/collapse or pane-specific maximize control is
+  visible in the single-pane grid; the only fullscreen/maximize-like control is
+  in the top toolbar and remains out of scope.
+- MCP-Docker Playwright was unavailable because its Chromium executable was not
+  installed; MCP-Docker Puppeteer was isolated at `about:blank`; dedicated CDP
+  and accessibility-tree inspection were not available in the active browser tab.
+- `node -e` JSON parsing passed for `tradingview _grid2.json`.
+- `ARCHITECTURE.md` was not modified because this was a spec-only deliverable
+  and did not change local runtime architecture.

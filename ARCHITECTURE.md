@@ -103,7 +103,12 @@ The library uses a pluggable renderer architecture with three implementations:
 - Software rendering fallback
 - Draws candlestick, line/area, and bar/volume series from the render scene's
   source data.
-- Draws basic grid, price-axis labels, time-axis labels, and crosshair overlay.
+- Draws a TradingView-style chart grid using an 80px right price axis, 28px
+  bottom time axis, nice price/time ticks, clipped plot-pane series drawing,
+  candle volume overlay, current-price dotted line with right-axis marker, and
+  crosshair price/time axis labels.
+- Honors light, dark, and custom chart theme tokens when building the render
+  scene for the Canvas2D path.
 - Maximum compatibility
 
 ### 4. Data Pipeline
@@ -123,6 +128,11 @@ The public chart `CandlestickData` contract uses six numeric fields: `time`,
 `open`, `high`, `low`, `close`, and `volume`. The binary chart pipeline writes
 all six fields into fixed-width candle records, so consumers should pass
 `volume: 0` when their market data source has no volume.
+
+Canvas2D time-axis rendering accepts millisecond Unix timestamps as the primary
+contract and still normalizes legacy second-based timestamps for compatibility.
+The runnable `examples/basic` demo now generates millisecond timestamps so the
+package demo exercises the public data contract directly.
 
 `@procharting/core` render scenes currently carry both `sourceData` and binary
 series buffers. Canvas2D renders directly from `sourceData` to preserve
