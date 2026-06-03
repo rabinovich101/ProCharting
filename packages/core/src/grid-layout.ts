@@ -1,9 +1,13 @@
 import type { ChartGridControlId, ChartGridOptions } from '@procharting/types';
 
-export const TRADING_VIEW_PRICE_SCALE_WIDTH_PX = 64;
+export const TRADING_VIEW_GRID3_PRICE_SCALE_WIDTH_PX = 80;
+export const TRADING_VIEW_GRID3_MIN_PRICE_SCALE_WIDTH_PX = 72;
+export const TRADING_VIEW_PRICE_SCALE_WIDTH_PX = TRADING_VIEW_GRID3_PRICE_SCALE_WIDTH_PX;
 export const TRADING_VIEW_TIME_SCALE_HEIGHT_PX = 28;
 export const TRADING_VIEW_MIN_PLOT_WIDTH_PX = 120;
 export const TRADING_VIEW_MIN_PLOT_HEIGHT_PX = 160;
+export const TRADING_VIEW_RIGHT_OFFSET_BARS = 10;
+export const TRADING_VIEW_HORIZONTAL_GRIDLINE_SPACING_PX = 36;
 
 export type GridHitArea = 'plot' | 'price-scale' | 'time-scale' | 'axis-corner' | 'bottom-control' | 'outside';
 
@@ -20,9 +24,12 @@ export interface GridControlRect extends GridRect {
 
 export interface ResolvedGridOptions {
   readonly priceScaleWidth: number;
+  readonly minPriceScaleWidth: number;
   readonly timeScaleHeight: number;
   readonly minPlotWidth: number;
   readonly minPlotHeight: number;
+  readonly rightOffsetBars: number;
+  readonly horizontalGridLineSpacing: number;
   readonly bottomControls: boolean;
   readonly legend: boolean;
 }
@@ -39,11 +46,22 @@ export interface CssGridLayout {
 }
 
 export function resolveGridOptions(options?: ChartGridOptions): ResolvedGridOptions {
+  const priceScaleWidth = positiveNumber(options?.priceScaleWidth, TRADING_VIEW_GRID3_PRICE_SCALE_WIDTH_PX);
+
   return {
-    priceScaleWidth: positiveNumber(options?.priceScaleWidth, TRADING_VIEW_PRICE_SCALE_WIDTH_PX),
+    priceScaleWidth,
+    minPriceScaleWidth: Math.min(
+      priceScaleWidth,
+      positiveNumber(options?.minPriceScaleWidth, TRADING_VIEW_GRID3_MIN_PRICE_SCALE_WIDTH_PX),
+    ),
     timeScaleHeight: positiveNumber(options?.timeScaleHeight, TRADING_VIEW_TIME_SCALE_HEIGHT_PX),
     minPlotWidth: positiveNumber(options?.minPlotWidth, TRADING_VIEW_MIN_PLOT_WIDTH_PX),
     minPlotHeight: positiveNumber(options?.minPlotHeight, TRADING_VIEW_MIN_PLOT_HEIGHT_PX),
+    rightOffsetBars: positiveNumber(options?.rightOffsetBars, TRADING_VIEW_RIGHT_OFFSET_BARS),
+    horizontalGridLineSpacing: positiveNumber(
+      options?.horizontalGridLineSpacing,
+      TRADING_VIEW_HORIZONTAL_GRIDLINE_SPACING_PX,
+    ),
     bottomControls: options?.bottomControls !== false,
     legend: options?.legend !== false,
   };
@@ -51,9 +69,12 @@ export function resolveGridOptions(options?: ChartGridOptions): ResolvedGridOpti
 
 export function createCssGridLayout(width: number, height: number, options?: ChartGridOptions): CssGridLayout {
   const grid = resolveGridOptions(options);
-  const priceScaleWidth = width >= grid.priceScaleWidth + grid.minPlotWidth
-    ? grid.priceScaleWidth
-    : Math.max(56, Math.min(grid.priceScaleWidth, width * 0.32));
+  const preferredPriceScaleWidth = width < 480
+    ? grid.minPriceScaleWidth
+    : grid.priceScaleWidth;
+  const priceScaleWidth = width >= preferredPriceScaleWidth + grid.minPlotWidth
+    ? preferredPriceScaleWidth
+    : Math.min(width, Math.max(grid.minPriceScaleWidth, Math.min(preferredPriceScaleWidth, width * 0.32)));
   const timeScaleHeight = height >= grid.timeScaleHeight + grid.minPlotHeight
     ? grid.timeScaleHeight
     : Math.max(22, Math.min(grid.timeScaleHeight, height * 0.12));

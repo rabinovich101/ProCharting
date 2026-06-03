@@ -216,6 +216,185 @@ Verification results:
 
 # Compact Chart Toolbar Plan
 
+# TradingView Supercharts Grid3 Deep Price Scale Plan
+
+## Goal
+
+Analyze only the TradingView Supercharts chart area deeply enough to create a
+builder-agent JSON file named `tradingview_grid3.json`. The emphasis is the
+chart grid geometry, candle/series coordinate model, hover/crosshair behavior,
+zoom/pan mechanics, and especially the right-side price-scale and price-line
+interaction behavior when the mouse moves or drags up, down, left, and right.
+
+## Evidence / Decisions
+
+- Use the Prompt Engineering Guide principles as the working method: break the
+  task into specific subtasks, gather direct evidence, iterate measurements, and
+  separate confirmed behavior from uncertainty.
+- Use the existing `tradingview _grid1.json` and `tradingview _grid2.json` only
+  as local context, then re-measure live TradingView behavior for this pass.
+- Focus on the live `https://www.tradingview.com/chart/` Supercharts chart area
+  only; surrounding TradingView UI is setup context and out of scope.
+- Treat this as a documentation/spec deliverable. Runtime architecture is not
+  changed unless the analysis itself forces a repository architecture update.
+- Do not ask product questions because the requested inspection scope is clear:
+  infer the necessary chart-only tests independently.
+
+## Checklist
+
+- [x] Inspect repository context, prior TradingView grid specs, and current
+      planning notes.
+- [x] Study the Prompt Engineering Guide repository/pages for methodology.
+- [x] Discover and use the best available browser automation/devtools tools for
+      the live TradingView chart.
+- [x] Measure clean chart, plot, right price scale, time scale, and corner
+      geometry at desktop and narrow viewports.
+- [x] Inspect gridline spacing, tick labels, current-price line, and candle
+      positioning logic from screenshots/DOM/canvas observations.
+- [x] Perform hover, chart drag, price-scale vertical drag, price-scale
+      horizontal drag, time-scale drag, and wheel zoom tests.
+- [x] Derive builder-facing pixel-to-price, price-to-pixel, pixel-to-time, and
+      time-to-pixel formulas from the observed behavior.
+- [x] Create `tradingview_grid3.json` with valid JSON only.
+- [x] Validate `tradingview_grid3.json` parses successfully.
+- [x] Add review notes with changed files, verification, and caveats.
+
+# TradingView Grid3 Runtime Implementation Plan
+
+## Goal
+
+Implement the existing `tradingview_grid3.json` reference in the ProCharting
+library runtime so the Canvas2D chart grid follows the measured TradingView
+grid3 behavior for a single-pane chart: right price scale sizing, bottom time
+scale sizing, price/time coordinate math, candle and volume positioning,
+plot-only crosshair labels, current-price marker alignment, wheel zoom, time
+pan, and right price-axis vertical scaling.
+
+## Decisions
+
+- Treat `tradingview_grid3.json` as the source reference. The file with no
+  space is the existing grid3 artifact in this repository; the older
+  `tradingview _grid1.json` and `tradingview _grid2.json` files remain prior
+  specs and should not be modified.
+- Keep implementation scoped to the public chart runtime and types:
+  `packages/core/src/grid-layout.ts`, `packages/core/src/chart.ts`,
+  `packages/core/src/renderer-factory.ts`, and `packages/types/src/grid.ts`.
+- Preserve the current single-pane model. Multi-pane splitters,
+  maximize/minimize, and surrounding TradingView chrome are explicitly outside
+  this pass because grid3 records them as out of scope or unimplemented.
+- Add only small public grid knobs when needed for the grid3 contract:
+  price-scale min/default sizing, right margin bars, and horizontal gridline
+  spacing. Keep defaults TradingView-like.
+- Use the existing Canvas2D render path because it is the current functional
+  runtime path for the package demo and is already documented as the default
+  `auto` renderer.
+- Update `ARCHITECTURE.md` because this changes runtime grid behavior from a
+  `_grid2`-style implementation to the grid3 reference.
+
+## Checklist
+
+- [x] Inspect CodeGraph context, existing grid specs, architecture notes, and
+      current Canvas2D grid code.
+- [x] Record the implementation plan in `todo.md`.
+- [x] Update grid defaults/types for grid3 right-axis auto sizing, 28px time
+      axis, right margin bars, and horizontal gridline spacing.
+- [x] Update chart interaction state so plot hover owns the full crosshair,
+      wheel zoom uses grid3-style exponential time scaling, and right
+      price-scale vertical drag anchors around the mouse-down price while
+      horizontal-only axis dragging remains a no-op.
+- [x] Update Canvas2D rendering so candles use logical spacing/right margin,
+      horizontal gridlines target 32-40px spacing, current-price and hover
+      markers align with the shared price mapping, and volume overlay follows
+      the grid3 height rule.
+- [x] Update `ARCHITECTURE.md` with the new grid3 runtime behavior.
+- [x] Run TypeScript/build/lint verification for touched packages.
+- [x] Verify the runnable chart in a browser with Playwright or Camoufox,
+      including desktop rendering and interaction probes.
+- [x] Add review notes to this section with changed files, verification, and
+      any caveats.
+
+## Review
+
+Implemented `tradingview_grid3.json` as the active single-pane Canvas2D grid
+contract for the library.
+
+- Updated public grid options in `packages/types/src/grid.ts`:
+  `minPriceScaleWidth`, `rightOffsetBars`, and
+  `horizontalGridLineSpacing`.
+- Updated shared grid layout defaults in `packages/core/src/grid-layout.ts`:
+  80px preferred right axis, 72px compact minimum, 28px time axis, 10
+  right-offset bars, and 36px horizontal gridline target.
+- Updated chart interaction behavior in `packages/core/src/chart.ts`:
+  exponential wheel time zoom, mouse-anchored right price-axis vertical scale,
+  manual Y-scale persistence after Y-axis scaling, right-offset latest view,
+  and plot-only crosshair overlay creation.
+- Updated Canvas2D rendering in `packages/core/src/renderer-factory.ts`:
+  grid3 axis sizing, denser price gridline targets, left-aligned price labels,
+  logical bar-spacing candle/volume widths, 60px-min volume overlay, and black
+  hover price/time labels.
+- Rebuilt `packages/types/dist`, `packages/core/dist`, `examples/basic/dist`,
+  and the root `dist` facade so package and GitHub/root consumers receive the
+  new runtime behavior.
+- Updated `ARCHITECTURE.md` to document grid3 as the implemented Canvas2D
+  single-pane grid contract.
+
+Verification:
+
+- `pnpm --filter @procharting/types build` passed.
+- `pnpm run typecheck:packages` passed after refreshing type declarations.
+- `pnpm --filter @procharting/core build` passed.
+- `pnpm --filter @procharting/example-basic build` passed after the core build
+  completed.
+- `pnpm --filter @procharting/core test` passed; no core test files exist.
+- `pnpm run build:facade` passed.
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint packages/core/src/grid-layout.ts packages/types/src/grid.ts --ext .ts`
+  passed.
+- `pnpm exec eslint packages/core/src packages/types/src --ext .ts` still fails
+  on preexisting legacy lint debt in `packages/core`, including static-class,
+  `any`, non-null assertion, websocket, and worker issues.
+- `git diff --check` passed.
+- Browser QA used the in-app browser for the local Vite demo and Playwright MCP
+  for interaction probes. The demo rendered `Renderer: canvas2d` with 1,000
+  candles and no chart-renderer console errors after forcing Vite dependency
+  re-optimization.
+- Playwright measured the rendered chart at 740x600 CSS px: 80px right price
+  scale, 28px time scale, 660x572 plot area.
+- Built layout helper check measured compact 430x600 CSS px: 72px right price
+  scale, 28px time scale, 358x572 plot area.
+- Canvas pixel checks confirmed plot hover draws right/bottom black hover
+  labels and crosshair pixels, while price-axis hover clears those labels.
+- Canvas diff checks confirmed wheel zoom changes the chart, vertical
+  price-axis drag changes the chart, and horizontal-only price-axis drag is a
+  no-op after returning to the price axis.
+- Docker Playwright narrow-viewport screenshot could not run because that MCP
+  image is missing its Chromium executable; compact layout was verified through
+  the built shared layout helper instead.
+
+## Review
+
+Created `tradingview_grid3.json` as a builder-facing chart-only specification.
+
+- Studied the Prompt Engineering Guide repository and guide pages first, then
+  applied its decomposition, specificity, measurement, and uncertainty-tracking
+  principles to the inspection.
+- Used Playwright MCP as the primary live-inspection surface for TradingView
+  DOM rectangles, canvas layer inventory, canvas pixel sampling, gridline
+  detection, public chart API range state, hover tests, drag tests, wheel zoom,
+  desktop geometry, compact geometry, and narrow viewport geometry.
+- Used Browser-use MCP as a secondary reachability/visual check.
+- Attempted Camoufox MCP; it was available, but TradingView static bundle
+  resolution was blocked in this environment, so it is documented as a
+  limitation in the JSON.
+- The JSON documents chart container geometry, plot geometry, gridline spacing,
+  price/time coordinate formulas, candle positioning, current-price marker
+  behavior, crosshair/hover labels, plot pan, time-axis zoom, wheel zoom, and
+  right price-scale vertical/horizontal drag behavior.
+- The right price-scale drag finding is now explicit: vertical drags scale the
+  y-range and disable auto scale; horizontal drags did not resize the axis or
+  alter ranges in the measured tests.
+- `node -e` JSON parsing passed for `tradingview_grid3.json`.
+
 ## Goal
 
 Redesign the `TEST/binance-chart-test` chart toolbar into a compact,

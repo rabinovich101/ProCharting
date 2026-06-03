@@ -16,6 +16,7 @@ type PlotArea = {
   dpr: number;
   cssWidth: number;
   cssHeight: number;
+  horizontalGridLineSpacing: number;
 };
 
 type CanvasSeriesStyle = {
@@ -30,7 +31,7 @@ type CanvasSeriesStyle = {
 };
 
 const VOLUME_HEIGHT_SHARE = 0.16;
-const MIN_VOLUME_HEIGHT_PX = 64;
+const MIN_VOLUME_HEIGHT_PX = 60;
 const MAX_VOLUME_HEIGHT_PX = 132;
 const TRADING_VIEW_BULL = '#089981';
 const TRADING_VIEW_BEAR = '#f23645';
@@ -279,12 +280,14 @@ function getCanvasPixelRatio(canvas: HTMLCanvasElement): number {
 function createPlotArea(width: number, height: number, dpr: number, scene: RenderScene): PlotArea {
   const grid = resolveGridOptions(scene.grid);
   const targetAxisWidth = grid.priceScaleWidth * dpr;
+  const minAxisWidth = grid.minPriceScaleWidth * dpr;
   const targetTimeAxisHeight = grid.timeScaleHeight * dpr;
   const minPlotWidth = grid.minPlotWidth * dpr;
   const minPlotHeight = grid.minPlotHeight * dpr;
-  const axisWidth = width >= targetAxisWidth + minPlotWidth
-    ? targetAxisWidth
-    : Math.max(56 * dpr, Math.min(targetAxisWidth, width * 0.32));
+  const preferredAxisWidth = width / dpr < 480 ? minAxisWidth : targetAxisWidth;
+  const axisWidth = width >= preferredAxisWidth + minPlotWidth
+    ? preferredAxisWidth
+    : Math.min(width, Math.max(minAxisWidth, Math.min(preferredAxisWidth, width * 0.32)));
   const timeAxisHeight = height >= targetTimeAxisHeight + minPlotHeight
     ? targetTimeAxisHeight
     : Math.max(22 * dpr, Math.min(targetTimeAxisHeight, height * 0.12));
@@ -303,18 +306,13 @@ function createPlotArea(width: number, height: number, dpr: number, scene: Rende
     dpr,
     cssWidth: width / dpr,
     cssHeight: height / dpr,
+    horizontalGridLineSpacing: grid.horizontalGridLineSpacing,
   };
 }
 
 function getPriceTickTarget(plot: PlotArea): number {
-  if (plot.cssWidth < 480) {
-    return 9;
-  }
-  if (plot.cssWidth < 1024) {
-    return 10;
-  }
-
-  return 12;
+  const targetSpacing = plot.horizontalGridLineSpacing * plot.dpr;
+  return Math.round(clamp(plot.height / Math.max(1, targetSpacing) + 2, 4, 40));
 }
 
 function getTimeTickTarget(plot: PlotArea): number {
@@ -424,7 +422,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, scene: RenderScene, plot: PlotA
   ctx.font = `${fontSize}px ${scene.theme.fontFamily}`;
   ctx.fillStyle = scene.theme.textColor;
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'left';
 
   for (const value of priceTicks) {
     const y = toCanvasY(value, scene.viewport, plot);
@@ -440,7 +438,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, scene: RenderScene, plot: PlotA
 
     if (y >= plot.top + fontSize / 2 && y <= plot.bottom - fontSize / 2) {
       ctx.globalAlpha = 0.86;
-      ctx.fillText(formatPrice(value), plot.right + plot.axisWidth - labelPadding, y);
+      ctx.fillText(formatPrice(value), plot.right + labelPadding, y);
     }
   }
 
@@ -497,7 +495,7 @@ function drawCandlestickSeries(
   }
 
   const style = series.style as CanvasSeriesStyle;
-  const candleWidth = getSeriesBarWidth(plot, points.length, 0.62, 1, 12);
+  const candleWidth = getSeriesBarWidth(plot, points, viewport, 0.65, 1, 12);
   const upColor = style.upColor ?? TRADING_VIEW_BULL;
   const downColor = style.downColor ?? TRADING_VIEW_BEAR;
   const wickUpColor = style.wickUpColor ?? upColor;
@@ -630,7 +628,7 @@ function drawBarSeries(
 
   const style = series.style as CanvasSeriesStyle;
   const color = style.color ?? '#64748b';
-  const barWidth = getSeriesBarWidth(plot, points.length, 0.55, 1, 12);
+  const barWidth = getSeriesBarWidth(plot, points, viewport, 0.55, 1, 12);
   const baseline = viewport.dataMinY <= 0 && viewport.dataMaxY >= 0 ? 0 : viewport.dataMinY;
   const baselineY = toCanvasY(baseline, viewport, plot);
 
@@ -686,7 +684,7 @@ function drawVolumeOverlay(
     Math.max(plot.height * VOLUME_HEIGHT_SHARE, minVolumeHeight),
     Math.min(maxVolumeHeight, plot.height * 0.34),
   );
-  const barWidth = getSeriesBarWidth(plot, points.length, 0.62, 1, 12);
+  const barWidth = getSeriesBarWidth(plot, points, viewport, 0.65, 1, 12);
 
   for (const point of volumePoints) {
     const x = toCanvasX(point.time, viewport, plot);
@@ -792,9 +790,9 @@ function drawHoverPriceMarker(
 
   ctx.setLineDash([]);
   ctx.font = `${Math.max(11 * plot.dpr, scene.theme.fontSize * plot.dpr)}px ${scene.theme.fontFamily}`;
-  ctx.fillStyle = getHoverMarkerBackground(scene.theme.backgroundColor);
+  ctx.fillStyle = getHoverMarkerBackground();
   ctx.fillRect(plot.right, markerY, markerWidth, markerHeight);
-  ctx.fillStyle = scene.theme.textColor;
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, plot.right + markerWidth / 2, markerY + markerHeight / 2);
@@ -816,9 +814,9 @@ function drawHoverTimeMarker(
   const markerY = plot.bottom + Math.max(2 * plot.dpr, (plot.timeAxisHeight - markerHeight) / 2);
 
   ctx.setLineDash([]);
-  ctx.fillStyle = getHoverMarkerBackground(scene.theme.backgroundColor);
+  ctx.fillStyle = getHoverMarkerBackground();
   ctx.fillRect(markerX, markerY, markerWidth, markerHeight);
-  ctx.fillStyle = scene.theme.textColor;
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, markerX + markerWidth / 2, markerY + markerHeight / 2);
@@ -906,7 +904,9 @@ function shouldShowBottomControls(scene: RenderScene, plot: PlotArea): boolean {
 }
 
 function getLegendEntry(scene: RenderScene): { text: string; color: string } | null {
-  const targetX = scene.mouseState?.showCrosshair ? scene.mouseState.dataPosition.x : null;
+  const targetX = scene.mouseState?.showCrosshair && scene.mouseState.area === 'plot'
+    ? scene.mouseState.dataPosition.x
+    : null;
 
   for (const series of scene.series) {
     if (!series.visible || series.type === 'volume') {
@@ -1032,13 +1032,50 @@ function clipToPlot(ctx: CanvasRenderingContext2D, plot: PlotArea): void {
 
 function getSeriesBarWidth(
   plot: PlotArea,
-  pointCount: number,
+  points: readonly NumericRecord[],
+  viewport: Viewport,
   widthRatio: number,
   minWidthPx: number,
   maxWidthPx: number,
 ): number {
-  const naturalWidth = pointCount > 0 ? (plot.width / pointCount) * widthRatio : minWidthPx * plot.dpr;
-  return clamp(naturalWidth, minWidthPx * plot.dpr, maxWidthPx * plot.dpr);
+  const barSpacing = getLogicalBarSpacing(plot, points, viewport);
+  const maxBodyWidth = Math.max(minWidthPx * plot.dpr, barSpacing - plot.dpr);
+  const naturalWidth = Math.round(barSpacing * widthRatio);
+
+  return clamp(naturalWidth, minWidthPx * plot.dpr, Math.min(maxWidthPx * plot.dpr, maxBodyWidth));
+}
+
+function getLogicalBarSpacing(plot: PlotArea, points: readonly NumericRecord[], viewport: Viewport): number {
+  const timeRange = viewport.dataMaxX - viewport.dataMinX;
+  const timeStep = estimateTimeStep(points) ?? (points.length > 0 ? timeRange / points.length : timeRange);
+  if (!Number.isFinite(timeRange) || timeRange <= 0 || !Number.isFinite(timeStep) || timeStep <= 0) {
+    return plot.dpr;
+  }
+
+  return plot.width / Math.max(1, timeRange / timeStep);
+}
+
+function estimateTimeStep(points: readonly NumericRecord[]): number | null {
+  if (points.length < 2) {
+    return null;
+  }
+
+  let previous: number | null = null;
+  let minStep = Infinity;
+
+  for (const point of points) {
+    const time = readNumber(point, 'time');
+    if (time === null) {
+      continue;
+    }
+
+    if (previous !== null && time > previous) {
+      minStep = Math.min(minStep, time - previous);
+    }
+    previous = time;
+  }
+
+  return Number.isFinite(minStep) ? minStep : null;
 }
 
 function getVisibleRecords(series: RenderableSeries, viewport: Viewport): NumericRecord[] {
@@ -1108,8 +1145,8 @@ function getTimeScale(min: number, max: number): number {
   return largest < 100_000_000_000 ? 1000 : 1;
 }
 
-function getHoverMarkerBackground(backgroundColor: string): string {
-  return isDarkColor(backgroundColor) ? '#2a2e39' : '#f0f3fa';
+function getHoverMarkerBackground(): string {
+  return '#0f0f0f';
 }
 
 function getControlBackground(backgroundColor: string, hovered: boolean): string {
@@ -1152,16 +1189,6 @@ function trimTextToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: 
 
 function isPointInsideRect(x: number, y: number, rect: { x: number; y: number; width: number; height: number }): boolean {
   return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
-}
-
-function isDarkColor(color: string): boolean {
-  const rgb = parseColorToRgb(color);
-  if (!rgb) {
-    return false;
-  }
-
-  const luminance = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
-  return luminance < 128;
 }
 
 function parseColorToRgb(color: string): { r: number; g: number; b: number } | null {
