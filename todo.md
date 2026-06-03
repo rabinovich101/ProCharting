@@ -1488,3 +1488,84 @@ Verification results:
 - Browser console/devtools showed only the existing missing `favicon.ico` 404;
   the Canvas2D readback warning came from the QA script's repeated
   `getImageData` calls, not from application runtime behavior.
+
+# TradingView Multi-Pane Grid Reverse Engineering Spec
+
+## Goal
+
+Inspect only the live TradingView Supercharts chart grid at
+`https://www.tradingview.com/chart/` and create a valid JSON deliverable named
+`tradingview _grid2.json`. The JSON must document chart-grid layout structure,
+pane sizing, splitter behavior, hover/click/drag behavior, maximize/restore,
+minimize availability, active-pane focus behavior, mathematical layout models,
+and exact implementation requirements for a builder agent.
+
+## Findings / Decisions
+
+- This is a documentation/spec deliverable, not a runtime code change.
+- The required output structure and filename are explicit, so no user business
+  question is needed before proceeding.
+- The live site must be physically interacted with; prior `tradingview
+  _grid1.json` can provide context but cannot substitute for this inspection.
+- Scope is the chart grid only: panes, canvases, price/time axes, dividers,
+  hover/active states, pane controls, and resize/maximize/minimize behavior.
+- Surrounding TradingView app chrome remains out of scope except when needed to
+  choose a multi-chart layout for testing.
+- `ARCHITECTURE.md` should not be modified unless this task changes local
+  runtime architecture or uncovers architecture-relevant project information.
+
+## Checklist
+
+- [x] Read the attached request and inspect existing repo notes/spec context.
+- [x] Add this task plan and checklist to `todo.md`.
+- [x] Connect to the in-app browser and open TradingView Supercharts.
+- [x] Inspect DOM, visible structure, CSS geometry, console/devtools logs, and
+      available accessibility information for the chart-grid surface.
+- [x] Configure or reach a multi-pane chart layout so pane splitters and active
+      pane behavior can be tested.
+- [x] Move the mouse across canvas, candles, price scale, time scale, borders,
+      splitters, active/inactive panes, top-right controls, maximize, and any
+      minimize/collapse target.
+- [x] Click each chart pane, canvas, price scale, time scale, dividers,
+      maximize, restore, and chart-grid-only controls.
+- [x] Drag chart canvas, price scale, time scale, vertical splitters, horizontal
+      splitters, and pane dividers while recording deltas and constraints.
+- [x] Test maximize/restore for every available pane and verify layout recovery.
+- [x] Verify whether minimize/collapse exists; if absent, document that as
+      verified.
+- [x] Create `tradingview _grid2.json` with the exact requested top-level
+      structure and implementation-ready mathematical models.
+- [x] Validate the JSON parses.
+- [x] Test the deliverable with browser/Playwright/devtools as applicable.
+- [x] Add review notes with evidence, limitations, and verification results.
+
+## Review
+
+Created `tradingview _grid2.json` as the requested chart-grid-only JSON
+deliverable.
+
+- Used the in-app Browser with Playwright DOM/CSS evaluation, DOM snapshots,
+  mouse move/click/drag simulation, clipped screenshots, console log inspection,
+  and page asset inventory.
+- Verified the single-pane grid at `1440x900`: chart container `1335x819`,
+  plot pane `1271x791`, right price scale `64px`, and bottom time scale `28px`.
+- Verified the narrow/mobile grid at `430x932`: chart container `374x851`,
+  plot pane `310x823`, right price scale `64px`, and bottom time scale `28px`.
+- Verified hover/click/drag behavior for the plot canvas, price scale, time
+  scale, axis corner, pane/price-axis join, zoom controls, scroll controls,
+  reset, and latest-bar control.
+- Verified crosshair behavior after pane focus: dashed crosshair lines, right
+  price label, bottom time label, and hovered-bar legend updates.
+- Attempted multi-chart layout setup. TradingView showed a plan gate saying the
+  session has a one-chart-per-tab limit, so multi-pane splitters, inactive-pane
+  switching, pane maximize/restore, and any multi-pane minimize behavior are
+  marked `requires_live_inspection` in the JSON rather than guessed.
+- Verified no direct pane minimize/collapse or pane-specific maximize control is
+  visible in the single-pane grid; the only fullscreen/maximize-like control is
+  in the top toolbar and remains out of scope.
+- MCP-Docker Playwright was unavailable because its Chromium executable was not
+  installed; MCP-Docker Puppeteer was isolated at `about:blank`; dedicated CDP
+  and accessibility-tree inspection were not available in the active browser tab.
+- `node -e` JSON parsing passed for `tradingview _grid2.json`.
+- `ARCHITECTURE.md` was not modified because this was a spec-only deliverable
+  and did not change local runtime architecture.
