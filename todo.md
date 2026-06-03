@@ -1,3 +1,113 @@
+# TradingView Chart Interaction Behavior Plan
+
+## Goal
+
+Make the `TEST/binance-chart-test` canvas chart behave closer to TradingView for
+the specific gestures requested: right price-scale drag should manually
+expand/compress the price range, the chart should then be draggable vertically
+with that manual scale, and horizontal panning should be able to reveal future
+time/empty right-side space beyond the latest candle.
+
+## TradingView Behaviors To Copy
+
+- Price scale/right-axis hover uses a vertical resize cursor and is a separate
+  hit area from the plot.
+- Dragging the right price scale vertically changes the visible Y price range
+  around the pointer anchor instead of moving or resizing the chart pane.
+- Manual price scaling disables automatic Y fitting until reset or market
+  reload.
+- After manual price scaling, dragging the main plot vertically pans the manual
+  Y range up/down so prices and candles move together.
+- Dragging the plot horizontally pans the logical bar window.
+- Horizontal panning can move past the latest candle and keep empty future
+  slots on the right side of the chart instead of clamping at the last candle.
+- Time labels in future space continue from the selected timeframe interval.
+- Wheel zoom remains anchored to the mouse position and should not forcibly
+  snap the view back to the latest candle.
+- Reset returns the view to the latest candles and re-enables automatic price
+  fitting.
+
+## Findings / Decisions
+
+- CodeGraph confirms the packaged `@procharting/core` already has a
+  TradingView-like grid hit-test path, but the visible Binance harness draws its
+  own Canvas2D chart and does not instantiate `@procharting/core`.
+- The bug is in `TEST/binance-chart-test/app/page.tsx`: current panning clamps
+  `endIndex` to `candles.length`, and drawing uses `visibleCandles.length` as
+  the slot count, so future whitespace cannot exist.
+- The same file recalculates price min/max from visible candles on every draw,
+  so right-axis manual scaling cannot persist.
+- Keep the fix scoped to the test harness canvas interaction state and drawing
+  math; do not refactor shared packages for this pass.
+
+## Checklist
+
+- [x] Inspect repository structure and existing chart architecture notes.
+- [x] Use CodeGraph to locate chart interaction paths.
+- [x] Read the Binance chart page mouse, wheel, draw, and reset code.
+- [x] Start the standalone Next.js chart harness locally.
+- [x] Open the harness with the Browser plugin and inspect baseline canvas state.
+- [x] Add explicit plot/price-scale/time-scale pointer hit testing in the
+      Binance canvas page.
+- [x] Add manual Y price-range state and right-axis anchored vertical scaling.
+- [x] Add vertical plot panning when manual Y scaling is active.
+- [x] Change horizontal pan and zoom to preserve logical future slots past the
+      latest candle.
+- [x] Draw candles, gridlines, time labels, crosshair, and legend from logical
+      bar slots instead of `visibleCandles.length`.
+- [x] Update `ARCHITECTURE.md` for the chart test app interaction architecture.
+- [x] Run typecheck/build/lint checks relevant to the touched app.
+- [x] Verify with Browser/Playwright gestures and devtools console logs.
+- [x] Add review notes with changed files, verification, and caveats.
+
+## Review
+
+Completed the TradingView-style interaction pass for the standalone Binance
+chart harness.
+
+- Changed `TEST/binance-chart-test/app/page.tsx` so the canvas has explicit
+  plot, price-scale, time-scale, and outside pointer hit areas.
+- Added manual price-range state. Right-axis vertical drag now turns on manual
+  price scale and expands/compresses the range around the pointer price.
+- Added vertical plot panning when manual price scale is active.
+- Reworked horizontal pan and wheel zoom around logical bar slots so the chart
+  can preserve future slots beyond the latest candle instead of clamping
+  `endIndex` to `candles.length`.
+- Reworked candles, gridlines, moving average, volume, time labels, crosshair
+  labels, and the canvas range readout to use logical bar positions.
+- Added non-visible canvas `data-*` diagnostics for browser/devtools QA of
+  pointer area, drag mode, manual price state, manual price bounds, and view
+  range.
+- Updated `ARCHITECTURE.md` with the new test-app interaction architecture.
+
+Browser QA:
+
+- Baseline loaded at `http://127.0.0.1:3002/` with no console warnings/errors:
+  1,000 candles, 140 bars visible, `viewStart=860.00`, `viewEnd=1000.00`,
+  `manualPriceScale=false`.
+- Right price-scale hover reported `pointerArea=price-scale` and
+  `cursor=ns-resize`.
+- Right price-scale drag changed `manualPriceScale` to `true` and produced
+  manual bounds around `priceMin=64229.57`, `priceMax=66575.69`.
+- Plot vertical drag after manual scaling moved the manual bounds to
+  `priceMin=64902.03`, `priceMax=67248.15` while preserving the time window.
+- Plot left drag moved into future time: with 1,001 live candles the browser
+  reported `viewStart=977.27`, `viewEnd=1117.27`.
+- Wheel zoom preserved future space and changed the view to 123 visible bars
+  with `viewStart=986.46`, `viewEnd=1109.46`.
+- Reset returned to latest candles and auto price scale:
+  `viewStart=861.00`, `viewEnd=1001.00`, `manualPriceScale=false`.
+
+Verification:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `npm run build` in `TEST/binance-chart-test` passed. Next still reports the
+  existing multiple-lockfile and missing Next ESLint plugin warnings.
+- Browser screenshot capture was attempted twice, but the in-app Browser
+  timed out on `Page.captureScreenshot`; gesture QA used browser-driven
+  coordinates, DOM diagnostics, and devtools console logs instead.
+
 # TradingView Supercharts Grid Builder Spec Plan
 
 ## Goal

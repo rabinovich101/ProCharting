@@ -255,6 +255,17 @@ The chart app supports:
 - Dark/light UI themes.
 - Wheel zoom, drag pan, reset, crosshair, OHLC legend, current price marker, and
   responsive desktop/tablet/mobile layouts.
+- TradingView-style right price-scale interaction: the right axis is a distinct
+  pointer hit area, vertical axis drags create a manual Y range anchored to the
+  pointer price, and plot drags can pan that manual price range vertically until
+  reset or market reload re-enables automatic Y fitting.
+- TradingView-style future time panning: the chart view is modeled as logical
+  bar slots rather than only `candles.slice(start, end)`, so horizontal pan and
+  wheel zoom can preserve empty future slots to the right of the latest candle
+  while candles, gridlines, crosshair labels, and time labels stay aligned.
+- The canvas exposes non-visible `data-*` diagnostics for browser QA/devtools
+  inspection of pointer area, drag mode, logical view range, and manual price
+  bounds. These attributes are not part of the end-user visual surface.
 
 As of May 31, 2026, the chart test app uses a TradingView-style single top
 command bar rather than separate instrument and control blocks. That command
