@@ -103,11 +103,13 @@ The library uses a pluggable renderer architecture with three implementations:
 - Software rendering fallback
 - Draws candlestick, line/area, and bar/volume series from the render scene's
   source data.
-- Draws a TradingView `_grid2`-style single-pane chart grid using a 64px right
-  price axis, 28px bottom time axis, nice price/time ticks, clipped plot-pane
-  series drawing, candle volume overlay, current-price dotted line with
-  right-axis marker, crosshair price/time axis labels, a top-left OHLC/volume
-  legend, and hover-revealed bottom zoom/scroll/reset/latest controls.
+- Draws a TradingView `grid3`-style single-pane chart grid using an 80px
+  preferred right price axis that can compact to 72px, a 28px bottom time axis,
+  32-40px target horizontal gridline spacing, nice price/time ticks, clipped
+  plot-pane series drawing, candle volume overlay, current-price dotted line
+  with right-axis marker, plot-only crosshair price/time axis labels, a
+  top-left OHLC/volume legend, and hover-revealed bottom
+  zoom/scroll/reset/latest controls.
 - Uses shared grid geometry in `packages/core/src/grid-layout.ts` so Canvas2D
   drawing and pointer hit-testing agree on plot, price-scale, time-scale,
   bottom-control, and axis-corner areas.
@@ -118,19 +120,20 @@ The library uses a pluggable renderer architecture with three implementations:
 - Maximum compatibility
 
 `tradingview_grid3.json` is the current external reference for TradingView-like
-chart-grid behavior. It refines the earlier `_grid2` notes with live
-measurements for right price-scale auto/manual state, 72-80px observed
-price-axis sizing, horizontal no-op price-axis drags, vertical price-axis scale
-drags, crosshair labels, gridline spacing, and pixel/price/time formulas. This
-is a spec artifact; it does not change the runtime renderer architecture by
-itself.
+chart-grid behavior and now drives the Canvas2D single-pane runtime contract for
+the measured areas: right price-scale auto sizing between 72px and 80px,
+horizontal no-op price-axis drags, mouse-anchored vertical price-axis scale
+drags, plot-only crosshair labels, denser horizontal gridline spacing, candle
+body sizing from logical bar spacing, volume overlay height, current-price
+marker alignment, and pixel/price/time formulas.
 
 `ChartOptions.grid` exposes the implemented grid knobs for consumers:
-`priceScaleWidth`, `timeScaleHeight`, minimum plot dimensions, bottom controls,
-and legend visibility. The defaults follow the verified `tradingview
-_grid2.json` single-pane measurements. Multi-pane splitters and pane
-maximize/minimize remain intentionally outside the runtime contract until the
-JSON's live-inspection-only areas are verified.
+`priceScaleWidth`, `minPriceScaleWidth`, `timeScaleHeight`, minimum plot
+dimensions, `rightOffsetBars`, `horizontalGridLineSpacing`, bottom controls,
+and legend visibility. The defaults follow the verified `tradingview_grid3.json`
+single-pane measurements. Multi-pane splitters and pane maximize/minimize
+remain intentionally outside the runtime contract until the JSON's
+live-inspection-only areas are verified.
 
 ### 4. Data Pipeline
 

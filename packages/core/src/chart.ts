@@ -74,7 +74,9 @@ class ChartImpl implements Chart {
     dragMode: 'none' as DragMode,
     dragStart: { x: 0, y: 0 },
     lastDataX: 0,
+    lastPriceScaleAnchorY: 0,
     lastYRange: { min: 0, max: 100 },
+    autoScaleY: true,
   };
   
   // Mouse state for interactions
@@ -192,8 +194,8 @@ class ChartImpl implements Chart {
     const area = getGridArea(x, y, layout, this.options.grid);
     
     // Calculate zoom factor
-    const zoomSpeed = this.options.interactions?.zoomSpeed ?? 0.1;
-    const zoomFactor = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
+    const zoomSpeed = this.options.interactions?.zoomSpeed ?? 0.0002;
+    const zoomFactor = this.clamp(Math.exp(e.deltaY * zoomSpeed), 0.05, 20);
 
     if (area === 'price-scale' && this.options.interactions?.enableYAxisScale !== false) {
       this.scaleYAxis(zoomFactor);
@@ -212,6 +214,7 @@ class ChartImpl implements Chart {
     const halfRange = (this.viewState.dataMaxY - this.viewState.dataMinY) / 2;
     const nextHalfRange = halfRange * Math.max(0.05, scaleFactor);
 
+    this.viewState.autoScaleY = false;
     this.viewState.dataMinY = centerY - nextHalfRange;
     this.viewState.dataMaxY = centerY + nextHalfRange;
 
@@ -256,10 +259,12 @@ class ChartImpl implements Chart {
     if (area === 'price-scale' && interactions.enableYAxisScale !== false) {
       this.viewState.dragMode = 'price-scale';
       this.viewState.dragStart = { x: e.clientX, y: e.clientY };
+      this.viewState.lastPriceScaleAnchorY = this.dataYAtCssY(y, layout);
       this.viewState.lastYRange = { 
         min: this.viewState.dataMinY, 
         max: this.viewState.dataMaxY 
       };
+      this.canvas.style.cursor = 'ns-resize';
     } else if ((area === 'plot' || area === 'time-scale') && interactions.enablePan !== false) {
       this.viewState.dragMode = 'time-pan';
       this.viewState.dragStart = { x: e.clientX, y: e.clientY };
@@ -295,22 +300,24 @@ class ChartImpl implements Chart {
     // Handle Y-axis dragging
     if (this.viewState.dragMode === 'price-scale' && interactions.enableYAxisScale !== false) {
       const deltaY = e.clientY - this.viewState.dragStart.y;
+      if (Math.abs(deltaY) < 0.5) {
+        return;
+      }
       
-      // Scale factor based on drag distance
-      const scaleSpeed = interactions.yAxisScaleSpeed ?? 0.01;
-      const scaleFactor = Math.exp(deltaY * scaleSpeed);
+      const scaleSpeed = interactions.yAxisScaleSpeed ?? 1.6;
+      const scaleFactor = Math.exp((deltaY / Math.max(1, layout.plot.height)) * scaleSpeed);
       
-      // Calculate new Y range
-      const centerY = (this.viewState.lastYRange.min + this.viewState.lastYRange.max) / 2;
-      const halfRange = (this.viewState.lastYRange.max - this.viewState.lastYRange.min) / 2;
+      const anchorY = this.viewState.lastPriceScaleAnchorY;
+      const { min, max } = this.viewState.lastYRange;
       
-      this.viewState.dataMinY = centerY - halfRange * scaleFactor;
-      this.viewState.dataMaxY = centerY + halfRange * scaleFactor;
+      this.viewState.autoScaleY = false;
+      this.viewState.dataMinY = anchorY - (anchorY - min) * scaleFactor;
+      this.viewState.dataMaxY = anchorY + (max - anchorY) * scaleFactor;
       
       this.events.emit('zoom', {
         level: scaleFactor,
         centerX: (this.viewState.dataMinX + this.viewState.dataMaxX) / 2,
-        centerY: centerY,
+        centerY: anchorY,
       });
     }
     // Handle TradingView-style time pan
@@ -445,6 +452,8 @@ class ChartImpl implements Chart {
 
     if (area === 'bottom-control') {
       this.canvas.style.cursor = 'pointer';
+    } else if (area === 'price-scale' && interactions.enableYAxisScale !== false) {
+      this.canvas.style.cursor = 'ns-resize';
     } else if (area === 'plot' && interactions.enableCrosshair !== false) {
       this.canvas.style.cursor = 'crosshair';
     } else {
@@ -459,9 +468,11 @@ class ChartImpl implements Chart {
     }
 
     const rangeX = this.viewState.dataMaxX - this.viewState.dataMinX || 1;
-    this.viewState.dataMaxX = latestX + rangeX * 0.02;
+    this.viewState.dataMaxX = latestX + this.getRightOffsetRange();
     this.viewState.dataMinX = this.viewState.dataMaxX - rangeX;
-    this.autoFitYAxis();
+    if (this.viewState.autoScaleY) {
+      this.autoFitYAxis();
+    }
   }
 
   private getLatestDataX(): number | null {
@@ -485,6 +496,53 @@ class ChartImpl implements Chart {
     }
 
     return latest === -Infinity ? null : latest;
+  }
+
+  private getRightOffsetRange(): number {
+    const timeStep = this.getPrimaryTimeStep() ?? 1;
+    return timeStep * resolveGridOptions(this.options.grid).rightOffsetBars;
+  }
+
+  private getPrimaryTimeStep(): number | null {
+    const times: number[] = [];
+
+    for (const series of this.series.values()) {
+      if (!Array.isArray(series.options.data)) {
+        continue;
+      }
+
+      for (const point of series.options.data as unknown[]) {
+        if (typeof point !== 'object' || point === null) {
+          continue;
+        }
+
+        const time = (point as NumericRecord)['time'];
+        if (typeof time === 'number' && Number.isFinite(time)) {
+          times.push(time);
+        }
+      }
+    }
+
+    if (times.length < 2) {
+      return null;
+    }
+
+    times.sort((a, b) => a - b);
+    let minStep = Infinity;
+    for (let index = 1; index < times.length; index += 1) {
+      const current = times[index];
+      const previous = times[index - 1];
+      if (current === undefined || previous === undefined) {
+        continue;
+      }
+
+      const step = current - previous;
+      if (step > 0) {
+        minStep = Math.min(minStep, step);
+      }
+    }
+
+    return Number.isFinite(minStep) ? minStep : null;
   }
 
   private clamp(value: number, min: number, max: number): number {
@@ -629,7 +687,11 @@ class ChartImpl implements Chart {
     const overlays: any[] = [];
     
     // Add crosshair overlay if enabled and mouse is over chart
-    if (this.mouseState.showCrosshair && this.mouseState.isOverChart) {
+    if (
+      this.mouseState.showCrosshair &&
+      this.mouseState.isOverChart &&
+      this.mouseState.area === 'plot'
+    ) {
       overlays.push({
         type: 'crosshair',
         data: {
@@ -678,11 +740,13 @@ class ChartImpl implements Chart {
     this.viewState.dataMinX = from;
     this.viewState.dataMaxX = to;
     
-    // Auto-fit Y axis based on visible data
-    this.autoFitYAxis();
+    if (this.viewState.autoScaleY) {
+      this.autoFitYAxis();
+    }
   }
   
   setYAxisRange(min: number, max: number): void {
+    this.viewState.autoScaleY = false;
     this.viewState.dataMinY = min;
     this.viewState.dataMaxY = max;
   }
@@ -754,15 +818,19 @@ class ChartImpl implements Chart {
     if (minX !== Infinity) {
       const rangeX = maxX - minX;
       const rangeY = maxY - minY;
-      const paddingX = rangeX > 0 ? rangeX * 0.05 : 1;
+      const timeStep = this.getPrimaryTimeStep() ?? (rangeX > 0 ? rangeX : 1);
+      const paddingX = rangeX > 0 ? Math.min(timeStep, rangeX * 0.05) : timeStep;
+      const rightOffset = timeStep * resolveGridOptions(this.options.grid).rightOffsetBars;
       const paddingY = rangeY > 0 ? rangeY * 0.1 : Math.max(Math.abs(maxY) * 0.01, 1);
       
+      this.viewState.autoScaleY = true;
       this.viewState.dataMinX = minX - paddingX;
-      this.viewState.dataMaxX = maxX + paddingX;
+      this.viewState.dataMaxX = maxX + rightOffset;
       this.viewState.dataMinY = minY - paddingY;
       this.viewState.dataMaxY = maxY + paddingY;
     } else {
       // Default view
+      this.viewState.autoScaleY = true;
       this.viewState.dataMinX = 0;
       this.viewState.dataMaxX = 100;
       this.viewState.dataMinY = 0;
