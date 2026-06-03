@@ -1569,3 +1569,117 @@ deliverable.
 - `node -e` JSON parsing passed for `tradingview _grid2.json`.
 - `ARCHITECTURE.md` was not modified because this was a spec-only deliverable
   and did not change local runtime architecture.
+
+# TradingView `_grid2.json` Library Implementation Plan
+
+## Goal
+
+Implement the verified, single-pane TradingView grid contract from
+`tradingview _grid2.json` in the reusable ProCharting library. The first pass
+must preserve the existing package API shape while adding explicit grid layout
+options, 64px right price scale geometry, 28px bottom time scale geometry,
+correct plot/axis hit testing, TradingView-like time panning, price-axis
+scaling, bottom in-grid controls, and a hover-updating pane legend.
+
+## Findings / Decisions
+
+- `tradingview _grid2.json` is implementation-oriented but marks multi-pane
+  splitters, pane maximize/restore, and minimize behavior as
+  `requires_live_inspection`, so the runtime implementation should not claim
+  exact multi-pane parity yet.
+- The packaged ProCharting path is `@procharting/core` plus the Canvas2D
+  renderer in `packages/core/src/renderer-factory.ts`; the standalone
+  `TEST/binance-chart-test` app is not the reusable library implementation
+  target.
+- The current Canvas2D renderer already has gridlines, candles, volume overlay,
+  current-price marker, and crosshair labels, but it still uses an 80px price
+  axis and mouse math based on the whole canvas rather than `_grid2` plot/axis
+  zones.
+- The simplest proper fix is a narrow shared grid-geometry helper inside
+  `packages/core`, plus typed grid options in `packages/types`.
+- No user business approval question is needed before implementation because
+  the JSON spec explicitly scopes the verified behavior and flags unknown
+  multi-pane areas.
+
+## Checklist
+
+- [x] Inspect CodeGraph context, existing JSON specs, core chart state, and
+      Canvas2D renderer.
+- [x] Add this implementation plan and checklist to `todo.md`.
+- [x] Add typed grid options, grid hit-area types, and renderer scene grid
+      options in `@procharting/types`.
+- [x] Add shared TradingView grid geometry helpers for fixed 64px/28px axes and
+      bottom control hitboxes.
+- [x] Update `ChartImpl` pointer math to use plot, price-scale, time-scale, and
+      corner hit areas.
+- [x] Make plot/time-axis drags pan time only, and make price-axis vertical
+      drags scale the price range without changing layout geometry.
+- [x] Add in-canvas bottom controls for zoom, scroll, reset, and latest-bar
+      actions, with stable 24px hitboxes.
+- [x] Pass grid options and series names into render scenes.
+- [x] Update the Canvas2D renderer to use the `_grid2` 64px price scale, draw
+      bottom controls, and draw a top-left hover-updating legend.
+- [x] Update `ARCHITECTURE.md` for the implemented `_grid2` library contract
+      and the intentionally unimplemented live-inspection-only multi-pane areas.
+- [x] Run typecheck/build tests for the touched packages and demo.
+- [x] Run Playwright or Browser QA with devtools/console checks on desktop and
+      mobile viewports.
+- [x] Add review notes with changed files, verification results, and remaining
+      limitations.
+
+## Review
+
+Implemented the verified single-pane `_grid2` contract in the reusable library.
+
+- Added `ChartGridOptions`, grid hit-area types, and control ids in
+  `@procharting/types`.
+- Added shared geometry helpers in `packages/core/src/grid-layout.ts` for the
+  64px right price scale, 28px time scale, plot/axis/corner hit areas, and
+  24px bottom control hitboxes.
+- Updated `packages/core/src/chart.ts` so pointer math is based on `_grid2`
+  plot geometry instead of the full canvas: plot/time-axis drags pan time only,
+  price-axis drags scale Y only, bottom controls run zoom/scroll/reset/latest
+  actions, and click events can report the hit area.
+- Updated `packages/core/src/renderer-factory.ts` so Canvas2D renders the
+  `_grid2` 64px/28px grid, top-left hover legend, and hover-revealed bottom
+  controls.
+- Updated `ARCHITECTURE.md` to document the new grid contract and to keep
+  multi-pane splitters/maximize/minimize marked as not implemented until the
+  JSON's `requires_live_inspection` areas are actually verified.
+
+Verification results:
+
+- `pnpm run typecheck` passed.
+- `pnpm build` passed.
+- `pnpm --filter @procharting/core test` passed with no test files found.
+- `pnpm exec eslint packages/core/src/grid-layout.ts packages/types/src/grid.ts
+  --ext .ts` passed.
+- `pnpm exec eslint` over the broader touched core/type file list still fails
+  on the existing strict-lint debt in `packages/core/src/chart.ts` and the
+  known `RendererFactory` static-class rule; the new grid helper files lint
+  cleanly.
+- `git diff --check` passed before review notes; rerun after review before
+  commit.
+
+Browser QA:
+
+- Cleared the stale Vite optimized dependency cache after the first browser
+  pass showed a historical `Renderer: webgpu` optimized bundle; the fresh app
+  then reported `Renderer: canvas2d`.
+- Desktop `1440x900` Browser/CUA QA passed at `http://localhost:3000/`:
+  canvas `1385x600`, backing `2770x1200` at DPR 2, plot `1321x572`, price
+  scale `64`, time scale `28`, no horizontal overflow, bottom controls changed
+  the screenshot on hover, zoom changed the render, plot drag changed the
+  render while preserving geometry, and price-scale drag changed the render
+  while preserving geometry.
+- Mobile `430x932` Browser/CUA QA passed: canvas `375x600`, plot `311x572`,
+  price scale `64`, time scale `28`, no horizontal overflow, hover/zoom/pan/
+  price-scale interactions changed the screenshot, and geometry stayed fixed.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-grid2-desktop-hover-controls.png` and
+  `/tmp/procharting-grid2-mobile-hover-controls.png`.
+- Local image analysis with PIL confirmed both saved hover screenshots are
+  nonblank with thousands of unique sampled RGB values.
+- Browser dev logs contained Vite/debug/log history and no error-level runtime
+  entries; the current page DOM reported `Renderer: canvas2d` and `1,000` data
+  points.

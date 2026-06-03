@@ -1,3 +1,5 @@
+import type { ChartGridArea, ChartGridOptions } from './grid';
+
 export type RendererType = 'webgpu' | 'webgl2' | 'canvas2d' | 'auto';
 
 export interface RenderingHints {
@@ -33,6 +35,7 @@ export interface RenderScene {
   readonly series: RenderableSeries[];
   readonly overlays: RenderableOverlay[];
   readonly theme: RenderTheme;
+  readonly grid?: ChartGridOptions;
   readonly mouseState?: MouseState;
 }
 
@@ -41,6 +44,7 @@ export interface MouseState {
   readonly dataPosition: { x: number; y: number };
   readonly showCrosshair: boolean;
   readonly isOverChart: boolean;
+  readonly area?: ChartGridArea;
 }
 
 export interface Viewport {
@@ -56,6 +60,7 @@ export interface Viewport {
 
 export interface RenderableSeries {
   readonly type: string;
+  readonly name?: string;
   readonly data: ArrayBuffer;
   readonly sourceData?: readonly unknown[];
   readonly style: SeriesStyle;
