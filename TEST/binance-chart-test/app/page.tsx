@@ -2155,9 +2155,14 @@ export default function Home() {
 
     if (candles.length === 0) return;
 
-    const rightAxisWidth = rect.width < 520 ? 64 : 82;
-    const bottomAxisHeight = rect.width < 520 ? 27 : 34;
-    const topLegendHeight = rect.width < 520 ? 26 : 34;
+    const compactChart = rect.width < 520;
+    const narrowChart = rect.width < 620;
+    const axisFontSize = compactChart ? 11 : 12;
+    const legendFontSize = compactChart ? 12 : 14;
+    const indicatorPaneFontSize = compactChart ? 12 : 13;
+    const rightAxisWidth = compactChart ? 68 : 86;
+    const bottomAxisHeight = compactChart ? 29 : 36;
+    const topLegendHeight = compactChart ? 34 : 44;
     const oscillatorCount = visibleOscillatorIndicators.length;
     const requestedVolumeHeight = showVolume ? clamp(rect.height * 0.15, 46, 96) : 0;
     const minMainChartHeight = rect.width < 520 ? 176 : 220;
@@ -2184,9 +2189,9 @@ export default function Home() {
         ? oscillatorPaneHeight * oscillatorCount + paneGap * Math.max(0, oscillatorCount - 1)
         : 0;
     const chartArea = {
-      left: rect.width < 520 ? 8 : 12,
+      left: compactChart ? 8 : 12,
       top: topLegendHeight,
-      width: Math.max(80, rect.width - rightAxisWidth - (rect.width < 520 ? 10 : 18)),
+      width: Math.max(80, rect.width - rightAxisWidth - (compactChart ? 10 : 18)),
       height: Math.max(
         120,
         rect.height -
@@ -2282,7 +2287,7 @@ export default function Home() {
       return lastCandleInData.time + (index - (candles.length - 1)) * intervalMs;
     };
     const priceTickInfo = createPriceTicks(minPaddedPrice, maxPaddedPrice, chartArea.height);
-    const timeTicks = createTimelineTicks(viewRange, candles, timeframe, chartArea.width, rect.width < 620)
+    const timeTicks = createTimelineTicks(viewRange, candles, timeframe, chartArea.width, narrowChart)
       .map((tick) => ({
         ...tick,
         x: xForIndex(tick.index),
@@ -2294,7 +2299,7 @@ export default function Home() {
     ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
     ctx.clip();
 
-    ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
+    ctx.font = `${axisFontSize}px var(--font-geist-sans), ui-sans-serif, sans-serif`;
     ctx.lineWidth = 1;
 
     for (const price of priceTickInfo.ticks) {
@@ -2459,9 +2464,13 @@ export default function Home() {
       });
 
       ctx.fillStyle = palette.text;
-      ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
+      ctx.font = `${indicatorPaneFontSize}px var(--font-geist-sans), ui-sans-serif, sans-serif`;
       ctx.textAlign = 'left';
-      ctx.fillText(`Vol ${formatCompact(latestCandle!.volume)}`, volumeArea.left + 2, volumeArea.top + 14);
+      ctx.fillText(
+        `Vol ${formatCompact(latestCandle!.volume)}`,
+        volumeArea.left + 2,
+        volumeArea.top + indicatorPaneFontSize + 4
+      );
     }
 
     oscillatorPaneAreas.forEach((pane) => {
@@ -2564,13 +2573,17 @@ export default function Home() {
       ctx.stroke();
 
       ctx.fillStyle = palette.text;
-      ctx.font = '11px var(--font-geist-mono), ui-monospace, monospace';
+      ctx.font = `${indicatorPaneFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
       ctx.textAlign = 'left';
-      ctx.fillText(getIndicatorLegendName(pane.indicator, symbol), pane.left + 2, pane.top + 14);
+      ctx.fillText(
+        getIndicatorLegendName(pane.indicator, symbol),
+        pane.left + 2,
+        pane.top + indicatorPaneFontSize + 4
+      );
 
       ctx.textAlign = 'right';
-      ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, pane.top + 14);
-      ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, pane.top + pane.height - 6);
+      ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, pane.top + indicatorPaneFontSize + 4);
+      ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, pane.top + pane.height - 7);
 
       if (definition.formula === 'rsi' || definition.formula === 'stochastic') {
         ctx.fillText('50.00', rect.width - 8, valueToY(50) + 4);
@@ -2586,7 +2599,7 @@ export default function Home() {
 
     if (currentPriceInside) {
       const countdown = formatCountdown(timeframe, latestCandle!.time);
-      const markerHeight = countdown ? 32 : 24;
+      const markerHeight = countdown ? 34 : 26;
       const markerY = clamp(
         currentPriceY - markerHeight / 2,
         chartArea.top,
@@ -2596,19 +2609,19 @@ export default function Home() {
       ctx.fillStyle = currentPriceColor;
       ctx.fillRect(chartArea.left + chartArea.width + 1, markerY, rightAxisWidth - 6, markerHeight);
       ctx.fillStyle = '#ffffff';
-      ctx.font = '12px var(--font-geist-mono), ui-monospace, monospace';
+      ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
       ctx.textAlign = 'left';
-      ctx.fillText(formatPrice(latestCandle!.close), chartArea.left + chartArea.width + 7, markerY + 14);
+      ctx.fillText(formatPrice(latestCandle!.close), chartArea.left + chartArea.width + 7, markerY + 15);
 
       if (countdown) {
         ctx.globalAlpha = 0.84;
-        ctx.font = '10px var(--font-geist-mono), ui-monospace, monospace';
-        ctx.fillText(countdown, chartArea.left + chartArea.width + 7, markerY + 27);
+        ctx.font = `${Math.max(10, axisFontSize - 1)}px var(--font-geist-mono), ui-monospace, monospace`;
+        ctx.fillText(countdown, chartArea.left + chartArea.width + 7, markerY + 29);
         ctx.globalAlpha = 1;
       }
     }
 
-    ctx.font = '11px var(--font-geist-mono), ui-monospace, monospace';
+    ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
     ctx.textAlign = 'right';
     ctx.fillStyle = palette.text;
     for (const price of priceTickInfo.ticks) {
@@ -2659,7 +2672,7 @@ export default function Home() {
       ctx.fillStyle = palette.axisBg;
       ctx.fillRect(chartArea.left + chartArea.width + 1, mousePos.y - 11, rightAxisWidth - 6, 22);
       ctx.fillStyle = palette.textBright;
-      ctx.font = '12px var(--font-geist-mono), ui-monospace, monospace';
+      ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
       ctx.textAlign = 'left';
       ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, mousePos.y + 4);
 
@@ -2684,13 +2697,15 @@ export default function Home() {
       `C ${formatPrice(activeCandle.close)}`,
       `${activeChange >= 0 ? '+' : ''}${formatPrice(activeChange)}`,
     ];
-    ctx.font = '12px var(--font-geist-mono), ui-monospace, monospace';
+    ctx.font = `600 ${legendFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
     ctx.textAlign = 'left';
     let legendX = chartArea.left + 2;
+    const legendBaseline = compactChart ? 22 : 25;
+    const legendGap = narrowChart ? 9 : 16;
     ohlc.forEach((text, index) => {
       ctx.fillStyle = index === 0 ? palette.textBright : index === ohlc.length - 1 ? activeTone : palette.text;
-      ctx.fillText(text, legendX, 18);
-      legendX += ctx.measureText(text).width + (rect.width < 620 ? 8 : 14);
+      ctx.fillText(text, legendX, legendBaseline);
+      legendX += ctx.measureText(text).width + legendGap;
     });
 
   };

@@ -1,3 +1,82 @@
+# Chart Legend Visibility Pass
+
+## Goal
+
+Make the standalone Binance chart test app's top-left OHLC readout and active
+indicator legend rows more visible, especially the white-rectangle area in the
+user screenshot and the labels below it, while keeping the chart behavior and
+indicator calculations unchanged.
+
+## Findings / Decisions
+
+- The relevant UI is the standalone Next app in
+  `TEST/binance-chart-test/app/page.tsx` and
+  `TEST/binance-chart-test/app/globals.css`.
+- CodeGraph shows the indicator registry and active-study legend already live
+  in `page.tsx`; this task is a focused presentation change, not a renderer or
+  indicator-calculation rewrite.
+- The top-left symbol/OHLC strip is drawn directly on the canvas with a fixed
+  12px mono font. That is the area the user marked with the white rectangle.
+- The Volume/SMA rows below are HTML overlay rows using 12px text, a faint dark
+  background, and hover-only controls.
+- TradingView's current chart reference uses stronger hierarchy: a readable
+  instrument row, clear OHLC values, and indicator rows that feel like native
+  chart study labels instead of tiny metadata.
+- The existing `localhost:3006` dev server returned `500`, so verification
+  should clean/restart the standalone Next app before browser QA.
+
+## Checklist
+
+- [x] Inspect CodeGraph context and existing chart/indicator legend files.
+- [x] Inspect the provided screenshot and live TradingView chart reference.
+- [x] Increase canvas OHLC readout font size, spacing, and top reserved area.
+- [x] Increase active indicator legend row font size, contrast, spacing, and
+      action hit targets.
+- [x] Make lower pane labels/value text larger so indicator panes match the
+      improved legend hierarchy.
+- [x] Update `ARCHITECTURE.md` if this visibility pass changes documented chart
+      UI architecture.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Restart the local app and verify visually with Browser/Playwright/devtools
+      on desktop and mobile.
+- [x] Add review notes with the final changes and verification results.
+
+## Review
+
+Completed the chart legend visibility pass.
+
+- `TEST/binance-chart-test/app/page.tsx` now reserves more top canvas space for
+  the OHLC strip, uses larger weighted mono typography for the symbol/OHLC row,
+  and slightly increases price-axis, current-price marker, volume-label, and
+  oscillator-pane label/value text.
+- `TEST/binance-chart-test/app/globals.css` increases the active indicator
+  legend from compact 12px rows to clearer desktop rows with 13px text, stronger
+  value weights, 30px row height, higher-contrast backgrounds, and larger
+  24px action targets. Mobile keeps a tighter 12px/27px treatment with no
+  horizontal overflow.
+- `ARCHITECTURE.md` documents the readable TradingView-scale study legend and
+  enlarged OHLC legend treatment.
+- The stale `localhost:3006` Next dev process was returning `500`; it was
+  replaced with a clean server on the same port after removing only the
+  generated `TEST/binance-chart-test/.next` cache.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed. It still reports
+  the existing multiple-lockfile warning and missing Next ESLint-plugin warning.
+- Browser/Playwright QA on `http://localhost:3006/` passed: default Volume/SMA
+  rows are visibly larger, RSI was added through the real indicator picker, the
+  lower RSI pane rendered with larger labels, the SMA settings control opened,
+  and local app-origin devtools error logs were empty.
+- Mobile Browser QA at `390x844` passed: `bodyOverflow` was `0`, legend rows
+  measured `12px`, and the overlay stayed inside the viewport.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-legend-visibility-desktop.png` and
+  `/tmp/procharting-legend-visibility-mobile.png`.
+
 # Full Verification Green Plan
 
 ## Goal
