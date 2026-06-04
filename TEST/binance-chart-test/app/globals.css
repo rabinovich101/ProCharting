@@ -1934,6 +1934,11 @@ summary {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-0) 72%, transparent);
 }
 
+.chart-stage[data-layout-count="1"] .chart-layout-cell[data-active="true"]::after {
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .chart-canvas {
   display: block;
   height: 100%;

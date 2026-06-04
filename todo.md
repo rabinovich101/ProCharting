@@ -1,3 +1,45 @@
+# Hide Single-Pane Active Outline
+
+## Goal
+
+When the chart is in one-screen layout, do not show the active selection square.
+Keep the active selection frame visible for split-screen layouts.
+
+## Findings / Decisions
+
+- The active selection square is CSS-only, drawn by
+  `.chart-layout-cell[data-active="true"]::after`.
+- The chart stage already exposes `data-layout-count`, so the smallest safe fix
+  is a single CSS override for `data-layout-count="1"`.
+- This is a visual behavior tweak only; no architecture update is needed.
+
+## Checklist
+
+- [x] Add a single-pane CSS override that hides the active outline.
+- [x] Verify one-pane layout has no selection square.
+- [x] Verify multi-pane layout still shows the active selection square.
+- [x] Run focused checks.
+- [ ] Commit and push `main`.
+
+## Review
+
+Implemented a single-layout CSS override so the active pane outline is hidden
+when there is only one chart screen.
+
+- `TEST/binance-chart-test/app/globals.css` keeps the active outline for
+  split-screen layouts, but forces transparent border and no shadow under
+  `.chart-stage[data-layout-count="1"]`.
+- No architecture update was needed because this is a visual-only state rule.
+
+Verification results:
+
+- `git diff --check` passed.
+- `pnpm run typecheck:test` passed.
+- Browser/Playwright/devtools verified one-screen layout has active pane
+  `::after` border `rgba(0, 0, 0, 0)` and `box-shadow: none`.
+- Browser/Playwright/devtools verified `4-grid` still shows the active outline
+  and has no console errors or horizontal overflow.
+
 # Active Independent Layout Panes
 
 ## Goal
