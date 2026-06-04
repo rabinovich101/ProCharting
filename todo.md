@@ -3527,3 +3527,59 @@ where the user can type a query, filter symbols, and choose a Binance market.
   `pnpm-lock.yaml` because the test app also has a `package-lock.json`, and the
   Next ESLint plugin is not detected in the current ESLint config. Neither was
   introduced by this change.
+
+# Internal Server Error Fix Plan
+
+## Goal
+
+Find and fix the root cause of the `Internal Server Error` reported after the
+symbol-search work, then verify the app in browser/devtools and keep the
+worktree clean.
+
+## Investigation / Decisions
+
+- `http://localhost:3000/` and
+  `http://localhost:3000/api/binance?symbol=BTCUSDT&interval=1m&limit=5` both
+  returned HTTP 500 with the body `Internal Server Error`.
+- Port 3000 is served by an existing `next dev --turbopack` process from
+  `TEST/binance-chart-test`, so the next step is to compare it against a fresh
+  dev server with visible logs before changing code.
+
+## Checklist
+
+- [x] Reproduce the 500 with visible server logs.
+- [x] Identify whether the failure is stale dev-server state, build artifact
+      state, or committed code.
+- [x] Apply the smallest root-cause fix.
+- [x] Update `ARCHITECTURE.md` if architecture changes or new architecture is
+      discovered.
+- [x] Run typecheck/build/focused lint.
+- [x] Test with Browser/Playwright and devtools logs.
+- [x] Commit, push, and leave tracked files clean.
+
+## Review
+
+- Root cause: an older `next dev --turbopack` process on port 3000 was in a
+  stale server-error state. Both `/` and `/api/binance` returned HTTP 500 from
+  that process.
+- A fresh dev server on port 3002 served the same committed code successfully:
+  `/` returned 200 and `/api/binance?symbol=BTCUSDT&interval=1m&limit=5`
+  returned 200 with Binance candle JSON. This isolated the issue to the stale
+  3000 dev process rather than committed app code.
+- Fix applied: stopped the stale port-3000 process and started a clean
+  `pnpm --dir TEST/binance-chart-test dev` server on port 3000.
+- Architecture was not changed; `ARCHITECTURE.md` did not need an update.
+- Validation passed:
+  - `curl http://localhost:3000/` returned 200.
+  - `curl 'http://localhost:3000/api/binance?symbol=BTCUSDT&interval=1m&limit=5'`
+    returned 200.
+  - `pnpm run typecheck:test`
+  - `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx`
+  - `pnpm --dir TEST/binance-chart-test build`
+- Browser QA passed on `http://localhost:3000`: the page rendered, the symbol
+  search dialog opened, and localhost-scoped devtools warnings/errors were
+  empty. The Browser CUA/input sandbox had clipboard/proxy limitations while
+  typing into the dialog, so the post-restart UI check focused on page render,
+  dialog open, and devtools logs.
+- The temporary port-3002 dev server was stopped. The repaired port-3000 dev
+  server remains running for user testing.
