@@ -254,12 +254,17 @@ The chart app supports:
   Volume, SMA, EMA, Bollinger Bands, VWAP Session, RSI, MACD, Stochastic,
   Donchian Channels, WMA, Momentum, Rate of Change, Accumulation/Distribution,
   ATR, Bollinger %B, and Bollinger BandWidth.
+- The chart stage owns a TradingView-style top-left DOM instrument/OHLC overlay
+  synced to the latest candle or the candle under the crosshair. The canvas no
+  longer paints that instrument row directly, which keeps the white-rectangle
+  OHLC area crisp and readable over the dark grid.
 - Active indicators are stored as registry-backed instances with mutable
-  settings. A top-left HTML legend overlays the canvas with enlarged,
-  high-contrast TradingView-style typography and exposes hover/focus controls
-  for hide/show, settings, remove, duplicate, and ordering actions. Settings
-  such as length, source, standard deviation, MACD fast/slow/signal, and primary
-  color update the active instance and redraw the chart.
+  settings. A separate top-left HTML legend sits below the instrument/OHLC row
+  with enlarged, high-contrast TradingView-style typography and exposes
+  hover/focus controls for hide/show, settings, remove, duplicate, and ordering
+  actions. Settings such as length, source, standard deviation, MACD
+  fast/slow/signal, and primary color update the active instance and redraw the
+  chart.
 - Selected price overlays participate in automatic Y-range fitting and draw on
   the main price pane. Volume draws in the volume band, and oscillator
   indicators draw in compact lower panes with guide lines and right-side value
@@ -269,8 +274,8 @@ The chart app supports:
   a small right-side future offset, semantic time-axis ticks, pixel-targeted
   nice price ticks, a dotted current-price guide with a right-axis marker,
   cursor-anchored wheel zoom, horizontal/Shift-wheel timeline pan, reset,
-  crosshair, enlarged high-weight OHLC legend, and responsive desktop/tablet/
-  mobile layouts.
+  crosshair, DOM-rendered high-contrast OHLC overlay, and responsive
+  desktop/tablet/mobile layouts.
 - TradingView-style right price-scale interaction: the right axis is a distinct
   pointer hit area, vertical axis drags create a manual Y range anchored to the
   pointer price, and plot drags can pan that manual price range vertically until

@@ -2158,7 +2158,6 @@ export default function Home() {
     const compactChart = rect.width < 520;
     const narrowChart = rect.width < 620;
     const axisFontSize = compactChart ? 12 : 13;
-    const legendFontSize = compactChart ? 14 : 16;
     const indicatorPaneFontSize = compactChart ? 13 : 14;
     const rightAxisWidth = compactChart ? 72 : 92;
     const bottomAxisHeight = compactChart ? 31 : 38;
@@ -2642,7 +2641,6 @@ export default function Home() {
       ctx.fillText(tick.label, labelX, rect.height - 10);
     }
 
-    let activeLogicalIndex = visibleIndexedCandles[visibleIndexedCandles.length - 1]?.index ?? candles.length - 1;
     const crosshairInside =
       mousePos &&
       mousePos.x >= chartArea.left &&
@@ -2653,7 +2651,6 @@ export default function Home() {
     if (crosshairInside) {
       const crosshairRatio = clamp((mousePos.x - chartArea.left) / chartArea.width, 0, 1);
       const crosshairLogicalIndex = Math.floor(viewRange.startIndex + crosshairRatio * viewRange.candlesPerView);
-      activeLogicalIndex = clamp(crosshairLogicalIndex, 0, candles.length - 1);
 
       ctx.strokeStyle = palette.crosshair;
       ctx.lineWidth = 1;
@@ -2685,34 +2682,6 @@ export default function Home() {
       ctx.textAlign = 'center';
       ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, chartArea.top + chartArea.height + 17);
     }
-
-    const activeCandle = candles[activeLogicalIndex] ?? latestCandle!;
-    const activeChange = activeCandle.close - activeCandle.open;
-    const activeTone = activeChange >= 0 ? palette.green : palette.red;
-    const ohlc = [
-      `${formatSymbol(symbol)} ${timeframe.toUpperCase()}`,
-      `O ${formatPrice(activeCandle.open)}`,
-      `H ${formatPrice(activeCandle.high)}`,
-      `L ${formatPrice(activeCandle.low)}`,
-      `C ${formatPrice(activeCandle.close)}`,
-      `${activeChange >= 0 ? '+' : ''}${formatPrice(activeChange)}`,
-    ];
-    ctx.font = `700 ${legendFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
-    ctx.textAlign = 'left';
-    let legendX = chartArea.left + 2;
-    const legendBaseline = compactChart ? 28 : 34;
-    const legendGap = narrowChart ? 11 : 18;
-    ctx.shadowColor = theme === 'dark' ? 'rgba(0, 0, 0, 0.72)' : 'rgba(255, 255, 255, 0.78)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetY = 1;
-    ohlc.forEach((text, index) => {
-      ctx.fillStyle = index === 0 ? palette.textBright : index === ohlc.length - 1 ? activeTone : palette.text;
-      ctx.fillText(text, legendX, legendBaseline);
-      legendX += ctx.measureText(text).width + legendGap;
-    });
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
 
   };
 
@@ -2771,6 +2740,10 @@ export default function Home() {
     return Math.floor(clamp(viewRange.startIndex + ratio * viewRange.candlesPerView, 0, candles.length - 1));
   })();
   const legendCandle = legendIndex >= 0 ? candles[legendIndex] ?? latestCandle : latestCandle;
+  const legendChange = legendCandle ? legendCandle.close - legendCandle.open : 0;
+  const legendChangePercent =
+    legendCandle && legendCandle.open !== 0 ? (legendChange / legendCandle.open) * 100 : 0;
+  const legendTone = legendChange >= 0 ? 'positive' : 'negative';
 
   return (
     <main className="chart-terminal" data-theme={theme}>
@@ -2883,6 +2856,38 @@ export default function Home() {
           onMouseLeave={handleMouseLeave}
           onWheel={handleWheel}
         />
+
+        {legendCandle && (
+          <div
+            className="instrument-legend-overlay"
+            aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend`}
+          >
+            <span className="instrument-legend-symbol">
+              {formatSymbol(symbol)} {timeframe.toUpperCase()}
+            </span>
+            <span className="instrument-legend-field">
+              <span>O</span>
+              {formatPrice(legendCandle.open)}
+            </span>
+            <span className="instrument-legend-field">
+              <span>H</span>
+              {formatPrice(legendCandle.high)}
+            </span>
+            <span className="instrument-legend-field">
+              <span>L</span>
+              {formatPrice(legendCandle.low)}
+            </span>
+            <span className="instrument-legend-field">
+              <span>C</span>
+              {formatPrice(legendCandle.close)}
+            </span>
+            <span className={`instrument-legend-change ${legendTone}`}>
+              {legendChange >= 0 ? '+' : ''}
+              {formatPrice(legendChange)} ({legendChangePercent >= 0 ? '+' : ''}
+              {legendChangePercent.toFixed(2)}%)
+            </span>
+          </div>
+        )}
 
         {activeIndicators.length > 0 && legendCandle && (
           <div ref={indicatorLegendRef} className="indicator-legend-overlay" aria-label="Active indicators">

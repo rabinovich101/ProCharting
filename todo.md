@@ -1,3 +1,74 @@
+# TradingView-Style OHLC Overlay Fix
+
+## Goal
+
+Make the exact top-left OHLC/instrument row marked by the user's white
+rectangle clearly visible and more TradingView-like.
+
+## Findings / Decisions
+
+- The user is pointing at the instrument/OHLC row, not the indicator rows.
+- Browser inspection of live TradingView showed that the top-left legend is a
+  DOM overlay layered over the chart: the symbol/title uses larger readable text
+  and the OHLC values sit beside it as separate text items.
+- The local app still paints this row directly on the chart canvas, so the text
+  can look too small and low-contrast on the dark grid.
+- The simplest durable fix is to render the OHLC row as a DOM overlay synced to
+  the latest/crosshair candle, while leaving the canvas for chart drawing and
+  leaving indicator calculations unchanged.
+- Keep the indicator legend below the OHLC overlay and preserve the existing
+  TradingView-style chart controls.
+
+## Checklist
+
+- [x] Inspect the current app and live TradingView legend with Browser/Playwright.
+- [x] Add a crisp DOM OHLC overlay for the white-rectangle row.
+- [x] Remove the duplicated canvas OHLC text drawing.
+- [x] Keep indicator legends positioned below the OHLC overlay on desktop and mobile.
+- [x] Update `ARCHITECTURE.md` for the DOM OHLC overlay behavior.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify with Browser/Playwright/devtools on desktop and mobile.
+- [x] Commit and push `main`.
+
+## Review
+
+Completed the TradingView-style OHLC overlay fix.
+
+- `TEST/binance-chart-test/app/page.tsx` now renders the top-left
+  instrument/OHLC row as a DOM overlay synced to the latest candle or the
+  candle under the crosshair.
+- Removed the old canvas-drawn OHLC text so the white-rectangle row is no
+  longer tiny canvas text.
+- `TEST/binance-chart-test/app/globals.css` now styles the OHLC overlay with a
+  readable 16px desktop symbol label, 14px desktop OHLC values, strong
+  contrast, green/red change coloring, and a narrow/mobile wrap treatment that
+  keeps the active indicator legend below it.
+- `ARCHITECTURE.md` documents that the instrument/OHLC row is a DOM overlay and
+  the active indicator legend is a separate stack below it.
+
+Verification results:
+
+- Live TradingView was inspected with Browser/Playwright/devtools; its
+  instrument/OHLC legend is a DOM overlay layered over the chart.
+- `rg` found no remaining `market-strip`, `Market status`, or `visible bars`
+  source references in `TEST/binance-chart-test/app` or `ARCHITECTURE.md`.
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser QA on `http://localhost:3006/` passed on desktop: one
+  `.instrument-legend-overlay`, zero `.market-strip`, OHLC text present, symbol
+  measured `16px`, values measured `14px`, and the instrument overlay sat above
+  the active indicator legend.
+- Mobile Browser QA at `390x844` passed: one `.instrument-legend-overlay`, zero
+  `.market-strip`, OHLC text present, no horizontal overflow, and the active
+  indicator legend stayed below the wrapped OHLC row.
+- Devtools logs for the local app showed zero local error entries.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-ohlc-dom-overlay-narrow.png` and
+  `/tmp/procharting-ohlc-dom-overlay-mobile.png`.
+
 # Stronger TradingView Legend Visibility Pass
 
 ## Goal
