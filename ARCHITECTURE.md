@@ -22,6 +22,12 @@ ProCharting/
 └── benchmarks/        # Performance tests
 ```
 
+The primary runnable ProCharting package demo is `examples/basic`, a Vite app
+inside the pnpm workspace that imports `@procharting/core` and exercises the
+packaged chart API. The `TEST/binance-chart-test` Next.js app is outside the
+workspace and remains a standalone live-market QA harness rather than the
+default product/demo page.
+
 ### 2. Verification Tooling
 
 The root TypeScript config is a solution-style project that references the package
@@ -64,10 +70,16 @@ package `.tsbuildinfo` file before emitting TypeScript declarations with
 `tsc --emitDeclarationOnly`. This keeps Vite's cleaned runtime output and the
 package `types` entry in sync for npm publication.
 
-The core renderer factory lazy-loads WebGPU and WebGL packages. The wrappers do
-not expose the concrete renderer to the render loop until its async
-`initialize(canvas)` call completes, so auto-selected GPU renderers cannot be
-called while their device/context fields are still unset.
+The core renderer factory lazy-loads WebGPU and WebGL packages when those
+renderers are explicitly requested. The wrappers do not expose the concrete
+renderer to the render loop until their async `initialize(canvas)` call
+completes, so explicit GPU renderers cannot be called while their
+device/context fields are still unset.
+
+As of May 31, 2026, the automatic renderer path selects Canvas2D because it is
+the complete package-rendering path for the runnable `examples/basic` product
+demo. The WebGPU and WebGL packages remain available behind explicit renderer
+selection while their full data upload and draw paths continue to mature.
 
 ### 3. Renderer Architecture
 
@@ -89,8 +101,39 @@ The library uses a pluggable renderer architecture with three implementations:
 
 #### Canvas2D Renderer (Compatibility)
 - Software rendering fallback
-- Basic functionality
+- Draws candlestick, line/area, and bar/volume series from the render scene's
+  source data.
+- Draws a TradingView `grid3`-style single-pane chart grid using an 80px
+  preferred right price axis that can compact to 72px, a 28px bottom time axis,
+  32-40px target horizontal gridline spacing, nice price/time ticks, clipped
+  plot-pane series drawing, candle volume overlay, current-price dotted line
+  with right-axis marker, plot-only crosshair price/time axis labels, a
+  top-left OHLC/volume legend, and hover-revealed bottom
+  zoom/scroll/reset/latest controls.
+- Uses shared grid geometry in `packages/core/src/grid-layout.ts` so Canvas2D
+  drawing and pointer hit-testing agree on plot, price-scale, time-scale,
+  bottom-control, and axis-corner areas.
+- Plot and time-axis drags pan the time range without mutating pane geometry.
+  Price-axis vertical drags scale the Y range without resizing the chart pane.
+- Honors light, dark, and custom chart theme tokens when building the render
+  scene for the Canvas2D path.
 - Maximum compatibility
+
+`tradingview_grid3.json` is the current external reference for TradingView-like
+chart-grid behavior and now drives the Canvas2D single-pane runtime contract for
+the measured areas: right price-scale auto sizing between 72px and 80px,
+horizontal no-op price-axis drags, mouse-anchored vertical price-axis scale
+drags, plot-only crosshair labels, denser horizontal gridline spacing, candle
+body sizing from logical bar spacing, volume overlay height, current-price
+marker alignment, and pixel/price/time formulas.
+
+`ChartOptions.grid` exposes the implemented grid knobs for consumers:
+`priceScaleWidth`, `minPriceScaleWidth`, `timeScaleHeight`, minimum plot
+dimensions, `rightOffsetBars`, `horizontalGridLineSpacing`, bottom controls,
+and legend visibility. The defaults follow the verified `tradingview_grid3.json`
+single-pane measurements. Multi-pane splitters and pane maximize/minimize
+remain intentionally outside the runtime contract until the JSON's
+live-inspection-only areas are verified.
 
 ### 4. Data Pipeline
 
@@ -109,6 +152,16 @@ The public chart `CandlestickData` contract uses six numeric fields: `time`,
 `open`, `high`, `low`, `close`, and `volume`. The binary chart pipeline writes
 all six fields into fixed-width candle records, so consumers should pass
 `volume: 0` when their market data source has no volume.
+
+Canvas2D time-axis rendering accepts millisecond Unix timestamps as the primary
+contract and still normalizes legacy second-based timestamps for compatibility.
+The runnable `examples/basic` demo now generates millisecond timestamps so the
+package demo exercises the public data contract directly.
+
+`@procharting/core` render scenes currently carry both `sourceData` and binary
+series buffers. Canvas2D renders directly from `sourceData` to preserve
+timestamp precision and keep the runnable package demo usable, while the binary
+buffer remains the handoff shape for GPU-oriented renderer work.
 
 ### 5. Price Data Package
 
@@ -203,8 +256,22 @@ The chart app supports:
 - TradingView-style chart scale behavior: interval-specific default bar density,
   a small right-side future offset, semantic time-axis ticks, pixel-targeted
   nice price ticks, a dotted current-price guide with a right-axis marker,
-  cursor-anchored wheel zoom, horizontal/Shift-wheel timeline pan, drag pan,
-  reset, crosshair, OHLC legend, and responsive desktop/tablet/mobile layouts.
+  cursor-anchored wheel zoom, horizontal/Shift-wheel timeline pan, reset,
+  crosshair, OHLC legend, and responsive desktop/tablet/mobile layouts.
+- TradingView-style right price-scale interaction: the right axis is a distinct
+  pointer hit area, vertical axis drags create a manual Y range anchored to the
+  pointer price, and plot drags can pan that manual price range vertically until
+  reset or market reload re-enables automatic Y fitting.
+- TradingView-style future time panning: the chart view is modeled as logical
+  bar slots rather than only `candles.slice(start, end)`, so horizontal pan and
+  wheel zoom can preserve empty future slots to the right of the latest candle
+  while candles, gridlines, crosshair labels, and time labels stay aligned.
+  Wheel and drag gestures may leave the logical range on fractional slots, so
+  timeline tick generation converts slot positions into interpolated candle
+  timestamps instead of indexing the candle array directly.
+- The canvas exposes non-visible `data-*` diagnostics for browser QA/devtools
+  inspection of pointer area, drag mode, logical view range, and manual price
+  bounds. These attributes are not part of the end-user visual surface.
 
 As of May 31, 2026, the chart test app uses a TradingView-style single top
 command bar rather than separate instrument and control blocks. That command
@@ -301,7 +368,8 @@ chart.on('click', (event) => {
 ## Future Enhancements
 
 ### Phase 1: Core Features (Current)
-- ✅ WebGPU/WebGL2 renderers
+- ✅ Functional Canvas2D renderer for the package demo
+- [ ] Complete WebGPU/WebGL2 data upload and draw paths
 - ✅ Basic chart types
 - ✅ Type-safe API
 - ✅ Performance benchmarks

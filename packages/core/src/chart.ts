@@ -1,13 +1,43 @@
-import type { Chart, ChartOptions, ChartEventMap, ConnectionOptions, InteractionOptions, Series, SeriesOptions } from '@procharting/types';
+import type { Chart, ChartOptions, ChartEventMap, ChartGridControlId, ConnectionOptions, InteractionOptions, Renderer, RenderableSeries, RenderTheme, Series, SeriesOptions } from '@procharting/types';
 import type { StreamingOptions } from '@procharting/types';
 import { EventEmitter, type EventHandler } from '@procharting/utils';
+import { createCssGridLayout, getBottomControlAt, getGridArea, resolveGridOptions, type CssGridLayout, type GridHitArea } from './grid-layout';
 import { RendererFactory } from './renderer-factory';
-import type { Renderer } from '@procharting/types';
 import { WebSocketClient } from './websocket/websocket-client';
 import { BinaryProtocol, MessageType } from './websocket/binary-protocol';
 
 type ChartEventPayloadMap = {
   [K in keyof ChartEventMap]: Parameters<ChartEventMap[K]>[0];
+};
+
+type NumericRecord = Record<string, unknown>;
+type DragMode = 'none' | 'time-pan' | 'price-scale';
+
+type RenderSeriesStyle = {
+  color?: string;
+  lineWidth?: number;
+  fillOpacity?: number;
+  strokeOpacity?: number;
+  upColor?: string;
+  downColor?: string;
+  wickUpColor?: string;
+  wickDownColor?: string;
+};
+
+const LIGHT_RENDER_THEME: RenderTheme = {
+  backgroundColor: '#ffffff',
+  gridColor: 'rgba(42, 46, 57, 0.08)',
+  textColor: '#131722',
+  fontFamily: 'system-ui',
+  fontSize: 12,
+};
+
+const DARK_RENDER_THEME: RenderTheme = {
+  backgroundColor: '#0f0f0f',
+  gridColor: 'rgba(255, 255, 255, 0.08)',
+  textColor: '#d1d4dc',
+  fontFamily: 'system-ui',
+  fontSize: 12,
 };
 
 export function createChart(container: HTMLElement | string, options: ChartOptions = {}): Chart {
@@ -41,12 +71,12 @@ class ChartImpl implements Chart {
     dataMaxX: 100,
     dataMinY: 0,
     dataMaxY: 100,
-    isDragging: false,
-    isYAxisDragging: false,
+    dragMode: 'none' as DragMode,
     dragStart: { x: 0, y: 0 },
     lastDataX: 0,
-    lastDataY: 0,
+    lastPriceScaleAnchorY: 0,
     lastYRange: { min: 0, max: 100 },
+    autoScaleY: true,
   };
   
   // Mouse state for interactions
@@ -56,10 +86,8 @@ class ChartImpl implements Chart {
     showCrosshair: false,
     isOverChart: false,
     isOverYAxis: false,
+    area: 'outside' as GridHitArea,
   };
-  
-  // Layout constants
-  private readonly rightAxisWidth = 80;
 
   constructor(container: HTMLElement, private options: ChartOptions) {
     this.container = container;
@@ -147,6 +175,7 @@ class ChartImpl implements Chart {
     
     // Mouse move for drag and crosshair
     this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+    this.canvas.addEventListener('click', (e) => this.handleClick(e));
     
     // Mouse enter/leave for crosshair
     if (interactions.enableCrosshair) {
@@ -161,58 +190,88 @@ class ChartImpl implements Chart {
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    const layout = this.createGridLayout(rect);
+    const area = getGridArea(x, y, layout, this.options.grid);
     
     // Calculate zoom factor
-    const zoomSpeed = this.options.interactions?.zoomSpeed ?? 0.1;
-    const zoomFactor = e.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-    
-    // Get data coordinates at mouse position
-    const dataX = this.viewState.dataMinX + (x / rect.width) * (this.viewState.dataMaxX - this.viewState.dataMinX);
-    const dataY = this.viewState.dataMaxY - (y / rect.height) * (this.viewState.dataMaxY - this.viewState.dataMinY);
-    
-    // Apply zoom
-    const rangeX = this.viewState.dataMaxX - this.viewState.dataMinX;
-    const rangeY = this.viewState.dataMaxY - this.viewState.dataMinY;
-    
+    const zoomSpeed = this.options.interactions?.zoomSpeed ?? 0.0002;
+    const zoomFactor = this.clamp(Math.exp(e.deltaY * zoomSpeed), 0.05, 20);
+
+    if (area === 'price-scale' && this.options.interactions?.enableYAxisScale !== false) {
+      this.scaleYAxis(zoomFactor);
+      return;
+    }
+
+    if (area !== 'plot' && area !== 'time-scale' && area !== 'bottom-control') {
+      return;
+    }
+
+    this.zoomTimeAt(x, zoomFactor, layout);
+  }
+
+  private scaleYAxis(scaleFactor: number): void {
+    const centerY = (this.viewState.dataMinY + this.viewState.dataMaxY) / 2;
+    const halfRange = (this.viewState.dataMaxY - this.viewState.dataMinY) / 2;
+    const nextHalfRange = halfRange * Math.max(0.05, scaleFactor);
+
+    this.viewState.autoScaleY = false;
+    this.viewState.dataMinY = centerY - nextHalfRange;
+    this.viewState.dataMaxY = centerY + nextHalfRange;
+
+    this.events.emit('zoom', {
+      level: scaleFactor,
+      centerX: (this.viewState.dataMinX + this.viewState.dataMaxX) / 2,
+      centerY,
+    });
+  }
+
+  private zoomTimeAt(x: number, zoomFactor: number, layout: CssGridLayout): void {
+    const dataX = this.dataXAtCssX(x, layout);
+    const rangeX = this.viewState.dataMaxX - this.viewState.dataMinX || 1;
     const newRangeX = rangeX * zoomFactor;
-    const newRangeY = rangeY * zoomFactor;
-    
-    // Calculate new bounds to zoom towards mouse position
     const ratioX = (dataX - this.viewState.dataMinX) / rangeX;
-    const ratioY = (dataY - this.viewState.dataMinY) / rangeY;
-    
+
     this.viewState.dataMinX = dataX - newRangeX * ratioX;
     this.viewState.dataMaxX = dataX + newRangeX * (1 - ratioX);
-    this.viewState.dataMinY = dataY - newRangeY * ratioY;
-    this.viewState.dataMaxY = dataY + newRangeY * (1 - ratioY);
-    
+
     this.events.emit('zoom', {
       level: 1 / zoomFactor,
       centerX: dataX,
-      centerY: dataY,
+      centerY: (this.viewState.dataMinY + this.viewState.dataMaxY) / 2,
     });
   }
   
   private handleMouseDown(e: MouseEvent): void {
     if (e.button !== 0) return; // Only left mouse button
     
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const layout = this.createGridLayout(rect);
+    const area = getGridArea(x, y, layout, this.options.grid);
     const interactions = this.options.interactions ?? {};
+
+    if (area === 'bottom-control' || area === 'axis-corner' || area === 'outside') {
+      this.viewState.dragMode = 'none';
+      return;
+    }
     
-    // Check if clicking on Y-axis area
-    if (this.mouseState.isOverYAxis && interactions.enableYAxisScale !== false) {
-      this.viewState.isYAxisDragging = true;
+    if (area === 'price-scale' && interactions.enableYAxisScale !== false) {
+      this.viewState.dragMode = 'price-scale';
       this.viewState.dragStart = { x: e.clientX, y: e.clientY };
+      this.viewState.lastPriceScaleAnchorY = this.dataYAtCssY(y, layout);
       this.viewState.lastYRange = { 
         min: this.viewState.dataMinY, 
         max: this.viewState.dataMaxY 
       };
       this.canvas.style.cursor = 'ns-resize';
-    } else {
-      this.viewState.isDragging = true;
+    } else if ((area === 'plot' || area === 'time-scale') && interactions.enablePan !== false) {
+      this.viewState.dragMode = 'time-pan';
       this.viewState.dragStart = { x: e.clientX, y: e.clientY };
       this.viewState.lastDataX = this.viewState.dataMinX;
-      this.viewState.lastDataY = this.viewState.dataMinY;
       this.canvas.style.cursor = 'grabbing';
+    } else {
+      this.viewState.dragMode = 'none';
     }
     
     e.preventDefault();
@@ -222,75 +281,67 @@ class ChartImpl implements Chart {
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    const layout = this.createGridLayout(rect);
+    const area = getGridArea(x, y, layout, this.options.grid);
     
     // Update mouse position
     this.mouseState.position = { x, y };
-    
-    // Check if over Y-axis
-    const chartWidth = rect.width - this.rightAxisWidth;
-    this.mouseState.isOverYAxis = x > chartWidth && x <= rect.width;
+    this.mouseState.area = area;
+    this.mouseState.isOverYAxis = area === 'price-scale';
+    this.mouseState.isOverChart = area !== 'outside';
     
     // Calculate data position
-    const dataX = this.viewState.dataMinX + (x / rect.width) * (this.viewState.dataMaxX - this.viewState.dataMinX);
-    const dataY = this.viewState.dataMaxY - (y / rect.height) * (this.viewState.dataMaxY - this.viewState.dataMinY);
+    const dataX = this.dataXAtCssX(x, layout);
+    const dataY = this.dataYAtCssY(y, layout);
     this.mouseState.dataPosition = { x: dataX, y: dataY };
     
     const interactions = this.options.interactions ?? {};
     
     // Handle Y-axis dragging
-    if (this.viewState.isYAxisDragging && interactions.enableYAxisScale !== false) {
+    if (this.viewState.dragMode === 'price-scale' && interactions.enableYAxisScale !== false) {
       const deltaY = e.clientY - this.viewState.dragStart.y;
+      if (Math.abs(deltaY) < 0.5) {
+        return;
+      }
       
-      // Scale factor based on drag distance
-      const scaleSpeed = interactions.yAxisScaleSpeed ?? 0.01;
-      const scaleFactor = 1 + (deltaY * scaleSpeed);
+      const scaleSpeed = interactions.yAxisScaleSpeed ?? 1.6;
+      const scaleFactor = Math.exp((deltaY / Math.max(1, layout.plot.height)) * scaleSpeed);
       
-      // Calculate new Y range
-      const centerY = (this.viewState.lastYRange.min + this.viewState.lastYRange.max) / 2;
-      const halfRange = (this.viewState.lastYRange.max - this.viewState.lastYRange.min) / 2;
+      const anchorY = this.viewState.lastPriceScaleAnchorY;
+      const { min, max } = this.viewState.lastYRange;
       
-      this.viewState.dataMinY = centerY - halfRange * scaleFactor;
-      this.viewState.dataMaxY = centerY + halfRange * scaleFactor;
+      this.viewState.autoScaleY = false;
+      this.viewState.dataMinY = anchorY - (anchorY - min) * scaleFactor;
+      this.viewState.dataMaxY = anchorY + (max - anchorY) * scaleFactor;
       
       this.events.emit('zoom', {
         level: scaleFactor,
         centerX: (this.viewState.dataMinX + this.viewState.dataMaxX) / 2,
-        centerY: centerY,
+        centerY: anchorY,
       });
     }
-    // Handle regular pan
-    else if (this.viewState.isDragging && interactions.enablePan !== false) {
+    // Handle TradingView-style time pan
+    else if (this.viewState.dragMode === 'time-pan' && interactions.enablePan !== false) {
       // Calculate drag delta
       const deltaX = e.clientX - this.viewState.dragStart.x;
-      const deltaY = e.clientY - this.viewState.dragStart.y;
       
       // Convert pixel delta to data delta
       const dataRangeX = this.viewState.dataMaxX - this.viewState.dataMinX;
-      const dataRangeY = this.viewState.dataMaxY - this.viewState.dataMinY;
       
       const panSpeed = interactions.panSpeed ?? 1;
-      const dataDeltaX = (deltaX / rect.width) * dataRangeX * panSpeed;
-      const dataDeltaY = (deltaY / rect.height) * dataRangeY * panSpeed;
+      const dataDeltaX = (deltaX / Math.max(1, layout.plot.width)) * dataRangeX * panSpeed;
       
       // Update view bounds
       this.viewState.dataMinX = this.viewState.lastDataX - dataDeltaX;
       this.viewState.dataMaxX = this.viewState.dataMinX + dataRangeX;
-      this.viewState.dataMinY = this.viewState.lastDataY + dataDeltaY;
-      this.viewState.dataMaxY = this.viewState.dataMinY + dataRangeY;
       
       this.events.emit('pan', {
         deltaX: -dataDeltaX,
-        deltaY: dataDeltaY,
+        deltaY: 0,
       });
-    } else if (!this.viewState.isDragging && !this.viewState.isYAxisDragging) {
+    } else if (this.viewState.dragMode === 'none') {
       // Update cursor based on position
-      if (this.mouseState.isOverYAxis && interactions.enableYAxisScale !== false) {
-        this.canvas.style.cursor = 'ns-resize';
-      } else if (this.mouseState.isOverChart && interactions.enableCrosshair !== false) {
-        this.canvas.style.cursor = 'crosshair';
-      } else {
-        this.canvas.style.cursor = 'default';
-      }
+      this.updateCursorForArea(area);
       
       // Emit hover event
       this.events.emit('hover', {
@@ -303,18 +354,10 @@ class ChartImpl implements Chart {
   }
   
   private handleMouseUp(): void {
-    this.viewState.isDragging = false;
-    this.viewState.isYAxisDragging = false;
+    this.viewState.dragMode = 'none';
     
     // Update cursor based on current position
-    const interactions = this.options.interactions ?? {};
-    if (this.mouseState.isOverYAxis && interactions.enableYAxisScale !== false) {
-      this.canvas.style.cursor = 'ns-resize';
-    } else if (this.mouseState.isOverChart && interactions.enableCrosshair !== false) {
-      this.canvas.style.cursor = 'crosshair';
-    } else {
-      this.canvas.style.cursor = 'default';
-    }
+    this.updateCursorForArea(this.mouseState.area);
   }
   
   private handleMouseEnter(): void {
@@ -322,7 +365,7 @@ class ChartImpl implements Chart {
     const interactions = this.options.interactions ?? {};
     if (interactions.enableCrosshair !== false) {
       this.mouseState.showCrosshair = true;
-      if (!this.viewState.isDragging) {
+      if (this.viewState.dragMode === 'none') {
         this.canvas.style.cursor = 'crosshair';
       }
     }
@@ -332,9 +375,182 @@ class ChartImpl implements Chart {
     this.mouseState.isOverChart = false;
     this.mouseState.isOverYAxis = false;
     this.mouseState.showCrosshair = false;
-    this.viewState.isDragging = false;
-    this.viewState.isYAxisDragging = false;
+    this.mouseState.area = 'outside';
+    this.viewState.dragMode = 'none';
     this.canvas.style.cursor = 'default';
+  }
+
+  private handleClick(e: MouseEvent): void {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const layout = this.createGridLayout(rect);
+    const control = getBottomControlAt(x, y, layout.plot);
+
+    if (control && resolveGridOptions(this.options.grid).bottomControls) {
+      this.handleGridControl(control, layout);
+      e.preventDefault();
+      return;
+    }
+
+    const area = getGridArea(x, y, layout, this.options.grid);
+    const dataX = this.dataXAtCssX(x, layout);
+    const dataY = this.dataYAtCssY(y, layout);
+
+    this.events.emit('click', {
+      x,
+      y,
+      dataX,
+      dataY,
+      area,
+    });
+  }
+
+  private handleGridControl(control: ChartGridControlId, layout: CssGridLayout): void {
+    const centerX = layout.plot.x + layout.plot.width / 2;
+
+    switch (control) {
+      case 'zoom-out':
+        this.zoomTimeAt(centerX, 1.1, layout);
+        break;
+      case 'zoom-in':
+        this.zoomTimeAt(centerX, 0.9, layout);
+        break;
+      case 'scroll-left':
+        this.pan(-0.12);
+        break;
+      case 'scroll-right':
+        this.pan(0.12);
+        break;
+      case 'reset':
+        this.resetView();
+        break;
+      case 'latest':
+        this.scrollToLatest();
+        break;
+    }
+  }
+
+  private createGridLayout(rect: DOMRect): CssGridLayout {
+    return createCssGridLayout(rect.width, rect.height, this.options.grid);
+  }
+
+  private dataXAtCssX(x: number, layout: CssGridLayout): number {
+    const range = this.viewState.dataMaxX - this.viewState.dataMinX || 1;
+    const localX = this.clamp(x - layout.plot.x, 0, layout.plot.width);
+    return this.viewState.dataMinX + (localX / Math.max(1, layout.plot.width)) * range;
+  }
+
+  private dataYAtCssY(y: number, layout: CssGridLayout): number {
+    const range = this.viewState.dataMaxY - this.viewState.dataMinY || 1;
+    const localY = this.clamp(y - layout.plot.y, 0, layout.plot.height);
+    return this.viewState.dataMaxY - (localY / Math.max(1, layout.plot.height)) * range;
+  }
+
+  private updateCursorForArea(area: GridHitArea): void {
+    const interactions = this.options.interactions ?? {};
+
+    if (area === 'bottom-control') {
+      this.canvas.style.cursor = 'pointer';
+    } else if (area === 'price-scale' && interactions.enableYAxisScale !== false) {
+      this.canvas.style.cursor = 'ns-resize';
+    } else if (area === 'plot' && interactions.enableCrosshair !== false) {
+      this.canvas.style.cursor = 'crosshair';
+    } else {
+      this.canvas.style.cursor = 'default';
+    }
+  }
+
+  private scrollToLatest(): void {
+    const latestX = this.getLatestDataX();
+    if (latestX === null) {
+      return;
+    }
+
+    const rangeX = this.viewState.dataMaxX - this.viewState.dataMinX || 1;
+    this.viewState.dataMaxX = latestX + this.getRightOffsetRange();
+    this.viewState.dataMinX = this.viewState.dataMaxX - rangeX;
+    if (this.viewState.autoScaleY) {
+      this.autoFitYAxis();
+    }
+  }
+
+  private getLatestDataX(): number | null {
+    let latest = -Infinity;
+
+    for (const series of this.series.values()) {
+      if (!Array.isArray(series.options.data)) {
+        continue;
+      }
+
+      for (const point of series.options.data as unknown[]) {
+        if (typeof point !== 'object' || point === null) {
+          continue;
+        }
+
+        const time = (point as NumericRecord)['time'];
+        if (typeof time === 'number' && Number.isFinite(time)) {
+          latest = Math.max(latest, time);
+        }
+      }
+    }
+
+    return latest === -Infinity ? null : latest;
+  }
+
+  private getRightOffsetRange(): number {
+    const timeStep = this.getPrimaryTimeStep() ?? 1;
+    return timeStep * resolveGridOptions(this.options.grid).rightOffsetBars;
+  }
+
+  private getPrimaryTimeStep(): number | null {
+    const times: number[] = [];
+
+    for (const series of this.series.values()) {
+      if (!Array.isArray(series.options.data)) {
+        continue;
+      }
+
+      for (const point of series.options.data as unknown[]) {
+        if (typeof point !== 'object' || point === null) {
+          continue;
+        }
+
+        const time = (point as NumericRecord)['time'];
+        if (typeof time === 'number' && Number.isFinite(time)) {
+          times.push(time);
+        }
+      }
+    }
+
+    if (times.length < 2) {
+      return null;
+    }
+
+    times.sort((a, b) => a - b);
+    let minStep = Infinity;
+    for (let index = 1; index < times.length; index += 1) {
+      const current = times[index];
+      const previous = times[index - 1];
+      if (current === undefined || previous === undefined) {
+        continue;
+      }
+
+      const step = current - previous;
+      if (step > 0) {
+        minStep = Math.min(minStep, step);
+      }
+    }
+
+    return Number.isFinite(minStep) ? minStep : null;
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    if (max < min) {
+      return min;
+    }
+
+    return Math.min(Math.max(value, min), max);
   }
 
   private startRenderLoop(): void {
@@ -357,31 +573,125 @@ class ChartImpl implements Chart {
         dataMinY: this.viewState.dataMinY,
         dataMaxY: this.viewState.dataMaxY,
       },
-      series: Array.from(this.series.values()).map(s => ({
-        type: s.type,
-        data: new ArrayBuffer(0), // TODO: Convert series data to binary
-        style: {},
-        visible: true,
-      })),
+      series: Array.from(this.series.values()).map((series) => this.createRenderableSeries(series)),
       overlays: this.createOverlays(),
-      theme: {
-        backgroundColor: '#ffffff',
-        gridColor: '#e0e0e0',
-        textColor: '#333333',
-        fontFamily: 'system-ui',
-        fontSize: 12,
-      },
+      theme: this.createRenderTheme(),
+      grid: resolveGridOptions(this.options.grid),
       mouseState: this.mouseState,
     };
     
     this.rendererInstance.render(renderScene);
+  }
+
+  private createRenderableSeries(series: SeriesImpl<SeriesOptions>): RenderableSeries {
+    const options = series.options;
+
+    return {
+      type: series.type,
+      name: options.name,
+      data: this.encodeSeriesData(options),
+      sourceData: options.data,
+      style: this.createSeriesStyle(options),
+      visible: options.visible !== false,
+    };
+  }
+
+  private createSeriesStyle(options: SeriesOptions): RenderSeriesStyle {
+    const style: RenderSeriesStyle = {};
+
+    if (typeof options.color === 'string') {
+      style.color = options.color;
+    }
+    if ('lineWidth' in options && typeof options.lineWidth === 'number') {
+      style.lineWidth = options.lineWidth;
+    }
+    if ('upColor' in options && typeof options.upColor === 'string') {
+      style.upColor = options.upColor;
+    }
+    if ('downColor' in options && typeof options.downColor === 'string') {
+      style.downColor = options.downColor;
+    }
+    if ('wickUpColor' in options && typeof options.wickUpColor === 'string') {
+      style.wickUpColor = options.wickUpColor;
+    }
+    if ('wickDownColor' in options && typeof options.wickDownColor === 'string') {
+      style.wickDownColor = options.wickDownColor;
+    }
+
+    return style;
+  }
+
+  private createRenderTheme(): RenderTheme {
+    const theme = this.options.theme;
+
+    if (typeof theme === 'object') {
+      return {
+        backgroundColor: theme.background,
+        gridColor: theme.grid,
+        textColor: theme.text,
+        fontFamily: 'system-ui',
+        fontSize: 12,
+      };
+    }
+
+    return theme === 'dark' ? DARK_RENDER_THEME : LIGHT_RENDER_THEME;
+  }
+
+  private getCrosshairColor(): string {
+    const theme = this.options.theme;
+    if (typeof theme === 'object') {
+      return theme.crosshair;
+    }
+
+    return theme === 'dark' ? 'rgba(160, 160, 160, 0.9)' : 'rgba(120, 123, 134, 0.85)';
+  }
+
+  private encodeSeriesData(options: SeriesOptions): ArrayBuffer {
+    switch (options.type) {
+      case 'candlestick':
+        return this.encodeNumericRows(options.data, ['time', 'open', 'high', 'low', 'close', 'volume']);
+      case 'line':
+        return this.encodeNumericRows(options.data, ['time', 'value']);
+      case 'bar':
+      case 'volume':
+        return this.encodeNumericRows(options.data, ['time', 'value', 'colorCode']);
+    }
+  }
+
+  private encodeNumericRows(data: readonly unknown[], fields: readonly string[]): ArrayBuffer {
+    const bytesPerValue = Float32Array.BYTES_PER_ELEMENT;
+    const buffer = new ArrayBuffer(data.length * fields.length * bytesPerValue);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    for (const point of data) {
+      for (const field of fields) {
+        view.setFloat32(offset, this.readNumberField(point, field), true);
+        offset += bytesPerValue;
+      }
+    }
+
+    return buffer;
+  }
+
+  private readNumberField(point: unknown, field: string): number {
+    if (typeof point !== 'object' || point === null) {
+      return 0;
+    }
+
+    const value = (point as NumericRecord)[field];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
   
   private createOverlays(): any[] {
     const overlays: any[] = [];
     
     // Add crosshair overlay if enabled and mouse is over chart
-    if (this.mouseState.showCrosshair && this.mouseState.isOverChart) {
+    if (
+      this.mouseState.showCrosshair &&
+      this.mouseState.isOverChart &&
+      this.mouseState.area === 'plot'
+    ) {
       overlays.push({
         type: 'crosshair',
         data: {
@@ -392,9 +702,9 @@ class ChartImpl implements Chart {
           snapToCandle: this.options.interactions?.snapToCandle ?? false,
         },
         style: {
-          color: '#999999',
+          color: this.getCrosshairColor(),
           lineWidth: 1,
-          lineDash: [5, 5],
+          lineDash: [4, 4],
         },
       });
     }
@@ -430,11 +740,13 @@ class ChartImpl implements Chart {
     this.viewState.dataMinX = from;
     this.viewState.dataMaxX = to;
     
-    // Auto-fit Y axis based on visible data
-    this.autoFitYAxis();
+    if (this.viewState.autoScaleY) {
+      this.autoFitYAxis();
+    }
   }
   
   setYAxisRange(min: number, max: number): void {
+    this.viewState.autoScaleY = false;
     this.viewState.dataMinY = min;
     this.viewState.dataMaxY = max;
   }
@@ -504,15 +816,21 @@ class ChartImpl implements Chart {
     }
     
     if (minX !== Infinity) {
-      const paddingX = (maxX - minX) * 0.05;
-      const paddingY = (maxY - minY) * 0.1;
+      const rangeX = maxX - minX;
+      const rangeY = maxY - minY;
+      const timeStep = this.getPrimaryTimeStep() ?? (rangeX > 0 ? rangeX : 1);
+      const paddingX = rangeX > 0 ? Math.min(timeStep, rangeX * 0.05) : timeStep;
+      const rightOffset = timeStep * resolveGridOptions(this.options.grid).rightOffsetBars;
+      const paddingY = rangeY > 0 ? rangeY * 0.1 : Math.max(Math.abs(maxY) * 0.01, 1);
       
+      this.viewState.autoScaleY = true;
       this.viewState.dataMinX = minX - paddingX;
-      this.viewState.dataMaxX = maxX + paddingX;
+      this.viewState.dataMaxX = maxX + rightOffset;
       this.viewState.dataMinY = minY - paddingY;
       this.viewState.dataMaxY = maxY + paddingY;
     } else {
       // Default view
+      this.viewState.autoScaleY = true;
       this.viewState.dataMinX = 0;
       this.viewState.dataMaxX = 100;
       this.viewState.dataMinY = 0;
@@ -544,7 +862,8 @@ class ChartImpl implements Chart {
     }
     
     if (minY !== Infinity) {
-      const padding = (maxY - minY) * 0.1;
+      const rangeY = maxY - minY;
+      const padding = rangeY > 0 ? rangeY * 0.1 : Math.max(Math.abs(maxY) * 0.01, 1);
       this.viewState.dataMinY = minY - padding;
       this.viewState.dataMaxY = maxY + padding;
     }
@@ -561,8 +880,8 @@ class ChartImpl implements Chart {
     };
     
     // Update cursor if needed
-    if (!this.viewState.isDragging && this.mouseState.isOverChart) {
-      this.canvas.style.cursor = options.enableCrosshair ? 'crosshair' : 'default';
+    if (this.viewState.dragMode === 'none' && this.mouseState.isOverChart) {
+      this.updateCursorForArea(this.mouseState.area);
     }
   }
 
@@ -570,6 +889,7 @@ class ChartImpl implements Chart {
     const id = `series-${this.nextSeriesId++}`;
     const series = new SeriesImpl(id, options, this);
     this.series.set(id, series as unknown as SeriesImpl<SeriesOptions>);
+    this.resetView();
     return series;
   }
 
@@ -682,6 +1002,7 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
 
   setData(data: T['data']): void {
     (this.options as { data: T['data'] }).data = data;
+    this.chart.resetView();
   }
 
   update(options: Partial<T>): void {
@@ -695,6 +1016,7 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
   appendData(data: T['data'][0]): void {
     if (Array.isArray(this.options.data)) {
       (this.options.data as any[]).push(data);
+      this.chart.resetView();
     }
   }
   
@@ -705,6 +1027,7 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
         ...(this.options.data as any[])[lastIndex],
         ...data
       };
+      this.chart.resetView();
     }
   }
 }

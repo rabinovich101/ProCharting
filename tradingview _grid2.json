@@ -1,0 +1,1792 @@
+{
+  "file_name": "tradingview _grid2.json",
+  "source_url": "https://www.tradingview.com/chart/",
+  "scope": {
+    "included": [
+      "chart grid container",
+      "single visible chart pane",
+      "pane plot/canvas area",
+      "right price scale area",
+      "bottom time scale area",
+      "bottom-right axis corner",
+      "pane hover state",
+      "active pane state",
+      "in-grid legend controls",
+      "in-grid price-scale controls",
+      "in-grid bottom zoom/scroll/reset controls",
+      "mouse movement inside the chart grid",
+      "mouse clicking inside the chart grid",
+      "mouse dragging inside the chart grid",
+      "responsive chart-grid geometry"
+    ],
+    "excluded_except_for_setup": [
+      "top toolbar, except the layout button was used to attempt multi-chart setup",
+      "right watchlist/sidebar, except it was collapsed to measure the grid cleanly"
+    ],
+    "date_of_live_inspection": "2026-06-03",
+    "tested_symbol": "BATS:AAPL",
+    "tested_interval": "1 day"
+  },
+  "out_of_scope": [
+    "top toolbar behavior",
+    "left drawing toolbar behavior",
+    "right watchlist/sidebar content",
+    "bottom trading panel",
+    "symbol search modal",
+    "indicator modal",
+    "settings modal",
+    "login/sign-up flows",
+    "publishing tools",
+    "broker panel",
+    "alerts panel",
+    "news/details panel",
+    "social or promotional overlays"
+  ],
+  "inspection_methodology": {
+    "tools_used": [
+      "Codex in-app Browser MCP",
+      "Playwright DOM snapshots through the Browser MCP",
+      "Playwright read-only DOM/CSS evaluation through the Browser MCP",
+      "Browser CUA mouse move simulation",
+      "Browser CUA click simulation",
+      "Browser CUA drag simulation",
+      "Browser CUA keypress simulation",
+      "Browser screenshot clips for visual verification",
+      "Browser console log inspection through tab.dev.logs",
+      "Browser page asset inventory capability",
+      "MCP_DOCKER puppeteer_evaluate connectivity check",
+      "MCP_DOCKER playwright_evaluate availability check"
+    ],
+    "live_interactions_performed": [
+      "opened https://www.tradingview.com/chart/",
+      "collapsed the right sidebar to isolate the chart grid",
+      "opened the layout setup menu and attempted a four-chart grid",
+      "confirmed the live unauthenticated session is limited to one chart per tab",
+      "moved the mouse across chart canvas, candle/plot area, price scale, time scale, pane/price join, bottom-right corner, and top-right pane area",
+      "clicked chart canvas, price scale, time scale, pane/price join, axis corner, zoom in, zoom out, scroll left, scroll right, reset chart view, and scroll-to-most-recent controls",
+      "dragged chart canvas horizontally",
+      "dragged chart canvas vertically",
+      "dragged the price scale vertically",
+      "dragged the time scale horizontally",
+      "dragged the pane/price-axis join"
+    ],
+    "desktop_viewport": {
+      "viewport_width": 1440,
+      "viewport_height": 900,
+      "reported_device_pixel_ratio": 2
+    },
+    "mobile_viewport": {
+      "viewport_width": 430,
+      "viewport_height": 932,
+      "reported_device_pixel_ratio": 1
+    },
+    "visual_confirmation": [
+      "clipped screenshot confirmed the chart grid, candles, volume overlay, price line, legend, buy/sell boxes, and right price axis",
+      "after clicking/focusing the pane, clipped screenshot confirmed dashed crosshair lines, right-side hover price label, and bottom hover time label",
+      "mobile clipped screenshot confirmed the same chart-grid composition under a narrow viewport"
+    ],
+    "console_inspection_summary": {
+      "chart_grid_errors_observed": false,
+      "notable_console_messages": [
+        "TradingView quote subscription leak warning",
+        "TradingView telemetry POST failed to fetch",
+        "Google Identity/FedCM warnings and errors"
+      ],
+      "interpretation": "Observed console messages were site telemetry/auth/runtime warnings and did not correspond to chart-grid geometry, hover, click, or drag failures."
+    },
+    "page_asset_inventory_summary": {
+      "total_assets_observed": 250,
+      "scripts_observed": 111,
+      "stylesheets_observed": 139,
+      "inline_svg_count": 146
+    }
+  },
+  "inspection_limitations": {
+    "unavailable_tools": [
+      {
+        "tool": "Raw CDP / DevTools protocol tab capability",
+        "status": "not advertised by the in-app Browser tab",
+        "effect": "A full browser-native Accessibility tree and low-level performance trace could not be captured through CDP."
+      },
+      {
+        "tool": "MCP_DOCKER playwright_evaluate",
+        "status": "failed because Chromium executable was not installed in that MCP context",
+        "effect": "MCP_DOCKER Playwright could not inspect TradingView."
+      },
+      {
+        "tool": "MCP_DOCKER puppeteer_evaluate",
+        "status": "available but isolated at about:blank and not connected to the in-app Browser page",
+        "effect": "MCP_DOCKER Puppeteer could not inspect the live TradingView tab."
+      },
+      {
+        "tool": "Dedicated accessibility tree inspector",
+        "status": "not available as a callable tool in this session",
+        "effect": "Accessibility information is based on DOM snapshots, roles, aria-labels, and visible accessible names."
+      }
+    ],
+    "site_gates": [
+      {
+        "gate": "multi-chart layouts",
+        "observed_message": "Your plan has 1 chart per tab limit. But our upgraded plans let you see up to 16 linked charts -- perfectly synced -- all in the same window.",
+        "effect": "True multi-pane layout, pane splitters, inactive-pane state, pane-specific maximize, and multi-pane restore could not be verified in this unauthenticated live session."
+      },
+      {
+        "gate": "promotional sign-up modal",
+        "observed_message": "Look first / Then leap. Make every move count. Create a free account...",
+        "effect": "A non-dismissible modal appeared during one repeated click sweep. The page was reloaded and the unobstructed click tests were repeated."
+      }
+    ],
+    "screenshot_notes": [
+      "A full-viewport screenshot initially timed out on the heavy TradingView page.",
+      "Clipped screenshots of the chart grid worked and were used for visual confirmation."
+    ],
+    "do_not_guess_policy": "Unverified multi-pane behaviors are marked with requires_live_inspection rather than inferred as facts."
+  },
+  "observed_grid_structure": {
+    "desktop_single_pane_collapsed_sidebar": {
+      "viewport": {
+        "VW": 1440,
+        "VH": 900,
+        "devicePixelRatio": 2
+      },
+      "left_toolbar_offset": {
+        "width": 56,
+        "note": "The chart grid starts after TradingView's left drawing toolbar. The toolbar itself is out of scope."
+      },
+      "center_area": {
+        "class": "layout__area--center no-border-bottom-left-radius no-border-bottom-right-radius unselectable",
+        "rect": {
+          "x": 56,
+          "y": 42,
+          "width": 1335,
+          "height": 858,
+          "right": 1391,
+          "bottom": 900
+        }
+      },
+      "chart_container": {
+        "class": "chart-container single-visible top-full-width-chart active",
+        "rect": {
+          "x": 56,
+          "y": 42,
+          "width": 1335,
+          "height": 819,
+          "right": 1391,
+          "bottom": 861
+        },
+        "overflow": "hidden",
+        "position": "absolute"
+      },
+      "chart_widget": {
+        "role": "region",
+        "aria_label": "Chart #1",
+        "class": "chart-widget chart-widget--themed-light chart-widget__top--themed-light chart-widget__bottom--themed-light",
+        "rect": {
+          "x": 56,
+          "y": 42,
+          "width": 1335,
+          "height": 819,
+          "right": 1391,
+          "bottom": 861
+        }
+      },
+      "plot_pane": {
+        "class": "chart-markup-table pane",
+        "rect": {
+          "x": 56,
+          "y": 42,
+          "width": 1271,
+          "height": 791,
+          "right": 1327,
+          "bottom": 833
+        },
+        "cursor": "crosshair",
+        "overflow": "hidden"
+      },
+      "right_price_scale": {
+        "class": "price-axis",
+        "rect": {
+          "x": 1327,
+          "y": 42,
+          "width": 64,
+          "height": 791,
+          "right": 1391,
+          "bottom": 833
+        },
+        "cursor": "default",
+        "overflow": "hidden"
+      },
+      "bottom_time_scale": {
+        "class": "chart-markup-table time-axis",
+        "rect": {
+          "x": 56,
+          "y": 833,
+          "width": 1271,
+          "height": 28,
+          "right": 1327,
+          "bottom": 861
+        },
+        "cursor": "default"
+      },
+      "bottom_right_corner": {
+        "rect": {
+          "x": 1327,
+          "y": 833,
+          "width": 64,
+          "height": 28,
+          "right": 1391,
+          "bottom": 861
+        },
+        "cursor": "auto"
+      },
+      "canvas_layers": [
+        {
+          "area": "plot pane",
+          "count": 2,
+          "css_rect": {
+            "x": 56,
+            "y": 42,
+            "width": 1271,
+            "height": 791
+          },
+          "canvas_attribute_size": {
+            "width": 2542,
+            "height": 1582
+          },
+          "interpretation": "Plot canvases are scaled at 2x CSS size for high-density rendering."
+        },
+        {
+          "area": "right price scale",
+          "count": 2,
+          "css_rect": {
+            "x": 1327,
+            "y": 42,
+            "width": 64,
+            "height": 791
+          },
+          "canvas_attribute_size": {
+            "width": 128,
+            "height": 1582
+          }
+        },
+        {
+          "area": "bottom time scale",
+          "count": 2,
+          "css_rect": {
+            "x": 56,
+            "y": 833,
+            "width": 1271,
+            "height": 28
+          },
+          "canvas_attribute_size": {
+            "width": 2542,
+            "height": 56
+          }
+        },
+        {
+          "area": "bottom-right corner",
+          "count": 1,
+          "css_rect": {
+            "x": 1327,
+            "y": 833,
+            "width": 64,
+            "height": 28
+          },
+          "canvas_attribute_size": {
+            "width": 128,
+            "height": 56
+          }
+        }
+      ]
+    },
+    "mobile_single_pane": {
+      "viewport": {
+        "VW": 430,
+        "VH": 932,
+        "reported_devicePixelRatio": 1
+      },
+      "center_area": {
+        "rect": {
+          "x": 56,
+          "y": 42,
+          "width": 374,
+          "height": 890,
+          "right": 430,
+          "bottom": 932
+        }
+      },
+      "chart_container": {
+        "rect": {
+          "x": 56,
+          "y": 42,
+          "width": 374,
+          "height": 851,
+          "right": 430,
+          "bottom": 893
+        }
+      },
+      "plot_pane": {
+        "rect": {
+          "x": 56,
+          "y": 42,
+          "width": 310,
+          "height": 823,
+          "right": 366,
+          "bottom": 865
+        },
+        "cursor": "crosshair"
+      },
+      "right_price_scale": {
+        "rect": {
+          "x": 366,
+          "y": 42,
+          "width": 64,
+          "height": 823,
+          "right": 430,
+          "bottom": 865
+        },
+        "cursor": "default"
+      },
+      "bottom_time_scale": {
+        "rect": {
+          "x": 56,
+          "y": 865,
+          "width": 310,
+          "height": 28,
+          "right": 366,
+          "bottom": 893
+        },
+        "cursor": "default"
+      },
+      "bottom_right_corner": {
+        "rect": {
+          "x": 366,
+          "y": 865,
+          "width": 64,
+          "height": 28,
+          "right": 430,
+          "bottom": 893
+        },
+        "cursor": "auto"
+      },
+      "responsive_interpretation": "TradingView preserves the fixed 64px price scale and 28px time scale, shrinking the plot pane to the remaining width and height."
+    }
+  },
+  "layout_variants": [
+    {
+      "name": "single visible chart",
+      "verified": true,
+      "container_class": "chart-container single-visible top-full-width-chart active",
+      "pane_count": 1,
+      "row_count": 1,
+      "column_count": 1,
+      "sizing_model": "absolute positioned chart container with fixed axis reservations and canvas layers",
+      "notes": [
+        "The chart container fills the chart-grid width above the bottom chart toolbar.",
+        "The plot pane width equals chart container width minus 64px price scale.",
+        "The plot pane height equals chart container height minus 28px time scale."
+      ]
+    },
+    {
+      "name": "multi-chart layouts",
+      "verified": false,
+      "requires_live_inspection": true,
+      "blocked_by": "Unauthenticated plan limit: one chart per tab",
+      "layout_menu_options_observed": [
+        "2h",
+        "2v",
+        "2-1",
+        "1-2",
+        "4",
+        "4v",
+        "4h",
+        "4s",
+        "4s-l",
+        "2-2-l",
+        "2-2-r",
+        "2-2",
+        "1-4",
+        "2-3",
+        "3-2",
+        "4-1",
+        "2-3-l",
+        "2-3-r",
+        "2-4",
+        "4-2",
+        "4-3",
+        "5-4",
+        "12c6",
+        "12c4",
+        "12h",
+        "14c7",
+        "16c4"
+      ],
+      "builder_recommendation": "Implement multi-chart layout as ratio-based rows and columns with splitter-resizable adjacent tracks. Mark exact TradingView splitter hitboxes and pane-maximize details as requiring a paid/live multi-chart inspection before claiming pixel-perfect parity."
+    }
+  ],
+  "pane_model": {
+    "single_pane_verified": {
+      "pane_id_source": "accessible region label Chart #1",
+      "active_state_source": "chart-container class includes active",
+      "pane_canvas_layers": [
+        "background/grid/series canvas",
+        "overlay/interaction canvas"
+      ],
+      "price_axis_layers": [
+        "price labels canvas",
+        "overlay price label canvas"
+      ],
+      "time_axis_layers": [
+        "time labels canvas",
+        "overlay time label canvas"
+      ],
+      "volume_overlay": {
+        "location": "inside plot pane at bottom",
+        "behavior": "renders in the plot canvas, not as a separate DOM pane in the verified single-chart layout"
+      },
+      "legend": {
+        "location": "top-left inside chart widget",
+        "observed_text": "Apple Inc · 1D · NASDAQ plus OHLC, change, current price, and volume",
+        "updates_on_hover": true
+      },
+      "active_pane_visual": {
+        "single_pane": "always active",
+        "active_class": "active"
+      }
+    },
+    "multi_pane_required_model": {
+      "requires_live_inspection": true,
+      "recommended_state": {
+        "panes": "array of pane objects with id, symbol, interval, row, column, rect, active, maximized, minimized",
+        "rows": "array of normalized row ratios",
+        "columns": "array of normalized column ratios",
+        "splitters": "array of splitter objects with axis, previousPaneId, nextPaneId, rect",
+        "activePaneId": "id of last clicked pane"
+      }
+    }
+  },
+  "mouse_behavior": {
+    "verified_areas": [
+      {
+        "area": "empty chart canvas / plot area",
+        "test_points": [
+          {
+            "x": 160,
+            "y": 170
+          },
+          {
+            "x": 720,
+            "y": 430
+          },
+          {
+            "x": 500,
+            "y": 360
+          }
+        ],
+        "hit_element": "canvas",
+        "aria_label": "Chart for BATS:AAPL, 1 day",
+        "cursor": "crosshair",
+        "hover_state": "legend remains visible; bottom zoom/scroll control bar appears when hovering near lower plot area",
+        "focus_changes": "no DOM focus change; body remains active element",
+        "active_pane_changes": "single pane remains active",
+        "crosshair_appears": true,
+        "crosshair_verification": "after clicking/focusing the pane and moving the mouse, dashed vertical and horizontal crosshair lines appeared with a black right price label and black bottom time label",
+        "price_time_labels_follow_mouse": true,
+        "legend_follows_mouse": true
+      },
+      {
+        "area": "candles / chart graphics",
+        "test_point": {
+          "x": 720,
+          "y": 430
+        },
+        "hit_element": "canvas",
+        "cursor": "crosshair",
+        "hover_state": "same as plot canvas; OHLC legend changes to hovered bar",
+        "highlight_behavior": "crosshair intersects the hovered candle/time location; no DOM element is created for individual candles"
+      },
+      {
+        "area": "right price scale",
+        "test_point": {
+          "x": 1360,
+          "y": 430
+        },
+        "hit_element": "canvas inside .price-axis",
+        "cursor": "default",
+        "hover_state": "price labels remain visible; crosshair price label is shown after pane focus and hover",
+        "focus_changes": "no DOM focus change",
+        "active_pane_changes": "single pane remains active"
+      },
+      {
+        "area": "bottom time scale",
+        "test_point": {
+          "x": 720,
+          "y": 846
+        },
+        "hit_element": "canvas inside .time-axis",
+        "cursor": "default",
+        "hover_state": "time labels remain visible; hover time label appears after pane focus and mouse movement",
+        "focus_changes": "no DOM focus change"
+      },
+      {
+        "area": "pane / price-scale join",
+        "test_point": {
+          "x": 1327,
+          "y": 430
+        },
+        "hit_element": "price-axis canvas at the exact join",
+        "cursor": "default",
+        "splitter_visible": false,
+        "active_pane_changes": "none"
+      },
+      {
+        "area": "bottom-right axis corner",
+        "test_point": {
+          "x": 1360,
+          "y": 846
+        },
+        "hit_element": "corner canvas",
+        "cursor": "auto",
+        "hover_state": "no pane focus change; corner remains an axis-control/corner surface"
+      },
+      {
+        "area": "top-right pane controls area",
+        "test_point": {
+          "x": 1305,
+          "y": 58
+        },
+        "hit_element": "plot canvas",
+        "cursor": "crosshair",
+        "pane_maximize_control_visible": false,
+        "pane_minimize_control_visible": false,
+        "note": "In the one-pane layout no pane-specific top-right maximize/minimize button was present."
+      }
+    ],
+    "tooltip_behavior": {
+      "observed": "Many chart controls expose tooltip text through aria-label and apply-common-tooltip classes.",
+      "visible_popup_tooltips": "Short hover waits did not consistently create a separate visible tooltip DOM node for the grid controls.",
+      "builder_requirement": "Use aria-label/title strings for controls and show lightweight delayed tooltips for icon-only controls."
+    }
+  },
+  "click_behavior": {
+    "verified_clicks": [
+      {
+        "target": "chart canvas center",
+        "coordinates": {
+          "x": 720,
+          "y": 430
+        },
+        "before_state": "single chart container active; no dialog; pane rect 1271x791",
+        "after_state": "single chart container remains active; no dialog; pane rect unchanged",
+        "visual_change": "crosshair and legend update to clicked/hovered bar",
+        "layout_change": false,
+        "focus_change": "DOM activeElement remained body",
+        "active_pane_change": "single active pane persists"
+      },
+      {
+        "target": "right price scale",
+        "coordinates": {
+          "x": 1360,
+          "y": 430
+        },
+        "before_state": "single chart active",
+        "after_state": "single chart active",
+        "layout_change": false,
+        "visual_change": "no immediate geometry change from click alone",
+        "active_pane_change": "none in single-pane layout"
+      },
+      {
+        "target": "bottom time scale",
+        "coordinates": {
+          "x": 720,
+          "y": 846
+        },
+        "before_state": "single chart active",
+        "after_state": "single chart active",
+        "layout_change": false,
+        "visual_change": "no immediate geometry change from click alone"
+      },
+      {
+        "target": "pane / price-scale join",
+        "coordinates": {
+          "x": 1327,
+          "y": 430
+        },
+        "before_state": "single chart active",
+        "after_state": "single chart active",
+        "layout_change": false,
+        "visual_change": "no splitter or resize appears"
+      },
+      {
+        "target": "bottom-right axis corner",
+        "coordinates": {
+          "x": 1360,
+          "y": 846
+        },
+        "before_state": "single chart active",
+        "after_state": "single chart active",
+        "layout_change": false,
+        "visual_change": "no immediate geometry change"
+      },
+      {
+        "target": "zoom in control",
+        "coordinates": {
+          "x": 665,
+          "y": 789
+        },
+        "hitbox": {
+          "x": 651,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "after_state": "chart and pane rects unchanged",
+        "visual_change": "internal time scale zooms in; hovered legend values changed because the same screen x maps to a different bar",
+        "layout_change": false
+      },
+      {
+        "target": "zoom out control",
+        "coordinates": {
+          "x": 633,
+          "y": 789
+        },
+        "hitbox": {
+          "x": 619,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "after_state": "chart and pane rects unchanged",
+        "visual_change": "internal time scale zooms out",
+        "layout_change": false
+      },
+      {
+        "target": "scroll left control",
+        "coordinates": {
+          "x": 705,
+          "y": 789
+        },
+        "hitbox": {
+          "x": 691,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "after_state": "chart and pane rects unchanged",
+        "visual_change": "internal time range scrolls left; hovered legend values changed",
+        "layout_change": false
+      },
+      {
+        "target": "scroll right control",
+        "coordinates": {
+          "x": 737,
+          "y": 789
+        },
+        "hitbox": {
+          "x": 723,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "after_state": "chart and pane rects unchanged",
+        "visual_change": "internal time range scrolls right",
+        "layout_change": false
+      },
+      {
+        "target": "reset chart view control",
+        "coordinates": {
+          "x": 777,
+          "y": 789
+        },
+        "hitbox": {
+          "x": 763,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "after_state": "chart and pane rects unchanged",
+        "visual_change": "internal visible range resets; control can hide after reset"
+      },
+      {
+        "target": "scroll to most recent bar control",
+        "coordinates": {
+          "x": 1295,
+          "y": 789
+        },
+        "after_state": "chart and pane rects unchanged",
+        "visual_change": "internal time range returns to latest bars; hovered legend returned to latest AAPL values"
+      }
+    ],
+    "modal_interference": {
+      "observed": true,
+      "details": "A sign-up modal appeared during one repeated click sweep and blocked subsequent click targets. The page was reloaded and click tests were repeated without the modal.",
+      "builder_requirement": "Do not model promotional modals as part of the chart-grid system."
+    },
+    "click_formula": "If hit is inside pane rect, preserve pane geometry, set activePaneId to pane id, update hover/crosshair state from localX/localY. If hit is an in-grid control, run that control action without changing pane rects unless the action is explicitly layout-related."
+  },
+  "drag_behavior": {
+    "verified_drags": [
+      {
+        "name": "chart canvas horizontal pan",
+        "start": {
+          "x": 800,
+          "y": 430
+        },
+        "end": {
+          "x": 600,
+          "y": 430
+        },
+        "delta": {
+          "deltaX": -200,
+          "deltaY": 0
+        },
+        "affected_element": "plot canvas",
+        "layout_rect_changed": false,
+        "observed_effect": "visible time range panned; hovered legend changed from latest AAPL values to an earlier bar",
+        "unit_model": "internal time-scale transform, not CSS position or pane pixels",
+        "resize_formula": null
+      },
+      {
+        "name": "chart canvas vertical drag",
+        "start": {
+          "x": 800,
+          "y": 430
+        },
+        "end": {
+          "x": 800,
+          "y": 560
+        },
+        "delta": {
+          "deltaX": 0,
+          "deltaY": 130
+        },
+        "affected_element": "plot canvas",
+        "layout_rect_changed": false,
+        "observed_effect": "pane geometry did not resize; hover/crosshair state and legend changed at the final pointer location",
+        "unit_model": "internal chart interaction state",
+        "note": "No pane-size change occurred from vertical canvas drag in the verified single-pane layout."
+      },
+      {
+        "name": "price scale vertical drag",
+        "start": {
+          "x": 1360,
+          "y": 430
+        },
+        "end": {
+          "x": 1360,
+          "y": 570
+        },
+        "delta": {
+          "deltaX": 0,
+          "deltaY": 140
+        },
+        "affected_element": "price-axis canvas",
+        "layout_rect_changed": false,
+        "observed_effect": "price range scaled vertically; after the drag the visible price-axis range expanded in the screenshot while pane geometry stayed fixed",
+        "unit_model": "internal price-scale transform",
+        "resize_formula": "priceScaleTransform = f(startScale, deltaY); exact TradingView transform curve not exposed in DOM"
+      },
+      {
+        "name": "time scale horizontal drag",
+        "start": {
+          "x": 900,
+          "y": 846
+        },
+        "end": {
+          "x": 620,
+          "y": 846
+        },
+        "delta": {
+          "deltaX": -280,
+          "deltaY": 0
+        },
+        "affected_element": "time-axis canvas",
+        "layout_rect_changed": false,
+        "observed_effect": "visible time range panned; hovered legend changed to a different bar",
+        "unit_model": "internal time-scale transform"
+      },
+      {
+        "name": "pane / price-axis join drag",
+        "start": {
+          "x": 1327,
+          "y": 430
+        },
+        "end": {
+          "x": 1308,
+          "y": 430
+        },
+        "delta": {
+          "deltaX": -19,
+          "deltaY": 0
+        },
+        "affected_element": "price-axis edge / plot canvas edge",
+        "layout_rect_changed": false,
+        "observed_effect": "no splitter handle appeared and pane/axis widths did not change",
+        "unit_model": "not a pane splitter in the verified single-pane layout"
+      }
+    ],
+    "unverified_drags": [
+      {
+        "name": "pane divider horizontal splitter drag",
+        "requires_live_inspection": true,
+        "reason": "no multi-pane layout available in this session"
+      },
+      {
+        "name": "pane divider vertical splitter drag",
+        "requires_live_inspection": true,
+        "reason": "no multi-pane layout available in this session"
+      }
+    ]
+  },
+  "maximize_behavior": {
+    "pane_specific_maximize": {
+      "exists_in_verified_single_pane": false,
+      "verified": true,
+      "notes": [
+        "No pane-specific maximize button was visible in the single-pane top-right chart area.",
+        "Searches for maximize, minimize, restore, collapse, expand, and fullscreen inside the chart grid found no pane maximize control.",
+        "The top toolbar has a Fullscreen mode button, but it is outside the chart-grid scope and is not the pane maximize requested here."
+      ]
+    },
+    "multi_pane_maximize": {
+      "requires_live_inspection": true,
+      "blocked_by": "one chart per tab plan limit",
+      "expected_builder_state_transition": "normal -> maximized -> restored",
+      "builder_requirement": "Implement pane maximize only when a multi-pane grid is supported. Store the full pre-maximize layout snapshot before hiding or covering sibling panes."
+    },
+    "button_location": {
+      "verified": false,
+      "requires_live_inspection": true,
+      "reason": "pane-specific maximize control was not visible in the one-pane layout"
+    },
+    "restore_trigger": {
+      "verified": false,
+      "requires_live_inspection": true,
+      "reason": "pane-specific restore could not be reached"
+    }
+  },
+  "minimize_behavior": {
+    "exists": false,
+    "verified": true,
+    "scope": "single-pane chart grid",
+    "notes": [
+      "No direct minimize, collapse, or pane-hide control was visible in the verified single-pane chart grid.",
+      "Indicator legend controls include Hide/Remove actions for studies, but these are not pane minimize controls.",
+      "Multi-pane minimize/collapse behavior remains unverified because multi-pane layout is gated."
+    ],
+    "multi_pane_minimize": {
+      "requires_live_inspection": true,
+      "reason": "pane minimize may exist only in multi-pane layouts or paid sessions; it was not visible here"
+    }
+  },
+  "restore_behavior": {
+    "chart_view_restore_verified": {
+      "reset_chart_view": {
+        "verified": true,
+        "control_rect": {
+          "x": 763,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "behavior": "resets internal visible time/price view without changing chart, pane, price-axis, or time-axis rectangles"
+      },
+      "scroll_to_most_recent": {
+        "verified": true,
+        "behavior": "returns the internal time transform to latest bars without changing DOM geometry"
+      }
+    },
+    "maximize_restore": {
+      "verified": false,
+      "requires_live_inspection": true,
+      "reason": "pane-specific maximize was unavailable in the verified single-pane session"
+    },
+    "minimize_restore": {
+      "verified": false,
+      "requires_live_inspection": true,
+      "reason": "pane-specific minimize/collapse was unavailable in the verified single-pane session"
+    }
+  },
+  "active_pane_behavior": {
+    "single_pane_verified": {
+      "active_class": "chart-container single-visible top-full-width-chart active",
+      "active_on_load": true,
+      "click_canvas_result": "active class persisted",
+      "click_price_scale_result": "active class persisted",
+      "click_time_scale_result": "active class persisted",
+      "dom_focus": "document.activeElement remained body or a generic div; active pane is represented by TradingView chart state/classes, not native DOM focus",
+      "inactive_chart_area": {
+        "exists": false,
+        "verified": true
+      }
+    },
+    "multi_pane_expected_builder_behavior": {
+      "requires_live_inspection": true,
+      "recommendation": "Clicking any pane canvas, axis, or pane-local control should set activePaneId to that pane. Inactive panes should remain rendered, with only subtle active border/control emphasis changing."
+    }
+  },
+  "hover_controls": {
+    "legend_controls": [
+      {
+        "name": "Change symbol",
+        "rect": {
+          "x": 87,
+          "y": 49,
+          "width": 68,
+          "height": 19
+        },
+        "cursor": "default",
+        "location": "top-left legend"
+      },
+      {
+        "name": "Change interval",
+        "rect": {
+          "x": 167,
+          "y": 49,
+          "width": 21,
+          "height": 19
+        },
+        "cursor": "default",
+        "location": "top-left legend"
+      },
+      {
+        "name": "Flag symbol",
+        "rect": {
+          "x": 268,
+          "y": 46,
+          "width": 28,
+          "height": 24
+        },
+        "cursor": "crosshair",
+        "location": "top-left legend controls"
+      },
+      {
+        "name": "Legend More",
+        "rect": {
+          "x": 296,
+          "y": 46,
+          "width": 28,
+          "height": 24
+        },
+        "cursor": "crosshair",
+        "location": "top-left legend controls"
+      },
+      {
+        "name": "Hide indicator legend",
+        "rect": {
+          "x": 65,
+          "y": 139,
+          "width": 29,
+          "height": 21
+        },
+        "cursor": "default"
+      },
+      {
+        "name": "Volume Hide",
+        "rect": {
+          "x": 88,
+          "y": 112,
+          "width": 28,
+          "height": 24
+        },
+        "cursor": "crosshair"
+      },
+      {
+        "name": "Volume Settings",
+        "rect": {
+          "x": 116,
+          "y": 112,
+          "width": 28,
+          "height": 24
+        },
+        "cursor": "crosshair"
+      },
+      {
+        "name": "Volume Remove",
+        "rect": {
+          "x": 144,
+          "y": 112,
+          "width": 28,
+          "height": 24
+        },
+        "cursor": "crosshair"
+      }
+    ],
+    "price_scale_controls": [
+      {
+        "name": "currency-label-selector",
+        "rect": {
+          "x": 1332,
+          "y": 47,
+          "width": 54,
+          "height": 24
+        },
+        "cursor": "default"
+      },
+      {
+        "name": "Toggle auto scale",
+        "rect": {
+          "x": 1337,
+          "y": 807,
+          "width": 20,
+          "height": 22
+        },
+        "cursor": "default"
+      },
+      {
+        "name": "Toggle log scale",
+        "rect": {
+          "x": 1361,
+          "y": 807,
+          "width": 20,
+          "height": 22
+        },
+        "cursor": "default"
+      }
+    ],
+    "bottom_control_bar": [
+      {
+        "name": "Zoom out",
+        "rect": {
+          "x": 619,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "cursor": "auto"
+      },
+      {
+        "name": "Zoom in",
+        "rect": {
+          "x": 651,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "cursor": "auto"
+      },
+      {
+        "name": "Scroll to the left",
+        "rect": {
+          "x": 691,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "cursor": "auto"
+      },
+      {
+        "name": "Scroll to the right",
+        "rect": {
+          "x": 723,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "cursor": "auto"
+      },
+      {
+        "name": "Reset chart view",
+        "rect": {
+          "x": 763,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "cursor": "auto"
+      },
+      {
+        "name": "Scroll to the most recent bar",
+        "rect": {
+          "x": 1283,
+          "y": 777,
+          "width": 24,
+          "height": 24
+        },
+        "cursor": "auto"
+      }
+    ],
+    "visibility_rules": [
+      "Top-left legend and price/time axes are always visible.",
+      "Legend indicator controls are visible while the legend row is hovered or active.",
+      "Bottom zoom/scroll/reset controls appear near the lower plot area when the grid is hovered or after chart interaction.",
+      "Reset/latest controls can hide after the chart is already reset or at the latest bar."
+    ]
+  },
+  "coordinate_math": {
+    "variables": {
+      "VW": "viewport width",
+      "VH": "viewport height",
+      "Gx": "chart grid origin x",
+      "Gy": "chart grid origin y",
+      "GW": "chart grid width",
+      "GH": "chart grid height",
+      "Px": "pane origin x",
+      "Py": "pane origin y",
+      "PW": "pane width",
+      "PH": "pane height",
+      "CW": "canvas/plot width",
+      "CH": "canvas/plot height",
+      "PSW": "price scale width",
+      "TSH": "time scale height"
+    },
+    "verified_desktop_values": {
+      "VW": 1440,
+      "VH": 900,
+      "Gx": 56,
+      "Gy": 42,
+      "GW": 1335,
+      "GH": 819,
+      "PSW": 64,
+      "TSH": 28,
+      "Px": 56,
+      "Py": 42,
+      "PW": 1271,
+      "PH": 791,
+      "CW": 1271,
+      "CH": 791
+    },
+    "formulas": [
+      "CW = GW - PSW",
+      "CH = GH - TSH",
+      "PW = CW",
+      "PH = CH",
+      "priceScaleX = Gx + CW",
+      "priceScaleY = Gy",
+      "timeScaleX = Gx",
+      "timeScaleY = Gy + CH",
+      "cornerX = Gx + CW",
+      "cornerY = Gy + CH",
+      "localX = mouseX - Px",
+      "localY = mouseY - Py",
+      "gridX = mouseX - Gx",
+      "gridY = mouseY - Gy",
+      "isInsidePlot = localX >= 0 && localX <= CW && localY >= 0 && localY <= CH",
+      "isInsidePriceScale = mouseX >= Gx + CW && mouseX <= Gx + GW && mouseY >= Gy && mouseY <= Gy + CH",
+      "isInsideTimeScale = mouseX >= Gx && mouseX <= Gx + CW && mouseY >= Gy + CH && mouseY <= Gy + GH"
+    ],
+    "canvas_pixel_ratio": {
+      "formula": "canvasBackingWidth = cssWidth * internalPixelRatio; canvasBackingHeight = cssHeight * internalPixelRatio",
+      "observed_desktop_internalPixelRatio": 2,
+      "observed_mobile_canvas_backing_scale": 2,
+      "builder_requirement": "Render canvases at device/internal pixel ratio and scale drawing commands so CSS geometry stays exact."
+    }
+  },
+  "pane_ratio_math": {
+    "single_pane_verified": {
+      "rowRatio[0]": 1,
+      "columnRatio[0]": 1,
+      "sum(rowRatio)": 1,
+      "sum(columnRatio)": 1
+    },
+    "multi_pane_recommended_model": {
+      "verified": false,
+      "requires_live_inspection": true,
+      "representation": "normalized ratios with pixel rects derived on every resize",
+      "formulas": [
+        "rowRatio[i] = rowHeight[i] / GH",
+        "columnRatio[j] = columnWidth[j] / GW",
+        "sum(rowRatio) = 1",
+        "sum(columnRatio) = 1",
+        "paneX(row, col) = Gx + sum(columnWidth[0..col-1])",
+        "paneY(row, col) = Gy + sum(rowHeight[0..row-1])",
+        "paneWidth(row, colSpan) = sum(columnWidth[col..col+colSpan-1])",
+        "paneHeight(row, rowSpan) = sum(rowHeight[row..row+rowSpan-1])"
+      ],
+      "axis_reservation_per_pane": [
+        "panePlotWidth = paneOuterWidth - PSW",
+        "panePlotHeight = paneOuterHeight - TSH"
+      ],
+      "builder_note": "Use ratios for resizable layouts, but store computed pixel rects for hit-testing and canvas sizing."
+    }
+  },
+  "splitter_drag_math": {
+    "verified_single_pane": {
+      "splitters_exist": false,
+      "pane_price_axis_join_is_splitter": false,
+      "join_drag_result": "no pane or axis dimensions changed"
+    },
+    "multi_pane_model_for_builder": {
+      "requires_live_inspection": true,
+      "horizontal_splitter": {
+        "axis": "y",
+        "formulas": [
+          "deltaY = currentMouseY - startMouseY",
+          "newTopHeight = startTopHeight + deltaY",
+          "newBottomHeight = startBottomHeight - deltaY",
+          "newTopHeight >= minPaneHeight",
+          "newBottomHeight >= minPaneHeight",
+          "totalHeightBeforeDrag = totalHeightAfterDrag"
+        ]
+      },
+      "vertical_splitter": {
+        "axis": "x",
+        "formulas": [
+          "deltaX = currentMouseX - startMouseX",
+          "newLeftWidth = startLeftWidth + deltaX",
+          "newRightWidth = startRightWidth - deltaX",
+          "newLeftWidth >= minPaneWidth",
+          "newRightWidth >= minPaneWidth",
+          "totalWidthBeforeDrag = totalWidthAfterDrag"
+        ]
+      },
+      "ratio_update": [
+        "rowRatio[i] = newRowHeight[i] / totalRowsHeight",
+        "columnRatio[j] = newColumnWidth[j] / totalColumnsWidth"
+      ],
+      "suggested_min_constraints": {
+        "minPaneWidth": "max(220, PSW + 120)",
+        "minPaneHeight": "max(180, TSH + 120)"
+      },
+      "visual_requirement": "During drag, show a thin divider/handle highlight and update pane canvases continuously or on pointerup depending performance."
+    }
+  },
+  "maximize_restore_math": {
+    "verified": false,
+    "requires_live_inspection": true,
+    "state_transition": [
+      "normal -> maximized",
+      "maximized -> restored"
+    ],
+    "saved_layout_before_maximize": {
+      "rows": [],
+      "columns": [],
+      "paneRects": [],
+      "activePaneId": ""
+    },
+    "builder_snapshot_contract": {
+      "savedLayoutBeforeMaximize": {
+        "rows": "copy of row ratios",
+        "columns": "copy of column ratios",
+        "paneRects": "copy of computed pane rects",
+        "activePaneId": "pane id active before maximize",
+        "maximizedPaneId": "pane id being maximized"
+      }
+    },
+    "restore_assertions": [
+      "restoredPaneRect ~= originalPaneRect",
+      "abs(restoredWidth - originalWidth) <= tolerancePx",
+      "abs(restoredHeight - originalHeight) <= tolerancePx",
+      "tolerancePx = 1 to 3"
+    ],
+    "expected_grid_fill_rule": "Maximized pane should fill only the chart-grid area, not the whole page, unless a separate out-of-scope fullscreen mode is used."
+  },
+  "minimize_restore_math": {
+    "verified": false,
+    "exists_in_verified_single_pane": false,
+    "requires_live_inspection": true,
+    "state_transition": [
+      "normal -> minimized",
+      "minimized -> restored"
+    ],
+    "if_minimize_exists_builder_model": {
+      "collapsed_strip": [
+        "collapsedSizePx = measured minimized strip size",
+        "remainingSpace = totalGridSpace - collapsedSizePx",
+        "expandedPaneSize = previousPaneSize + redistributedSpace",
+        "restoreTargetSizePx = savedPaneSizePx",
+        "restoreTargetRatio = savedPaneSizePx / totalGridSize"
+      ],
+      "hidden_pane": [
+        "minimizedPaneSize = 0",
+        "remaining panes redistribute saved pane size",
+        "restore uses saved row/column ratios"
+      ]
+    }
+  },
+  "hitbox_math": {
+    "generic_hit_formula": "hit = mouseX >= x1 && mouseX <= x2 && mouseY >= y1 && mouseY <= y2",
+    "control_offset_formulas": [
+      "controlRightOffset = paneRight - controlRight",
+      "controlTopOffset = controlTop - paneTop",
+      "controlBottomOffset = paneBottom - controlBottom",
+      "controlLeftOffset = controlLeft - paneLeft"
+    ],
+    "verified_hitboxes": [
+      {
+        "control": "Toggle auto scale",
+        "box": {
+          "x1": 1337,
+          "y1": 807,
+          "x2": 1357,
+          "y2": 829
+        },
+        "size": {
+          "width": 20,
+          "height": 22
+        },
+        "distance_from_pane_edges": {
+          "right_offset_from_grid": 34,
+          "bottom_offset_from_pane": 4
+        }
+      },
+      {
+        "control": "Toggle log scale",
+        "box": {
+          "x1": 1361,
+          "y1": 807,
+          "x2": 1381,
+          "y2": 829
+        },
+        "size": {
+          "width": 20,
+          "height": 22
+        }
+      },
+      {
+        "control": "Zoom out",
+        "box": {
+          "x1": 619,
+          "y1": 777,
+          "x2": 643,
+          "y2": 801
+        },
+        "size": {
+          "width": 24,
+          "height": 24
+        }
+      },
+      {
+        "control": "Zoom in",
+        "box": {
+          "x1": 651,
+          "y1": 777,
+          "x2": 675,
+          "y2": 801
+        },
+        "size": {
+          "width": 24,
+          "height": 24
+        }
+      },
+      {
+        "control": "Scroll to most recent",
+        "box": {
+          "x1": 1283,
+          "y1": 777,
+          "x2": 1307,
+          "y2": 801
+        },
+        "size": {
+          "width": 24,
+          "height": 24
+        },
+        "distance_from_pane_right": 20
+      },
+      {
+        "control": "Legend More",
+        "box": {
+          "x1": 296,
+          "y1": 46,
+          "x2": 324,
+          "y2": 70
+        },
+        "size": {
+          "width": 28,
+          "height": 24
+        },
+        "distance_from_pane_top": 4
+      }
+    ],
+    "builder_requirement": "Keep hitboxes stable and at least 20x20px for icon controls; use a larger pointer target than the drawn glyph if needed."
+  },
+  "responsive_behavior": {
+    "desktop_verified": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "grid_origin": {
+        "x": 56,
+        "y": 42
+      },
+      "chart_size": {
+        "width": 1335,
+        "height": 819
+      },
+      "plot_size": {
+        "width": 1271,
+        "height": 791
+      },
+      "price_scale_width": 64,
+      "time_scale_height": 28
+    },
+    "mobile_verified": {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "grid_origin": {
+        "x": 56,
+        "y": 42
+      },
+      "chart_size": {
+        "width": 374,
+        "height": 851
+      },
+      "plot_size": {
+        "width": 310,
+        "height": 823
+      },
+      "price_scale_width": 64,
+      "time_scale_height": 28
+    },
+    "rules": [
+      "The chart grid begins after the left toolbar at x=56 in both tested desktop and mobile views.",
+      "The right price scale keeps a fixed 64px CSS width in both tested desktop and mobile views.",
+      "The bottom time scale keeps a fixed 28px CSS height in both tested desktop and mobile views.",
+      "The plot pane receives the remaining chart-container width and height.",
+      "Canvas backing dimensions are larger than CSS dimensions for high-density rendering.",
+      "On narrow screens, the price scale consumes a larger share of chart width; preserve its readability instead of shrinking it aggressively."
+    ]
+  },
+  "state_machine": {
+    "verified_states": [
+      {
+        "state": "normal_single_pane",
+        "description": "One active chart pane visible with plot, price scale, time scale, and in-grid controls."
+      },
+      {
+        "state": "hovering_plot",
+        "description": "Pointer is over plot canvas; cursor is crosshair; legend/crosshair can update."
+      },
+      {
+        "state": "dragging_time",
+        "description": "Pointer drag over plot or time axis mutates internal time transform; layout rects unchanged."
+      },
+      {
+        "state": "dragging_price_scale",
+        "description": "Pointer drag over price scale mutates internal price transform; layout rects unchanged."
+      },
+      {
+        "state": "view_reset",
+        "description": "Reset/latest controls restore internal chart view without changing pane geometry."
+      }
+    ],
+    "unverified_states": [
+      {
+        "state": "normal_multi_pane",
+        "requires_live_inspection": true
+      },
+      {
+        "state": "dragging_splitter",
+        "requires_live_inspection": true
+      },
+      {
+        "state": "pane_maximized",
+        "requires_live_inspection": true
+      },
+      {
+        "state": "pane_minimized",
+        "requires_live_inspection": true
+      }
+    ],
+    "recommended_builder_transitions": [
+      "normal_single_pane -> hovering_plot on pointermove inside plot",
+      "hovering_plot -> dragging_time on pointerdown+drag inside plot or time scale",
+      "hovering_plot -> dragging_price_scale on pointerdown+drag inside price scale",
+      "normal_multi_pane -> dragging_splitter on pointerdown over splitter hitbox",
+      "normal_multi_pane -> pane_maximized on pane maximize click",
+      "pane_maximized -> normal_multi_pane on restore click",
+      "normal_multi_pane -> pane_minimized on pane minimize click if supported",
+      "pane_minimized -> normal_multi_pane on restore click if supported"
+    ]
+  },
+  "builder_agent_requirements": {
+    "components_to_build": [
+      "ChartGridRoot",
+      "GridLayoutManager",
+      "ChartPane",
+      "PaneCanvasLayer",
+      "PriceScale",
+      "TimeScale",
+      "AxisCorner",
+      "PaneLegend",
+      "PaneHoverControls",
+      "BottomChartControlBar",
+      "CrosshairOverlay",
+      "SplitterHandle",
+      "MaximizeRestoreController",
+      "MinimizeRestoreController if future live inspection confirms it exists"
+    ],
+    "state_to_store": [
+      "gridRect",
+      "paneRects",
+      "priceScaleWidth = 64px unless theming/responsive inspection updates it",
+      "timeScaleHeight = 28px",
+      "activePaneId",
+      "hoverPaneId",
+      "hoverPointLocal",
+      "crosshairVisible",
+      "timeScaleTransform",
+      "priceScaleTransform per pane",
+      "rowRatios for multi-pane layouts",
+      "columnRatios for multi-pane layouts",
+      "savedLayoutBeforeMaximize",
+      "savedLayoutBeforeMinimize if minimize is implemented"
+    ],
+    "events_to_handle": [
+      "pointermove on plot pane",
+      "pointerdown/pointermove/pointerup on plot pane for time panning",
+      "pointerdown/pointermove/pointerup on time scale for time panning",
+      "pointerdown/pointermove/pointerup on price scale for price scaling",
+      "click on pane to set active pane",
+      "click on price/time scale without changing layout",
+      "click on zoom in/out controls",
+      "click on scroll left/right controls",
+      "click on reset chart view",
+      "click on scroll to most recent",
+      "pointerdown/pointermove/pointerup on splitters in multi-pane layouts",
+      "click maximize/restore only when a pane-specific control exists",
+      "click minimize/restore only if a pane-specific minimize control is later verified"
+    ],
+    "measurements_to_use": [
+      "Gx = grid origin x",
+      "Gy = grid origin y",
+      "GW = grid width",
+      "GH = chart container height",
+      "PSW = 64",
+      "TSH = 28",
+      "CW = GW - PSW",
+      "CH = GH - TSH",
+      "canvasBackingScale = device/internal pixel ratio"
+    ],
+    "behavior_must_match": [
+      "plot canvas cursor is crosshair",
+      "price scale and time scale cursor are default",
+      "axis sizes remain fixed at the verified 64px/28px values in desktop and mobile measurements",
+      "chart panning and zooming mutate internal transforms rather than DOM pane geometry",
+      "price scale vertical drag rescales price range without changing DOM geometry",
+      "time scale horizontal drag pans time without changing DOM geometry",
+      "single-pane price-axis join is not a splitter",
+      "crosshair appears after pane focus/hover with dashed vertical and horizontal lines plus axis labels",
+      "legend OHLC/volume values update to the hovered bar",
+      "bottom control bar actions preserve pane rectangles"
+    ],
+    "behavior_can_be_approximated": [
+      "exact TradingView price-scale transform curve from vertical drag",
+      "exact TradingView time-scale transform coefficient from pixel delta",
+      "TradingView's delayed tooltip timing and animation",
+      "internal class names and multi-canvas layering, as long as visible geometry and interactions match"
+    ],
+    "must_not_implement": [
+      "TradingView top toolbar",
+      "left drawing toolbar",
+      "right sidebar/watchlist",
+      "bottom trading panel",
+      "login or sign-up modal behavior",
+      "published ideas/social tools",
+      "brokerage/trading workflows",
+      "fake multi-pane maximize/minimize behavior labeled as verified"
+    ],
+    "multi_pane_caution": "The builder may implement a conventional TradingView-like ratio grid with splitters, but exact TradingView multi-pane splitter and pane maximize/minimize details require a paid or otherwise enabled live inspection."
+  },
+  "implementation_tasks": [
+    {
+      "task": "Create fixed-axis chart pane geometry",
+      "details": "Reserve 64px for the right price scale and 28px for the bottom time scale; compute plot pane as remaining area."
+    },
+    {
+      "task": "Render layered canvases",
+      "details": "Use high-DPI canvas backing sizes and strict clipping for plot, price axis, time axis, and corner layers."
+    },
+    {
+      "task": "Implement crosshair overlay",
+      "details": "On focused/hovered pane, draw dashed vertical/horizontal lines and synchronized right price/bottom time labels."
+    },
+    {
+      "task": "Implement legend hover updates",
+      "details": "Map localX to the hovered bar and update OHLC/volume values without changing layout."
+    },
+    {
+      "task": "Implement time panning",
+      "details": "Canvas horizontal drags and time-axis horizontal drags update timeScaleTransform; pane rects remain unchanged."
+    },
+    {
+      "task": "Implement price scaling",
+      "details": "Price-axis vertical drags update priceScaleTransform; pane rects remain unchanged."
+    },
+    {
+      "task": "Implement bottom grid controls",
+      "details": "Zoom, scroll, reset, and latest controls mutate internal transforms only."
+    },
+    {
+      "task": "Implement active pane state",
+      "details": "Single pane starts active; in multi-pane layouts, clicks set activePaneId."
+    },
+    {
+      "task": "Implement ratio-based multi-pane layout",
+      "details": "Use normalized row/column ratios, splitter hitboxes, and min-size constraints; mark exact TradingView parity as pending live verification."
+    },
+    {
+      "task": "Implement maximize/restore snapshot model",
+      "details": "Store rows, columns, paneRects, and activePaneId before maximizing. Restore within 1-3px tolerance."
+    },
+    {
+      "task": "Leave minimize disabled unless verified",
+      "details": "No minimize/collapse control was verified in the live single-pane grid."
+    }
+  ],
+  "test_plan": [
+    {
+      "test": "desktop geometry",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "assertions": [
+        "chart grid origin and size are stable",
+        "plotWidth = gridWidth - 64",
+        "plotHeight = chartHeight - 28",
+        "priceScaleWidth = 64",
+        "timeScaleHeight = 28"
+      ]
+    },
+    {
+      "test": "mobile geometry",
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "assertions": [
+        "priceScaleWidth remains 64",
+        "timeScaleHeight remains 28",
+        "plot pane shrinks to remaining width",
+        "no horizontal overflow inside chart grid"
+      ]
+    },
+    {
+      "test": "hover plot",
+      "assertions": [
+        "cursor is crosshair",
+        "crosshair lines draw after focus/hover",
+        "right price hover label is visible",
+        "bottom time hover label is visible",
+        "legend values update"
+      ]
+    },
+    {
+      "test": "click plot and axes",
+      "assertions": [
+        "clicking plot keeps pane active",
+        "clicking price scale does not resize layout",
+        "clicking time scale does not resize layout",
+        "clicking axis corner does not resize layout"
+      ]
+    },
+    {
+      "test": "drag plot/time",
+      "assertions": [
+        "horizontal plot drag changes visible time range",
+        "time-axis drag changes visible time range",
+        "pane rects do not change"
+      ]
+    },
+    {
+      "test": "drag price axis",
+      "assertions": [
+        "vertical price-axis drag changes visible price range",
+        "pane and axis rects do not change"
+      ]
+    },
+    {
+      "test": "single-pane join",
+      "assertions": [
+        "dragging the price-axis join does not create a splitter",
+        "pane width and price-axis width remain unchanged"
+      ]
+    },
+    {
+      "test": "bottom controls",
+      "assertions": [
+        "zoom in/out mutate internal time transform",
+        "scroll left/right mutate internal time transform",
+        "reset/latest restore internal view",
+        "DOM geometry remains unchanged"
+      ]
+    },
+    {
+      "test": "multi-pane splitters",
+      "requires_live_inspection": true,
+      "assertions": [
+        "splitter drags conserve total adjacent pane size",
+        "min pane constraints are enforced",
+        "row/column ratios update"
+      ]
+    },
+    {
+      "test": "pane maximize/restore",
+      "requires_live_inspection": true,
+      "assertions": [
+        "snapshot saved before maximize",
+        "other panes hidden/covered/collapsed according to verified TradingView behavior",
+        "restore returns pane rects within 1-3px tolerance"
+      ]
+    }
+  ],
+  "acceptance_criteria": [
+    "JSON remains valid and machine-readable.",
+    "A builder can recreate the verified single-pane grid geometry without re-inspecting TradingView.",
+    "Desktop and mobile axis reservations match observed values: 64px price scale and 28px time scale.",
+    "Canvas, price scale, time scale, and corner hit areas use the documented coordinate formulas.",
+    "Plot hover uses crosshair cursor and crosshair overlay after focus.",
+    "Chart canvas and time-axis drags pan time without changing DOM geometry.",
+    "Price-axis vertical drags scale price without changing DOM geometry.",
+    "Bottom grid controls mutate internal transforms, not layout.",
+    "Single-pane mode does not expose pane splitters, maximize, or minimize controls.",
+    "Unverified multi-pane, splitter, maximize, and minimize behavior is clearly marked requires_live_inspection."
+  ],
+  "requires_live_inspection": [
+    {
+      "item": "multi-pane layout geometry",
+      "reason": "TradingView gated layouts beyond one chart per tab in this session."
+    },
+    {
+      "item": "vertical and horizontal pane splitter hitboxes",
+      "reason": "No multi-pane grid could be activated."
+    },
+    {
+      "item": "splitter minimum size constraints",
+      "reason": "No splitters were available."
+    },
+    {
+      "item": "pane-specific maximize button location, icon shape, tooltip text, and restore behavior",
+      "reason": "No pane maximize control appeared in the verified single-pane grid."
+    },
+    {
+      "item": "whether maximize hides, removes, collapses, or covers sibling panes",
+      "reason": "Requires multi-pane layout."
+    },
+    {
+      "item": "pane-specific minimize/collapse existence and restore behavior in multi-pane layouts",
+      "reason": "No minimize/collapse control appeared in the verified single-pane grid."
+    },
+    {
+      "item": "inactive pane hover and active pane switching",
+      "reason": "Only one pane was available."
+    },
+    {
+      "item": "exact mathematical transform coefficient for price-axis drag",
+      "reason": "TradingView exposes the result visually but not through stable DOM state."
+    },
+    {
+      "item": "exact mathematical transform coefficient for time-axis drag",
+      "reason": "TradingView exposes the result visually but not through stable DOM state."
+    },
+    {
+      "item": "dedicated accessibility tree",
+      "reason": "Dedicated AX/CDP inspection was unavailable; DOM snapshot roles/labels were inspected instead."
+    }
+  ],
+  "unknowns": [
+    "Exact TradingView row/column ratio serialization for saved multi-chart layouts.",
+    "Exact multi-pane splitter DOM class names and cursor styles.",
+    "Exact pane-specific maximize and restore button hitbox in multi-pane layouts.",
+    "Whether multi-pane maximize hides sibling panes with display none, visibility hidden, zero-size collapse, or an overlay stack.",
+    "Whether multi-pane minimize exists for chart panes or only for indicator/study panes.",
+    "Exact tolerance TradingView uses when restoring ratios after splitter drag or maximize restore.",
+    "Exact easing/debounce behavior during splitter drags.",
+    "Exact internal coefficients mapping mouse delta to price-scale zoom and time-scale pan.",
+    "Whether TradingView changes price scale width for other locales, fonts, instruments, or user settings."
+  ]
+}
