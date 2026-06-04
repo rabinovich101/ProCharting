@@ -253,8 +253,11 @@ The chart app supports:
   active count, checkbox-style menu items, outside-click closing, and Escape
   closing.
 - Dark/light UI themes.
-- Wheel zoom, drag pan, reset, crosshair, OHLC legend, current price marker, and
-  responsive desktop/tablet/mobile layouts.
+- TradingView-style chart scale behavior: interval-specific default bar density,
+  a small right-side future offset, semantic time-axis ticks, pixel-targeted
+  nice price ticks, a dotted current-price guide with a right-axis marker,
+  cursor-anchored wheel zoom, horizontal/Shift-wheel timeline pan, reset,
+  crosshair, OHLC legend, and responsive desktop/tablet/mobile layouts.
 - TradingView-style right price-scale interaction: the right axis is a distinct
   pointer hit area, vertical axis drags create a manual Y range anchored to the
   pointer price, and plot drags can pan that manual price range vertically until
@@ -263,6 +266,9 @@ The chart app supports:
   bar slots rather than only `candles.slice(start, end)`, so horizontal pan and
   wheel zoom can preserve empty future slots to the right of the latest candle
   while candles, gridlines, crosshair labels, and time labels stay aligned.
+  Wheel and drag gestures may leave the logical range on fractional slots, so
+  timeline tick generation converts slot positions into interpolated candle
+  timestamps instead of indexing the candle array directly.
 - The canvas exposes non-visible `data-*` diagnostics for browser QA/devtools
   inspection of pointer area, drag mode, logical view range, and manual price
   bounds. These attributes are not part of the end-user visual surface.
