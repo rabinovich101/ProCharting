@@ -1,3 +1,105 @@
+# TradingView-Style Indicator Picker And Legend Plan
+
+## Goal
+
+Make the standalone Binance chart test app behave more like TradingView for
+indicators: the top command bar opens a broad searchable indicator picker, adding
+an indicator creates a top-left chart legend row, and hovering that row exposes
+controls for hide/show, settings, remove, and more actions.
+
+## Findings
+
+- The relevant UI lives in `TEST/binance-chart-test/app/page.tsx`; CodeGraph
+  shows the current indicator surface is only `IndicatorsDropdown`, `MA20`, and
+  `Volume`.
+- The current chart is a direct Canvas 2D React page, not the packaged
+  `@procharting/core` renderer path.
+- TradingView's reference UI uses a top toolbar `Indicators` button, a large
+  picker modal with search/category structure, and study legend rows inside the
+  chart region. Legend actions such as hide, settings, remove, and more are
+  present in the DOM and visually appear on hover.
+- The user's screenshots focus on the top-left selected-study legend, especially
+  Bollinger Bands with hover-revealed controls.
+
+## Scope / Decisions
+
+- Keep changes focused on `TEST/binance-chart-test/app/page.tsx`,
+  `TEST/binance-chart-test/app/globals.css`, `ARCHITECTURE.md`, and this
+  `todo.md`.
+- Use a local indicator registry and simple Canvas 2D calculations instead of
+  adding dependencies or touching package renderer architecture.
+- Support the core built-ins needed for the screenshot-style workflow:
+  Volume, SMA, EMA, Bollinger Bands, VWAP Session, RSI, MACD, Stochastic,
+  Donchian Channels, WMA, Momentum, Rate of Change, Accumulation/Distribution,
+  ATR, Bollinger %B, and Bollinger BandWidth.
+- For "all indicators like TradingView", implement a TradingView-like built-in
+  picker with a broad common-technical list inside this app's supported surface;
+  do not pretend unsupported TradingView cloud/community scripts exist locally.
+- Make settings real: period/source/deviation/fast/slow/signal inputs update the
+  active indicator and redraw the chart.
+
+## Checklist
+
+- [x] Inspect CodeGraph context and locate chart/indicator implementation.
+- [x] Inspect the user screenshots and live TradingView indicator/legend
+      behavior with Browser/Playwright/devtools.
+- [x] Add a local indicator registry, active indicator state, and calculation
+      helpers.
+- [x] Replace the small indicator toggle dropdown with a searchable
+      TradingView-style picker.
+- [x] Add the chart legend overlay with hover actions and settings/more panels.
+- [x] Draw selected price overlays, volume, and oscillator panes from active
+      indicators.
+- [x] Update responsive styling so the picker/legend work on desktop and mobile.
+- [x] Update `ARCHITECTURE.md` for the new indicator UI/rendering architecture.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify with local Browser/Playwright screenshots, including hover controls
+      and settings/remove behavior.
+- [x] Commit, push, and confirm the working tree is clean.
+
+## Review
+
+Implemented the TradingView-style indicator picker and active-study legend for
+the standalone Binance chart test app.
+
+- `TEST/binance-chart-test/app/page.tsx` now uses a local indicator registry,
+  active indicator instances, shared calculation helpers, and computed series
+  for Volume, SMA, EMA, Bollinger Bands, VWAP Session, RSI, MACD, Stochastic,
+  Donchian Channels, WMA, Momentum, Rate of Change, Accumulation/Distribution,
+  ATR, Bollinger %B, and Bollinger BandWidth.
+- The old two-toggle Indicators dropdown is now a searchable TradingView-style
+  picker with built-in categories, active count, and menu checked states.
+- Selected indicators render into a top-left chart legend. Legend rows expose
+  hide/show, settings, remove, duplicate, and move actions through real DOM
+  controls, and settings update period/source/deviation/MACD signal inputs and
+  line color.
+- Price overlays draw on the main chart and participate in automatic Y-range
+  fitting. Volume draws in its volume band. RSI/MACD-style oscillators draw in
+  compact lower panes with guide lines and right-side values.
+- `TEST/binance-chart-test/app/globals.css` adds desktop and mobile picker
+  layouts plus the TradingView-like legend styling.
+- `ARCHITECTURE.md` now documents the registry-backed indicator architecture,
+  legend controls, and pane routing.
+
+Verification results:
+
+- `pnpm run typecheck` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `pnpm --dir TEST/binance-chart-test build` passed. Next still reports the
+  existing multiple-lockfile and missing Next ESLint plugin warnings.
+- `git diff --check` passed.
+- Browser/Playwright QA at `http://127.0.0.1:3006` passed: the chart loaded,
+  the picker opened centered on desktop, Bollinger Bands and RSI were added
+  through the menu, BB bands and the RSI pane rendered, BB settings opened and
+  accepted a length change, BB remove dropped the active count, light mode showed
+  the white legend styling, and local browser warn/error logs were empty.
+- Mobile QA at `390x844` passed: toolbar and legend fit, the picker opened at
+  `left=10/right=380`, and `body.scrollWidth`/`documentElement.scrollWidth`
+  stayed equal to `390`.
+- `pnpm run lint` still fails on existing package-wide lint debt outside this
+  change, mostly in `packages/core`, `packages/utils`, `packages/webgl`, and
+  `packages/webgpu`. The touched chart app passes its focused lint check.
+
 # Remove Visible Candle Range Label Plan
 
 ## Goal
