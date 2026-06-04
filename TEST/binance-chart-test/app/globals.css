@@ -76,20 +76,21 @@ summary {
   background: color-mix(in srgb, var(--surface-1) 96%, transparent);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
-  min-height: 42px;
-  padding: 4px 8px;
+  min-height: 38px;
+  padding: 0 8px;
   position: relative;
   z-index: 20;
 }
 
 .top-command-bar,
-.command-market-readout {
+.header-right-cluster {
   align-items: center;
   display: flex;
 }
 
 .top-command-bar {
-  gap: 4px;
+  gap: 0;
+  height: 38px;
   min-width: 0;
   position: relative;
   width: 100%;
@@ -108,6 +109,7 @@ summary {
   box-shadow: 0 0 0 3px color-mix(in srgb, #d7a43c 16%, transparent);
   flex: 0 0 auto;
   height: 8px;
+  margin: 0 10px 0 8px;
   width: 8px;
 }
 
@@ -119,44 +121,6 @@ summary {
 .feed-dot.offline {
   background: var(--negative);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--negative) 16%, transparent);
-}
-
-.command-market-readout {
-  flex: 1 1 auto;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-left: auto;
-  min-width: 0;
-  overflow: hidden;
-  padding-left: 12px;
-  white-space: nowrap;
-}
-
-.last-price {
-  color: var(--text-strong);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.price-change {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 12px;
-}
-
-.price-change.positive {
-  color: var(--positive);
-}
-
-.price-change.negative {
-  color: var(--negative);
-}
-
-.muted {
-  color: var(--text-muted);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .sr-only {
@@ -188,7 +152,7 @@ summary {
   font-weight: 650;
   gap: 7px;
   justify-content: center;
-  min-height: 32px;
+  min-height: 38px;
   outline: 0;
   padding: 0 8px;
   transition:
@@ -227,7 +191,7 @@ summary {
 .icon-tool {
   flex: 0 0 auto;
   padding: 0;
-  width: 34px;
+  width: 38px;
 }
 
 .symbol-badge {
@@ -245,84 +209,62 @@ summary {
   width: 22px;
 }
 
-.theme-glyph,
-.reset-glyph {
+.header-icon {
   color: currentColor;
-  height: 17px;
-  position: relative;
-  width: 17px;
+  fill: none;
+  flex: 0 0 auto;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  width: 18px;
 }
 
-.theme-glyph.sun::before {
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  content: "";
-  height: 9px;
-  left: 2px;
-  position: absolute;
-  top: 2px;
-  width: 9px;
+.tv-command-with-text {
+  min-width: 76px;
 }
 
-.theme-glyph.sun::after {
-  background: currentColor;
-  box-shadow:
-    0 -6px 0 currentColor,
-    0 6px 0 currentColor,
-    -6px 0 0 currentColor,
-    6px 0 0 currentColor;
-  content: "";
-  height: 2px;
-  left: 7px;
-  position: absolute;
-  top: 7px;
-  width: 2px;
+.header-spacer {
+  flex: 1 1 auto;
+  min-width: 16px;
 }
 
-.theme-glyph.moon::before {
-  background: currentColor;
-  border-radius: 50%;
-  content: "";
-  height: 14px;
-  left: 1px;
-  position: absolute;
-  top: 1px;
-  width: 14px;
+.header-right-cluster {
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 0;
 }
 
-.theme-glyph.moon::after {
-  background: var(--surface-1);
-  border-radius: 50%;
-  content: "";
-  height: 13px;
-  left: 6px;
-  position: absolute;
-  top: -1px;
-  width: 13px;
+.tv-save-button {
+  min-width: 64px;
 }
 
-.reset-glyph::before {
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  content: "";
-  height: 12px;
-  left: 1px;
-  position: absolute;
-  top: 2px;
-  transform: rotate(-22deg);
-  width: 12px;
+.tv-save-menu-button {
+  padding: 0;
+  width: 24px;
 }
 
-.reset-glyph::after {
-  border-left: 5px solid currentColor;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  content: "";
-  position: absolute;
-  right: 1px;
-  top: 0;
-  transform: rotate(-18deg);
+.tv-save-menu-button .header-icon {
+  height: 16px;
+  width: 16px;
+}
+
+.tv-trade-button {
+  border-radius: 999px;
+  font-weight: 650;
+  margin-left: 5px;
+  min-width: 61px;
+}
+
+.tv-publish-button {
+  background: var(--text-strong);
+  border-color: var(--text-strong);
+  border-radius: 999px;
+  color: var(--surface-0);
+  font-weight: 720;
+  margin-left: 6px;
+  min-width: 76px;
 }
 
 .toolbar-trigger:hover,
@@ -333,6 +275,22 @@ summary {
   background: var(--surface-3);
   border-color: var(--border-strong);
   color: var(--text-strong);
+}
+
+.tool-toggle:disabled,
+.tool-toggle:disabled:hover,
+.tool-toggle:disabled:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  color: color-mix(in srgb, var(--text-muted) 46%, transparent);
+  cursor: default;
+}
+
+.tv-publish-button:hover,
+.tv-publish-button:focus-visible {
+  background: color-mix(in srgb, var(--text-strong) 88%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--text-strong) 88%, var(--surface-2));
+  color: var(--surface-0);
 }
 
 .trigger-label,
@@ -1213,19 +1171,15 @@ summary {
 }
 
 @media (max-width: 900px) {
-  .command-market-readout .muted {
+  .desktop-header-command,
+  .header-spacer,
+  .header-right-cluster {
     display: none;
   }
 
   .align-right .toolbar-menu {
     left: 0;
     right: auto;
-  }
-}
-
-@media (max-width: 720px) {
-  .command-market-readout {
-    display: none;
   }
 }
 
@@ -1240,15 +1194,6 @@ summary {
     padding: 6px;
   }
 
-  .last-price {
-    font-size: 12px;
-  }
-
-  .price-change,
-  .muted {
-    font-size: 11px;
-  }
-
   .top-command-bar {
     display: grid;
     gap: 4px;
@@ -1257,9 +1202,7 @@ summary {
       10px
       minmax(42px, 0.56fr)
       38px
-      minmax(46px, 0.68fr)
-      34px
-      34px;
+      minmax(46px, 0.68fr);
     width: 100%;
   }
 

@@ -1,3 +1,75 @@
+# TradingView Desktop Header Right Controls
+
+## Goal
+
+Make the standalone chart app desktop header's right-side controls match the
+current TradingView desktop chart header instead of showing the ProCharting
+theme/reset buttons and market readout there.
+
+## Findings / Decisions
+
+- Live TradingView desktop inspection at `1280x720` shows the top header uses a
+  38px toolbar. After Indicators it shows indicator templates, Alert, Replay,
+  disabled undo/redo, then a right-aligned cluster for layout, save/menu, quick
+  search, settings, fullscreen, snapshot, Trade, and a dark Publish button.
+- The local chart already displays the latest price and OHLC data in the chart
+  legend, so keeping a duplicate market readout in the header is the visible
+  mismatch.
+- Keep this as a visual/header-surface change in the standalone Next QA app:
+  do not change data fetching, indicator logic, chart rendering, or packaged
+  library code.
+- Preserve responsive behavior by letting mobile keep compact grid sizing while
+  desktop gets the TradingView-style control sequence.
+
+## Checklist
+
+- [x] Replace the desktop header right side with TradingView-style controls.
+- [x] Add focused styles/icons for the new header command buttons.
+- [x] Update `ARCHITECTURE.md` for the standalone header contract.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify desktop and mobile with Browser/Playwright/devtools.
+- [ ] Commit and push `main`.
+
+## Review
+
+Completed the TradingView desktop header right-controls pass.
+
+- Live TradingView desktop inspection showed the right-side toolbar sequence:
+  indicator templates, Alert, Replay, disabled undo/redo, layout, save/menu,
+  quick search, settings, fullscreen, snapshot, Trade, and Publish.
+- `TEST/binance-chart-test/app/page.tsx` now renders that sequence in the
+  standalone chart header and removes the old theme/reset buttons plus duplicate
+  latest market readout. Quick search opens the symbol menu, fullscreen toggles
+  document fullscreen, and snapshot downloads the chart canvas.
+- `TEST/binance-chart-test/app/globals.css` now styles a 38px desktop command
+  bar with local inline SVG header icons, disabled undo/redo states, and a
+  right-aligned TradingView-style control cluster. The new desktop-only controls
+  hide below 900px so mobile keeps its compact symbol/timeframe/chart-style/
+  indicators header.
+- `ARCHITECTURE.md` documents the updated standalone chart app header contract.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser inspection of TradingView at `1280x720` captured the target desktop
+  toolbar sequence.
+- Playwright desktop QA at `1280x720` passed: all target controls were present,
+  undo/redo were disabled, old market/theme/reset elements were absent, header
+  icon count was `11`, there was no horizontal overflow, and console errors were
+  empty.
+- Playwright mobile QA at `390x844` passed: the desktop command cluster was
+  hidden, the compact four-control mobile header remained visible, old
+  market/theme/reset elements were absent, and there was no horizontal overflow.
+- DevTools Protocol QA confirmed the desktop header labels, right cluster
+  placement, old readout count `0`, overflow `0`, and no console errors.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-tradingview-header-desktop.png` and
+  `/tmp/procharting-tradingview-header-mobile.png`.
+
 # Indicator Settings Gear Icon
 
 ## Goal

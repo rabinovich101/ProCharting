@@ -1546,6 +1546,100 @@ function IndicatorsDropdown({
   );
 }
 
+type HeaderIconName =
+  | 'templates'
+  | 'alert'
+  | 'replay'
+  | 'undo'
+  | 'redo'
+  | 'layout'
+  | 'caret'
+  | 'search'
+  | 'settings'
+  | 'fullscreen'
+  | 'snapshot';
+
+const HEADER_ICON_PATHS: Record<HeaderIconName, ReactNode> = {
+  templates: (
+    <>
+      <rect x="3" y="3" width="5" height="5" rx="1" />
+      <rect x="12" y="3" width="5" height="5" rx="1" />
+      <rect x="3" y="12" width="5" height="5" rx="1" />
+      <rect x="12" y="12" width="5" height="5" rx="1" />
+    </>
+  ),
+  alert: (
+    <>
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 6v4l3 2" />
+      <path d="M15.5 4.5l2-2" />
+      <path d="M16 2.5h2v2" />
+    </>
+  ),
+  replay: (
+    <>
+      <path d="M7 5L3 10l4 5" />
+      <path d="M14 5l-4 5 4 5" />
+      <path d="M17 5v10" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M8 6H4v4" />
+      <path d="M4 10c2.2-3.6 7.8-4.1 11-1.1 1.4 1.4 2 3.3 1.7 5.1" />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="M12 6h4v4" />
+      <path d="M16 10C13.8 6.4 8.2 5.9 5 8.9 3.6 10.3 3 12.2 3.3 14" />
+    </>
+  ),
+  layout: <rect x="4" y="4" width="12" height="12" rx="2" />,
+  caret: <path d="M6 8l4 4 4-4" />,
+  search: (
+    <>
+      <circle cx="8.5" cy="8.5" r="5" />
+      <path d="M12.5 12.5L17 17" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="10" cy="10" r="2.5" />
+      <path d="M10 2.5v2" />
+      <path d="M10 15.5v2" />
+      <path d="M2.5 10h2" />
+      <path d="M15.5 10h2" />
+      <path d="M4.7 4.7l1.4 1.4" />
+      <path d="M13.9 13.9l1.4 1.4" />
+      <path d="M15.3 4.7l-1.4 1.4" />
+      <path d="M6.1 13.9l-1.4 1.4" />
+    </>
+  ),
+  fullscreen: (
+    <>
+      <path d="M7 3H3v4" />
+      <path d="M13 3h4v4" />
+      <path d="M17 13v4h-4" />
+      <path d="M3 13v4h4" />
+    </>
+  ),
+  snapshot: (
+    <>
+      <path d="M6.5 6.5l1-2h5l1 2H16a2 2 0 0 1 2 2v6A2 2 0 0 1 16 16H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2h2.5z" />
+      <circle cx="10" cy="11" r="3" />
+    </>
+  ),
+};
+
+function HeaderIcon({ name }: { name: HeaderIconName }) {
+  return (
+    <svg className="header-icon" viewBox="0 0 20 20" aria-hidden="true">
+      {HEADER_ICON_PATHS[name]}
+    </svg>
+  );
+}
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
@@ -1584,7 +1678,7 @@ export default function Home() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [timeframe, setTimeframe] = useState('1m');
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
-  const [theme, setTheme] = useState<ThemeName>('dark');
+  const [theme] = useState<ThemeName>('dark');
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(DEFAULT_ACTIVE_INDICATORS);
   const [settingsTargetId, setSettingsTargetId] = useState<string | null>(null);
   const [moreTargetId, setMoreTargetId] = useState<string | null>(null);
@@ -1603,10 +1697,6 @@ export default function Home() {
 
   const palette = PALETTES[theme];
   const latestCandle = candles.length > 0 ? candles[candles.length - 1] : null;
-  const previousCandle = candles.length > 1 ? candles[candles.length - 2] : null;
-  const priceChange = latestCandle && previousCandle ? latestCandle.close - previousCandle.close : 0;
-  const priceChangePercent = previousCandle ? (priceChange / previousCandle.close) * 100 : 0;
-  const changeTone = priceChange >= 0 ? 'positive' : 'negative';
   const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
   const visibleVolumeIndicator = visibleIndicators.find(
     (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
@@ -2744,6 +2834,38 @@ export default function Home() {
   const legendChangePercent =
     legendCandle && legendCandle.open !== 0 ? (legendChange / legendCandle.open) * 100 : 0;
   const legendTone = legendChange >= 0 ? 'positive' : 'negative';
+  const closeHeaderOverlays = () => {
+    setOpenMenu(null);
+    setSettingsTargetId(null);
+    setMoreTargetId(null);
+  };
+  const openQuickSearch = () => {
+    setSettingsTargetId(null);
+    setMoreTargetId(null);
+    setOpenMenu('symbol');
+    focusMenuItem('symbol', 0);
+  };
+  const toggleFullscreen = () => {
+    closeHeaderOverlays();
+
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
+
+    void document.documentElement.requestFullscreen?.();
+  };
+  const takeChartSnapshot = () => {
+    closeHeaderOverlays();
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `procharting-${symbol.toLowerCase()}-${timeframe}.png`;
+    link.click();
+  };
 
   return (
     <main className="chart-terminal" data-theme={theme}>
@@ -2802,37 +2924,136 @@ export default function Home() {
 
           <button
             type="button"
-            className="tool-toggle icon-tool"
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            onClick={() => {
-              setOpenMenu(null);
-              setTheme((value) => (value === 'dark' ? 'light' : 'dark'));
-            }}
+            className="tool-toggle icon-tool desktop-header-command"
+            aria-label="Indicator templates"
+            title="Indicator templates"
+            onClick={closeHeaderOverlays}
           >
-            <span className={`theme-glyph ${theme === 'dark' ? 'moon' : 'sun'}`} aria-hidden="true" />
+            <HeaderIcon name="templates" />
           </button>
           <button
             type="button"
-            className="tool-toggle icon-tool"
-            aria-label="Reset chart view"
-            title="Reset chart view"
-            onClick={() => {
-              setOpenMenu(null);
-              resetView();
-            }}
+            className="tool-toggle tv-command-with-text desktop-header-command"
+            aria-label="Create alert"
+            title="Create alert"
+            onClick={closeHeaderOverlays}
           >
-            <span className="reset-glyph" aria-hidden="true" />
+            <HeaderIcon name="alert" />
+            <span>Alert</span>
+          </button>
+          <button
+            type="button"
+            className="tool-toggle tv-command-with-text desktop-header-command"
+            aria-label="Bar replay"
+            title="Bar replay"
+            onClick={closeHeaderOverlays}
+          >
+            <HeaderIcon name="replay" />
+            <span>Replay</span>
+          </button>
+          <button
+            type="button"
+            className="tool-toggle icon-tool desktop-header-command"
+            aria-label="Undo"
+            title="Undo"
+            disabled
+          >
+            <HeaderIcon name="undo" />
+          </button>
+          <button
+            type="button"
+            className="tool-toggle icon-tool desktop-header-command"
+            aria-label="Redo"
+            title="Redo"
+            disabled
+          >
+            <HeaderIcon name="redo" />
           </button>
 
-          <div className="command-market-readout" aria-label="Latest market price">
-            <span className="last-price">{latestCandle ? formatPrice(latestCandle.close) : '-'}</span>
-            <span className={`price-change ${changeTone}`}>
-              {priceChange >= 0 ? '+' : ''}
-              {formatPrice(priceChange)} ({priceChangePercent >= 0 ? '+' : ''}
-              {priceChangePercent.toFixed(2)}%)
-            </span>
-            <span className="muted">Binance Spot</span>
+          <span className="header-spacer" aria-hidden="true" />
+
+          <div className="header-right-cluster" aria-label="TradingView desktop header controls">
+            <button
+              type="button"
+              className="tool-toggle icon-tool"
+              aria-label="Layout setup"
+              title="Layout setup"
+              onClick={closeHeaderOverlays}
+            >
+              <HeaderIcon name="layout" />
+            </button>
+            <button
+              type="button"
+              className="tool-toggle tv-save-button"
+              aria-label="Save all charts for all symbols and intervals on your layout"
+              title="Save all charts for all symbols and intervals on your layout"
+              onClick={closeHeaderOverlays}
+            >
+              <span>Save</span>
+            </button>
+            <button
+              type="button"
+              className="tool-toggle tv-save-menu-button"
+              aria-label="Manage layouts"
+              title="Manage layouts"
+              onClick={closeHeaderOverlays}
+            >
+              <HeaderIcon name="caret" />
+            </button>
+            <button
+              type="button"
+              className="tool-toggle icon-tool"
+              aria-label="Quick search"
+              title="Quick search"
+              onClick={openQuickSearch}
+            >
+              <HeaderIcon name="search" />
+            </button>
+            <button
+              type="button"
+              className="tool-toggle icon-tool"
+              aria-label="Settings"
+              title="Settings"
+              onClick={closeHeaderOverlays}
+            >
+              <HeaderIcon name="settings" />
+            </button>
+            <button
+              type="button"
+              className="tool-toggle icon-tool"
+              aria-label="Fullscreen mode"
+              title="Fullscreen mode"
+              onClick={toggleFullscreen}
+            >
+              <HeaderIcon name="fullscreen" />
+            </button>
+            <button
+              type="button"
+              className="tool-toggle icon-tool"
+              aria-label="Take a snapshot"
+              title="Take a snapshot"
+              onClick={takeChartSnapshot}
+            >
+              <HeaderIcon name="snapshot" />
+            </button>
+            <button
+              type="button"
+              className="tool-toggle tv-trade-button"
+              aria-label="Trade"
+              title="Trade"
+              onClick={closeHeaderOverlays}
+            >
+              <span>Trade</span>
+            </button>
+            <button
+              type="button"
+              className="tool-toggle tv-publish-button"
+              aria-label="Share your idea with the trade community"
+              title="Share your idea with the trade community"
+              onClick={closeHeaderOverlays}
+            >
+              <span>Publish</span>
+            </button>
           </div>
         </div>
       </header>
