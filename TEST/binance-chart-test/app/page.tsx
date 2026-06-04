@@ -2070,93 +2070,9 @@ function LayoutOptionIcon({ option }: { option: ChartLayoutOption }) {
   );
 }
 
-function LayoutPreviewPane({
-  paneIndex,
-  symbol,
-  timeframe,
-  candles,
-  palette,
-}: {
-  paneIndex: number;
-  symbol: string;
-  timeframe: string;
-  candles: Candle[];
-  palette: Palette;
-}) {
-  const previewCandles = candles.slice(-90);
-  const width = 240;
-  const height = 140;
-  const padding = { left: 10, top: 18, right: 12, bottom: 26 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const prices = previewCandles.flatMap((candle) => [candle.high, candle.low]);
-  const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-  const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
-  const priceRange = maxPrice - minPrice || 1;
-  const maxVolume = Math.max(...previewCandles.map((candle) => candle.volume), 1);
-  const priceToY = (price: number) => padding.top + ((maxPrice - price) / priceRange) * plotHeight;
-  const xForIndex = (index: number) =>
-    padding.left + (previewCandles.length <= 1 ? 0 : (index / (previewCandles.length - 1)) * plotWidth);
-  const closePoints = previewCandles.map((candle, index) => `${xForIndex(index).toFixed(2)},${priceToY(candle.close).toFixed(2)}`);
-  const areaPoints =
-    closePoints.length > 0
-      ? `${padding.left},${padding.top + plotHeight} ${closePoints.join(' ')} ${
-          padding.left + plotWidth
-        },${padding.top + plotHeight}`
-      : '';
-  const latest = previewCandles[previewCandles.length - 1];
-  const latestTone = latest && latest.close >= latest.open ? 'positive' : 'negative';
-
-  return (
-    <div className="layout-preview-pane" aria-label={`Chart pane ${paneIndex}`}>
-      <div className="layout-preview-header">
-        <span>{formatSymbol(symbol)}</span>
-        <span>{timeframe.toUpperCase()}</span>
-      </div>
-      <svg className="layout-preview-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id={`layout-preview-fill-${paneIndex}`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={palette.line} stopOpacity="0.24" />
-            <stop offset="100%" stopColor={palette.line} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 1, 2, 3].map((lineIndex) => {
-          const y = padding.top + (plotHeight / 3) * lineIndex;
-          return <line key={`h-${lineIndex}`} x1="0" x2={width} y1={y} y2={y} className="layout-preview-grid-line" />;
-        })}
-        {[0, 1, 2, 3, 4].map((lineIndex) => {
-          const x = padding.left + (plotWidth / 4) * lineIndex;
-          return <line key={`v-${lineIndex}`} x1={x} x2={x} y1="0" y2={height} className="layout-preview-grid-line" />;
-        })}
-        {previewCandles.map((candle, index) => {
-          const x = xForIndex(index);
-          const barHeight = Math.max(1, (candle.volume / maxVolume) * 24);
-          const isUp = candle.close >= candle.open;
-          return (
-            <rect
-              key={`${candle.time}-${index}`}
-              x={x - 0.8}
-              y={height - padding.bottom + 20 - barHeight}
-              width="1.6"
-              height={barHeight}
-              className={isUp ? 'layout-preview-volume-up' : 'layout-preview-volume-down'}
-            />
-          );
-        })}
-        {areaPoints && <polygon points={areaPoints} fill={`url(#layout-preview-fill-${paneIndex})`} />}
-        {closePoints.length > 0 && <polyline points={closePoints.join(' ')} className="layout-preview-price-line" />}
-      </svg>
-      {latest && (
-        <span className="layout-preview-price" data-tone={latestTone}>
-          {formatPrice(latest.close)}
-        </span>
-      )}
-    </div>
-  );
-}
-
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const duplicateCanvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
@@ -2231,6 +2147,7 @@ export default function Home() {
   const latestCandle = candles.length > 0 ? candles[candles.length - 1] : null;
   const selectedLayout = ALL_LAYOUT_OPTIONS.find((option) => option.id === selectedLayoutId) ?? ALL_LAYOUT_OPTIONS[0]!;
   const selectedLayoutCells = selectedLayout.cells;
+  const duplicatePaneCount = Math.max(0, selectedLayoutCells.length - 1);
   const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
   const visibleVolumeIndicator = visibleIndicators.find(
     (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
@@ -2255,6 +2172,10 @@ export default function Home() {
       action.description.toLowerCase().includes(query)
     );
   });
+
+  useEffect(() => {
+    duplicateCanvasRefs.current = duplicateCanvasRefs.current.slice(0, duplicatePaneCount);
+  }, [duplicatePaneCount]);
 
   useEffect(() => {
     try {
@@ -2792,10 +2713,13 @@ export default function Home() {
     ctx.stroke();
   };
 
-  const drawChart = () => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
+  const drawChart = (
+    canvas: HTMLCanvasElement,
+    {
+      updateInteractionBounds = false,
+      crosshairPosition = null,
+    }: { updateInteractionBounds?: boolean; crosshairPosition?: MousePosition | null } = {}
+  ) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -2920,11 +2844,13 @@ export default function Home() {
     const maxPaddedPrice = activePriceRange.maxPrice;
     const paddedPriceRange = maxPaddedPrice - minPaddedPrice || 1;
 
-    chartBounds.current = {
-      minPrice: minPaddedPrice,
-      maxPrice: maxPaddedPrice,
-      chartArea,
-    };
+    if (updateInteractionBounds) {
+      chartBounds.current = {
+        minPrice: minPaddedPrice,
+        maxPrice: maxPaddedPrice,
+        chartArea,
+      };
+    }
 
     const priceToY = (price: number) =>
       chartArea.top + ((maxPaddedPrice - price) / paddedPriceRange) * chartArea.height;
@@ -3305,40 +3231,44 @@ export default function Home() {
 
     const crosshairInside =
       chartSettings.showCrosshair &&
-      mousePos &&
-      mousePos.x >= chartArea.left &&
-      mousePos.x <= chartArea.left + chartArea.width &&
-      mousePos.y >= chartArea.top &&
-      mousePos.y <= chartArea.top + chartArea.height;
+      crosshairPosition &&
+      crosshairPosition.x >= chartArea.left &&
+      crosshairPosition.x <= chartArea.left + chartArea.width &&
+      crosshairPosition.y >= chartArea.top &&
+      crosshairPosition.y <= chartArea.top + chartArea.height;
 
-    if (crosshairInside) {
-      const crosshairRatio = clamp((mousePos.x - chartArea.left) / chartArea.width, 0, 1);
+    if (crosshairInside && crosshairPosition) {
+      const crosshairRatio = clamp((crosshairPosition.x - chartArea.left) / chartArea.width, 0, 1);
       const crosshairLogicalIndex = Math.floor(viewRange.startIndex + crosshairRatio * viewRange.candlesPerView);
 
       ctx.strokeStyle = palette.crosshair;
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      ctx.moveTo(mousePos.x, chartArea.top);
-      ctx.lineTo(mousePos.x, chartArea.top + chartArea.height);
+      ctx.moveTo(crosshairPosition.x, chartArea.top);
+      ctx.lineTo(crosshairPosition.x, chartArea.top + chartArea.height);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(chartArea.left, mousePos.y);
-      ctx.lineTo(chartArea.left + chartArea.width, mousePos.y);
+      ctx.moveTo(chartArea.left, crosshairPosition.y);
+      ctx.lineTo(chartArea.left + chartArea.width, crosshairPosition.y);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      const priceLabel = formatPrice(mousePos.dataY);
+      const priceLabel = formatPrice(crosshairPosition.dataY);
       ctx.fillStyle = palette.axisBg;
-      ctx.fillRect(chartArea.left + chartArea.width + 1, mousePos.y - 11, rightAxisWidth - 6, 22);
+      ctx.fillRect(chartArea.left + chartArea.width + 1, crosshairPosition.y - 11, rightAxisWidth - 6, 22);
       ctx.fillStyle = palette.textBright;
       ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
       ctx.textAlign = 'left';
-      ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, mousePos.y + 5);
+      ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, crosshairPosition.y + 5);
 
       const timeLabel = formatTime(timeForIndex(crosshairLogicalIndex), true);
       const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
-      const labelX = clamp(mousePos.x - timeLabelWidth / 2, chartArea.left, chartArea.left + chartArea.width - timeLabelWidth);
+      const labelX = clamp(
+        crosshairPosition.x - timeLabelWidth / 2,
+        chartArea.left,
+        chartArea.left + chartArea.width - timeLabelWidth
+      );
       ctx.fillStyle = palette.axisBg;
       ctx.fillRect(labelX, chartArea.top + chartArea.height + 2, timeLabelWidth, 22);
       ctx.fillStyle = palette.textBright;
@@ -3350,7 +3280,16 @@ export default function Home() {
 
   useEffect(() => {
     const animate = () => {
-      drawChart();
+      if (canvasRef.current) {
+        drawChart(canvasRef.current, { updateInteractionBounds: true, crosshairPosition: mousePos });
+      }
+
+      duplicateCanvasRefs.current.forEach((canvas) => {
+        if (canvas) {
+          drawChart(canvas, { updateInteractionBounds: false, crosshairPosition: null });
+        }
+      });
+
       animationRef.current = requestAnimationFrame(animate);
     };
 
@@ -3374,6 +3313,7 @@ export default function Home() {
     symbol,
     timeframe,
     chartSettings,
+    duplicatePaneCount,
   ]);
 
   const canvasCursor =
@@ -3580,6 +3520,99 @@ export default function Home() {
     resetView();
     closeHeaderOverlays();
   };
+  const renderDuplicatePaneDetails = (paneIndex: number) => (
+    <>
+      {chartSettings.showStatusLine && legendCandle && (
+        <div
+          className="instrument-legend-overlay duplicate-legend-overlay"
+          aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend pane ${paneIndex}`}
+        >
+          <span className="instrument-legend-symbol">
+            {formatSymbol(symbol)} {timeframe.toUpperCase()}
+          </span>
+          <span className="instrument-legend-field">
+            <span>O</span>
+            {formatPrice(legendCandle.open)}
+          </span>
+          <span className="instrument-legend-field">
+            <span>H</span>
+            {formatPrice(legendCandle.high)}
+          </span>
+          <span className="instrument-legend-field">
+            <span>L</span>
+            {formatPrice(legendCandle.low)}
+          </span>
+          <span className="instrument-legend-field">
+            <span>C</span>
+            {formatPrice(legendCandle.close)}
+          </span>
+          <span className={`instrument-legend-change ${legendTone}`}>
+            {legendChange >= 0 ? '+' : ''}
+            {formatPrice(legendChange)} ({legendChangePercent >= 0 ? '+' : ''}
+            {legendChangePercent.toFixed(2)}%)
+          </span>
+        </div>
+      )}
+
+      {chartSettings.showIndicatorLegend && activeIndicators.length > 0 && legendCandle && (
+        <div className="indicator-legend-overlay duplicate-indicator-legend-overlay" aria-label={`Active indicators pane ${paneIndex}`}>
+          {activeIndicators.map((indicator) => {
+            const definition = getIndicatorDefinition(indicator.definitionId);
+            const computed = activeIndicatorSeries[indicator.id];
+            const indicatorValues =
+              definition.formula === 'volume'
+                ? [{ label: 'Volume', color: definition.defaults.color ?? palette.text, value: legendCandle.volume }]
+                : computed?.lines.map((line) => ({
+                    label: line.label,
+                    color: line.color,
+                    value: legendIndex >= 0 ? line.values[legendIndex] : null,
+                  })) ?? [];
+
+            return (
+              <div key={`${paneIndex}-${indicator.id}`} className="indicator-legend-row" data-visible={indicator.visible}>
+                <div className="indicator-legend-main">
+                  <span className="indicator-legend-title">{getIndicatorLegendName(indicator, symbol)}</span>
+                  {indicatorValues.map((item) => (
+                    <span key={`${paneIndex}-${indicator.id}-${item.label}`} className="indicator-legend-value" style={{ color: item.color }}>
+                      {formatIndicatorNumber(item.value)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {loading && (
+        <div className="chart-overlay">
+          <div className="loading-panel">
+            <span className="loading-line" />
+            <span className="loading-line short" />
+            <span className="state-copy">Loading market data</span>
+          </div>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="chart-overlay">
+          <div className="state-panel">
+            <strong>Market data unavailable</strong>
+            <span>{error}</span>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && candles.length === 0 && (
+        <div className="chart-overlay">
+          <div className="state-panel">
+            <strong>No candles returned</strong>
+            <span>Try another symbol or timeframe.</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
   const featureDialog =
     headerPanel === 'alert' || headerPanel === 'replay' || headerPanel === 'save'
       ? FEATURE_DIALOGS[headerPanel]
@@ -4587,16 +4620,17 @@ export default function Home() {
           {selectedLayoutCells.slice(1).map((cellSpec, index) => (
             <div
               key={`${selectedLayout.id}-${index + 2}`}
-              className="chart-layout-cell chart-layout-cell-preview"
+              className="chart-layout-cell chart-layout-cell-duplicate"
               style={{ gridColumn: cellSpec.column, gridRow: cellSpec.row }}
             >
-              <LayoutPreviewPane
-                paneIndex={index + 2}
-                symbol={symbol}
-                timeframe={timeframe}
-                candles={candles}
-                palette={palette}
+              <canvas
+                ref={(node) => {
+                  duplicateCanvasRefs.current[index] = node;
+                }}
+                aria-label={`${formatSymbol(symbol)} ${timeframe} duplicate chart pane ${index + 2}`}
+                className="chart-canvas chart-canvas-duplicate"
               />
+              {renderDuplicatePaneDetails(index + 2)}
             </div>
           ))}
         </div>

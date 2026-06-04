@@ -243,9 +243,11 @@ The standalone app's TradingView-style desktop Layout setup control is also a
 local QA-harness feature. The right-side layout panel defines grouped split
 layouts in `app/page.tsx`; selecting one applies the same grid definition to the
 chart stage. The first pane keeps the live Canvas 2D chart and interactive
-overlays, while additional panes render lightweight chart previews so the
-selected multi-chart arrangement is visible without changing the packaged
-renderer contracts.
+overlays, while additional panes use duplicate Canvas 2D elements drawn from the
+same chart state with read-only legend/status overlays. Only the first pane
+updates interaction hit-testing bounds for pan, zoom, and price-axis scaling, so
+split layouts duplicate the visible chart without changing the packaged renderer
+contracts.
 
 The chart app supports:
 

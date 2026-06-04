@@ -1734,78 +1734,48 @@ summary {
   min-height: 0;
 }
 
-.layout-preview-pane {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 84%, transparent), transparent),
-    var(--surface-0);
-  color: var(--text-strong);
-  height: 100%;
-  overflow: hidden;
-  position: relative;
-  width: 100%;
+.chart-canvas-duplicate {
+  pointer-events: none;
 }
 
-.layout-preview-header {
-  align-items: center;
-  color: var(--text-strong);
-  display: flex;
+.chart-layout-cell-duplicate .duplicate-legend-overlay {
   font-size: 11px;
-  font-weight: 650;
-  gap: 7px;
-  left: 9px;
-  line-height: 1;
-  position: absolute;
+  gap: 5px 8px;
+  left: 8px;
+  max-width: calc(100% - 18px);
+  min-height: 30px;
+  padding: 5px 7px;
   top: 8px;
-  z-index: 2;
 }
 
-.layout-preview-header span:last-child {
-  color: var(--text-muted);
+.chart-layout-cell-duplicate .duplicate-legend-overlay .instrument-legend-symbol {
+  font-size: 12px;
 }
 
-.layout-preview-chart {
-  height: 100%;
-  inset: 0;
-  position: absolute;
-  width: 100%;
+.chart-layout-cell-duplicate .duplicate-indicator-legend-overlay {
+  left: 8px;
+  max-width: calc(100% - 18px);
+  pointer-events: none;
+  top: 82px;
 }
 
-.layout-preview-grid-line {
-  stroke: var(--border-subtle);
-  stroke-width: 1;
+.chart-layout-cell-duplicate .indicator-legend-main {
+  gap: 5px;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 1px 5px 1px 6px;
 }
 
-.layout-preview-price-line {
-  fill: none;
-  stroke: var(--accent);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
+.chart-layout-cell-duplicate .indicator-legend-row:hover .indicator-legend-main,
+.chart-layout-cell-duplicate .indicator-legend-row:focus-within .indicator-legend-main {
+  gap: 5px;
+  min-height: 22px;
+  padding: 1px 5px 1px 6px;
 }
 
-.layout-preview-volume-up {
-  fill: color-mix(in srgb, var(--positive) 72%, transparent);
-}
-
-.layout-preview-volume-down {
-  fill: color-mix(in srgb, var(--negative) 72%, transparent);
-}
-
-.layout-preview-price {
-  background: var(--negative);
-  border-radius: 3px 0 0 3px;
-  color: #ffffff;
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 11px;
-  line-height: 20px;
-  padding: 0 5px;
-  position: absolute;
-  right: 0;
-  top: 44%;
-}
-
-.layout-preview-price[data-tone="positive"] {
-  background: var(--positive);
+.chart-layout-cell-duplicate .indicator-legend-title,
+.chart-layout-cell-duplicate .indicator-legend-value {
+  font-size: 10.5px;
 }
 
 .chart-overlay {

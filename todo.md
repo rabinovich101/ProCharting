@@ -1,3 +1,72 @@
+# Duplicate Layout Panes One-To-One
+
+## Goal
+
+When a user picks a multi-chart layout, every new pane should duplicate the
+currently visible chart one-to-one instead of showing a simplified preview.
+
+## Findings / Decisions
+
+- The current split implementation renders pane 1 with the real Canvas 2D chart
+  and uses `LayoutPreviewPane` SVG previews for the rest.
+- The requested behavior is to copy the existing chart details into every pane:
+  same symbol, interval, candles, indicators, chart style, volume, scales, and
+  visible legend values.
+- Keep pane 1 as the only interactive pane for panning, zooming, price scaling,
+  and indicator setting controls. Duplicate panes render the same chart and
+  read-only legend details so they do not overwrite primary hit-testing bounds
+  or open duplicate editor popovers.
+
+## Checklist
+
+- [x] Replace preview panes with real duplicate canvas panes.
+- [x] Refactor chart drawing so it can draw the same state into multiple canvas elements.
+- [x] Keep primary-pane interaction bounds isolated to pane 1.
+- [x] Duplicate visible chart legend/status details in secondary panes.
+- [x] Update architecture notes and todo review.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify two-chart and four-chart duplication with Browser/Playwright/devtools.
+- [ ] Commit and push `main`.
+
+## Review
+
+Implemented the correction so split layouts duplicate the actual chart instead
+of rendering simplified previews.
+
+- `TEST/binance-chart-test/app/page.tsx` now keeps duplicate canvas refs for
+  secondary panes and draws the same chart state into every selected pane.
+- The Canvas 2D draw function now accepts a target canvas. Pane 1 updates the
+  shared interaction bounds for pan/zoom/price-scale behavior; duplicate panes
+  draw the same chart without taking over interaction hit-testing.
+- Removed the `LayoutPreviewPane` SVG preview path. Secondary panes now render
+  real canvases plus read-only copies of the visible status line and indicator
+  legend values.
+- `TEST/binance-chart-test/app/globals.css` now sizes duplicate pane legends
+  inside smaller panes and removes preview-only chart styling.
+- `ARCHITECTURE.md` documents the duplicate-canvas split layout contract.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- In-app Browser verified `2 charts vertical split`: `2` real chart canvases,
+  `1` duplicate canvas, `0` preview panes, matching status labels, and no
+  horizontal overflow.
+- Playwright plus Chrome DevTools Protocol verified `2 charts vertical split`
+  and `4 charts grid`: the pane counts match the selected layout, every pane is
+  backed by a real canvas, preview panes are gone, duplicate legends are present,
+  there is no overflow, and there are no console errors or CDP runtime
+  exceptions.
+- Standalone Playwright exact pixel comparison verified the two vertical-split
+  canvases have identical pixel buffers (`mismatchCount: 0`) and matching
+  `639x681` canvas sizes.
+- Saved QA screenshots outside the repo:
+  `/tmp/procharting-duplicate-layout-2.png` and
+  `/tmp/procharting-duplicate-layout-4.png`.
+
 # TradingView Layout Setup Split Screen
 
 ## Goal
