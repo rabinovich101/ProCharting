@@ -67,7 +67,7 @@ type BinanceKline = [number, string, string, string, string, string];
 type ChartStyle = 'candles' | 'line' | 'area';
 type ThemeName = 'dark' | 'light';
 type FeedStatus = 'connecting' | 'live' | 'offline';
-type MenuKey = 'symbol' | 'timeframe' | 'chartStyle' | 'indicators';
+type MenuKey = 'timeframe' | 'chartStyle' | 'indicators';
 type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
@@ -162,6 +162,7 @@ interface IndicatorComputedSeries {
 }
 
 type HeaderPanelKey =
+  | 'symbolSearch'
   | 'templates'
   | 'templateSave'
   | 'templateOpen'
@@ -236,6 +237,19 @@ interface QuickAction {
   id: QuickActionId;
   label: string;
   description: string;
+}
+
+type SymbolSearchCategory = 'all' | 'favorites' | 'spot' | 'layer1' | 'defi' | 'meme';
+
+interface SymbolSearchOption {
+  symbol: string;
+  base: string;
+  quote: string;
+  name: string;
+  exchange: string;
+  tags: string[];
+  categories: SymbolSearchCategory[];
+  color: string;
 }
 
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
@@ -581,12 +595,136 @@ const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
   { value: '1w', label: '1W', description: '1 week' },
   { value: '1M', label: '1M', description: '1 month' },
 ];
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
-const SYMBOL_OPTIONS: Array<MenuOption<string>> = SYMBOLS.map((value) => ({
-  value,
-  label: value,
-  description: `${value.slice(0, -4)}/${value.slice(-4)} Binance spot`,
-}));
+const SYMBOL_SEARCH_TABS: Array<{ id: SymbolSearchCategory; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'favorites', label: 'Favorites' },
+  { id: 'spot', label: 'Spot' },
+  { id: 'layer1', label: 'Layer 1' },
+  { id: 'defi', label: 'DeFi' },
+  { id: 'meme', label: 'Meme' },
+];
+const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = [
+  {
+    symbol: 'BTCUSDT',
+    base: 'BTC',
+    quote: 'USDT',
+    name: 'Bitcoin / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto', 'defi'],
+    categories: ['favorites', 'spot', 'layer1'],
+    color: '#f7931a',
+  },
+  {
+    symbol: 'ETHUSDT',
+    base: 'ETH',
+    quote: 'USDT',
+    name: 'Ethereum / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto', 'defi'],
+    categories: ['favorites', 'spot', 'layer1', 'defi'],
+    color: '#627eea',
+  },
+  {
+    symbol: 'SOLUSDT',
+    base: 'SOL',
+    quote: 'USDT',
+    name: 'Solana / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['favorites', 'spot', 'layer1'],
+    color: '#14f195',
+  },
+  {
+    symbol: 'BNBUSDT',
+    base: 'BNB',
+    quote: 'USDT',
+    name: 'BNB / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['favorites', 'spot', 'layer1'],
+    color: '#f3ba2f',
+  },
+  {
+    symbol: 'XRPUSDT',
+    base: 'XRP',
+    quote: 'USDT',
+    name: 'XRP / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['spot', 'layer1'],
+    color: '#23292f',
+  },
+  {
+    symbol: 'ADAUSDT',
+    base: 'ADA',
+    quote: 'USDT',
+    name: 'Cardano / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['spot', 'layer1'],
+    color: '#3468d1',
+  },
+  {
+    symbol: 'DOGEUSDT',
+    base: 'DOGE',
+    quote: 'USDT',
+    name: 'Dogecoin / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['spot', 'meme'],
+    color: '#c2a633',
+  },
+  {
+    symbol: 'AVAXUSDT',
+    base: 'AVAX',
+    quote: 'USDT',
+    name: 'Avalanche / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto', 'defi'],
+    categories: ['spot', 'layer1', 'defi'],
+    color: '#e84142',
+  },
+  {
+    symbol: 'LINKUSDT',
+    base: 'LINK',
+    quote: 'USDT',
+    name: 'Chainlink / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto', 'oracle'],
+    categories: ['spot', 'defi'],
+    color: '#2a5ada',
+  },
+  {
+    symbol: 'DOTUSDT',
+    base: 'DOT',
+    quote: 'USDT',
+    name: 'Polkadot / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['spot', 'layer1'],
+    color: '#e6007a',
+  },
+  {
+    symbol: 'LTCUSDT',
+    base: 'LTC',
+    quote: 'USDT',
+    name: 'Litecoin / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['spot', 'layer1'],
+    color: '#345d9d',
+  },
+  {
+    symbol: 'TRXUSDT',
+    base: 'TRX',
+    quote: 'USDT',
+    name: 'TRON / TetherUS',
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['spot', 'layer1'],
+    color: '#ff0013',
+  },
+];
 const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
   { value: 'candles', label: 'Candles', shortLabel: 'Candle', description: 'OHLC candles' },
   { value: 'line', label: 'Line', description: 'Close price line' },
@@ -963,6 +1101,31 @@ const parseCandles = (payload: unknown): Candle[] => {
 };
 
 const formatSymbol = (symbol: string) => `${symbol.slice(0, -4)}/${symbol.slice(-4)}`;
+
+const getSymbolSearchOption = (symbol: string) =>
+  SYMBOL_SEARCH_OPTIONS.find((option) => option.symbol === symbol) ?? SYMBOL_SEARCH_OPTIONS[0]!;
+
+const matchesSymbolSearch = (
+  option: SymbolSearchOption,
+  category: SymbolSearchCategory,
+  query: string
+) => {
+  const matchesCategory = category === 'all' || option.categories.includes(category);
+  const normalizedQuery = query.trim().toLowerCase();
+
+  if (!matchesCategory) return false;
+  if (normalizedQuery.length === 0) return true;
+
+  const directMatches = [option.symbol, option.base, option.quote, option.exchange, ...option.tags].some(
+    (value) => value.toLowerCase().includes(normalizedQuery)
+  );
+  const nameMatches = option.name
+    .toLowerCase()
+    .split(/[\s/]+/)
+    .some((word) => word.startsWith(normalizedQuery));
+
+  return directMatches || nameMatches;
+};
 
 const calculateNiceInterval = (range: number, targetTickCount = 8) => {
   if (!Number.isFinite(range) || range <= 0) return 1;
@@ -2119,6 +2282,7 @@ export default function Home() {
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
+  const symbolSearchInputRef = useRef<HTMLInputElement>(null);
   const indicatorLegendRef = useRef<HTMLDivElement>(null);
   const activeStreamRef = useRef('');
   const selectedMarketRef = useRef({ symbol: 'BTCUSDT', timeframe: '1m' });
@@ -2165,6 +2329,8 @@ export default function Home() {
   const [layoutSync, setLayoutSync] = useState<Record<LayoutSyncKey, boolean>>(DEFAULT_LAYOUT_SYNC);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('symbol');
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
+  const [symbolSearchQuery, setSymbolSearchQuery] = useState('BTCUSDT');
+  const [symbolSearchCategory, setSymbolSearchCategory] = useState<SymbolSearchCategory>('all');
   const [snapshotStatus, setSnapshotStatus] = useState('');
   const [selectedBroker, setSelectedBroker] = useState('Paper Trading');
   const [chartSettings, setChartSettings] = useState<ChartSettingsState>({
@@ -2193,6 +2359,7 @@ export default function Home() {
   const primaryLayoutCell = selectedLayoutCells[0] ?? layoutCell(1, 1);
   const duplicatePaneCount = Math.max(0, selectedLayoutCells.length - 1);
   const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
+  const selectedSymbolOption = getSymbolSearchOption(symbol);
   const visibleVolumeIndicator = visibleIndicators.find(
     (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
   );
@@ -2207,6 +2374,11 @@ export default function Home() {
       return seriesById;
     }, {});
   }, [activeIndicators, candles]);
+  const filteredSymbolOptions = useMemo(() => {
+    return SYMBOL_SEARCH_OPTIONS.filter((option) =>
+      matchesSymbolSearch(option, symbolSearchCategory, symbolSearchQuery)
+    );
+  }, [symbolSearchCategory, symbolSearchQuery]);
   const filteredQuickActions = QUICK_ACTIONS.filter((action) => {
     const query = quickSearchQuery.trim().toLowerCase();
     if (query.length === 0) return true;
@@ -2220,6 +2392,15 @@ export default function Home() {
   useEffect(() => {
     duplicateCanvasRefs.current = duplicateCanvasRefs.current.slice(0, duplicatePaneCount);
   }, [duplicatePaneCount]);
+
+  useEffect(() => {
+    if (headerPanel !== 'symbolSearch') return;
+
+    window.requestAnimationFrame(() => {
+      symbolSearchInputRef.current?.focus();
+      symbolSearchInputRef.current?.select();
+    });
+  }, [headerPanel]);
 
   useEffect(() => {
     try {
@@ -3396,6 +3577,26 @@ export default function Home() {
     setOpenMenu(null);
     setHeaderPanel(null);
     setQuickSearchQuery('');
+    setSymbolSearchQuery(symbol);
+    setSnapshotStatus('');
+    setSettingsTarget(null);
+    setMoreTarget(null);
+  };
+  const openSymbolSearch = () => {
+    setOpenMenu(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
+    setSnapshotStatus('');
+    setSymbolSearchQuery(symbol);
+    setSymbolSearchCategory('all');
+    setHeaderPanel('symbolSearch');
+  };
+  const selectSymbolSearchOption = (nextSymbol: string) => {
+    setSymbol(nextSymbol);
+    setSymbolSearchQuery(nextSymbol);
+    setOpenMenu(null);
+    setHeaderPanel(null);
+    setQuickSearchQuery('');
     setSnapshotStatus('');
     setSettingsTarget(null);
     setMoreTarget(null);
@@ -3521,7 +3722,7 @@ export default function Home() {
     setQuickSearchQuery('');
 
     if (actionId === 'symbol') {
-      openToolbarMenu('symbol');
+      openSymbolSearch();
       return;
     }
 
@@ -3869,21 +4070,27 @@ export default function Home() {
     <main className="chart-terminal" data-theme={theme}>
       <header className="chart-topbar" aria-label="Chart command bar">
         <div ref={controlRackRef} className="top-command-bar" aria-label="Chart controls">
-          <ToolbarDropdown
-            menuKey="symbol"
-            label="Symbol"
-            className="symbol-dropdown"
-            options={SYMBOL_OPTIONS}
-            value={symbol}
-            openMenu={openMenu}
-            setOpenMenu={setOpenMenu}
-            onChange={setSymbol}
-            renderIcon={(optionValue) => (
-              <span className="symbol-badge" aria-hidden="true">
-                {optionValue.slice(0, 1)}
+          <div className="toolbar-dropdown symbol-dropdown">
+            <button
+              type="button"
+              className="toolbar-trigger symbol-search-trigger"
+              aria-label="Symbol search"
+              aria-haspopup="dialog"
+              aria-expanded={headerPanel === 'symbolSearch'}
+              onClick={openSymbolSearch}
+            >
+              <span className="symbol-badge" style={{ background: selectedSymbolOption.color }} aria-hidden="true">
+                {selectedSymbolOption.base.slice(0, 1)}
               </span>
-            )}
-          />
+              <span className="symbol-trigger-copy">
+                <span className="trigger-label">{symbol}</span>
+                <small>{selectedSymbolOption.exchange}</small>
+              </span>
+              <span className="symbol-data-switch" aria-hidden="true">
+                <HeaderIcon name="caret" />
+              </span>
+            </button>
+          </div>
           <span className={`feed-dot ${feedStatus}`} aria-label={`Feed ${feedStatus}`} role="status" />
 
           <span className="command-divider" aria-hidden="true" />
@@ -4322,6 +4529,110 @@ export default function Home() {
                   <button type="button" className="settings-ok" onClick={closeHeaderOverlays}>
                     Connect
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {headerPanel === 'symbolSearch' && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <div
+                className="header-modal symbol-search-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Symbol search"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="header-modal-title">
+                  <strong>Symbol search</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <label className="symbol-search-input">
+                  <HeaderIcon name="search" />
+                  <input
+                    ref={symbolSearchInputRef}
+                    autoFocus
+                    type="text"
+                    aria-label="Search symbols"
+                    value={symbolSearchQuery}
+                    onChange={(event) => setSymbolSearchQuery(event.target.value.toUpperCase())}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        closeHeaderOverlays();
+                        return;
+                      }
+
+                      if (event.key === 'Enter' && filteredSymbolOptions[0]) {
+                        event.preventDefault();
+                        selectSymbolSearchOption(filteredSymbolOptions[0].symbol);
+                      }
+                    }}
+                  />
+                  {symbolSearchQuery.length > 0 && (
+                    <button
+                      type="button"
+                      className="symbol-search-clear"
+                      aria-label="Clear symbol search"
+                      onClick={() => setSymbolSearchQuery('')}
+                    >
+                      ×
+                    </button>
+                  )}
+                </label>
+                <div className="symbol-search-tabs" role="tablist" aria-label="Symbol categories">
+                  {SYMBOL_SEARCH_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={symbolSearchCategory === tab.id}
+                      data-active={symbolSearchCategory === tab.id}
+                      onClick={() => setSymbolSearchCategory(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="symbol-search-results" role="listbox" aria-label="Symbol search results">
+                  {filteredSymbolOptions.map((option) => {
+                    const active = option.symbol === symbol;
+
+                    return (
+                      <button
+                        key={option.symbol}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        className="symbol-search-result"
+                        data-active={active}
+                        onClick={() => selectSymbolSearchOption(option.symbol)}
+                      >
+                        <span className="symbol-result-badge" style={{ background: option.color }} aria-hidden="true">
+                          {option.base.slice(0, 1)}
+                        </span>
+                        <span className="symbol-result-main">
+                          <strong>{option.symbol}</strong>
+                          <span>{option.name}</span>
+                        </span>
+                        <span className="symbol-result-tags" aria-label={option.tags.join(' ')}>
+                          {option.tags.slice(0, 3).map((tag) => (
+                            <small key={tag}>{tag}</small>
+                          ))}
+                        </span>
+                        <span className="symbol-result-exchange">
+                          {option.exchange}
+                          <span className="exchange-mark" aria-hidden="true">
+                            {option.exchange.slice(0, 1)}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {filteredSymbolOptions.length === 0 && (
+                    <span className="header-panel-empty symbol-search-empty">No symbols found</span>
+                  )}
                 </div>
               </div>
             </div>

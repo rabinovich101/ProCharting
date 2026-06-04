@@ -308,8 +308,8 @@ The chart app supports:
 
 As of June 4, 2026, the chart test app uses a TradingView-style single top
 command bar rather than separate instrument and control blocks. That command
-bar owns the symbol dropdown, live-feed dot, timeframe dropdown, chart-style
-icon dropdown, Indicators menu, indicator-template button, Alert/Replay
+bar owns the symbol search trigger/dialog, live-feed dot, timeframe dropdown,
+chart-style icon dropdown, Indicators menu, indicator-template button, Alert/Replay
 buttons, disabled undo/redo placeholders, and a desktop right-side control
 cluster for layout, save/menu, quick search, settings, fullscreen, snapshot,
 Trade, and Publish. The header no longer duplicates latest price/change data;
@@ -318,7 +318,10 @@ no separate market status strip below the command bar; chart diagnostics remain
 in non-visible `data-*` attributes for QA/devtools inspection.
 
 The command bar's desktop icon tools implement TradingView-like local behavior:
-indicator templates first open the compact TradingView-style Save/Open menu and
+the symbol trigger opens a centered TradingView-style symbol search dialog with
+focused query input, category pills, Binance-market rows, and click-to-select
+updates against the existing chart `symbol` state; indicator templates first
+open the compact TradingView-style Save/Open menu and
 then route to persisted template save/apply surfaces, layout setup is a fixed
 right-side panel with chart-count/sync options, the save caret opens a layout
 management menu, quick search opens a command dialog that can route to toolbar

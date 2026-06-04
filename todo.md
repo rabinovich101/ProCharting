@@ -3462,3 +3462,68 @@ version to the latest published `@colbymchenry/codegraph` package.
 - `ARCHITECTURE.md` was not modified because updating the global MCP tool does
   not change ProCharting architecture.
 - Browser QA was not run because no application/runtime UI code changed.
+
+# TradingView-Style Pair Search Header Plan
+
+## Goal
+
+Replace the header pair dropdown in the Binance chart test app with a
+TradingView-style symbol search dialog: clicking the pair opens a focused modal
+where the user can type a query, filter symbols, and choose a Binance market.
+
+## Investigation / Decisions
+
+- TradingView inspection on June 4, 2026 showed a centered `Symbol search`
+  modal with the current ticker prefilled and selected, category chips under
+  the search box, dense rows showing symbol, instrument name, market tags, and
+  exchange, and click-to-select behavior.
+- The local chart header currently uses the generic `ToolbarDropdown` for
+  symbols in `TEST/binance-chart-test/app/page.tsx`.
+- The local API route validates Binance-style symbols and proxies Binance
+  klines, so the UI should offer known Binance symbols and keep the selected
+  value as the existing `symbol` state.
+- No business/product decision is required from the user: the request is
+  specifically for TradingView-like pair search behavior in the existing test
+  chart UI.
+
+## Checklist
+
+- [x] Add symbol-search metadata, categories, filtering, and selection state.
+- [x] Replace the header symbol dropdown with a TradingView-like trigger that
+      opens a centered search dialog.
+- [x] Style the dialog, search field, category chips, result rows, selected
+      state, and responsive mobile layout.
+- [x] Update `ARCHITECTURE.md` with the discovered TradingView-style symbol
+      search architecture in the test app.
+- [x] Run typecheck/build or focused validation.
+- [x] Test with Browser/Playwright on desktop and mobile, including click,
+      typing, selecting, and visual non-overlap.
+- [ ] Commit, push, and leave the worktree clean except for pre-existing
+      untracked/generated files.
+
+## Review
+
+- Replaced the header symbol dropdown in
+  `TEST/binance-chart-test/app/page.tsx` with a TradingView-style symbol search
+  trigger and centered dialog.
+- Added Binance-focused symbol metadata, category pills, focused query input,
+  filtered result rows, keyboard Enter/Escape handling, and click-to-select
+  updates against the existing chart `symbol` state.
+- Added responsive styles in `TEST/binance-chart-test/app/globals.css` so the
+  desktop dialog is dense and the mobile dialog stays inside a 390px viewport
+  without page-level horizontal overflow.
+- Updated `ARCHITECTURE.md` to document that the command bar now owns the
+  symbol search trigger/dialog rather than the old generic symbol dropdown.
+- Validation passed:
+  - `pnpm run typecheck:test`
+  - `pnpm --dir TEST/binance-chart-test build`
+  - `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx`
+  - `git diff --check`
+- Browser QA passed at `http://localhost:3001`: desktop open/type/select was
+  verified with `SOLUSDT`; mobile 390x844 open/type/select was verified with
+  `DOGEUSDT`, with dialog bounds inside the viewport and no localhost
+  error/warn devtools logs.
+- Existing warnings observed during build: Next selected the root
+  `pnpm-lock.yaml` because the test app also has a `package-lock.json`, and the
+  Next ESLint plugin is not detected in the current ESLint config. Neither was
+  introduced by this change.
