@@ -1,3 +1,79 @@
+# TradingView Header Functionality Reinspection Fix
+
+## Goal
+
+Reinspect TradingView because the previous header controls still felt inert and
+not visually/functionally matched, then make the standalone chart app controls
+respond and resemble TradingView more closely.
+
+## Findings / Decisions
+
+- Local browser recheck showed the icon-only controls did open panels, but the
+  behavior was not close enough: several header controls still only closed
+  overlays, and the template/layout/settings panel shapes did not match
+  TradingView well.
+- Fresh TradingView inspection showed:
+  - Alert, Replay, and Save open full-screen promotional/sign-in dialogs.
+  - Trade opens a large broker-selection dialog.
+  - Publish opens a compact right-aligned menu.
+  - Layout opens a tall right-side panel starting at the top of the viewport.
+  - Indicator templates is a simple menu with `Save indicator template...` and
+    `Open template...`, not an always-visible input form.
+  - Snapshot includes `Tweet image`.
+- Keep this as a focused standalone header behavior fix. Do not change package
+  renderer internals.
+
+## Checklist
+
+- [x] Make Alert, Replay, Save, Trade, Publish, and Manage Layouts respond.
+- [x] Make templates/layout/settings/snapshot surfaces closer to TradingView.
+- [x] Update architecture notes and todo review.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify with TradingView inspection and local Browser/Playwright/devtools.
+- [ ] Commit and push `main`.
+
+## Review
+
+Implemented the reinspection fix for the standalone chart app header.
+
+- `TEST/binance-chart-test/app/page.tsx` now wires Alert, Replay, Save, Trade,
+  Publish, and Manage layouts to visible header panel state instead of closing
+  overlays. Quick search routes those action IDs to the same surfaces.
+- Indicator templates now opens the compact first-level TradingView-style
+  `Save indicator template...` / `Open template...` menu, with the app's
+  persisted template save/apply behavior moved to secondary surfaces.
+- Layout setup is a fixed right-side panel starting at the top of the viewport,
+  Settings is sized/positioned like the inspected TradingView dialog and includes
+  the richer Symbol rows, Snapshot includes `Tweet image`, Trade opens a broker
+  selection dialog, and Publish opens the compact idea/video/note menu.
+- `ARCHITECTURE.md` documents the updated desktop icon-tool contract.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Fresh TradingView Playwright/Chrome inspection confirmed the live right-header
+  sequence and surfaces: templates Save/Open menu, Alert/Replay/Save feature
+  dialogs, top-right layout panel, snapshot with Tweet image, broker dialog, and
+  Publish menu.
+- In-app Browser clicked the local controls and confirmed visible expected text
+  for templates, Alert, Replay, Save, Manage layouts, Trade, Publish, Snapshot,
+  and Settings.
+- Local Playwright/Chrome plus DevTools Protocol clicked the full control matrix:
+  all expected panels opened; layout measured `428px` wide at top `0`; Settings
+  measured `610x563` at top `79`; desktop overflow was `0`; console errors were
+  empty.
+- Mobile Playwright/Chrome QA at `390x844` confirmed the desktop controls remain
+  hidden, desktop command count is `0`, and horizontal overflow is `0`.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-tv-reinspect-header.png`,
+  `/tmp/procharting-header-reinspect-local-trade.png`,
+  `/tmp/procharting-header-reinspect-local-publish.png`, and
+  `/tmp/procharting-header-reinspect-local-mobile.png`.
+
 # TradingView Icon Tool Functionality
 
 ## Goal

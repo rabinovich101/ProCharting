@@ -147,7 +147,20 @@ interface IndicatorComputedSeries {
   guideLines?: Array<{ value: number; label?: string }>;
 }
 
-type HeaderPanelKey = 'templates' | 'layout' | 'quickSearch' | 'settings' | 'snapshot';
+type HeaderPanelKey =
+  | 'templates'
+  | 'templateSave'
+  | 'templateOpen'
+  | 'layout'
+  | 'manageLayouts'
+  | 'quickSearch'
+  | 'settings'
+  | 'snapshot'
+  | 'alert'
+  | 'replay'
+  | 'save'
+  | 'trade'
+  | 'publish';
 type LayoutSyncKey = 'symbol' | 'interval' | 'crosshair' | 'time' | 'dateRange';
 type SettingsTab = 'symbol' | 'status' | 'scales' | 'canvas' | 'trading' | 'alerts' | 'events';
 type QuickActionId =
@@ -159,6 +172,11 @@ type QuickActionId =
   | 'layout'
   | 'settings'
   | 'snapshot'
+  | 'alert'
+  | 'replay'
+  | 'save'
+  | 'trade'
+  | 'publish'
   | 'fullscreen'
   | 'reset';
 
@@ -216,10 +234,56 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: 'indicators', label: 'Indicators', description: 'Open indicators and strategies' },
   { id: 'templates', label: 'Indicator templates', description: 'Save or apply indicator sets' },
   { id: 'layout', label: 'Layout setup', description: 'Change layout and sync options' },
+  { id: 'alert', label: 'Create alert', description: 'Set a market alert' },
+  { id: 'replay', label: 'Bar replay', description: 'Replay historical candles' },
+  { id: 'save', label: 'Save chart', description: 'Save the current chart layout' },
   { id: 'settings', label: 'Settings', description: 'Open chart settings' },
   { id: 'snapshot', label: 'Chart snapshot', description: 'Download, copy, or open image' },
+  { id: 'trade', label: 'Trade', description: 'Choose a broker connection' },
+  { id: 'publish', label: 'Publish idea', description: 'Share analysis with the community' },
   { id: 'fullscreen', label: 'Fullscreen mode', description: 'Toggle fullscreen chart' },
   { id: 'reset', label: 'Reset chart view', description: 'Restore automatic view' },
+];
+const FEATURE_DIALOGS: Record<'alert' | 'replay' | 'save', { title: string; eyebrow: string; body: string }> = {
+  alert: {
+    title: 'Never miss a trade again',
+    eyebrow: 'Create alert',
+    body: 'Get notified when price, indicators, or drawing levels meet the condition you care about.',
+  },
+  replay: {
+    title: 'Unlock Bar Replay',
+    eyebrow: 'Bar replay',
+    body: 'Step through historical candles and practice decisions with the chart paused at any point in time.',
+  },
+  save: {
+    title: 'Save this chart',
+    eyebrow: 'Chart layout',
+    body: 'Keep this symbol, interval, drawings, indicators, and layout available across browser sessions.',
+  },
+};
+const BROKER_OPTIONS = [
+  'Paper Trading',
+  'Fusion Markets',
+  'OKX',
+  'Gate',
+  'Bybit',
+  'Binance',
+  'Capital.com',
+  'TradeStation',
+];
+const PUBLISH_OPTIONS = [
+  {
+    label: 'Publish idea',
+    description: 'Share your next big trade',
+  },
+  {
+    label: 'Record video idea',
+    description: 'Create market-moving videos',
+  },
+  {
+    label: 'Speak your mind',
+    description: 'Write public notes about your favorite symbols',
+  },
 ];
 
 const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
@@ -1767,6 +1831,7 @@ export default function Home() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('symbol');
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
   const [snapshotStatus, setSnapshotStatus] = useState('');
+  const [selectedBroker, setSelectedBroker] = useState('Paper Trading');
   const [chartSettings, setChartSettings] = useState<ChartSettingsState>({
     showStatusLine: true,
     showIndicatorLegend: true,
@@ -3006,6 +3071,10 @@ export default function Home() {
     persistIndicatorTemplates([nextTemplate, ...indicatorTemplates].slice(0, 8));
     setTemplateName(`Template ${indicatorTemplates.length + 2}`);
   };
+  const confirmIndicatorTemplateSave = () => {
+    saveIndicatorTemplate();
+    closeHeaderOverlays();
+  };
   const applyIndicatorTemplate = (template: IndicatorTemplate) => {
     setActiveIndicators(
       template.indicators.map((indicator, index) => ({
@@ -3109,7 +3178,17 @@ export default function Home() {
       return;
     }
 
-    if (actionId === 'templates' || actionId === 'layout' || actionId === 'settings' || actionId === 'snapshot') {
+    if (
+      actionId === 'templates' ||
+      actionId === 'layout' ||
+      actionId === 'settings' ||
+      actionId === 'snapshot' ||
+      actionId === 'alert' ||
+      actionId === 'replay' ||
+      actionId === 'save' ||
+      actionId === 'trade' ||
+      actionId === 'publish'
+    ) {
       setOpenMenu(null);
       setHeaderPanel(actionId);
       return;
@@ -3123,6 +3202,10 @@ export default function Home() {
     resetView();
     closeHeaderOverlays();
   };
+  const featureDialog =
+    headerPanel === 'alert' || headerPanel === 'replay' || headerPanel === 'save'
+      ? FEATURE_DIALOGS[headerPanel]
+      : null;
 
   return (
     <main className="chart-terminal" data-theme={theme}>
@@ -3185,7 +3268,7 @@ export default function Home() {
               className="tool-toggle icon-tool"
               aria-label="Indicator templates"
               title="Indicator templates"
-              data-active={headerPanel === 'templates'}
+              data-active={headerPanel === 'templates' || headerPanel === 'templateSave' || headerPanel === 'templateOpen'}
               onClick={() => toggleHeaderPanel('templates')}
             >
               <HeaderIcon name="templates" />
@@ -3193,14 +3276,17 @@ export default function Home() {
             {headerPanel === 'templates' && (
               <div className="header-panel templates-panel" role="menu" aria-label="Indicator templates">
                 <strong>Indicator templates</strong>
-                <label className="header-panel-field">
-                  <span>Template name</span>
-                  <input value={templateName} onChange={(event) => setTemplateName(event.target.value)} />
-                </label>
-                <button type="button" className="header-menu-row" role="menuitem" onClick={saveIndicatorTemplate}>
+                <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('templateSave')}>
                   Save indicator template...
                 </button>
-                <span className="header-panel-label">Open template...</span>
+                <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('templateOpen')}>
+                  Open template...
+                </button>
+              </div>
+            )}
+            {headerPanel === 'templateOpen' && (
+              <div className="header-panel templates-panel" role="menu" aria-label="Open indicator template">
+                <strong>Open template...</strong>
                 {indicatorTemplates.length === 0 ? (
                   <span className="header-panel-empty">No saved templates</span>
                 ) : (
@@ -3229,7 +3315,8 @@ export default function Home() {
             className="tool-toggle tv-command-with-text desktop-header-command"
             aria-label="Create alert"
             title="Create alert"
-            onClick={closeHeaderOverlays}
+            data-active={headerPanel === 'alert'}
+            onClick={() => toggleHeaderPanel('alert')}
           >
             <HeaderIcon name="alert" />
             <span>Alert</span>
@@ -3239,7 +3326,8 @@ export default function Home() {
             className="tool-toggle tv-command-with-text desktop-header-command"
             aria-label="Bar replay"
             title="Bar replay"
-            onClick={closeHeaderOverlays}
+            data-active={headerPanel === 'replay'}
+            onClick={() => toggleHeaderPanel('replay')}
           >
             <HeaderIcon name="replay" />
             <span>Replay</span>
@@ -3313,19 +3401,44 @@ export default function Home() {
               className="tool-toggle tv-save-button"
               aria-label="Save all charts for all symbols and intervals on your layout"
               title="Save all charts for all symbols and intervals on your layout"
-              onClick={closeHeaderOverlays}
+              data-active={headerPanel === 'save'}
+              onClick={() => toggleHeaderPanel('save')}
             >
               <span>Save</span>
             </button>
-            <button
-              type="button"
-              className="tool-toggle tv-save-menu-button"
-              aria-label="Manage layouts"
-              title="Manage layouts"
-              onClick={closeHeaderOverlays}
-            >
-              <HeaderIcon name="caret" />
-            </button>
+            <div className="header-tool-wrapper">
+              <button
+                type="button"
+                className="tool-toggle tv-save-menu-button"
+                aria-label="Manage layouts"
+                title="Manage layouts"
+                data-active={headerPanel === 'manageLayouts'}
+                onClick={() => toggleHeaderPanel('manageLayouts')}
+              >
+                <HeaderIcon name="caret" />
+              </button>
+              {headerPanel === 'manageLayouts' && (
+                <div className="header-panel manage-layouts-panel" role="menu" aria-label="Manage layouts">
+                  <strong>Manage layouts</strong>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('save')}>
+                    Save all charts...
+                  </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
+                    Open layout...
+                  </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
+                    Make a copy...
+                  </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
+                    Rename...
+                  </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
+                    <span>Auto-save</span>
+                    <small>On</small>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="tool-toggle icon-tool"
@@ -3384,6 +3497,9 @@ export default function Home() {
                   <button type="button" className="header-menu-row" role="menuitem" onClick={openSnapshotInNewTab}>
                     Open in new tab
                   </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={() => void copySnapshotLink()}>
+                    Tweet image
+                  </button>
                   {snapshotStatus && <span className="header-panel-status">{snapshotStatus}</span>}
                 </div>
               )}
@@ -3393,20 +3509,147 @@ export default function Home() {
               className="tool-toggle tv-trade-button"
               aria-label="Trade"
               title="Trade"
-              onClick={closeHeaderOverlays}
+              data-active={headerPanel === 'trade'}
+              onClick={() => toggleHeaderPanel('trade')}
             >
               <span>Trade</span>
             </button>
-            <button
-              type="button"
-              className="tool-toggle tv-publish-button"
-              aria-label="Share your idea with the trade community"
-              title="Share your idea with the trade community"
-              onClick={closeHeaderOverlays}
-            >
-              <span>Publish</span>
-            </button>
+            <div className="header-tool-wrapper">
+              <button
+                type="button"
+                className="tool-toggle tv-publish-button"
+                aria-label="Share your idea with the trade community"
+                title="Share your idea with the trade community"
+                data-active={headerPanel === 'publish'}
+                onClick={() => toggleHeaderPanel('publish')}
+              >
+                <span>Publish</span>
+              </button>
+              {headerPanel === 'publish' && (
+                <div className="header-panel publish-panel" role="menu" aria-label="Share your idea with the trade community">
+                  {PUBLISH_OPTIONS.map((option) => (
+                    <button key={option.label} type="button" className="header-menu-row stacked" role="menuitem" onClick={closeHeaderOverlays}>
+                      <span>{option.label}</span>
+                      <small>{option.description}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+          {headerPanel === 'templateSave' && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <div
+                className="header-modal template-save-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Save indicator template"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="header-modal-title">
+                  <strong>Save indicator template</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <div className="template-save-body">
+                  <label className="header-panel-field">
+                    <span>Template name</span>
+                    <input autoFocus value={templateName} onChange={(event) => setTemplateName(event.target.value)} />
+                  </label>
+                </div>
+                <div className="settings-footer">
+                  <button type="button" onClick={() => setHeaderPanel('templates')}>
+                    Cancel
+                  </button>
+                  <button type="button" className="settings-ok" onClick={confirmIndicatorTemplateSave}>
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {featureDialog && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <div
+                className="header-modal feature-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label={featureDialog.eyebrow}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="header-modal-title">
+                  <strong>{featureDialog.eyebrow}</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <div className="feature-dialog-body">
+                  <strong>{featureDialog.title}</strong>
+                  <span>{featureDialog.body}</span>
+                  <div className="feature-dialog-actions">
+                    <button type="button" className="settings-ok" onClick={closeHeaderOverlays}>
+                      Join for free
+                    </button>
+                    <button type="button" onClick={closeHeaderOverlays}>
+                      Learn more
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {headerPanel === 'trade' && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <div
+                className="header-modal broker-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Trade with your broker"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="header-modal-title">
+                  <strong>Trade with your broker</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <div className="broker-dialog-body">
+                  <div className="broker-tabs" role="tablist" aria-label="Broker categories">
+                    <button type="button" role="tab" aria-selected="true" data-active="true">
+                      Featured
+                    </button>
+                    <button type="button" role="tab" aria-selected="false">
+                      Crypto
+                    </button>
+                    <button type="button" role="tab" aria-selected="false">
+                      Futures
+                    </button>
+                  </div>
+                  <div className="broker-grid" role="list" aria-label="Featured brokers">
+                    {BROKER_OPTIONS.map((broker) => (
+                      <button
+                        key={broker}
+                        type="button"
+                        role="listitem"
+                        data-active={selectedBroker === broker}
+                        onClick={() => setSelectedBroker(broker)}
+                      >
+                        <strong>{broker}</strong>
+                        <small>{broker === 'Paper Trading' ? 'Simulated account' : 'Broker connection'}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="settings-footer">
+                  <span className="selected-broker-status">{selectedBroker}</span>
+                  <button type="button" className="settings-ok" onClick={closeHeaderOverlays}>
+                    Connect
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {headerPanel === 'quickSearch' && (
             <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
               <div
@@ -3490,6 +3733,40 @@ export default function Home() {
                               {option.shortLabel || option.label}
                             </button>
                           ))}
+                        </div>
+                        <div className="settings-static-list" aria-label="Symbol visual settings">
+                          <span className="setting-row static-setting">
+                            <span>Color bars based on previous close</span>
+                            <small>On</small>
+                          </span>
+                          <span className="setting-row static-setting">
+                            <span>Body</span>
+                            <small>Up / Down</small>
+                          </span>
+                          <span className="setting-row static-setting">
+                            <span>Borders</span>
+                            <small>Visible</small>
+                          </span>
+                          <span className="setting-row static-setting">
+                            <span>Wick</span>
+                            <small>Visible</small>
+                          </span>
+                          <span className="setting-row static-setting">
+                            <span>Data modification</span>
+                            <small>Off</small>
+                          </span>
+                          <span className="setting-row static-setting">
+                            <span>Precision</span>
+                            <small>Default</small>
+                          </span>
+                          <span className="setting-row static-setting">
+                            <span>Timezone</span>
+                            <small>UTC</small>
+                          </span>
+                          <span className="setting-row static-setting">
+                            <span>Template</span>
+                            <small>Default</small>
+                          </span>
                         </div>
                       </>
                     )}

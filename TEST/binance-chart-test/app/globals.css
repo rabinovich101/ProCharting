@@ -317,17 +317,31 @@ summary {
 
 .templates-panel {
   left: 0;
-  width: 254px;
+  width: 219px;
 }
 
 .layout-panel {
+  border-radius: 0;
+  height: 100vh;
+  max-height: none;
+  overflow: auto;
+  padding: 12px;
+  position: fixed;
   right: 0;
-  width: 318px;
+  top: 0;
+  width: min(428px, calc(100vw - 16px));
+  z-index: 70;
 }
 
 .snapshot-panel {
   right: 0;
   width: 224px;
+}
+
+.manage-layouts-panel,
+.publish-panel {
+  right: 0;
+  width: 242px;
 }
 
 .header-panel strong {
@@ -372,7 +386,10 @@ summary {
 .quick-action-list button,
 .settings-tabs button,
 .settings-segmented button,
-.settings-footer button {
+.settings-footer button,
+.feature-dialog-actions button,
+.broker-tabs button,
+.broker-grid button {
   background: transparent;
   border: 0;
   border-radius: 5px;
@@ -388,6 +405,15 @@ summary {
   text-align: left;
 }
 
+.header-menu-row.stacked {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 52px;
+  white-space: normal;
+}
+
 .header-menu-row:hover,
 .header-menu-row:focus-visible,
 .template-menu-row button:hover,
@@ -399,7 +425,13 @@ summary {
 .settings-tabs button[data-active="true"],
 .settings-segmented button:hover,
 .settings-segmented button:focus-visible,
-.settings-segmented button[data-active="true"] {
+.settings-segmented button[data-active="true"],
+.broker-tabs button:hover,
+.broker-tabs button:focus-visible,
+.broker-tabs button[data-active="true"],
+.broker-grid button:hover,
+.broker-grid button:focus-visible,
+.broker-grid button[data-active="true"] {
   background: var(--surface-3);
 }
 
@@ -486,8 +518,24 @@ summary {
   width: min(480px, calc(100vw - 28px));
 }
 
+.template-save-dialog,
+.feature-dialog {
+  width: min(420px, calc(100vw - 28px));
+}
+
 .settings-dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(563px, calc(100vh - 96px));
+  margin-top: 59px;
   width: min(610px, calc(100vw - 28px));
+}
+
+.broker-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  width: min(996px, calc(100vw - 28px));
 }
 
 .header-modal-title {
@@ -543,9 +591,10 @@ summary {
 }
 
 .settings-body {
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: 206px minmax(0, 1fr);
-  min-height: 360px;
+  min-height: 0;
 }
 
 .settings-tabs {
@@ -566,7 +615,26 @@ summary {
   align-content: start;
   display: grid;
   gap: 12px;
+  overflow: auto;
   padding: 16px;
+}
+
+.settings-static-list {
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 2px;
+  padding-top: 8px;
+}
+
+.setting-row.static-setting {
+  color: var(--text-strong);
+  justify-content: space-between;
+}
+
+.setting-row.static-setting small,
+.selected-broker-status {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .settings-segmented {
@@ -584,6 +652,7 @@ summary {
 }
 
 .settings-footer {
+  align-items: center;
   border-top: 1px solid var(--border-subtle);
   display: flex;
   gap: 8px;
@@ -601,6 +670,93 @@ summary {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
+}
+
+.template-save-body,
+.feature-dialog-body,
+.broker-dialog-body {
+  padding: 16px;
+}
+
+.feature-dialog-body {
+  display: grid;
+  gap: 12px;
+}
+
+.feature-dialog-body > strong {
+  font-size: 24px;
+  line-height: 1.14;
+}
+
+.feature-dialog-body > span {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.feature-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
+.feature-dialog-actions button {
+  border: 1px solid var(--border-strong);
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+.feature-dialog-actions .settings-ok {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.broker-dialog-body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.broker-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.broker-tabs button {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.broker-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.broker-grid button {
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 5px;
+  min-height: 92px;
+  padding: 12px;
+  text-align: left;
+}
+
+.broker-grid button[data-active="true"] {
+  border-color: var(--accent);
+}
+
+.broker-grid small {
+  color: var(--text-muted);
+}
+
+.selected-broker-status {
+  margin-right: auto;
 }
 
 .trigger-label,
