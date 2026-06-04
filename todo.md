@@ -1,3 +1,67 @@
+# TradingView Grid Top Alignment Fix
+
+## Goal
+
+Make the chart grid/plot area extend up behind the top-left OHLC and indicator
+overlays, matching TradingView instead of leaving a blank reserved strip at the
+top of the chart.
+
+## Findings / Decisions
+
+- The DOM OHLC overlay is now visible, but the canvas still reserves the old
+  `topLegendHeight` before drawing the plot grid.
+- TradingView floats the legend over the chart; the grid starts near the top of
+  the chart pane behind that legend.
+- Keep the fix in the standalone chart canvas geometry. Do not change market
+  data, indicator calculations, or the packaged renderer.
+
+## Checklist
+
+- [x] Inspect live TradingView and local grid top positions with
+      Browser/Playwright/devtools.
+- [x] Remove the old legend-reserved vertical gap from the canvas plot geometry.
+- [x] Keep the OHLC and indicator overlays floating above the grid.
+- [x] Update `ARCHITECTURE.md` for the grid/overlay behavior.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify with Browser/Playwright/devtools on desktop and mobile.
+- [x] Commit and push `main`.
+
+## Review
+
+Completed the TradingView grid-top alignment fix.
+
+- Browser/Playwright inspection of TradingView showed its main chart canvas
+  starts at the top of the chart pane while the legend floats over it.
+- `TEST/binance-chart-test/app/page.tsx` no longer reserves the old
+  `topLegendHeight` inside the canvas. The plot now starts with a small
+  `topPlotInset` (`8px` desktop, `6px` compact), so gridlines and candles extend
+  up behind the OHLC and indicator overlays.
+- `ARCHITECTURE.md` documents that the DOM overlays float above a top-aligned
+  chart grid.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `rg` found no remaining `topLegendHeight`, `market-strip`, `Market status`,
+  or `visible bars` source references in `TEST/binance-chart-test/app` or
+  `ARCHITECTURE.md`.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Desktop Browser QA at `1280x720` passed: the OHLC overlay began `10px` inside
+  the canvas and moving the pointer `12px` below the canvas top reported
+  `data-pointer-area="plot"`.
+- Mobile Browser QA at `390x844` passed: the OHLC overlay began `8px` inside
+  the canvas, the indicator legend remained below it, there was no horizontal
+  overflow, and moving the pointer `10px` below the canvas top reported
+  `data-pointer-area="plot"`.
+- Devtools logs for the local app showed zero local error entries.
+- Saved screenshots outside the repo:
+  `/tmp/tradingview-grid-top-reference.png`,
+  `/tmp/procharting-grid-to-top-desktop-1280.png`, and
+  `/tmp/procharting-grid-to-top-mobile.png`.
+
 # TradingView-Style OHLC Overlay Fix
 
 ## Goal

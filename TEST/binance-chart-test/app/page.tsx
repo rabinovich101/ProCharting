@@ -2161,13 +2161,13 @@ export default function Home() {
     const indicatorPaneFontSize = compactChart ? 13 : 14;
     const rightAxisWidth = compactChart ? 72 : 92;
     const bottomAxisHeight = compactChart ? 31 : 38;
-    const topLegendHeight = compactChart ? 42 : 56;
+    const topPlotInset = compactChart ? 6 : 8;
     const oscillatorCount = visibleOscillatorIndicators.length;
     const requestedVolumeHeight = showVolume ? clamp(rect.height * 0.15, 46, 96) : 0;
     const minMainChartHeight = rect.width < 520 ? 176 : 220;
     const availableAuxHeight = Math.max(
       0,
-      rect.height - bottomAxisHeight - topLegendHeight - minMainChartHeight
+      rect.height - bottomAxisHeight - topPlotInset - minMainChartHeight
     );
     const paneGap = 10;
     const volumeHeight = showVolume ? Math.min(requestedVolumeHeight, Math.max(42, availableAuxHeight * 0.38)) : 0;
@@ -2189,13 +2189,13 @@ export default function Home() {
         : 0;
     const chartArea = {
       left: compactChart ? 8 : 12,
-      top: topLegendHeight,
+      top: topPlotInset,
       width: Math.max(80, rect.width - rightAxisWidth - (compactChart ? 10 : 18)),
       height: Math.max(
         120,
         rect.height -
           bottomAxisHeight -
-          topLegendHeight -
+          topPlotInset -
           volumeHeight -
           oscillatorTotalHeight -
           (showVolume ? paneGap : 0) -
