@@ -1,6 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CanvasHTMLAttributes,
+  type CSSProperties,
+  type ReactNode,
+  type Ref,
+} from 'react';
 
 interface Candle {
   time: number;
@@ -128,6 +137,11 @@ interface ActiveIndicator {
   definitionId: string;
   visible: boolean;
   settings: IndicatorSettings;
+}
+
+interface IndicatorLegendTarget {
+  indicatorId: string;
+  paneIndex: number;
 }
 
 interface IndicatorLineSeries {
@@ -2070,6 +2084,35 @@ function LayoutOptionIcon({ option }: { option: ChartLayoutOption }) {
   );
 }
 
+interface ChartPaneProps {
+  cell: LayoutCellSpec;
+  paneIndex: number;
+  canvasRef: Ref<HTMLCanvasElement>;
+  canvasProps: CanvasHTMLAttributes<HTMLCanvasElement> & Record<`data-${string}`, string | number | boolean | undefined>;
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}
+
+function ChartPane({ cell, paneIndex, canvasRef, canvasProps, children, className = '', style }: ChartPaneProps) {
+  const canvasClassName = ['chart-canvas', canvasProps.className].filter(Boolean).join(' ');
+
+  return (
+    <div
+      className={['chart-layout-cell', className].filter(Boolean).join(' ')}
+      data-pane-index={paneIndex}
+      style={{
+        ...style,
+        gridColumn: cell.column,
+        gridRow: cell.row,
+      }}
+    >
+      <canvas {...canvasProps} ref={canvasRef} className={canvasClassName} />
+      {children}
+    </div>
+  );
+}
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const duplicateCanvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
@@ -2111,8 +2154,8 @@ export default function Home() {
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
   const [theme, setTheme] = useState<ThemeName>('dark');
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(DEFAULT_ACTIVE_INDICATORS);
-  const [settingsTargetId, setSettingsTargetId] = useState<string | null>(null);
-  const [moreTargetId, setMoreTargetId] = useState<string | null>(null);
+  const [settingsTarget, setSettingsTarget] = useState<IndicatorLegendTarget | null>(null);
+  const [moreTarget, setMoreTarget] = useState<IndicatorLegendTarget | null>(null);
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('connecting');
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [headerPanel, setHeaderPanel] = useState<HeaderPanelKey | null>(null);
@@ -2147,6 +2190,7 @@ export default function Home() {
   const latestCandle = candles.length > 0 ? candles[candles.length - 1] : null;
   const selectedLayout = ALL_LAYOUT_OPTIONS.find((option) => option.id === selectedLayoutId) ?? ALL_LAYOUT_OPTIONS[0]!;
   const selectedLayoutCells = selectedLayout.cells;
+  const primaryLayoutCell = selectedLayoutCells[0] ?? layoutCell(1, 1);
   const duplicatePaneCount = Math.max(0, selectedLayoutCells.length - 1);
   const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
   const visibleVolumeIndicator = visibleIndicators.find(
@@ -2236,8 +2280,8 @@ export default function Home() {
 
   const removeIndicator = (indicatorId: string) => {
     setActiveIndicators((current) => current.filter((indicator) => indicator.id !== indicatorId));
-    setSettingsTargetId((current) => (current === indicatorId ? null : current));
-    setMoreTargetId((current) => (current === indicatorId ? null : current));
+    setSettingsTarget((current) => (current?.indicatorId === indicatorId ? null : current));
+    setMoreTarget((current) => (current?.indicatorId === indicatorId ? null : current));
   };
 
   const toggleIndicatorVisibility = (indicatorId: string) => {
@@ -2271,7 +2315,7 @@ export default function Home() {
         },
       ];
     });
-    setMoreTargetId(null);
+    setMoreTarget(null);
   };
 
   const moveIndicator = (indicatorId: string, direction: -1 | 1) => {
@@ -2286,7 +2330,7 @@ export default function Home() {
       next.splice(nextIndex, 0, indicator);
       return next;
     });
-    setMoreTargetId(null);
+    setMoreTarget(null);
   };
 
   useEffect(() => {
@@ -2307,8 +2351,8 @@ export default function Home() {
       }
 
       if (!indicatorLegendRef.current?.contains(target)) {
-        setSettingsTargetId(null);
-        setMoreTargetId(null);
+        setSettingsTarget(null);
+        setMoreTarget(null);
       }
     };
 
@@ -3353,19 +3397,19 @@ export default function Home() {
     setHeaderPanel(null);
     setQuickSearchQuery('');
     setSnapshotStatus('');
-    setSettingsTargetId(null);
-    setMoreTargetId(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
   };
   const toggleHeaderPanel = (panel: HeaderPanelKey) => {
     setOpenMenu(null);
-    setSettingsTargetId(null);
-    setMoreTargetId(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
     setSnapshotStatus('');
     setHeaderPanel((current) => (current === panel ? null : panel));
   };
   const openQuickSearch = () => {
-    setSettingsTargetId(null);
-    setMoreTargetId(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
     setOpenMenu(null);
     setHeaderPanel('quickSearch');
   };
@@ -3414,8 +3458,8 @@ export default function Home() {
   };
   const openToolbarMenu = (menuKey: MenuKey) => {
     setHeaderPanel(null);
-    setSettingsTargetId(null);
-    setMoreTargetId(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
     setOpenMenu(menuKey);
     focusMenuItem(menuKey, 0);
   };
@@ -3520,69 +3564,269 @@ export default function Home() {
     resetView();
     closeHeaderOverlays();
   };
-  const renderDuplicatePaneDetails = (paneIndex: number) => (
-    <>
-      {chartSettings.showStatusLine && legendCandle && (
-        <div
-          className="instrument-legend-overlay duplicate-legend-overlay"
-          aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend pane ${paneIndex}`}
-        >
-          <span className="instrument-legend-symbol">
-            {formatSymbol(symbol)} {timeframe.toUpperCase()}
-          </span>
-          <span className="instrument-legend-field">
-            <span>O</span>
-            {formatPrice(legendCandle.open)}
-          </span>
-          <span className="instrument-legend-field">
-            <span>H</span>
-            {formatPrice(legendCandle.high)}
-          </span>
-          <span className="instrument-legend-field">
-            <span>L</span>
-            {formatPrice(legendCandle.low)}
-          </span>
-          <span className="instrument-legend-field">
-            <span>C</span>
-            {formatPrice(legendCandle.close)}
-          </span>
-          <span className={`instrument-legend-change ${legendTone}`}>
-            {legendChange >= 0 ? '+' : ''}
-            {formatPrice(legendChange)} ({legendChangePercent >= 0 ? '+' : ''}
-            {legendChangePercent.toFixed(2)}%)
-          </span>
-        </div>
-      )}
-
-      {chartSettings.showIndicatorLegend && activeIndicators.length > 0 && legendCandle && (
-        <div className="indicator-legend-overlay duplicate-indicator-legend-overlay" aria-label={`Active indicators pane ${paneIndex}`}>
-          {activeIndicators.map((indicator) => {
-            const definition = getIndicatorDefinition(indicator.definitionId);
-            const computed = activeIndicatorSeries[indicator.id];
-            const indicatorValues =
-              definition.formula === 'volume'
-                ? [{ label: 'Volume', color: definition.defaults.color ?? palette.text, value: legendCandle.volume }]
-                : computed?.lines.map((line) => ({
-                    label: line.label,
-                    color: line.color,
-                    value: legendIndex >= 0 ? line.values[legendIndex] : null,
-                  })) ?? [];
-
-            return (
-              <div key={`${paneIndex}-${indicator.id}`} className="indicator-legend-row" data-visible={indicator.visible}>
-                <div className="indicator-legend-main">
-                  <span className="indicator-legend-title">{getIndicatorLegendName(indicator, symbol)}</span>
-                  {indicatorValues.map((item) => (
-                    <span key={`${paneIndex}-${indicator.id}-${item.label}`} className="indicator-legend-value" style={{ color: item.color }}>
-                      {formatIndicatorNumber(item.value)}
-                    </span>
-                  ))}
-                </div>
-              </div>
+  const renderInstrumentLegend = (paneIndex: number) =>
+    chartSettings.showStatusLine && legendCandle ? (
+      <div
+        className="instrument-legend-overlay"
+        aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend pane ${paneIndex}`}
+      >
+        <span className="instrument-legend-symbol">
+          {formatSymbol(symbol)} {timeframe.toUpperCase()}
+        </span>
+        <span className="instrument-legend-field">
+          <span>O</span>
+          {formatPrice(legendCandle.open)}
+        </span>
+        <span className="instrument-legend-field">
+          <span>H</span>
+          {formatPrice(legendCandle.high)}
+        </span>
+        <span className="instrument-legend-field">
+          <span>L</span>
+          {formatPrice(legendCandle.low)}
+        </span>
+        <span className="instrument-legend-field">
+          <span>C</span>
+          {formatPrice(legendCandle.close)}
+        </span>
+        <span className={`instrument-legend-change ${legendTone}`}>
+          {legendChange >= 0 ? '+' : ''}
+          {formatPrice(legendChange)} ({legendChangePercent >= 0 ? '+' : ''}
+          {legendChangePercent.toFixed(2)}%)
+        </span>
+      </div>
+    ) : null;
+  const renderIndicatorLegend = (paneIndex: number, attachRef: boolean) =>
+    chartSettings.showIndicatorLegend && activeIndicators.length > 0 && legendCandle ? (
+      <div
+        ref={attachRef ? indicatorLegendRef : undefined}
+        className="indicator-legend-overlay"
+        aria-label={`Active indicators pane ${paneIndex}`}
+      >
+        {activeIndicators.map((indicator, index) => {
+          const definition = getIndicatorDefinition(indicator.definitionId);
+          const computed = activeIndicatorSeries[indicator.id];
+          const indicatorValues =
+            definition.formula === 'volume'
+              ? [{ label: 'Volume', color: definition.defaults.color ?? palette.text, value: legendCandle.volume }]
+              : computed?.lines.map((line) => ({
+                  label: line.label,
+                  color: line.color,
+                  value: legendIndex >= 0 ? line.values[legendIndex] : null,
+                })) ?? [];
+          const settings = indicator.settings;
+          const canEditPeriod =
+            definition.defaults.period !== undefined ||
+            settings.period !== undefined ||
+            ['sma', 'ema', 'wma', 'rsi', 'stochastic', 'donchian', 'atr', 'momentum', 'roc'].includes(
+              definition.formula
             );
-          })}
-        </div>
-      )}
+          const canEditSource = definition.defaults.source !== undefined || settings.source !== undefined;
+          const canEditDeviation =
+            definition.formula === 'bb' ||
+            definition.formula === 'bb-percent' ||
+            definition.formula === 'bb-width';
+          const canEditMacd = definition.formula === 'macd';
+          const canEditSignal = canEditMacd || definition.formula === 'stochastic';
+
+          return (
+            <div
+              key={`${paneIndex}-${indicator.id}`}
+              className="indicator-legend-row"
+              data-visible={indicator.visible}
+              data-settings-open={settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex}
+              data-more-open={moreTarget?.indicatorId === indicator.id && moreTarget.paneIndex === paneIndex}
+            >
+              <div className="indicator-legend-main">
+                <span className="indicator-legend-title">{getIndicatorLegendName(indicator, symbol)}</span>
+                {indicatorValues.map((item) => (
+                  <span key={`${paneIndex}-${indicator.id}-${item.label}`} className="indicator-legend-value" style={{ color: item.color }}>
+                    {formatIndicatorNumber(item.value)}
+                  </span>
+                ))}
+                <span className="indicator-legend-actions">
+                  <button
+                    type="button"
+                    className="legend-action-button"
+                    aria-label={`${indicator.visible ? 'Hide' : 'Show'} ${definition.name}`}
+                    title={indicator.visible ? 'Hide' : 'Show'}
+                    onClick={() => toggleIndicatorVisibility(indicator.id)}
+                  >
+                    <span className={`legend-action-glyph ${indicator.visible ? 'eye' : 'eye-off'}`} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="legend-action-button"
+                    aria-label={`Settings for ${definition.name}`}
+                    title="Settings"
+                    onClick={() => {
+                      setSettingsTarget((current) =>
+                        current?.indicatorId === indicator.id && current.paneIndex === paneIndex
+                          ? null
+                          : { indicatorId: indicator.id, paneIndex }
+                      );
+                      setMoreTarget(null);
+                    }}
+                  >
+                    <span className="legend-action-glyph settings" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M10.4 3h3.2l.6 2.4c.5.2 1 .4 1.4.8l2.4-.8 1.6 2.8-1.8 1.7c.1.5.2 1.1.2 1.6s-.1 1.1-.2 1.6l1.8 1.7-1.6 2.8-2.4-.8c-.4.3-.9.6-1.4.8l-.6 2.4h-3.2l-.6-2.4c-.5-.2-1-.4-1.4-.8l-2.4.8-1.6-2.8 1.8-1.7c-.1-.5-.2-1.1-.2-1.6s.1-1.1.2-1.6L4.4 8.2 6 5.4l2.4.8c.4-.3.9-.6 1.4-.8L10.4 3Z" />
+                        <circle cx="12" cy="11.5" r="2.6" />
+                      </svg>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="legend-action-button"
+                    aria-label={`Remove ${definition.name}`}
+                    title="Remove"
+                    onClick={() => removeIndicator(indicator.id)}
+                  >
+                    <span className="legend-action-glyph remove" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="legend-action-button"
+                    aria-label={`More actions for ${definition.name}`}
+                    title="More"
+                    onClick={() => {
+                      setMoreTarget((current) =>
+                        current?.indicatorId === indicator.id && current.paneIndex === paneIndex
+                          ? null
+                          : { indicatorId: indicator.id, paneIndex }
+                      );
+                      setSettingsTarget(null);
+                    }}
+                  >
+                    <span className="legend-action-glyph more" aria-hidden="true" />
+                  </button>
+                </span>
+              </div>
+
+              {settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex && (
+                <div className="indicator-settings-panel" role="group" aria-label={`${definition.name} settings`}>
+                  <label>
+                    <span>Color</span>
+                    <input
+                      type="color"
+                      value={settings.color ?? definition.defaults.color ?? '#2962ff'}
+                      onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
+                    />
+                  </label>
+                  {canEditPeriod && (
+                    <label>
+                      <span>Length</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="500"
+                        value={sanitizePeriod(settings.period, definition.defaults.period ?? 20)}
+                        onChange={(event) => updateIndicatorSettings(indicator.id, { period: Number(event.target.value) })}
+                      />
+                    </label>
+                  )}
+                  {canEditSource && (
+                    <label>
+                      <span>Source</span>
+                      <select
+                        value={settings.source ?? definition.defaults.source ?? 'close'}
+                        onChange={(event) =>
+                          updateIndicatorSettings(indicator.id, { source: event.target.value as IndicatorSource })
+                        }
+                      >
+                        {INDICATOR_SOURCE_OPTIONS.map((sourceOption) => (
+                          <option key={sourceOption} value={sourceOption}>
+                            {sourceOption}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {canEditDeviation && (
+                    <label>
+                      <span>Std dev</span>
+                      <input
+                        type="number"
+                        min="0.1"
+                        max="10"
+                        step="0.1"
+                        value={settings.stdDev ?? definition.defaults.stdDev ?? 2}
+                        onChange={(event) => updateIndicatorSettings(indicator.id, { stdDev: Number(event.target.value) })}
+                      />
+                    </label>
+                  )}
+                  {canEditMacd && (
+                    <>
+                      <label>
+                        <span>Fast</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          value={sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12)}
+                          onChange={(event) =>
+                            updateIndicatorSettings(indicator.id, { fastPeriod: Number(event.target.value) })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Slow</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="300"
+                          value={sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26)}
+                          onChange={(event) =>
+                            updateIndicatorSettings(indicator.id, { slowPeriod: Number(event.target.value) })
+                          }
+                        />
+                      </label>
+                    </>
+                  )}
+                  {canEditSignal && (
+                    <label>
+                      <span>Signal</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9)}
+                        onChange={(event) =>
+                          updateIndicatorSettings(indicator.id, { signalPeriod: Number(event.target.value) })
+                        }
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {moreTarget?.indicatorId === indicator.id && moreTarget.paneIndex === paneIndex && (
+                <div className="indicator-more-panel" role="menu" aria-label={`${definition.name} actions`}>
+                  <button type="button" role="menuitem" onClick={() => duplicateIndicator(indicator.id)}>
+                    Duplicate
+                  </button>
+                  <button type="button" role="menuitem" disabled={index === 0} onClick={() => moveIndicator(indicator.id, -1)}>
+                    Move up
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={index === activeIndicators.length - 1}
+                    onClick={() => moveIndicator(indicator.id, 1)}
+                  >
+                    Move down
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    ) : null;
+  const renderPaneOverlays = (paneIndex: number, attachLegendRef: boolean) => (
+    <>
+      {renderInstrumentLegend(paneIndex)}
+      {renderIndicatorLegend(paneIndex, attachLegendRef)}
 
       {loading && (
         <div className="chart-overlay">
@@ -3599,6 +3843,9 @@ export default function Home() {
           <div className="state-panel">
             <strong>Market data unavailable</strong>
             <span>{error}</span>
+            <button type="button" onClick={() => setRefreshNonce((value) => value + 1)}>
+              Retry
+            </button>
           </div>
         </div>
       )}
@@ -4311,328 +4558,49 @@ export default function Home() {
             gridTemplateRows: selectedLayout.templateRows,
           }}
         >
-          <div
-            className="chart-layout-cell chart-layout-cell-primary"
-            data-active="true"
-            style={{
-              gridColumn: selectedLayoutCells[0]?.column ?? '1 / span 1',
-              gridRow: selectedLayoutCells[0]?.row ?? '1 / span 1',
+          <ChartPane
+            cell={primaryLayoutCell}
+            paneIndex={1}
+            canvasRef={canvasRef}
+            canvasProps={{
+              'aria-label': `${formatSymbol(symbol)} ${timeframe} chart`,
+              'data-drag-mode': dragMode,
+              'data-manual-price-scale': manualPriceRange ? 'true' : 'false',
+              'data-pointer-area': pointerArea,
+              'data-price-max': manualPriceRange ? manualPriceRange.maxPrice.toFixed(2) : '',
+              'data-price-min': manualPriceRange ? manualPriceRange.minPrice.toFixed(2) : '',
+              'data-view-end': viewRange.endIndex.toFixed(2),
+              'data-view-start': viewRange.startIndex.toFixed(2),
+              style: { cursor: canvasCursor },
+              onMouseMove: handleMouseMove,
+              onMouseDown: handleMouseDown,
+              onMouseUp: handleMouseUp,
+              onMouseLeave: handleMouseLeave,
+              onWheel: handleWheel,
             }}
           >
-            <canvas
-              ref={canvasRef}
-              aria-label={`${formatSymbol(symbol)} ${timeframe} chart`}
-              className="chart-canvas"
-              data-drag-mode={dragMode}
-              data-manual-price-scale={manualPriceRange ? 'true' : 'false'}
-              data-pointer-area={pointerArea}
-              data-price-max={manualPriceRange ? manualPriceRange.maxPrice.toFixed(2) : ''}
-              data-price-min={manualPriceRange ? manualPriceRange.minPrice.toFixed(2) : ''}
-              data-view-end={viewRange.endIndex.toFixed(2)}
-              data-view-start={viewRange.startIndex.toFixed(2)}
-              style={{ cursor: canvasCursor }}
-              onMouseMove={handleMouseMove}
-              onMouseDown={handleMouseDown}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseLeave}
-              onWheel={handleWheel}
-            />
+            {renderPaneOverlays(1, true)}
+          </ChartPane>
 
-            {chartSettings.showStatusLine && legendCandle && (
-          <div
-            className="instrument-legend-overlay"
-            aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend`}
-          >
-            <span className="instrument-legend-symbol">
-              {formatSymbol(symbol)} {timeframe.toUpperCase()}
-            </span>
-            <span className="instrument-legend-field">
-              <span>O</span>
-              {formatPrice(legendCandle.open)}
-            </span>
-            <span className="instrument-legend-field">
-              <span>H</span>
-              {formatPrice(legendCandle.high)}
-            </span>
-            <span className="instrument-legend-field">
-              <span>L</span>
-              {formatPrice(legendCandle.low)}
-            </span>
-            <span className="instrument-legend-field">
-              <span>C</span>
-              {formatPrice(legendCandle.close)}
-            </span>
-            <span className={`instrument-legend-change ${legendTone}`}>
-              {legendChange >= 0 ? '+' : ''}
-              {formatPrice(legendChange)} ({legendChangePercent >= 0 ? '+' : ''}
-              {legendChangePercent.toFixed(2)}%)
-            </span>
-          </div>
-        )}
+          {selectedLayoutCells.slice(1).map((cellSpec, index) => {
+            const paneIndex = index + 2;
 
-        {chartSettings.showIndicatorLegend && activeIndicators.length > 0 && legendCandle && (
-          <div ref={indicatorLegendRef} className="indicator-legend-overlay" aria-label="Active indicators">
-            {activeIndicators.map((indicator, index) => {
-              const definition = getIndicatorDefinition(indicator.definitionId);
-              const computed = activeIndicatorSeries[indicator.id];
-              const indicatorValues =
-                definition.formula === 'volume'
-                  ? [{ label: 'Volume', color: definition.defaults.color ?? palette.text, value: legendCandle.volume }]
-                  : computed?.lines.map((line) => ({
-                      label: line.label,
-                      color: line.color,
-                      value: legendIndex >= 0 ? line.values[legendIndex] : null,
-                    })) ?? [];
-              const settings = indicator.settings;
-              const canEditPeriod =
-                definition.defaults.period !== undefined ||
-                settings.period !== undefined ||
-                ['sma', 'ema', 'wma', 'rsi', 'stochastic', 'donchian', 'atr', 'momentum', 'roc'].includes(
-                  definition.formula
-                );
-              const canEditSource = definition.defaults.source !== undefined || settings.source !== undefined;
-              const canEditDeviation =
-                definition.formula === 'bb' ||
-                definition.formula === 'bb-percent' ||
-                definition.formula === 'bb-width';
-              const canEditMacd = definition.formula === 'macd';
-              const canEditSignal = canEditMacd || definition.formula === 'stochastic';
-
-              return (
-                <div
-                  key={indicator.id}
-                  className="indicator-legend-row"
-                  data-visible={indicator.visible}
-                  data-settings-open={settingsTargetId === indicator.id}
-                  data-more-open={moreTargetId === indicator.id}
-                >
-                  <div className="indicator-legend-main">
-                    <span className="indicator-legend-title">{getIndicatorLegendName(indicator, symbol)}</span>
-                    {indicatorValues.map((item) => (
-                      <span key={`${indicator.id}-${item.label}`} className="indicator-legend-value" style={{ color: item.color }}>
-                        {formatIndicatorNumber(item.value)}
-                      </span>
-                    ))}
-                    <span className="indicator-legend-actions">
-                      <button
-                        type="button"
-                        className="legend-action-button"
-                        aria-label={`${indicator.visible ? 'Hide' : 'Show'} ${definition.name}`}
-                        title={indicator.visible ? 'Hide' : 'Show'}
-                        onClick={() => toggleIndicatorVisibility(indicator.id)}
-                      >
-                        <span className={`legend-action-glyph ${indicator.visible ? 'eye' : 'eye-off'}`} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        className="legend-action-button"
-                        aria-label={`Settings for ${definition.name}`}
-                        title="Settings"
-                        onClick={() => {
-                          setSettingsTargetId((current) => (current === indicator.id ? null : indicator.id));
-                          setMoreTargetId(null);
-                        }}
-                      >
-                        <span className="legend-action-glyph settings" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" focusable="false">
-                            <path d="M10.4 3h3.2l.6 2.4c.5.2 1 .4 1.4.8l2.4-.8 1.6 2.8-1.8 1.7c.1.5.2 1.1.2 1.6s-.1 1.1-.2 1.6l1.8 1.7-1.6 2.8-2.4-.8c-.4.3-.9.6-1.4.8l-.6 2.4h-3.2l-.6-2.4c-.5-.2-1-.4-1.4-.8l-2.4.8-1.6-2.8 1.8-1.7c-.1-.5-.2-1.1-.2-1.6s.1-1.1.2-1.6L4.4 8.2 6 5.4l2.4.8c.4-.3.9-.6 1.4-.8L10.4 3Z" />
-                            <circle cx="12" cy="11.5" r="2.6" />
-                          </svg>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="legend-action-button"
-                        aria-label={`Remove ${definition.name}`}
-                        title="Remove"
-                        onClick={() => removeIndicator(indicator.id)}
-                      >
-                        <span className="legend-action-glyph remove" aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        className="legend-action-button"
-                        aria-label={`More actions for ${definition.name}`}
-                        title="More"
-                        onClick={() => {
-                          setMoreTargetId((current) => (current === indicator.id ? null : indicator.id));
-                          setSettingsTargetId(null);
-                        }}
-                      >
-                        <span className="legend-action-glyph more" aria-hidden="true" />
-                      </button>
-                    </span>
-                  </div>
-
-                  {settingsTargetId === indicator.id && (
-                    <div className="indicator-settings-panel" role="group" aria-label={`${definition.name} settings`}>
-                      <label>
-                        <span>Color</span>
-                        <input
-                          type="color"
-                          value={settings.color ?? definition.defaults.color ?? '#2962ff'}
-                          onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
-                        />
-                      </label>
-                      {canEditPeriod && (
-                        <label>
-                          <span>Length</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="500"
-                            value={sanitizePeriod(settings.period, definition.defaults.period ?? 20)}
-                            onChange={(event) => updateIndicatorSettings(indicator.id, { period: Number(event.target.value) })}
-                          />
-                        </label>
-                      )}
-                      {canEditSource && (
-                        <label>
-                          <span>Source</span>
-                          <select
-                            value={settings.source ?? definition.defaults.source ?? 'close'}
-                            onChange={(event) =>
-                              updateIndicatorSettings(indicator.id, { source: event.target.value as IndicatorSource })
-                            }
-                          >
-                            {INDICATOR_SOURCE_OPTIONS.map((sourceOption) => (
-                              <option key={sourceOption} value={sourceOption}>
-                                {sourceOption}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                      {canEditDeviation && (
-                        <label>
-                          <span>Std dev</span>
-                          <input
-                            type="number"
-                            min="0.1"
-                            max="10"
-                            step="0.1"
-                            value={settings.stdDev ?? definition.defaults.stdDev ?? 2}
-                            onChange={(event) => updateIndicatorSettings(indicator.id, { stdDev: Number(event.target.value) })}
-                          />
-                        </label>
-                      )}
-                      {canEditMacd && (
-                        <>
-                          <label>
-                            <span>Fast</span>
-                            <input
-                              type="number"
-                              min="1"
-                              max="200"
-                              value={sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12)}
-                              onChange={(event) =>
-                                updateIndicatorSettings(indicator.id, { fastPeriod: Number(event.target.value) })
-                              }
-                            />
-                          </label>
-                          <label>
-                            <span>Slow</span>
-                            <input
-                              type="number"
-                              min="1"
-                              max="300"
-                              value={sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26)}
-                              onChange={(event) =>
-                                updateIndicatorSettings(indicator.id, { slowPeriod: Number(event.target.value) })
-                              }
-                            />
-                          </label>
-                        </>
-                      )}
-                      {canEditSignal && (
-                        <label>
-                          <span>Signal</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="200"
-                            value={sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9)}
-                            onChange={(event) =>
-                              updateIndicatorSettings(indicator.id, { signalPeriod: Number(event.target.value) })
-                            }
-                          />
-                        </label>
-                      )}
-                    </div>
-                  )}
-
-                  {moreTargetId === indicator.id && (
-                    <div className="indicator-more-panel" role="menu" aria-label={`${definition.name} actions`}>
-                      <button type="button" role="menuitem" onClick={() => duplicateIndicator(indicator.id)}>
-                        Duplicate
-                      </button>
-                      <button type="button" role="menuitem" disabled={index === 0} onClick={() => moveIndicator(indicator.id, -1)}>
-                        Move up
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        disabled={index === activeIndicators.length - 1}
-                        onClick={() => moveIndicator(indicator.id, 1)}
-                      >
-                        Move down
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {loading && (
-          <div className="chart-overlay">
-            <div className="loading-panel">
-              <span className="loading-line" />
-              <span className="loading-line short" />
-              <span className="state-copy">Loading market data</span>
-            </div>
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="chart-overlay">
-            <div className="state-panel">
-              <strong>Market data unavailable</strong>
-              <span>{error}</span>
-              <button type="button" onClick={() => setRefreshNonce((value) => value + 1)}>
-                Retry
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!loading && !error && candles.length === 0 && (
-          <div className="chart-overlay">
-            <div className="state-panel">
-              <strong>No candles returned</strong>
-              <span>Try another symbol or timeframe.</span>
-            </div>
-          </div>
-        )}
-          </div>
-
-          {selectedLayoutCells.slice(1).map((cellSpec, index) => (
-            <div
-              key={`${selectedLayout.id}-${index + 2}`}
-              className="chart-layout-cell chart-layout-cell-duplicate"
-              style={{ gridColumn: cellSpec.column, gridRow: cellSpec.row }}
-            >
-              <canvas
-                ref={(node) => {
+            return (
+              <ChartPane
+                key={`${selectedLayout.id}-${paneIndex}`}
+                cell={cellSpec}
+                paneIndex={paneIndex}
+                canvasRef={(node) => {
                   duplicateCanvasRefs.current[index] = node;
                 }}
-                aria-label={`${formatSymbol(symbol)} ${timeframe} duplicate chart pane ${index + 2}`}
-                className="chart-canvas chart-canvas-duplicate"
-              />
-              {renderDuplicatePaneDetails(index + 2)}
-            </div>
-          ))}
+                canvasProps={{
+                  'aria-label': `${formatSymbol(symbol)} ${timeframe} duplicate chart pane ${paneIndex}`,
+                }}
+              >
+                {renderPaneOverlays(paneIndex, false)}
+              </ChartPane>
+            );
+          })}
         </div>
       </section>
     </main>

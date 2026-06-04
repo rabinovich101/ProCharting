@@ -1,3 +1,77 @@
+# Component-Based Exact Layout Duplicates
+
+## Goal
+
+Remove the remaining visual differences between split panes by rendering primary
+and duplicate panes through one shared component and one shared overlay path.
+
+## Findings / Decisions
+
+- The canvases are already drawing identical pixels, but duplicate panes still
+  use separate overlay markup/classes (`duplicate-legend-overlay`,
+  `duplicate-indicator-legend-overlay`) and primary-only pane styling.
+- Use a single `ChartPane` component for every layout cell so pane structure is
+  shared instead of hand-written twice.
+- Use shared status/indicator overlay renderers for every pane. Pane 1 remains
+  the source for interaction bounds and refs; duplicate panes use the same
+  visible overlay classes so the screens look the same.
+- Remove duplicate-specific legend sizing and primary-only active pane shadow so
+  equally sized panes do not visually diverge.
+
+## Checklist
+
+- [x] Add a reusable `ChartPane` component for all layout cells.
+- [x] Replace primary/duplicate overlay branches with shared render helpers.
+- [x] Remove duplicate-specific overlay CSS and primary-only cell styling.
+- [x] Update architecture notes and todo review.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify two-chart and four-chart panes with Browser/Playwright/devtools.
+- [x] Commit and push `main`.
+
+## Review
+
+Implemented the component cleanup so every split screen is rendered through the
+same pane structure instead of separate primary and duplicate branches.
+
+- `TEST/binance-chart-test/app/page.tsx` now uses one `ChartPane` component for
+  pane 1 and every duplicate pane. The component applies the selected layout
+  cell and renders a canvas plus the shared overlay children.
+- Replaced duplicate-only status and indicator legend markup with shared
+  `renderInstrumentLegend`, `renderIndicatorLegend`, and `renderPaneOverlays`
+  helpers. Pane 1 still owns the interaction refs; duplicates render the same
+  visible overlay classes without changing hit-testing bounds.
+- Indicator legend settings/more menus are now scoped by pane index plus
+  indicator id, so clicking controls in one duplicated pane does not open the
+  same popover across every pane.
+- `TEST/binance-chart-test/app/globals.css` removes duplicate-specific legend
+  sizing and the primary-only active shadow, so equally sized panes no longer
+  diverge visually.
+- `ARCHITECTURE.md` now documents that duplicate panes share the `ChartPane`
+  component and overlay renderers while only pane 1 updates interaction bounds.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- In-app Browser verified `2 charts vertical split`: 2 canvases, 0
+  duplicate-only classes, identical pane child signatures, identical labels, no
+  pane shadow differences, and no horizontal overflow.
+- After restarting the dev server cleanly, in-app Browser verified
+  `2 charts vertical split` and `4 charts grid` again: the selected layout ids
+  were correct, pane/canvas counts matched, pane child signatures stayed
+  identical, duplicate-only classes stayed at 0, horizontal overflow stayed at
+  0, and browser console errors were empty.
+- Playwright plus Chrome DevTools Protocol verified `2 charts vertical split`
+  and `4 charts grid`: identical pane structure, identical overlay labels,
+  matching 2-chart canvas pixels (`mismatchCount: 0`), no console errors, and
+  no CDP runtime exceptions.
+- Saved QA screenshots outside the repo:
+  `/tmp/procharting-component-duplicate-2-scoped.png` and
+  `/tmp/procharting-component-duplicate-4-scoped.png`.
+
 # Duplicate Layout Panes One-To-One
 
 ## Goal
@@ -3268,3 +3342,123 @@ Browser QA:
 - Browser dev logs contained Vite/debug/log history and no error-level runtime
   entries; the current page DOM reported `Renderer: canvas2d` and `1,000` data
   points.
+
+# MCP Update Audit Plan
+
+## Goal
+
+Check whether the MCP servers configured for Codex are current, without changing
+project code or unrelated user work.
+
+## Findings / Decisions
+
+- The active MCP configuration lives in `~/.codex/config.toml`, not inside this
+  repository.
+- The ProCharting repository has MCP references in docs and adapter code, but
+  no project-local MCP server config file was found.
+- Existing uncommitted changes in `todo.md` and
+  `TEST/binance-chart-test/app/page.tsx` were present before this audit, so this
+  audit will only append notes here and will not touch unrelated files.
+
+## Checklist
+
+- [x] Inspect repository state and MCP references.
+- [x] Locate active Codex MCP server configuration.
+- [x] Check current local versions/commands for configured MCP servers.
+- [x] Compare pinned or installable MCP packages against latest upstream
+      versions.
+- [x] Record review notes with update status and any recommended actions.
+
+## Review
+
+- Active Codex MCP config checked: `~/.codex/config.toml`.
+- Project-local MCP config checked: none found in ProCharting beyond docs,
+  adapter code, and `.cursor/rules`.
+- Current / OK:
+  - `shadcn`: configured as `npx shadcn@latest mcp`; npm latest/current
+    resolved to `4.10.0`.
+  - `context7`: configured as `npx -y @upstash/context7-mcp`; npm
+    latest/current resolved to `3.1.0`.
+  - `browser-use`: configured through `uvx --from browser-use[cli]`; resolved
+    runtime package is `browser-use 0.12.9`, matching PyPI latest.
+  - `tradingview`: executable is backed by `tradingview-mcp-server 0.7.1`,
+    matching PyPI latest.
+  - `codegraph`: updated in the follow-up section below from
+    `@colbymchenry/codegraph 0.9.4` to npm latest `0.9.9`.
+  - Docker MCP default-profile images currently matching `latest`: `mcp/chroma`,
+    `mcp/context7`, `mcp/memory`, `mcp/perplexity-ask`,
+    `mcp/mcp-playwright`, `mcp/puppeteer`, `mcp/sequentialthinking`, and
+    `mcp/obsidian`.
+- Needs update:
+  - Standalone Codex `playwright` MCP entry: `@playwright/mcp` resolves to the
+    latest npm release `0.0.75`, but the Docker image is pinned to
+    `mcr.microsoft.com/playwright:v1.52.0-noble` while npm Playwright latest is
+    `1.60.0` and `mcr.microsoft.com/playwright:v1.60.0-noble` exists.
+  - Docker MCP default profile stale image pins:
+    - `mcp/duckduckgo`: pinned
+      `sha256:0fd1947e9c70ae2624282c514fcd49ea9ceea52e4bc3802944afd9474199d86e`,
+      latest
+      `sha256:d7141ebf002fd36928e006b7f33de8be0088b337b668edd6564c640e1ce768d8`.
+    - `mcp/fetch`: pinned
+      `sha256:0b934931b14b086a61a5ab331e7289a3847627bb2918ba52e873243390364566`,
+      latest
+      `sha256:d9907377c03da91e49cf02c3dd6f0f83d1e0183e1222850f92595089f2c9a59d`.
+    - `mcp/playwright`: pinned
+      `sha256:ef9af76fc7862fbb66bad6672ebee282f744907263ead8c52d0f17696998aeeb`,
+      latest
+      `sha256:097d978439237cc9b12e10825836a97245add2be0479272cce9d98c368f024d1`.
+    - `mcp/redis`: pinned
+      `sha256:7db62007d46bb69929e0f844e915da8f8074091fe7b5b6955b2e0ccc1189c05d`,
+      latest
+      `sha256:a787c20d4c32f6620094325000d95f20467c62c9dc2ead19a34dbc086724f09b`.
+  - TradingView MCP server package itself is current, but its venv dependency
+    `mcp` is installed at `1.27.0`; PyPI latest is `1.27.2`.
+- Not independently versioned here:
+  - `MCP_DOCKER` CLI reports `v0.42.1`; it is managed by Docker Desktop / Docker
+    MCP Toolkit rather than a project package.
+  - `node_repl` is bundled inside the Codex app runtime and should be updated by
+    updating Codex, not through the project.
+- `ARCHITECTURE.md` was not modified because this audit did not change project
+  architecture.
+- No browser QA was run because no application/runtime code was changed.
+
+# CodeGraph MCP Update Plan
+
+## Goal
+
+Update the global CodeGraph MCP/CLI used by Codex from the stale installed
+version to the latest published `@colbymchenry/codegraph` package.
+
+## Findings / Decisions
+
+- `codegraph` resolves from the Node global bin at
+  `/Users/olegrabinovich/.nvm/versions/node/v22.22.2/bin/codegraph`.
+- The installed global package before update is `@colbymchenry/codegraph 0.9.4`.
+- npm reports the latest package version as `0.9.9`.
+- This is a global Codex tool update, not a ProCharting runtime architecture
+  change.
+
+## Checklist
+
+- [x] Confirm installed CodeGraph package and upstream latest version.
+- [x] Update the global `@colbymchenry/codegraph` package.
+- [x] Verify `codegraph --version` reports the latest version.
+- [x] Verify the ProCharting CodeGraph index is usable after the update.
+- [x] Record review notes.
+
+## Review
+
+- Updated global `@colbymchenry/codegraph` with
+  `npm install -g @colbymchenry/codegraph@latest`.
+- `codegraph --version` now reports `0.9.9`.
+- Global npm package metadata now reports `@colbymchenry/codegraph 0.9.9`.
+- CodeGraph CLI status for ProCharting reports 76 indexed files, 1,036 nodes,
+  1,218 edges, built-in `node:sqlite` backend, WAL journal mode, and an
+  up-to-date index.
+- MCP-facing CodeGraph tools were verified: `codegraph_status` returned index
+  statistics and `codegraph_search` found `ChartImpl` in
+  `packages/core/src/chart.ts`.
+- `codegraph sync` completed with "Already up to date".
+- `ARCHITECTURE.md` was not modified because updating the global MCP tool does
+  not change ProCharting architecture.
+- Browser QA was not run because no application/runtime UI code changed.

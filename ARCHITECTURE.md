@@ -244,10 +244,12 @@ local QA-harness feature. The right-side layout panel defines grouped split
 layouts in `app/page.tsx`; selecting one applies the same grid definition to the
 chart stage. The first pane keeps the live Canvas 2D chart and interactive
 overlays, while additional panes use duplicate Canvas 2D elements drawn from the
-same chart state with read-only legend/status overlays. Only the first pane
-updates interaction hit-testing bounds for pan, zoom, and price-axis scaling, so
-split layouts duplicate the visible chart without changing the packaged renderer
-contracts.
+same chart state through the same `ChartPane` component and overlay renderers.
+Only the first pane updates interaction hit-testing bounds for pan, zoom, and
+price-axis scaling, so split layouts duplicate the visible chart efficiently
+without changing the packaged renderer contracts. Indicator legend popovers are
+targeted by pane index and indicator id so shared overlay controls do not open
+the same menu in every duplicated pane.
 
 The chart app supports:
 
