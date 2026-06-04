@@ -761,45 +761,47 @@ summary {
   align-items: flex-start;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  left: 14px;
-  max-width: min(560px, calc(100vw - 118px));
+  gap: 4px;
+  left: 16px;
+  max-width: min(680px, calc(100vw - 124px));
   pointer-events: auto;
   position: absolute;
-  top: 40px;
+  top: 50px;
   z-index: 12;
 }
 
 .indicator-legend-row {
   color: var(--text-strong);
   font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 520;
   position: relative;
 }
 
 .indicator-legend-main {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 76%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
   border: 1px solid transparent;
   border-radius: 5px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.16);
   display: flex;
-  gap: 7px;
-  min-height: 24px;
+  gap: 9px;
   max-width: 100%;
-  padding: 2px 4px 2px 6px;
+  min-height: 30px;
+  padding: 4px 6px 4px 8px;
   white-space: nowrap;
 }
 
 .chart-terminal[data-theme="light"] .indicator-legend-main {
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 1px 0 rgba(20, 32, 51, 0.04);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 0 rgba(20, 32, 51, 0.08);
 }
 
 .indicator-legend-row:hover .indicator-legend-main,
 .indicator-legend-row:focus-within .indicator-legend-main,
 .indicator-legend-row[data-settings-open="true"] .indicator-legend-main,
 .indicator-legend-row[data-more-open="true"] .indicator-legend-main {
-  border-color: var(--border-subtle);
+  border-color: var(--border-strong);
 }
 
 .indicator-legend-row[data-visible="false"] .indicator-legend-main {
@@ -807,7 +809,9 @@ summary {
 }
 
 .indicator-legend-title {
+  color: var(--text-strong);
   flex: 0 1 auto;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -815,12 +819,14 @@ summary {
 .indicator-legend-value {
   flex: 0 0 auto;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .indicator-legend-actions {
   align-items: center;
   display: inline-flex;
-  gap: 2px;
+  gap: 3px;
   opacity: 0;
   transition: opacity 120ms ease;
 }
@@ -839,11 +845,11 @@ summary {
   border-radius: 4px;
   color: var(--text-muted);
   display: inline-flex;
-  height: 20px;
+  height: 24px;
   justify-content: center;
   outline: 0;
   padding: 0;
-  width: 20px;
+  width: 24px;
 }
 
 .legend-action-button:hover,
@@ -855,9 +861,9 @@ summary {
 .legend-action-glyph {
   color: currentColor;
   display: inline-block;
-  height: 14px;
+  height: 15px;
   position: relative;
-  width: 14px;
+  width: 15px;
 }
 
 .legend-action-glyph.eye::before,
@@ -962,15 +968,15 @@ summary {
   border-radius: 7px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
   color: var(--text-strong);
-  margin-top: 3px;
-  padding: 8px;
+  margin-top: 4px;
+  padding: 10px;
 }
 
 .indicator-settings-panel {
   display: grid;
-  gap: 7px;
-  grid-template-columns: repeat(2, minmax(116px, 1fr));
-  max-width: min(440px, calc(100vw - 34px));
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(126px, 1fr));
+  max-width: min(480px, calc(100vw - 34px));
 }
 
 .indicator-settings-panel label {
@@ -981,7 +987,7 @@ summary {
 
 .indicator-settings-panel label span {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 680;
   text-transform: uppercase;
 }
@@ -992,7 +998,7 @@ summary {
   border: 1px solid var(--border-subtle);
   border-radius: 5px;
   color: var(--text-strong);
-  height: 30px;
+  height: 34px;
   min-width: 0;
   outline: 0;
   padding: 0 8px;
@@ -1017,8 +1023,8 @@ summary {
   border: 0;
   border-radius: 5px;
   color: var(--text-strong);
-  font-size: 12px;
-  min-height: 30px;
+  font-size: 13px;
+  min-height: 32px;
   outline: 0;
   padding: 0 9px;
   text-align: left;
@@ -1305,13 +1311,26 @@ summary {
   .indicator-legend-overlay {
     left: 8px;
     max-width: calc(100vw - 86px);
-    top: 36px;
+    top: 42px;
+  }
+
+  .indicator-legend-row {
+    font-size: 12px;
   }
 
   .indicator-legend-main {
-    gap: 5px;
-    min-height: 23px;
-    padding-left: 5px;
+    gap: 6px;
+    min-height: 27px;
+    padding: 3px 4px 3px 6px;
+  }
+
+  .indicator-legend-value {
+    font-size: 12px;
+  }
+
+  .legend-action-button {
+    height: 22px;
+    width: 22px;
   }
 
   .indicator-settings-panel {
