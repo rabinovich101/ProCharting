@@ -1,3 +1,64 @@
+# Compact Hover Indicator Boxes
+
+## Goal
+
+Make the active indicator legend boxes smaller by default and expand them only
+on desktop hover/focus/settings-open.
+
+## Findings / Decisions
+
+- The current action buttons are invisible by opacity but still reserve width
+  inside each indicator row, so the boxes remain wider/taller than needed.
+- Keep mobile stable and compact; apply the hover expansion behavior to the
+  desktop/default indicator legend rules.
+- Keep the indicator text size from the previous pass unchanged.
+
+## Checklist
+
+- [x] Collapse default desktop indicator row padding/height/action width.
+- [x] Expand the row and action area on hover/focus/settings-open/more-open.
+- [x] Preserve mobile indicator spacing and no-overflow behavior.
+- [x] Update `ARCHITECTURE.md` for compact hover-expanding indicator boxes.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify desktop and mobile with Browser/Playwright/devtools.
+- [x] Commit and push `main`.
+
+## Review
+
+Completed the compact hover-expanding indicator box pass.
+
+- `TEST/binance-chart-test/app/globals.css` now collapses desktop indicator
+  legend rows by default: default gap is `7px`, min-height is `26px`, padding is
+  `2px 6px 2px 8px`, and the hidden action area has `max-width: 0`, opacity
+  `0`, and no pointer events.
+- Desktop hover/focus/settings-open/more-open expands the same row: gap becomes
+  `10px`, min-height becomes `34px`, padding becomes `5px 7px 5px 9px`, and the
+  action area expands to `132px` with opacity `1`.
+- Mobile keeps its existing compact row sizing and no-overflow behavior.
+- `ARCHITECTURE.md` documents that active indicator rows are compact by default
+  and expand on desktop hover/focus/open states.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- Browser QA on the in-app browser confirmed the compact default row rendered
+  without horizontal overflow and with `.market-strip` count `0`.
+- Playwright hover QA at `1280x720` passed: default row measured `118x34` with
+  action area `0px` wide and opacity `0`; hover expanded it to `247x40` with
+  action area `121px` wide, `max-width: 132px`, opacity `1`, and
+  `rowHoverCount: 1`.
+- Mobile Browser/Playwright QA at `390x844` passed: indicator stayed below the
+  OHLC overlay, row stayed compact, `.market-strip` count was `0`, and there was
+  no horizontal overflow.
+- Devtools logs for the local app showed zero local error entries.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-compact-indicator-hover-desktop.png` and
+  `/tmp/procharting-compact-indicator-hover-mobile.png`.
+
 # Indicator Font 20 Percent Reduction
 
 ## Goal

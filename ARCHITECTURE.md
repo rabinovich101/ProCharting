@@ -262,11 +262,11 @@ The chart app supports:
   legend strip, matching TradingView's floating-legend layout.
 - Active indicators are stored as registry-backed instances with mutable
   settings. A separate top-left HTML legend sits below the instrument/OHLC row
-  with enlarged, high-contrast TradingView-style typography and exposes
-  hover/focus controls for hide/show, settings, remove, duplicate, and ordering
-  actions. Settings such as length, source, standard deviation, MACD
-  fast/slow/signal, and primary color update the active instance and redraw the
-  chart.
+  with high-contrast TradingView-style typography. Its rows stay compact by
+  default and expand on desktop hover/focus/open states to expose controls for
+  hide/show, settings, remove, duplicate, and ordering actions. Settings such
+  as length, source, standard deviation, MACD fast/slow/signal, and primary
+  color update the active instance and redraw the chart.
 - Selected price overlays participate in automatic Y-range fitting and draw on
   the main price pane. Volume draws in the volume band, and oscillator
   indicators draw in compact lower panes with guide lines and right-side value
