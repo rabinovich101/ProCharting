@@ -1,3 +1,44 @@
+# PR Merge Conflict Resolution Plan
+
+## Goal
+
+Merge the current PR branch `codex/tradingview-chart-scale` with
+`origin/main`, resolve the pull-request conflict cleanly, preserve the new
+TradingView-scale chart behavior, and push the resolved branch.
+
+## Context
+
+- Current branch: `codex/tradingview-chart-scale`.
+- Base branch: `origin/main`.
+- Read-only merge preview shows conflicts in `ARCHITECTURE.md`,
+  `TEST/binance-chart-test/app/page.tsx`, and `todo.md`.
+- `origin/main` adds broader packaged Canvas2D/grid runtime work, including
+  price-scale drag behavior, logical future bars, grid diagnostics, and
+  architecture/todo notes.
+- The PR branch adds the Binance test app's timeframe-specific visible density,
+  semantic timeline ticks, nice price ticks, current-price marker/countdown, and
+  wheel zoom/pan behavior.
+
+## Checklist
+
+- [x] Confirm branch and working tree state.
+- [x] Fetch `origin/main`.
+- [x] Preview merge conflicts before editing files.
+- [ ] Merge `origin/main` into the PR branch.
+- [ ] Resolve `ARCHITECTURE.md` by keeping both main's packaged renderer/grid
+      architecture notes and this branch's chart-test scale behavior notes.
+- [ ] Resolve `TEST/binance-chart-test/app/page.tsx` by combining main's
+      manual price-scale/logical-bar interaction model with this branch's
+      timeline tick, price tick, current-price marker, and wheel behavior.
+- [ ] Resolve `todo.md` by preserving both task histories and this conflict
+      resolution review.
+- [ ] Run typecheck/lint/build and browser verification for the chart app.
+- [ ] Commit the merge resolution, push, and confirm the working tree is clean.
+
+## Review
+
+Pending merge resolution and verification.
+
 # TradingView Timeline, Price Axis, And Wheel Behavior Plan
 
 ## Goal
