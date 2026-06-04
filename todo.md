@@ -39,7 +39,7 @@ controls.
 - [x] Run focused typecheck/lint/build checks.
 - [x] Verify TradingView inspection plus local desktop/mobile with Browser/
       Playwright/devtools.
-- [ ] Commit and push `main`.
+- [x] Commit and push `main`.
 
 ## Review
 
@@ -83,6 +83,7 @@ Verification results:
   `/tmp/procharting-icon-tools-desktop.png`,
   `/tmp/procharting-icon-tools-snapshot-menu.png`, and
   `/tmp/procharting-icon-tools-mobile.png`.
+- Committed and pushed `main` with `bafb7ff`.
 
 # TradingView Desktop Header Right Controls
 
