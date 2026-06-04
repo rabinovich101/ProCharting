@@ -163,6 +163,28 @@ type HeaderPanelKey =
   | 'publish';
 type LayoutSyncKey = 'symbol' | 'interval' | 'crosshair' | 'time' | 'dateRange';
 type SettingsTab = 'symbol' | 'status' | 'scales' | 'canvas' | 'trading' | 'alerts' | 'events';
+
+interface LayoutCellSpec {
+  column: string;
+  row: string;
+}
+
+interface ChartLayoutOption {
+  id: string;
+  count: number;
+  label: string;
+  columns: number;
+  rows: number;
+  cells: LayoutCellSpec[];
+  templateColumns: string;
+  templateRows: string;
+}
+
+interface ChartLayoutGroup {
+  count: number;
+  options: ChartLayoutOption[];
+}
+
 type QuickActionId =
   | 'symbol'
   | 'timeframe'
@@ -203,7 +225,6 @@ interface QuickAction {
 }
 
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
-const LAYOUT_SLOT_OPTIONS = [1, 2, 3, 4, 6, 8, 10, 12, 16];
 const LAYOUT_SYNC_LABELS: Record<LayoutSyncKey, string> = {
   symbol: 'Symbol',
   interval: 'Interval',
@@ -212,12 +233,261 @@ const LAYOUT_SYNC_LABELS: Record<LayoutSyncKey, string> = {
   dateRange: 'Date range',
 };
 const DEFAULT_LAYOUT_SYNC: Record<LayoutSyncKey, boolean> = {
-  symbol: true,
-  interval: true,
+  symbol: false,
+  interval: false,
   crosshair: true,
-  time: true,
+  time: false,
   dateRange: false,
 };
+
+const layoutCell = (column: number, row: number, columnSpan = 1, rowSpan = 1): LayoutCellSpec => ({
+  column: `${column} / span ${columnSpan}`,
+  row: `${row} / span ${rowSpan}`,
+});
+
+const gridLayoutCells = (columns: number, rows: number, count = columns * rows): LayoutCellSpec[] =>
+  Array.from({ length: Math.min(count, columns * rows) }, (_, index) =>
+    layoutCell((index % columns) + 1, Math.floor(index / columns) + 1)
+  );
+
+const shiftLayoutColumns = (cells: LayoutCellSpec[], offset: number): LayoutCellSpec[] =>
+  cells.map((cellSpec) => ({
+    column: `${Number.parseInt(cellSpec.column, 10) + offset} / span 1`,
+    row: cellSpec.row,
+  }));
+
+const createLayoutOption = (
+  id: string,
+  count: number,
+  label: string,
+  columns: number,
+  rows: number,
+  cells: LayoutCellSpec[] = gridLayoutCells(columns, rows, count),
+  templateColumns = `repeat(${columns}, minmax(0, 1fr))`,
+  templateRows = `repeat(${rows}, minmax(0, 1fr))`
+): ChartLayoutOption => ({
+  id,
+  count,
+  label,
+  columns,
+  rows,
+  cells,
+  templateColumns,
+  templateRows,
+});
+
+const LAYOUT_GROUPS: ChartLayoutGroup[] = [
+  { count: 1, options: [createLayoutOption('1-single', 1, '1 chart', 1, 1)] },
+  {
+    count: 2,
+    options: [
+      createLayoutOption('2-vertical', 2, '2 charts vertical split', 2, 1),
+      createLayoutOption('2-horizontal', 2, '2 charts horizontal split', 1, 2),
+    ],
+  },
+  {
+    count: 3,
+    options: [
+      createLayoutOption('3-columns', 3, '3 charts in columns', 3, 1),
+      createLayoutOption('3-rows', 3, '3 charts in rows', 1, 3),
+      createLayoutOption('3-left', 3, 'Large chart left, two right', 2, 2, [
+        layoutCell(1, 1, 1, 2),
+        layoutCell(2, 1),
+        layoutCell(2, 2),
+      ]),
+      createLayoutOption('3-right', 3, 'Two left, large chart right', 2, 2, [
+        layoutCell(1, 1),
+        layoutCell(1, 2),
+        layoutCell(2, 1, 1, 2),
+      ]),
+      createLayoutOption('3-top', 3, 'Large chart top, two bottom', 2, 2, [
+        layoutCell(1, 1, 2),
+        layoutCell(1, 2),
+        layoutCell(2, 2),
+      ]),
+      createLayoutOption('3-bottom', 3, 'Two top, large chart bottom', 2, 2, [
+        layoutCell(1, 1),
+        layoutCell(2, 1),
+        layoutCell(1, 2, 2),
+      ]),
+    ],
+  },
+  {
+    count: 4,
+    options: [
+      createLayoutOption('4-grid', 4, '4 charts grid', 2, 2),
+      createLayoutOption('4-columns', 4, '4 charts in columns', 4, 1),
+      createLayoutOption('4-rows', 4, '4 charts in rows', 1, 4),
+      createLayoutOption('4-top', 4, 'Large chart top, three bottom', 3, 2, [
+        layoutCell(1, 1, 3),
+        layoutCell(1, 2),
+        layoutCell(2, 2),
+        layoutCell(3, 2),
+      ]),
+      createLayoutOption('4-bottom', 4, 'Three top, large chart bottom', 3, 2, [
+        layoutCell(1, 1),
+        layoutCell(2, 1),
+        layoutCell(3, 1),
+        layoutCell(1, 2, 3),
+      ]),
+      createLayoutOption('4-left', 4, 'Large chart left, three right', 2, 3, [
+        layoutCell(1, 1, 1, 3),
+        layoutCell(2, 1),
+        layoutCell(2, 2),
+        layoutCell(2, 3),
+      ]),
+      createLayoutOption('4-right', 4, 'Three left, large chart right', 2, 3, [
+        layoutCell(1, 1),
+        layoutCell(1, 2),
+        layoutCell(1, 3),
+        layoutCell(2, 1, 1, 3),
+      ]),
+      createLayoutOption('4-top-left', 4, 'Large chart top left', 3, 3, [
+        layoutCell(1, 1, 2, 2),
+        layoutCell(3, 1, 1, 2),
+        layoutCell(1, 3),
+        layoutCell(2, 3, 2),
+      ]),
+      createLayoutOption('4-top-right', 4, 'Large chart top right', 3, 3, [
+        layoutCell(1, 1, 1, 2),
+        layoutCell(2, 1, 2, 2),
+        layoutCell(1, 3, 2),
+        layoutCell(3, 3),
+      ]),
+      createLayoutOption('4-bottom-wide', 4, 'Two top, two bottom wide', 2, 3, [
+        layoutCell(1, 1),
+        layoutCell(2, 1),
+        layoutCell(1, 2, 2),
+        layoutCell(1, 3, 2),
+      ]),
+    ],
+  },
+  {
+    count: 5,
+    options: [
+      createLayoutOption('5-columns', 5, '5 charts in columns', 5, 1),
+      createLayoutOption('5-rows', 5, '5 charts in rows', 1, 5),
+      createLayoutOption('5-3x2', 5, '5 charts compact grid', 3, 2),
+      createLayoutOption('5-2x3', 5, '5 charts tall grid', 2, 3),
+      createLayoutOption('5-left', 5, 'Large chart left, four right', 3, 4, [
+        layoutCell(1, 1, 2, 4),
+        layoutCell(3, 1),
+        layoutCell(3, 2),
+        layoutCell(3, 3),
+        layoutCell(3, 4),
+      ]),
+      createLayoutOption('5-top', 5, 'Large chart top, four bottom', 4, 3, [
+        layoutCell(1, 1, 4, 2),
+        layoutCell(1, 3),
+        layoutCell(2, 3),
+        layoutCell(3, 3),
+        layoutCell(4, 3),
+      ]),
+      createLayoutOption('5-corner', 5, 'Large chart corner with four panes', 3, 3, [
+        layoutCell(1, 1, 2, 2),
+        layoutCell(3, 1),
+        layoutCell(3, 2),
+        layoutCell(1, 3),
+        layoutCell(2, 3, 2),
+      ]),
+      createLayoutOption('5-band', 5, 'One wide chart with four below', 4, 2, [
+        layoutCell(1, 1, 4),
+        layoutCell(1, 2),
+        layoutCell(2, 2),
+        layoutCell(3, 2),
+        layoutCell(4, 2),
+      ]),
+      createLayoutOption('5-stack', 5, 'Four top charts with one wide bottom', 4, 2, [
+        layoutCell(1, 1),
+        layoutCell(2, 1),
+        layoutCell(3, 1),
+        layoutCell(4, 1),
+        layoutCell(1, 2, 4),
+      ]),
+    ],
+  },
+  {
+    count: 6,
+    options: [
+      createLayoutOption('6-3x2', 6, '6 charts grid', 3, 2),
+      createLayoutOption('6-2x3', 6, '6 charts tall grid', 2, 3),
+      createLayoutOption('6-columns', 6, '6 charts in columns', 6, 1),
+      createLayoutOption('6-rows', 6, '6 charts in rows', 1, 6),
+      createLayoutOption('6-left', 6, 'Large chart left, five right', 3, 5, [
+        layoutCell(1, 1, 2, 5),
+        ...gridLayoutCells(1, 5).map((cellSpec) => ({ column: '3 / span 1', row: cellSpec.row })),
+      ]),
+      createLayoutOption('6-top', 6, 'Large chart top, five bottom', 5, 3, [
+        layoutCell(1, 1, 5, 2),
+        ...gridLayoutCells(5, 1).map((cellSpec) => ({ column: cellSpec.column, row: '3 / span 1' })),
+      ]),
+    ],
+  },
+  {
+    count: 7,
+    options: [
+      createLayoutOption('7-4x2', 7, '7 charts compact grid', 4, 2),
+      createLayoutOption('7-2x4', 7, '7 charts tall grid', 2, 4),
+      createLayoutOption('7-left', 7, 'Large chart left, six right', 3, 6, [
+        layoutCell(1, 1, 2, 6),
+        ...gridLayoutCells(1, 6).map((cellSpec) => ({ column: '3 / span 1', row: cellSpec.row })),
+      ]),
+    ],
+  },
+  {
+    count: 8,
+    options: [
+      createLayoutOption('8-4x2', 8, '8 charts grid', 4, 2),
+      createLayoutOption('8-2x4', 8, '8 charts tall grid', 2, 4),
+      createLayoutOption('8-columns', 8, '8 charts in columns', 8, 1),
+      createLayoutOption('8-rows', 8, '8 charts in rows', 1, 8),
+    ],
+  },
+  {
+    count: 9,
+    options: [
+      createLayoutOption('9-3x3', 9, '9 charts grid', 3, 3),
+      createLayoutOption('9-columns', 9, '9 charts in columns', 9, 1),
+      createLayoutOption('9-rows', 9, '9 charts in rows', 1, 9),
+      createLayoutOption('9-left', 9, 'Large chart left, eight right', 4, 4, [
+        layoutCell(1, 1, 2, 4),
+        ...shiftLayoutColumns(gridLayoutCells(2, 4, 8), 2),
+      ]),
+    ],
+  },
+  {
+    count: 10,
+    options: [
+      createLayoutOption('10-5x2', 10, '10 charts grid', 5, 2),
+      createLayoutOption('10-2x5', 10, '10 charts tall grid', 2, 5),
+      createLayoutOption('10-rows', 10, '10 charts in rows', 1, 10),
+    ],
+  },
+  {
+    count: 12,
+    options: [
+      createLayoutOption('12-4x3', 12, '12 charts grid', 4, 3),
+      createLayoutOption('12-3x4', 12, '12 charts tall grid', 3, 4),
+      createLayoutOption('12-columns', 12, '12 charts in columns', 12, 1),
+    ],
+  },
+  {
+    count: 14,
+    options: [
+      createLayoutOption('14-7x2', 14, '14 charts grid', 7, 2),
+      createLayoutOption('14-2x7', 14, '14 charts tall grid', 2, 7),
+    ],
+  },
+  {
+    count: 16,
+    options: [
+      createLayoutOption('16-4x4', 16, '16 charts grid', 4, 4),
+      createLayoutOption('16-8x2', 16, '16 charts wide grid', 8, 2),
+    ],
+  },
+];
+const ALL_LAYOUT_OPTIONS = LAYOUT_GROUPS.flatMap((group) => group.options);
+const DEFAULT_LAYOUT_ID = '1-single';
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'symbol', label: 'Symbol' },
   { id: 'status', label: 'Status line' },
@@ -1779,6 +2049,112 @@ function HeaderIcon({ name }: { name: HeaderIconName }) {
   );
 }
 
+function LayoutOptionIcon({ option }: { option: ChartLayoutOption }) {
+  return (
+    <span
+      className="layout-option-icon"
+      style={{
+        gridTemplateColumns: option.templateColumns,
+        gridTemplateRows: option.templateRows,
+      }}
+      aria-hidden="true"
+    >
+      {option.cells.map((cellSpec, index) => (
+        <span
+          key={`${option.id}-${index}`}
+          className="layout-option-cell"
+          style={{ gridColumn: cellSpec.column, gridRow: cellSpec.row }}
+        />
+      ))}
+    </span>
+  );
+}
+
+function LayoutPreviewPane({
+  paneIndex,
+  symbol,
+  timeframe,
+  candles,
+  palette,
+}: {
+  paneIndex: number;
+  symbol: string;
+  timeframe: string;
+  candles: Candle[];
+  palette: Palette;
+}) {
+  const previewCandles = candles.slice(-90);
+  const width = 240;
+  const height = 140;
+  const padding = { left: 10, top: 18, right: 12, bottom: 26 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const prices = previewCandles.flatMap((candle) => [candle.high, candle.low]);
+  const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+  const maxPrice = prices.length > 0 ? Math.max(...prices) : 1;
+  const priceRange = maxPrice - minPrice || 1;
+  const maxVolume = Math.max(...previewCandles.map((candle) => candle.volume), 1);
+  const priceToY = (price: number) => padding.top + ((maxPrice - price) / priceRange) * plotHeight;
+  const xForIndex = (index: number) =>
+    padding.left + (previewCandles.length <= 1 ? 0 : (index / (previewCandles.length - 1)) * plotWidth);
+  const closePoints = previewCandles.map((candle, index) => `${xForIndex(index).toFixed(2)},${priceToY(candle.close).toFixed(2)}`);
+  const areaPoints =
+    closePoints.length > 0
+      ? `${padding.left},${padding.top + plotHeight} ${closePoints.join(' ')} ${
+          padding.left + plotWidth
+        },${padding.top + plotHeight}`
+      : '';
+  const latest = previewCandles[previewCandles.length - 1];
+  const latestTone = latest && latest.close >= latest.open ? 'positive' : 'negative';
+
+  return (
+    <div className="layout-preview-pane" aria-label={`Chart pane ${paneIndex}`}>
+      <div className="layout-preview-header">
+        <span>{formatSymbol(symbol)}</span>
+        <span>{timeframe.toUpperCase()}</span>
+      </div>
+      <svg className="layout-preview-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id={`layout-preview-fill-${paneIndex}`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={palette.line} stopOpacity="0.24" />
+            <stop offset="100%" stopColor={palette.line} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0, 1, 2, 3].map((lineIndex) => {
+          const y = padding.top + (plotHeight / 3) * lineIndex;
+          return <line key={`h-${lineIndex}`} x1="0" x2={width} y1={y} y2={y} className="layout-preview-grid-line" />;
+        })}
+        {[0, 1, 2, 3, 4].map((lineIndex) => {
+          const x = padding.left + (plotWidth / 4) * lineIndex;
+          return <line key={`v-${lineIndex}`} x1={x} x2={x} y1="0" y2={height} className="layout-preview-grid-line" />;
+        })}
+        {previewCandles.map((candle, index) => {
+          const x = xForIndex(index);
+          const barHeight = Math.max(1, (candle.volume / maxVolume) * 24);
+          const isUp = candle.close >= candle.open;
+          return (
+            <rect
+              key={`${candle.time}-${index}`}
+              x={x - 0.8}
+              y={height - padding.bottom + 20 - barHeight}
+              width="1.6"
+              height={barHeight}
+              className={isUp ? 'layout-preview-volume-up' : 'layout-preview-volume-down'}
+            />
+          );
+        })}
+        {areaPoints && <polygon points={areaPoints} fill={`url(#layout-preview-fill-${paneIndex})`} />}
+        {closePoints.length > 0 && <polyline points={closePoints.join(' ')} className="layout-preview-price-line" />}
+      </svg>
+      {latest && (
+        <span className="layout-preview-price" data-tone={latestTone}>
+          {formatPrice(latest.close)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
@@ -1826,7 +2202,7 @@ export default function Home() {
   const [headerPanel, setHeaderPanel] = useState<HeaderPanelKey | null>(null);
   const [indicatorTemplates, setIndicatorTemplates] = useState<IndicatorTemplate[]>([]);
   const [templateName, setTemplateName] = useState('My indicator template');
-  const [layoutSlots, setLayoutSlots] = useState(1);
+  const [selectedLayoutId, setSelectedLayoutId] = useState(DEFAULT_LAYOUT_ID);
   const [layoutSync, setLayoutSync] = useState<Record<LayoutSyncKey, boolean>>(DEFAULT_LAYOUT_SYNC);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('symbol');
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
@@ -1853,6 +2229,8 @@ export default function Home() {
 
   const palette = PALETTES[theme];
   const latestCandle = candles.length > 0 ? candles[candles.length - 1] : null;
+  const selectedLayout = ALL_LAYOUT_OPTIONS.find((option) => option.id === selectedLayoutId) ?? ALL_LAYOUT_OPTIONS[0]!;
+  const selectedLayoutCells = selectedLayout.cells;
   const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
   const visibleVolumeIndicator = visibleIndicators.find(
     (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
@@ -3367,30 +3745,48 @@ export default function Home() {
               </button>
               {headerPanel === 'layout' && (
                 <div className="header-panel layout-panel" role="menu" aria-label="Layout setup">
-                  <strong>Layout setup</strong>
-                  <div className="layout-grid" aria-label="Layout count">
-                    {LAYOUT_SLOT_OPTIONS.map((slotCount) => (
-                      <button
-                        key={slotCount}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={layoutSlots === slotCount}
-                        data-active={layoutSlots === slotCount}
-                        onClick={() => setLayoutSlots(slotCount)}
-                      >
-                        {slotCount}
-                      </button>
+                  <div className="layout-matrix" aria-label="Layout variants">
+                    {LAYOUT_GROUPS.map((group) => (
+                      <div key={group.count} className="layout-option-row">
+                        <span className="layout-option-count">{group.count}</span>
+                        <div className="layout-option-list">
+                          {group.options.map((option) => (
+                            <button
+                              key={option.id}
+                              type="button"
+                              className="layout-option-button"
+                              role="menuitemradio"
+                              aria-label={option.label}
+                              aria-checked={selectedLayoutId === option.id}
+                              data-active={selectedLayoutId === option.id}
+                              onClick={() => {
+                                setSelectedLayoutId(option.id);
+                                setHeaderPanel(null);
+                              }}
+                            >
+                              <LayoutOptionIcon option={option} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  <span className="header-panel-label">Sync in layout</span>
+                  <span className="header-panel-label layout-sync-heading">SYNC IN LAYOUT</span>
                   {Object.entries(LAYOUT_SYNC_LABELS).map(([key, label]) => (
-                    <label key={key} className="setting-row compact">
+                    <label key={key} className="layout-sync-row">
+                      <span className="layout-sync-name">
+                        {label}
+                        <span className="layout-sync-info" aria-hidden="true">
+                          i
+                        </span>
+                      </span>
                       <input
+                        className="layout-sync-input"
                         type="checkbox"
                         checked={layoutSync[key as LayoutSyncKey]}
                         onChange={(event) => updateLayoutSync(key as LayoutSyncKey, event.target.checked)}
                       />
-                      <span>{label}</span>
+                      <span className="layout-sync-switch" aria-hidden="true" />
                     </label>
                   ))}
                 </div>
@@ -3874,27 +4270,42 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="chart-stage">
-        <canvas
-          ref={canvasRef}
-          aria-label={`${formatSymbol(symbol)} ${timeframe} chart`}
-          className="chart-canvas"
-          data-drag-mode={dragMode}
-          data-manual-price-scale={manualPriceRange ? 'true' : 'false'}
-          data-pointer-area={pointerArea}
-          data-price-max={manualPriceRange ? manualPriceRange.maxPrice.toFixed(2) : ''}
-          data-price-min={manualPriceRange ? manualPriceRange.minPrice.toFixed(2) : ''}
-          data-view-end={viewRange.endIndex.toFixed(2)}
-          data-view-start={viewRange.startIndex.toFixed(2)}
-          style={{ cursor: canvasCursor }}
-          onMouseMove={handleMouseMove}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          onWheel={handleWheel}
-        />
+      <section className="chart-stage" data-layout-count={selectedLayout.count} data-layout-id={selectedLayout.id}>
+        <div
+          className="chart-layout-grid"
+          style={{
+            gridTemplateColumns: selectedLayout.templateColumns,
+            gridTemplateRows: selectedLayout.templateRows,
+          }}
+        >
+          <div
+            className="chart-layout-cell chart-layout-cell-primary"
+            data-active="true"
+            style={{
+              gridColumn: selectedLayoutCells[0]?.column ?? '1 / span 1',
+              gridRow: selectedLayoutCells[0]?.row ?? '1 / span 1',
+            }}
+          >
+            <canvas
+              ref={canvasRef}
+              aria-label={`${formatSymbol(symbol)} ${timeframe} chart`}
+              className="chart-canvas"
+              data-drag-mode={dragMode}
+              data-manual-price-scale={manualPriceRange ? 'true' : 'false'}
+              data-pointer-area={pointerArea}
+              data-price-max={manualPriceRange ? manualPriceRange.maxPrice.toFixed(2) : ''}
+              data-price-min={manualPriceRange ? manualPriceRange.minPrice.toFixed(2) : ''}
+              data-view-end={viewRange.endIndex.toFixed(2)}
+              data-view-start={viewRange.startIndex.toFixed(2)}
+              style={{ cursor: canvasCursor }}
+              onMouseMove={handleMouseMove}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              onWheel={handleWheel}
+            />
 
-        {chartSettings.showStatusLine && legendCandle && (
+            {chartSettings.showStatusLine && legendCandle && (
           <div
             className="instrument-legend-overlay"
             aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend`}
@@ -4171,6 +4582,24 @@ export default function Home() {
             </div>
           </div>
         )}
+          </div>
+
+          {selectedLayoutCells.slice(1).map((cellSpec, index) => (
+            <div
+              key={`${selectedLayout.id}-${index + 2}`}
+              className="chart-layout-cell chart-layout-cell-preview"
+              style={{ gridColumn: cellSpec.column, gridRow: cellSpec.row }}
+            >
+              <LayoutPreviewPane
+                paneIndex={index + 2}
+                symbol={symbol}
+                timeframe={timeframe}
+                candles={candles}
+                palette={palette}
+              />
+            </div>
+          ))}
+        </div>
       </section>
     </main>
   );

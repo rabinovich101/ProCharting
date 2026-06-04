@@ -239,6 +239,14 @@ client component. It does not instantiate `@procharting/core` or the WebGPU/WebG
 renderer factory path. The app is therefore a live chart UX and QA harness rather
 than a direct example of the packaged renderer architecture.
 
+The standalone app's TradingView-style desktop Layout setup control is also a
+local QA-harness feature. The right-side layout panel defines grouped split
+layouts in `app/page.tsx`; selecting one applies the same grid definition to the
+chart stage. The first pane keeps the live Canvas 2D chart and interactive
+overlays, while additional panes render lightweight chart previews so the
+selected multi-chart arrangement is visible without changing the packaged
+renderer contracts.
+
 The chart app supports:
 
 - Binance spot symbols selected from a fixed crypto list.

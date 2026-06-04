@@ -1,3 +1,75 @@
+# TradingView Layout Setup Split Screen
+
+## Goal
+
+Rebuild the square Layout setup control so it behaves like the TradingView
+desktop screenshots: opening the right-side layout matrix and splitting the
+chart stage into the selected multi-chart arrangement.
+
+## Findings / Decisions
+
+- The current standalone chart app has a layout panel, but it only exposes
+  numeric slot buttons and does not divide the visible chart stage.
+- The TradingView screenshots show a fixed right-side panel grouped by chart
+  count rows (`1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `10`, `12`, `14`,
+  `16`) with layout icons, plus `SYNC IN LAYOUT` toggles.
+- Selecting a layout should update the chart canvas area immediately. Keep the
+  existing live chart engine as the active primary pane and render additional
+  lightweight chart panes so the chosen split is visible and responsive without
+  changing package renderer internals.
+
+## Checklist
+
+- [x] Replace numeric layout buttons with a TradingView-style grouped icon matrix.
+- [x] Wire selected layout icons to real chart-stage split panes.
+- [x] Preserve the active live chart canvas and overlay behavior in pane 1.
+- [x] Add secondary pane previews and active-pane framing.
+- [x] Update architecture notes and todo review.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify the layout panel and split panes with Browser/Playwright/devtools.
+- [ ] Commit and push `main`.
+
+## Review
+
+Implemented the TradingView-style Layout setup split-screen behavior for the
+standalone Binance chart app.
+
+- `TEST/binance-chart-test/app/page.tsx` now defines a grouped layout matrix
+  matching the screenshot rows: `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`,
+  `10`, `12`, `14`, and `16`.
+- The square Layout setup button opens a fixed right-side white layout panel
+  with icon buttons instead of numeric slot buttons, plus the `SYNC IN LAYOUT`
+  switches. Default sync state now matches the screenshot: Symbol off, Interval
+  off, Crosshair on, Time off, Date range off.
+- Selecting a layout icon now closes the panel and applies the split to the
+  chart stage. Pane 1 keeps the live interactive Canvas 2D chart; additional
+  panes render lightweight chart previews so the chosen split is visible.
+- `TEST/binance-chart-test/app/globals.css` adds the TradingView-like panel,
+  layout icons, switches, split gutters, active-pane border, and preview-pane
+  chart styling.
+- `ARCHITECTURE.md` documents that this is a standalone QA-harness feature and
+  does not change packaged renderer contracts.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- In-app Browser opened the local app, opened the Layout setup panel, selected
+  `4 charts grid`, and confirmed the panel closed with `4` chart panes and no
+  horizontal overflow.
+- Playwright plus Chrome DevTools Protocol verified the panel dimensions, row
+  counts, sync toggle defaults, `4-grid` pane count, `16-4x4` pane count, mobile
+  desktop-header hiding, no overflow, no console errors, and no CDP runtime
+  exceptions.
+- Saved QA screenshots outside the repo:
+  `/tmp/procharting-layout-panel.png`,
+  `/tmp/procharting-layout-4-grid.png`,
+  `/tmp/procharting-layout-16-grid.png`, and
+  `/tmp/procharting-layout-mobile.png`.
+
 # TradingView Header Functionality Reinspection Fix
 
 ## Goal
