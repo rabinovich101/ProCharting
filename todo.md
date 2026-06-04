@@ -1,3 +1,89 @@
+# TradingView Icon Tool Functionality
+
+## Goal
+
+Inspect TradingView desktop `tool-toggle icon-tool`-style header buttons and add
+matching practical functionality to the standalone chart app's icon-only header
+controls.
+
+## Findings / Decisions
+
+- TradingView inspection with Browser/Playwright showed these icon-only header
+  controls and behaviors:
+  - Indicator templates opens an anchored menu with `Save indicator template...`
+    and `Open template...`.
+  - Layout setup opens a large anchored panel with layout counts and sync
+    toggles for symbol, interval, crosshair, time, and date range.
+  - Quick search opens a centered `Search tool or function` dialog.
+  - Settings opens a centered chart settings dialog with tabs such as Symbol,
+    Status line, Scales and lines, Canvas, Trading, Alerts, and Events.
+  - Fullscreen mode is a direct fullscreen toggle.
+  - Take a snapshot opens an anchored `Chart snapshot` menu with download/copy/
+    open actions.
+  - Undo/redo are disabled on a clean chart with no history.
+- Keep this focused in the standalone Next QA app. Do not change the packaged
+  renderer/library contracts.
+- Implement real local behavior where the app has a matching concept:
+  persistent indicator templates, a layout/sync state panel, command search,
+  chart settings toggles, fullscreen, and snapshot actions.
+
+## Checklist
+
+- [x] Add header overlay state and close behavior for icon-tool panels.
+- [x] Implement indicator template save/apply functionality.
+- [x] Implement layout setup panel state.
+- [x] Implement quick search command dialog.
+- [x] Implement settings dialog with local chart toggles.
+- [x] Implement snapshot action menu.
+- [x] Update `ARCHITECTURE.md` for icon-tool functionality.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify TradingView inspection plus local desktop/mobile with Browser/
+      Playwright/devtools.
+- [ ] Commit and push `main`.
+
+## Review
+
+Completed the TradingView icon-tool functionality pass.
+
+- Browser/Playwright inspection of TradingView confirmed the actual desktop
+  icon-only behaviors: indicator templates and snapshot open anchored menus,
+  layout opens a larger anchored setup panel, quick search opens a centered
+  command dialog, settings opens a tabbed chart settings dialog, fullscreen is a
+  direct toggle, and undo/redo are disabled on a clean chart.
+- `TEST/binance-chart-test/app/page.tsx` now adds header panel state, persistent
+  localStorage-backed indicator templates, a layout-count/sync panel, a quick
+  search command dialog, a settings dialog with local chart toggles, and a
+  snapshot menu with download/copy/open actions.
+- The settings dialog now controls real chart behavior for OHLC status line,
+  indicator values, grid lines, current price line, crosshair labels, dark/light
+  canvas theme, and volume pane visibility.
+- `TEST/binance-chart-test/app/globals.css` adds TradingView-style anchored
+  panels, centered modal dialogs, layout-grid controls, settings tabs, snapshot
+  rows, and active icon-tool states.
+- `ARCHITECTURE.md` documents the implemented desktop icon-tool functionality.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- TradingView Browser/Playwright inspection captured the target icon-tool
+  behaviors and a Playwright Chrome pass confirmed the Settings dialog tabs.
+- Local Playwright desktop QA at `1280x720` passed: template save persisted to
+  localStorage, layout `4` and Date range sync selected, quick search filtered
+  to Settings and opened the settings dialog, OHLC values toggle hid the
+  instrument legend, snapshot opened the Chart snapshot menu, CDP saw the
+  expected icon-tool labels and no overflow, and console errors were empty.
+- Local Playwright mobile QA at `390x844` passed: desktop icon-tool controls
+  stayed hidden, only the compact four-control header remained visible, and
+  there was no horizontal overflow.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-icon-tools-desktop.png`,
+  `/tmp/procharting-icon-tools-snapshot-menu.png`, and
+  `/tmp/procharting-icon-tools-mobile.png`.
+
 # TradingView Desktop Header Right Controls
 
 ## Goal

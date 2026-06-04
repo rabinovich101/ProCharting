@@ -305,6 +305,16 @@ market values live in the chart legend and current-price axis marker. There is
 no separate market status strip below the command bar; chart diagnostics remain
 in non-visible `data-*` attributes for QA/devtools inspection.
 
+The command bar's desktop icon tools implement TradingView-like local behavior:
+indicator templates can save and apply persisted active-indicator sets, layout
+setup stores the selected chart-count/sync options, quick search opens a command
+dialog that can route to toolbar menus and actions, chart settings expose local
+status-line/grid/current-price/crosshair/theme/volume toggles, fullscreen is a
+direct document fullscreen toggle, and snapshot opens a menu for download,
+clipboard, link, and new-tab actions. Undo and redo intentionally remain
+disabled in the clean-chart state, matching TradingView before chart history is
+created.
+
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent
 Binance websocket with `SUBSCRIBE` and `UNSUBSCRIBE` messages so changing symbols

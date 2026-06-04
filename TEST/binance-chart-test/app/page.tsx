@@ -147,6 +147,81 @@ interface IndicatorComputedSeries {
   guideLines?: Array<{ value: number; label?: string }>;
 }
 
+type HeaderPanelKey = 'templates' | 'layout' | 'quickSearch' | 'settings' | 'snapshot';
+type LayoutSyncKey = 'symbol' | 'interval' | 'crosshair' | 'time' | 'dateRange';
+type SettingsTab = 'symbol' | 'status' | 'scales' | 'canvas' | 'trading' | 'alerts' | 'events';
+type QuickActionId =
+  | 'symbol'
+  | 'timeframe'
+  | 'chartStyle'
+  | 'indicators'
+  | 'templates'
+  | 'layout'
+  | 'settings'
+  | 'snapshot'
+  | 'fullscreen'
+  | 'reset';
+
+interface IndicatorTemplate {
+  id: string;
+  name: string;
+  createdAt: number;
+  indicators: ActiveIndicator[];
+}
+
+interface ChartSettingsState {
+  showStatusLine: boolean;
+  showIndicatorLegend: boolean;
+  showGridLines: boolean;
+  showCurrentPriceLine: boolean;
+  showVolumePane: boolean;
+  showCrosshair: boolean;
+}
+
+interface QuickAction {
+  id: QuickActionId;
+  label: string;
+  description: string;
+}
+
+const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
+const LAYOUT_SLOT_OPTIONS = [1, 2, 3, 4, 6, 8, 10, 12, 16];
+const LAYOUT_SYNC_LABELS: Record<LayoutSyncKey, string> = {
+  symbol: 'Symbol',
+  interval: 'Interval',
+  crosshair: 'Crosshair',
+  time: 'Time',
+  dateRange: 'Date range',
+};
+const DEFAULT_LAYOUT_SYNC: Record<LayoutSyncKey, boolean> = {
+  symbol: true,
+  interval: true,
+  crosshair: true,
+  time: true,
+  dateRange: false,
+};
+const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'symbol', label: 'Symbol' },
+  { id: 'status', label: 'Status line' },
+  { id: 'scales', label: 'Scales and lines' },
+  { id: 'canvas', label: 'Canvas' },
+  { id: 'trading', label: 'Trading' },
+  { id: 'alerts', label: 'Alerts' },
+  { id: 'events', label: 'Events' },
+];
+const QUICK_ACTIONS: QuickAction[] = [
+  { id: 'symbol', label: 'Symbol search', description: 'Change market symbol' },
+  { id: 'timeframe', label: 'Change interval', description: 'Open timeframe menu' },
+  { id: 'chartStyle', label: 'Chart type', description: 'Switch candles, line, or area' },
+  { id: 'indicators', label: 'Indicators', description: 'Open indicators and strategies' },
+  { id: 'templates', label: 'Indicator templates', description: 'Save or apply indicator sets' },
+  { id: 'layout', label: 'Layout setup', description: 'Change layout and sync options' },
+  { id: 'settings', label: 'Settings', description: 'Open chart settings' },
+  { id: 'snapshot', label: 'Chart snapshot', description: 'Download, copy, or open image' },
+  { id: 'fullscreen', label: 'Fullscreen mode', description: 'Toggle fullscreen chart' },
+  { id: 'reset', label: 'Reset chart view', description: 'Restore automatic view' },
+];
+
 const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
   { value: '1m', label: '1m', description: '1 minute' },
   { value: '5m', label: '5m', description: '5 minutes' },
@@ -1678,12 +1753,28 @@ export default function Home() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [timeframe, setTimeframe] = useState('1m');
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
-  const [theme] = useState<ThemeName>('dark');
+  const [theme, setTheme] = useState<ThemeName>('dark');
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(DEFAULT_ACTIVE_INDICATORS);
   const [settingsTargetId, setSettingsTargetId] = useState<string | null>(null);
   const [moreTargetId, setMoreTargetId] = useState<string | null>(null);
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('connecting');
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
+  const [headerPanel, setHeaderPanel] = useState<HeaderPanelKey | null>(null);
+  const [indicatorTemplates, setIndicatorTemplates] = useState<IndicatorTemplate[]>([]);
+  const [templateName, setTemplateName] = useState('My indicator template');
+  const [layoutSlots, setLayoutSlots] = useState(1);
+  const [layoutSync, setLayoutSync] = useState<Record<LayoutSyncKey, boolean>>(DEFAULT_LAYOUT_SYNC);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('symbol');
+  const [quickSearchQuery, setQuickSearchQuery] = useState('');
+  const [snapshotStatus, setSnapshotStatus] = useState('');
+  const [chartSettings, setChartSettings] = useState<ChartSettingsState>({
+    showStatusLine: true,
+    showIndicatorLegend: true,
+    showGridLines: true,
+    showCurrentPriceLine: true,
+    showVolumePane: true,
+    showCrosshair: true,
+  });
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [mousePos, setMousePos] = useState<MousePosition | null>(null);
   const [dragMode, setDragMode] = useState<ChartDragMode>('none');
@@ -1705,13 +1796,43 @@ export default function Home() {
     (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'oscillator'
   );
   const indicatorCount = activeIndicators.length;
-  const showVolume = visibleVolumeIndicator !== undefined;
+  const showVolume = chartSettings.showVolumePane && visibleVolumeIndicator !== undefined;
   const activeIndicatorSeries = useMemo(() => {
     return activeIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
       seriesById[indicator.id] = computeIndicatorSeries(indicator, candles);
       return seriesById;
     }, {});
   }, [activeIndicators, candles]);
+  const filteredQuickActions = QUICK_ACTIONS.filter((action) => {
+    const query = quickSearchQuery.trim().toLowerCase();
+    if (query.length === 0) return true;
+
+    return (
+      action.label.toLowerCase().includes(query) ||
+      action.description.toLowerCase().includes(query)
+    );
+  });
+
+  useEffect(() => {
+    try {
+      const rawTemplates = window.localStorage.getItem(INDICATOR_TEMPLATE_STORAGE_KEY);
+      if (!rawTemplates) return;
+
+      const parsedTemplates = JSON.parse(rawTemplates) as IndicatorTemplate[];
+      if (!Array.isArray(parsedTemplates)) return;
+
+      setIndicatorTemplates(
+        parsedTemplates.filter(
+          (template) =>
+            typeof template.id === 'string' &&
+            typeof template.name === 'string' &&
+            Array.isArray(template.indicators)
+        )
+      );
+    } catch {
+      setIndicatorTemplates([]);
+    }
+  }, []);
 
   const getEstimatedChartWidth = () => {
     const canvasWidth = canvasRef.current?.getBoundingClientRect().width ?? 0;
@@ -1818,6 +1939,7 @@ export default function Home() {
 
       if (!controlRackRef.current?.contains(target)) {
         setOpenMenu(null);
+        setHeaderPanel(null);
       }
 
       if (!indicatorLegendRef.current?.contains(target)) {
@@ -1829,6 +1951,9 @@ export default function Home() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpenMenu(null);
+        setHeaderPanel(null);
+        setQuickSearchQuery('');
+        setSnapshotStatus('');
       }
     };
 
@@ -2391,24 +2516,26 @@ export default function Home() {
     ctx.font = `${axisFontSize}px var(--font-geist-sans), ui-sans-serif, sans-serif`;
     ctx.lineWidth = 1;
 
-    for (const price of priceTickInfo.ticks) {
-      const y = priceToY(price);
-      if (y < chartArea.top || y > chartArea.top + chartArea.height) continue;
+    if (chartSettings.showGridLines) {
+      for (const price of priceTickInfo.ticks) {
+        const y = priceToY(price);
+        if (y < chartArea.top || y > chartArea.top + chartArea.height) continue;
 
-      ctx.strokeStyle =
-        Math.abs(price - latestCandle!.close) < priceTickInfo.step * 0.1 ? palette.gridStrong : palette.grid;
-      ctx.beginPath();
-      ctx.moveTo(chartArea.left, y);
-      ctx.lineTo(chartArea.left + chartArea.width, y);
-      ctx.stroke();
-    }
+        ctx.strokeStyle =
+          Math.abs(price - latestCandle!.close) < priceTickInfo.step * 0.1 ? palette.gridStrong : palette.grid;
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, y);
+        ctx.lineTo(chartArea.left + chartArea.width, y);
+        ctx.stroke();
+      }
 
-    for (const tick of timeTicks) {
-      ctx.strokeStyle = tick.major ? palette.gridStrong : palette.grid;
-      ctx.beginPath();
-      ctx.moveTo(tick.x, chartArea.top);
-      ctx.lineTo(tick.x, chartArea.top + chartArea.height);
-      ctx.stroke();
+      for (const tick of timeTicks) {
+        ctx.strokeStyle = tick.major ? palette.gridStrong : palette.grid;
+        ctx.beginPath();
+        ctx.moveTo(tick.x, chartArea.top);
+        ctx.lineTo(tick.x, chartArea.top + chartArea.height);
+        ctx.stroke();
+      }
     }
 
     const closePoints = visibleIndexedCandles.map(({ candle, index }) => ({
@@ -2517,7 +2644,7 @@ export default function Home() {
     const currentPriceInside =
       currentPriceY >= chartArea.top && currentPriceY <= chartArea.top + chartArea.height;
 
-    if (currentPriceInside) {
+    if (chartSettings.showCurrentPriceLine && currentPriceInside) {
       ctx.strokeStyle = currentPriceColor;
       ctx.setLineDash([1.5, 3]);
       ctx.beginPath();
@@ -2600,17 +2727,19 @@ export default function Home() {
       ctx.fillRect(pane.left, pane.top, pane.width, pane.height);
 
       const tickInfo = createPriceTicks(minValue, maxValue, pane.height);
-      tickInfo.ticks.forEach((tick) => {
-        const y = valueToY(tick);
-        if (y < pane.top || y > pane.top + pane.height) return;
+      if (chartSettings.showGridLines) {
+        tickInfo.ticks.forEach((tick) => {
+          const y = valueToY(tick);
+          if (y < pane.top || y > pane.top + pane.height) return;
 
-        ctx.strokeStyle = palette.grid;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(pane.left, y);
-        ctx.lineTo(pane.left + pane.width, y);
-        ctx.stroke();
-      });
+          ctx.strokeStyle = palette.grid;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(pane.left, y);
+          ctx.lineTo(pane.left + pane.width, y);
+          ctx.stroke();
+        });
+      }
 
       computed.guideLines?.forEach((guide) => {
         const y = valueToY(guide.value);
@@ -2686,7 +2815,7 @@ export default function Home() {
     ctx.lineTo(chartArea.left, chartArea.top + chartArea.height);
     ctx.stroke();
 
-    if (currentPriceInside) {
+    if (chartSettings.showCurrentPriceLine && currentPriceInside) {
       const countdown = formatCountdown(timeframe, latestCandle!.time);
       const markerHeight = countdown ? 38 : 30;
       const markerY = clamp(
@@ -2732,6 +2861,7 @@ export default function Home() {
     }
 
     const crosshairInside =
+      chartSettings.showCrosshair &&
       mousePos &&
       mousePos.x >= chartArea.left &&
       mousePos.x <= chartArea.left + chartArea.width &&
@@ -2800,6 +2930,7 @@ export default function Home() {
     theme,
     symbol,
     timeframe,
+    chartSettings,
   ]);
 
   const canvasCursor =
@@ -2836,14 +2967,70 @@ export default function Home() {
   const legendTone = legendChange >= 0 ? 'positive' : 'negative';
   const closeHeaderOverlays = () => {
     setOpenMenu(null);
+    setHeaderPanel(null);
+    setQuickSearchQuery('');
+    setSnapshotStatus('');
     setSettingsTargetId(null);
     setMoreTargetId(null);
+  };
+  const toggleHeaderPanel = (panel: HeaderPanelKey) => {
+    setOpenMenu(null);
+    setSettingsTargetId(null);
+    setMoreTargetId(null);
+    setSnapshotStatus('');
+    setHeaderPanel((current) => (current === panel ? null : panel));
   };
   const openQuickSearch = () => {
     setSettingsTargetId(null);
     setMoreTargetId(null);
-    setOpenMenu('symbol');
-    focusMenuItem('symbol', 0);
+    setOpenMenu(null);
+    setHeaderPanel('quickSearch');
+  };
+  const persistIndicatorTemplates = (templates: IndicatorTemplate[]) => {
+    setIndicatorTemplates(templates);
+    window.localStorage.setItem(INDICATOR_TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
+  };
+  const saveIndicatorTemplate = () => {
+    const trimmedName = templateName.trim();
+    const name = trimmedName.length > 0 ? trimmedName : `Template ${indicatorTemplates.length + 1}`;
+    const nextTemplate: IndicatorTemplate = {
+      id: `template-${Date.now()}`,
+      name,
+      createdAt: Date.now(),
+      indicators: activeIndicators.map((indicator) => ({
+        ...indicator,
+        settings: { ...indicator.settings },
+      })),
+    };
+
+    persistIndicatorTemplates([nextTemplate, ...indicatorTemplates].slice(0, 8));
+    setTemplateName(`Template ${indicatorTemplates.length + 2}`);
+  };
+  const applyIndicatorTemplate = (template: IndicatorTemplate) => {
+    setActiveIndicators(
+      template.indicators.map((indicator, index) => ({
+        ...indicator,
+        id: `${indicator.definitionId}-${Date.now()}-${index}`,
+        settings: { ...indicator.settings },
+      }))
+    );
+    closeHeaderOverlays();
+  };
+  const removeIndicatorTemplate = (templateId: string) => {
+    persistIndicatorTemplates(indicatorTemplates.filter((template) => template.id !== templateId));
+  };
+  const updateLayoutSync = (key: LayoutSyncKey, checked: boolean) => {
+    setLayoutSync((current) => ({ ...current, [key]: checked }));
+  };
+  const updateChartSetting = (key: keyof ChartSettingsState, checked: boolean) => {
+    setChartSettings((current) => ({ ...current, [key]: checked }));
+  };
+  const openToolbarMenu = (menuKey: MenuKey) => {
+    setHeaderPanel(null);
+    setSettingsTargetId(null);
+    setMoreTargetId(null);
+    setOpenMenu(menuKey);
+    focusMenuItem(menuKey, 0);
   };
   const toggleFullscreen = () => {
     closeHeaderOverlays();
@@ -2855,7 +3042,7 @@ export default function Home() {
 
     void document.documentElement.requestFullscreen?.();
   };
-  const takeChartSnapshot = () => {
+  const downloadChartSnapshot = () => {
     closeHeaderOverlays();
 
     const canvas = canvasRef.current;
@@ -2865,6 +3052,76 @@ export default function Home() {
     link.href = canvas.toDataURL('image/png');
     link.download = `procharting-${symbol.toLowerCase()}-${timeframe}.png`;
     link.click();
+  };
+  const copySnapshotLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setSnapshotStatus('Link copied');
+    } catch {
+      setSnapshotStatus('Copy failed');
+    }
+  };
+  const copySnapshotImage = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.toBlob(async (blob) => {
+      if (!blob || !navigator.clipboard || !window.ClipboardItem) {
+        setSnapshotStatus('Copy failed');
+        return;
+      }
+
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        setSnapshotStatus('Image copied');
+      } catch {
+        setSnapshotStatus('Copy failed');
+      }
+    }, 'image/png');
+  };
+  const openSnapshotInNewTab = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    window.open(canvas.toDataURL('image/png'), '_blank', 'noopener,noreferrer');
+    setSnapshotStatus('Opened in new tab');
+  };
+  const executeQuickAction = (actionId: QuickActionId) => {
+    setQuickSearchQuery('');
+
+    if (actionId === 'symbol') {
+      openToolbarMenu('symbol');
+      return;
+    }
+
+    if (actionId === 'timeframe') {
+      openToolbarMenu('timeframe');
+      return;
+    }
+
+    if (actionId === 'chartStyle') {
+      openToolbarMenu('chartStyle');
+      return;
+    }
+
+    if (actionId === 'indicators') {
+      openToolbarMenu('indicators');
+      return;
+    }
+
+    if (actionId === 'templates' || actionId === 'layout' || actionId === 'settings' || actionId === 'snapshot') {
+      setOpenMenu(null);
+      setHeaderPanel(actionId);
+      return;
+    }
+
+    if (actionId === 'fullscreen') {
+      toggleFullscreen();
+      return;
+    }
+
+    resetView();
+    closeHeaderOverlays();
   };
 
   return (
@@ -2922,15 +3179,51 @@ export default function Home() {
             onAddIndicator={addIndicator}
           />
 
-          <button
-            type="button"
-            className="tool-toggle icon-tool desktop-header-command"
-            aria-label="Indicator templates"
-            title="Indicator templates"
-            onClick={closeHeaderOverlays}
-          >
-            <HeaderIcon name="templates" />
-          </button>
+          <div className="header-tool-wrapper desktop-header-command">
+            <button
+              type="button"
+              className="tool-toggle icon-tool"
+              aria-label="Indicator templates"
+              title="Indicator templates"
+              data-active={headerPanel === 'templates'}
+              onClick={() => toggleHeaderPanel('templates')}
+            >
+              <HeaderIcon name="templates" />
+            </button>
+            {headerPanel === 'templates' && (
+              <div className="header-panel templates-panel" role="menu" aria-label="Indicator templates">
+                <strong>Indicator templates</strong>
+                <label className="header-panel-field">
+                  <span>Template name</span>
+                  <input value={templateName} onChange={(event) => setTemplateName(event.target.value)} />
+                </label>
+                <button type="button" className="header-menu-row" role="menuitem" onClick={saveIndicatorTemplate}>
+                  Save indicator template...
+                </button>
+                <span className="header-panel-label">Open template...</span>
+                {indicatorTemplates.length === 0 ? (
+                  <span className="header-panel-empty">No saved templates</span>
+                ) : (
+                  indicatorTemplates.map((template) => (
+                    <div key={template.id} className="template-menu-row">
+                      <button type="button" role="menuitem" onClick={() => applyIndicatorTemplate(template)}>
+                        <strong>{template.name}</strong>
+                        <small>{new Date(template.createdAt).toLocaleDateString()}</small>
+                      </button>
+                      <button
+                        type="button"
+                        className="template-remove"
+                        aria-label={`Remove ${template.name}`}
+                        onClick={() => removeIndicatorTemplate(template.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             className="tool-toggle tv-command-with-text desktop-header-command"
@@ -2973,15 +3266,48 @@ export default function Home() {
           <span className="header-spacer" aria-hidden="true" />
 
           <div className="header-right-cluster" aria-label="TradingView desktop header controls">
-            <button
-              type="button"
-              className="tool-toggle icon-tool"
-              aria-label="Layout setup"
-              title="Layout setup"
-              onClick={closeHeaderOverlays}
-            >
-              <HeaderIcon name="layout" />
-            </button>
+            <div className="header-tool-wrapper">
+              <button
+                type="button"
+                className="tool-toggle icon-tool"
+                aria-label="Layout setup"
+                title="Layout setup"
+                data-active={headerPanel === 'layout'}
+                onClick={() => toggleHeaderPanel('layout')}
+              >
+                <HeaderIcon name="layout" />
+              </button>
+              {headerPanel === 'layout' && (
+                <div className="header-panel layout-panel" role="menu" aria-label="Layout setup">
+                  <strong>Layout setup</strong>
+                  <div className="layout-grid" aria-label="Layout count">
+                    {LAYOUT_SLOT_OPTIONS.map((slotCount) => (
+                      <button
+                        key={slotCount}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={layoutSlots === slotCount}
+                        data-active={layoutSlots === slotCount}
+                        onClick={() => setLayoutSlots(slotCount)}
+                      >
+                        {slotCount}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="header-panel-label">Sync in layout</span>
+                  {Object.entries(LAYOUT_SYNC_LABELS).map(([key, label]) => (
+                    <label key={key} className="setting-row compact">
+                      <input
+                        type="checkbox"
+                        checked={layoutSync[key as LayoutSyncKey]}
+                        onChange={(event) => updateLayoutSync(key as LayoutSyncKey, event.target.checked)}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="tool-toggle tv-save-button"
@@ -3005,6 +3331,7 @@ export default function Home() {
               className="tool-toggle icon-tool"
               aria-label="Quick search"
               title="Quick search"
+              data-active={headerPanel === 'quickSearch'}
               onClick={openQuickSearch}
             >
               <HeaderIcon name="search" />
@@ -3014,7 +3341,8 @@ export default function Home() {
               className="tool-toggle icon-tool"
               aria-label="Settings"
               title="Settings"
-              onClick={closeHeaderOverlays}
+              data-active={headerPanel === 'settings'}
+              onClick={() => toggleHeaderPanel('settings')}
             >
               <HeaderIcon name="settings" />
             </button>
@@ -3027,15 +3355,39 @@ export default function Home() {
             >
               <HeaderIcon name="fullscreen" />
             </button>
-            <button
-              type="button"
-              className="tool-toggle icon-tool"
-              aria-label="Take a snapshot"
-              title="Take a snapshot"
-              onClick={takeChartSnapshot}
-            >
-              <HeaderIcon name="snapshot" />
-            </button>
+            <div className="header-tool-wrapper">
+              <button
+                type="button"
+                className="tool-toggle icon-tool"
+                aria-label="Take a snapshot"
+                title="Take a snapshot"
+                data-active={headerPanel === 'snapshot'}
+                onClick={() => toggleHeaderPanel('snapshot')}
+              >
+                <HeaderIcon name="snapshot" />
+              </button>
+              {headerPanel === 'snapshot' && (
+                <div className="header-panel snapshot-panel" role="menu" aria-label="Chart snapshot">
+                  <strong>Chart snapshot</strong>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={downloadChartSnapshot}>
+                    <span>Download image</span>
+                    <small>⌥ ⌘ S</small>
+                  </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={copySnapshotImage}>
+                    <span>Copy image</span>
+                    <small>⇧ ⌘ S</small>
+                  </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={() => void copySnapshotLink()}>
+                    <span>Copy link</span>
+                    <small>⌥ S</small>
+                  </button>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={openSnapshotInNewTab}>
+                    Open in new tab
+                  </button>
+                  {snapshotStatus && <span className="header-panel-status">{snapshotStatus}</span>}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="tool-toggle tv-trade-button"
@@ -3055,6 +3407,193 @@ export default function Home() {
               <span>Publish</span>
             </button>
           </div>
+          {headerPanel === 'quickSearch' && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <div
+                className="header-modal quick-search-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Search tool or function"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="header-modal-title">
+                  <strong>Search tool or function</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <label className="quick-search-input">
+                  <HeaderIcon name="search" />
+                  <input
+                    autoFocus
+                    type="search"
+                    placeholder="Type to search for drawings, functions and settings"
+                    value={quickSearchQuery}
+                    onChange={(event) => setQuickSearchQuery(event.target.value)}
+                  />
+                </label>
+                <div className="quick-action-list" role="menu" aria-label="Search results">
+                  {filteredQuickActions.map((action) => (
+                    <button key={action.id} type="button" role="menuitem" onClick={() => executeQuickAction(action.id)}>
+                      <strong>{action.label}</strong>
+                      <small>{action.description}</small>
+                    </button>
+                  ))}
+                  {filteredQuickActions.length === 0 && <span className="header-panel-empty">No matching tools</span>}
+                </div>
+              </div>
+            </div>
+          )}
+          {headerPanel === 'settings' && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <div
+                className="header-modal settings-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Settings"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="header-modal-title">
+                  <strong>Settings</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <div className="settings-body">
+                  <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+                    {SETTINGS_TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={settingsTab === tab.id}
+                        data-active={settingsTab === tab.id}
+                        onClick={() => setSettingsTab(tab.id)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="settings-content">
+                    {settingsTab === 'symbol' && (
+                      <>
+                        <strong>Symbol</strong>
+                        <span className="settings-current-symbol">{formatSymbol(symbol)}</span>
+                        <div className="settings-segmented" aria-label="Chart type">
+                          {CHART_STYLE_OPTIONS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              data-active={chartStyle === option.value}
+                              onClick={() => setChartStyle(option.value)}
+                            >
+                              {option.shortLabel || option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {settingsTab === 'status' && (
+                      <>
+                        <strong>Status line</strong>
+                        <label className="setting-row">
+                          <input
+                            type="checkbox"
+                            checked={chartSettings.showStatusLine}
+                            onChange={(event) => updateChartSetting('showStatusLine', event.target.checked)}
+                          />
+                          <span>OHLC values</span>
+                        </label>
+                        <label className="setting-row">
+                          <input
+                            type="checkbox"
+                            checked={chartSettings.showIndicatorLegend}
+                            onChange={(event) => updateChartSetting('showIndicatorLegend', event.target.checked)}
+                          />
+                          <span>Indicator values</span>
+                        </label>
+                      </>
+                    )}
+                    {settingsTab === 'scales' && (
+                      <>
+                        <strong>Scales and lines</strong>
+                        <label className="setting-row">
+                          <input
+                            type="checkbox"
+                            checked={chartSettings.showGridLines}
+                            onChange={(event) => updateChartSetting('showGridLines', event.target.checked)}
+                          />
+                          <span>Grid lines</span>
+                        </label>
+                        <label className="setting-row">
+                          <input
+                            type="checkbox"
+                            checked={chartSettings.showCurrentPriceLine}
+                            onChange={(event) => updateChartSetting('showCurrentPriceLine', event.target.checked)}
+                          />
+                          <span>Current price line</span>
+                        </label>
+                        <label className="setting-row">
+                          <input
+                            type="checkbox"
+                            checked={chartSettings.showCrosshair}
+                            onChange={(event) => updateChartSetting('showCrosshair', event.target.checked)}
+                          />
+                          <span>Crosshair labels</span>
+                        </label>
+                      </>
+                    )}
+                    {settingsTab === 'canvas' && (
+                      <>
+                        <strong>Canvas</strong>
+                        <div className="settings-segmented" aria-label="Theme">
+                          <button type="button" data-active={theme === 'dark'} onClick={() => setTheme('dark')}>
+                            Dark
+                          </button>
+                          <button type="button" data-active={theme === 'light'} onClick={() => setTheme('light')}>
+                            Light
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {settingsTab === 'trading' && (
+                      <>
+                        <strong>Trading</strong>
+                        <label className="setting-row">
+                          <input
+                            type="checkbox"
+                            checked={chartSettings.showVolumePane}
+                            onChange={(event) => updateChartSetting('showVolumePane', event.target.checked)}
+                          />
+                          <span>Volume pane</span>
+                        </label>
+                      </>
+                    )}
+                    {settingsTab === 'alerts' && (
+                      <>
+                        <strong>Alerts</strong>
+                        <span className="settings-current-symbol">Feed {feedStatus}</span>
+                      </>
+                    )}
+                    {settingsTab === 'events' && (
+                      <>
+                        <strong>Events</strong>
+                        <span className="settings-current-symbol">BTC/USDT spot</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="settings-footer">
+                  <button type="button" onClick={closeHeaderOverlays}>
+                    Cancel
+                  </button>
+                  <button type="button" className="settings-ok" onClick={closeHeaderOverlays}>
+                    Ok
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -3078,7 +3617,7 @@ export default function Home() {
           onWheel={handleWheel}
         />
 
-        {legendCandle && (
+        {chartSettings.showStatusLine && legendCandle && (
           <div
             className="instrument-legend-overlay"
             aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend`}
@@ -3110,7 +3649,7 @@ export default function Home() {
           </div>
         )}
 
-        {activeIndicators.length > 0 && legendCandle && (
+        {chartSettings.showIndicatorLegend && activeIndicators.length > 0 && legendCandle && (
           <div ref={indicatorLegendRef} className="indicator-legend-overlay" aria-label="Active indicators">
             {activeIndicators.map((indicator, index) => {
               const definition = getIndicatorDefinition(indicator.definitionId);
