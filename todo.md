@@ -30,7 +30,7 @@ respond and resemble TradingView more closely.
 - [x] Update architecture notes and todo review.
 - [x] Run focused typecheck/lint/build checks.
 - [x] Verify with TradingView inspection and local Browser/Playwright/devtools.
-- [ ] Commit and push `main`.
+- [x] Commit and push `main`.
 
 ## Review
 
@@ -73,6 +73,7 @@ Verification results:
   `/tmp/procharting-header-reinspect-local-trade.png`,
   `/tmp/procharting-header-reinspect-local-publish.png`, and
   `/tmp/procharting-header-reinspect-local-mobile.png`.
+- Committed and pushed `main` with `4ddf4c6`.
 
 # TradingView Icon Tool Functionality
 
