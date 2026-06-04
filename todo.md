@@ -3498,7 +3498,7 @@ where the user can type a query, filter symbols, and choose a Binance market.
 - [x] Run typecheck/build or focused validation.
 - [x] Test with Browser/Playwright on desktop and mobile, including click,
       typing, selecting, and visual non-overlap.
-- [ ] Commit, push, and leave the worktree clean except for pre-existing
+- [x] Commit, push, and leave the worktree clean except for pre-existing
       untracked/generated files.
 
 ## Review
