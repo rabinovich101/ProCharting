@@ -2952,7 +2952,12 @@ export default function Home() {
                           setMoreTargetId(null);
                         }}
                       >
-                        <span className="legend-action-glyph settings" aria-hidden="true" />
+                        <span className="legend-action-glyph settings" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M10.4 3h3.2l.6 2.4c.5.2 1 .4 1.4.8l2.4-.8 1.6 2.8-1.8 1.7c.1.5.2 1.1.2 1.6s-.1 1.1-.2 1.6l1.8 1.7-1.6 2.8-2.4-.8c-.4.3-.9.6-1.4.8l-.6 2.4h-3.2l-.6-2.4c-.5-.2-1-.4-1.4-.8l-2.4.8-1.6-2.8 1.8-1.7c-.1-.5-.2-1.1-.2-1.6s.1-1.1.2-1.6L4.4 8.2 6 5.4l2.4.8c.4-.3.9-.6 1.4-.8L10.4 3Z" />
+                            <circle cx="12" cy="11.5" r="2.6" />
+                          </svg>
+                        </span>
                       </button>
                       <button
                         type="button"

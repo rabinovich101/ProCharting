@@ -1010,6 +1010,22 @@ summary {
   width: 2px;
 }
 
+.legend-action-glyph.settings::before,
+.legend-action-glyph.settings::after {
+  content: none;
+}
+
+.legend-action-glyph.settings svg {
+  display: block;
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9px;
+  width: 16px;
+}
+
 .legend-action-glyph.remove::before,
 .legend-action-glyph.remove::after {
   background: currentColor;

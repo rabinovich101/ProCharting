@@ -1,3 +1,54 @@
+# Indicator Settings Gear Icon
+
+## Goal
+
+Change the indicator legend settings action to a clear settings/gear icon.
+
+## Findings / Decisions
+
+- The standalone test app does not include an icon package such as Lucide.
+- The current settings action uses a custom CSS pseudo-glyph on
+  `.legend-action-glyph.settings`, which reads more like a target/dot symbol
+  than a settings gear.
+- Keep the existing button, title, and accessible label. Replace only the visual
+  glyph with a compact inline gear icon and preserve the current 16px action
+  glyph sizing.
+
+## Checklist
+
+- [x] Replace the settings glyph in the indicator legend action.
+- [x] Disable the old settings pseudo-glyph styling for the new icon.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify the icon appears in the hover-expanded indicator box.
+- [x] Commit and push `main`.
+
+## Review
+
+Completed the indicator settings gear icon update.
+
+- `TEST/binance-chart-test/app/page.tsx` now renders a compact inline SVG gear
+  inside the existing settings action button.
+- `TEST/binance-chart-test/app/globals.css` disables the old settings
+  pseudo-glyph and styles the new SVG at the existing 16px action-glyph size.
+- The settings button keeps the existing `title="Settings"` and
+  `aria-label="Settings for ..."` behavior.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- Playwright hover QA passed: the row was hover-expanded, settings SVG count was
+  present, the settings button title was `Settings`, old `::before` and
+  `::after` pseudo-glyph content was `none`, `.market-strip` count was `0`, and
+  there was no horizontal overflow.
+- Mobile QA confirmed the settings SVG exists, `.market-strip` count was `0`,
+  and there was no horizontal overflow.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Saved screenshot in the Playwright output area:
+  `tmp/.playwright-mcp/procharting-settings-gear-icon-expanded.png`.
+
 # Compact Hover Indicator Boxes
 
 ## Goal
