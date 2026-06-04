@@ -23,6 +23,12 @@ interface ViewRange {
   candlesPerView: number;
 }
 
+interface TimeStep {
+  unit: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
+  step: number;
+  durationMs: number;
+}
+
 interface Palette {
   canvasTop: string;
   canvasBottom: string;
@@ -122,6 +128,57 @@ const PALETTES: Record<ThemeName, Palette> = {
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const WEEK_MS = 7 * DAY_MS;
+const MONTH_MS = 30 * DAY_MS;
+const YEAR_MS = 365 * DAY_MS;
+
+const TIMEFRAME_INTERVAL_MS: Record<string, number> = {
+  '1m': MINUTE_MS,
+  '5m': 5 * MINUTE_MS,
+  '15m': 15 * MINUTE_MS,
+  '30m': 30 * MINUTE_MS,
+  '1h': HOUR_MS,
+  '4h': 4 * HOUR_MS,
+  '1d': DAY_MS,
+  '1w': WEEK_MS,
+  '1M': MONTH_MS,
+};
+
+const TIMEFRAME_BAR_SPACING: Record<string, { spacing: number; minBars: number; maxBars: number }> = {
+  '1m': { spacing: 7.0, minBars: 42, maxBars: 220 },
+  '5m': { spacing: 7.4, minBars: 42, maxBars: 210 },
+  '15m': { spacing: 7.8, minBars: 40, maxBars: 190 },
+  '30m': { spacing: 8.2, minBars: 38, maxBars: 180 },
+  '1h': { spacing: 8.5, minBars: 36, maxBars: 170 },
+  '4h': { spacing: 8.8, minBars: 34, maxBars: 160 },
+  '1d': { spacing: 7.8, minBars: 48, maxBars: 160 },
+  '1w': { spacing: 8.8, minBars: 44, maxBars: 150 },
+  '1M': { spacing: 10.8, minBars: 36, maxBars: 132 },
+};
+
+const TIMELINE_STEPS: TimeStep[] = [
+  { unit: 'minute', step: 5, durationMs: 5 * MINUTE_MS },
+  { unit: 'minute', step: 15, durationMs: 15 * MINUTE_MS },
+  { unit: 'minute', step: 30, durationMs: 30 * MINUTE_MS },
+  { unit: 'hour', step: 1, durationMs: HOUR_MS },
+  { unit: 'hour', step: 2, durationMs: 2 * HOUR_MS },
+  { unit: 'hour', step: 4, durationMs: 4 * HOUR_MS },
+  { unit: 'hour', step: 6, durationMs: 6 * HOUR_MS },
+  { unit: 'hour', step: 12, durationMs: 12 * HOUR_MS },
+  { unit: 'day', step: 1, durationMs: DAY_MS },
+  { unit: 'day', step: 2, durationMs: 2 * DAY_MS },
+  { unit: 'week', step: 1, durationMs: WEEK_MS },
+  { unit: 'month', step: 1, durationMs: MONTH_MS },
+  { unit: 'month', step: 3, durationMs: 3 * MONTH_MS },
+  { unit: 'month', step: 6, durationMs: 6 * MONTH_MS },
+  { unit: 'year', step: 1, durationMs: YEAR_MS },
+  { unit: 'year', step: 2, durationMs: 2 * YEAR_MS },
+  { unit: 'year', step: 5, durationMs: 5 * YEAR_MS },
+];
+
 const formatPrice = (price: number) => {
   if (!Number.isFinite(price)) return '-';
   return price.toLocaleString(undefined, {
@@ -169,16 +226,180 @@ const parseCandles = (payload: unknown): Candle[] => {
 
 const formatSymbol = (symbol: string) => `${symbol.slice(0, -4)}/${symbol.slice(-4)}`;
 
-const calculateNiceInterval = (range: number) => {
+const calculateNiceInterval = (range: number, targetTickCount = 8) => {
   if (!Number.isFinite(range) || range <= 0) return 1;
 
-  const magnitude = Math.pow(10, Math.floor(Math.log10(range)));
-  const normalized = range / magnitude;
+  const roughStep = range / Math.max(1, targetTickCount);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const normalized = roughStep / magnitude;
+  const candidates = [1, 2, 2.5, 4, 5, 10];
+  const closest = candidates.reduce((best, candidate) => {
+    return Math.abs(candidate - normalized) < Math.abs(best - normalized) ? candidate : best;
+  }, candidates[0]);
 
-  if (normalized <= 1.5) return magnitude * 0.2;
-  if (normalized <= 3) return magnitude * 0.5;
-  if (normalized <= 7) return magnitude;
-  return magnitude * 2;
+  return closest * magnitude;
+};
+
+const getTimeframeIntervalMs = (timeframe: string) =>
+  TIMEFRAME_INTERVAL_MS[timeframe] ?? MINUTE_MS;
+
+const getRightOffsetBars = (chartWidth: number) =>
+  Math.round(clamp(chartWidth / 140, 5, 12));
+
+const getDefaultCandlesPerView = (timeframe: string, candleCount: number, chartWidth: number) => {
+  const density = TIMEFRAME_BAR_SPACING[timeframe] ?? TIMEFRAME_BAR_SPACING['1m'];
+  const rightOffsetBars = getRightOffsetBars(chartWidth);
+  const maxVisibleBars = Math.max(
+    density.minBars,
+    Math.min(density.maxBars, Math.max(density.minBars, candleCount + rightOffsetBars))
+  );
+
+  return Math.round(clamp(chartWidth / density.spacing, density.minBars, maxVisibleBars));
+};
+
+const normalizeViewRange = (
+  startIndex: number,
+  candlesPerView: number,
+  candleCount: number,
+  rightOffsetBars: number
+): ViewRange => {
+  const virtualEndIndex = Math.max(candlesPerView, candleCount + rightOffsetBars);
+  const maxVisibleBars = Math.max(18, Math.min(420, virtualEndIndex));
+  const visibleBars = Math.round(clamp(candlesPerView, 18, maxVisibleBars));
+  const maxStartIndex = Math.max(0, virtualEndIndex - visibleBars);
+  const nextStartIndex = Math.round(clamp(startIndex, 0, maxStartIndex));
+
+  return {
+    startIndex: nextStartIndex,
+    endIndex: nextStartIndex + visibleBars,
+    candlesPerView: visibleBars,
+  };
+};
+
+const getTimeAtVirtualIndex = (index: number, candles: Candle[], intervalMs: number) => {
+  if (candles.length === 0) return 0;
+
+  if (index < 0) {
+    return candles[0].time + index * intervalMs;
+  }
+  if (index < candles.length) {
+    return candles[index].time;
+  }
+
+  return candles[candles.length - 1].time + (index - candles.length + 1) * intervalMs;
+};
+
+const getTimelineBucket = (timestamp: number, step: TimeStep) => {
+  const date = new Date(timestamp);
+
+  if (step.unit === 'month') {
+    const monthIndex = date.getUTCFullYear() * 12 + date.getUTCMonth();
+    return Math.floor(monthIndex / step.step);
+  }
+  if (step.unit === 'year') {
+    return Math.floor(date.getUTCFullYear() / step.step);
+  }
+
+  return Math.floor(timestamp / step.durationMs);
+};
+
+const formatTimelineLabel = (timestamp: number, step: TimeStep) => {
+  const date = new Date(timestamp);
+
+  if (step.unit === 'year') {
+    return date.toLocaleDateString(undefined, { year: 'numeric' });
+  }
+  if (step.unit === 'month') {
+    if (date.getUTCMonth() === 0 || step.step >= 6) {
+      return date.toLocaleDateString(undefined, { year: 'numeric' });
+    }
+    return date.toLocaleDateString(undefined, { month: 'short' });
+  }
+  if (step.unit === 'week' || step.unit === 'day') {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  if (date.getUTCHours() === 0 && date.getUTCMinutes() === 0) {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const chooseTimelineStep = (visibleTimeRange: number, chartWidth: number) => {
+  const targetTickCount = Math.max(3, Math.floor(chartWidth / 120));
+  const targetDuration = visibleTimeRange / targetTickCount;
+
+  return TIMELINE_STEPS.find((step) => step.durationMs >= targetDuration) ?? TIMELINE_STEPS[TIMELINE_STEPS.length - 1];
+};
+
+const createTimelineTicks = (
+  viewRange: ViewRange,
+  candles: Candle[],
+  timeframe: string,
+  chartWidth: number,
+  compact: boolean
+) => {
+  const intervalMs = getTimeframeIntervalMs(timeframe);
+  const startTime = getTimeAtVirtualIndex(viewRange.startIndex, candles, intervalMs);
+  const endTime = getTimeAtVirtualIndex(viewRange.endIndex - 1, candles, intervalMs);
+  const step = chooseTimelineStep(Math.max(intervalMs, endTime - startTime), chartWidth);
+  const minLabelSpacing = compact ? 74 : 96;
+  const ticks: Array<{ index: number; time: number; label: string; major: boolean }> = [];
+  let lastBucket: number | null = null;
+  let lastX = -Infinity;
+
+  for (let index = viewRange.startIndex; index < viewRange.endIndex; index += 1) {
+    const time = getTimeAtVirtualIndex(index, candles, intervalMs);
+    const bucket = getTimelineBucket(time, step);
+    const x = ((index - viewRange.startIndex) / viewRange.candlesPerView) * chartWidth;
+
+    if (bucket !== lastBucket && x - lastX >= minLabelSpacing) {
+      const date = new Date(time);
+      ticks.push({
+        index,
+        time,
+        label: formatTimelineLabel(time, step),
+        major: date.getUTCHours() === 0 && date.getUTCMinutes() === 0,
+      });
+      lastX = x;
+    }
+
+    lastBucket = bucket;
+  }
+
+  return ticks;
+};
+
+const createPriceTicks = (minPrice: number, maxPrice: number, chartHeight: number) => {
+  const range = maxPrice - minPrice || 1;
+  const targetTickCount = Math.max(4, Math.round(chartHeight / 40));
+  const step = calculateNiceInterval(range, targetTickCount);
+  const ticks: number[] = [];
+  const startPrice = Math.floor(minPrice / step) * step;
+
+  for (let price = startPrice; price <= maxPrice + step; price += step) {
+    if (price >= minPrice - step * 0.1 && price <= maxPrice + step * 0.1) {
+      ticks.push(price);
+    }
+  }
+
+  return { step, ticks };
+};
+
+const formatCountdown = (timeframe: string, candleOpenTime: number) => {
+  const remainingMs = candleOpenTime + getTimeframeIntervalMs(timeframe) - Date.now();
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) return '';
+
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 };
 
 const movingAverage = (candles: Candle[], period: number) => {
@@ -523,15 +744,22 @@ export default function Home() {
   const changeTone = priceChange >= 0 ? 'positive' : 'negative';
   const indicatorCount = Number(showMovingAverage) + Number(showVolume);
 
-  const resetView = (sourceCandles = candles) => {
-    const candlesPerView = Math.min(140, Math.max(60, sourceCandles.length || 100));
-    const endIndex = sourceCandles.length;
+  const getEstimatedChartWidth = () => {
+    const canvasWidth = canvasRef.current?.getBoundingClientRect().width ?? 0;
+    const measuredWidth = chartBounds.current.chartArea.width;
 
-    setViewRange({
-      startIndex: Math.max(0, endIndex - candlesPerView),
-      endIndex,
-      candlesPerView,
-    });
+    if (measuredWidth > 0) return measuredWidth;
+    if (canvasWidth > 0) return Math.max(160, canvasWidth - (canvasWidth < 520 ? 74 : 100));
+    return 980;
+  };
+
+  const resetView = (sourceCandles = candles, nextTimeframe = timeframe) => {
+    const chartWidth = getEstimatedChartWidth();
+    const rightOffsetBars = getRightOffsetBars(chartWidth);
+    const candlesPerView = getDefaultCandlesPerView(nextTimeframe, sourceCandles.length, chartWidth);
+    const endIndex = sourceCandles.length + rightOffsetBars;
+
+    setViewRange(normalizeViewRange(endIndex - candlesPerView, candlesPerView, sourceCandles.length, rightOffsetBars));
   };
 
   useEffect(() => {
@@ -585,7 +813,7 @@ export default function Home() {
 
         const formattedCandles = parseCandles(payload);
         setCandles(formattedCandles);
-        resetView(formattedCandles);
+        resetView(formattedCandles, timeframe);
       } catch (fetchError) {
         if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
 
@@ -665,11 +893,16 @@ export default function Home() {
           updated.push(newCandle);
 
           if (wasPinnedToLatest) {
-            setViewRange((current) => ({
-              ...current,
-              startIndex: Math.max(0, updated.length - current.candlesPerView),
-              endIndex: updated.length,
-            }));
+            const chartWidth = getEstimatedChartWidth();
+            const rightOffsetBars = getRightOffsetBars(chartWidth);
+            setViewRange((current) =>
+              normalizeViewRange(
+                updated.length + rightOffsetBars - current.candlesPerView,
+                current.candlesPerView,
+                updated.length,
+                rightOffsetBars
+              )
+            );
           }
         }
 
@@ -742,38 +975,40 @@ export default function Home() {
   const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
     if (!candles.length) return;
 
-    const zoomSpeed = 0.12;
-    const delta = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed;
-    const newCandlesPerView = clamp(
-      Math.round(viewRange.candlesPerView * delta),
-      18,
-      Math.min(420, Math.max(18, candles.length))
-    );
-
+    event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
     const { chartArea } = chartBounds.current;
-    const mouseRatio = clamp((event.clientX - rect.left - chartArea.left) / chartArea.width, 0, 1);
-    const currentVisibleCandles = viewRange.endIndex - viewRange.startIndex;
-    const candleDiff = newCandlesPerView - currentVisibleCandles;
-    const leftShift = Math.round(candleDiff * mouseRatio);
+    const chartWidth = chartArea.width || getEstimatedChartWidth();
+    const rightOffsetBars = getRightOffsetBars(chartWidth);
+    const visibleBars = Math.max(1, viewRange.endIndex - viewRange.startIndex);
+    const candleWidth = chartWidth / visibleBars;
 
-    let newStartIndex = viewRange.startIndex - leftShift;
-    let newEndIndex = newStartIndex + newCandlesPerView;
+    if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+      const panPixels = event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      const panBars = Math.round(panPixels / Math.max(1, candleWidth));
 
-    if (newEndIndex > candles.length) {
-      newEndIndex = candles.length;
-      newStartIndex = Math.max(0, newEndIndex - newCandlesPerView);
+      if (panBars !== 0) {
+        setViewRange(
+          normalizeViewRange(
+            viewRange.startIndex + panBars,
+            visibleBars,
+            candles.length,
+            rightOffsetBars
+          )
+        );
+      }
+      return;
     }
-    if (newStartIndex < 0) {
-      newStartIndex = 0;
-      newEndIndex = Math.min(candles.length, newCandlesPerView);
-    }
 
-    setViewRange({
-      startIndex: newStartIndex,
-      endIndex: newEndIndex,
-      candlesPerView: newCandlesPerView,
-    });
+    const wheelScale = Math.exp(clamp(event.deltaY / 100, -3, 3) * 0.16);
+    const newCandlesPerView = Math.round(
+      clamp(visibleBars * wheelScale, 18, Math.min(420, Math.max(18, candles.length + rightOffsetBars)))
+    );
+    const mouseRatio = clamp((event.clientX - rect.left - chartArea.left) / chartWidth, 0, 1);
+    const anchorIndex = viewRange.startIndex + mouseRatio * visibleBars;
+    const newStartIndex = anchorIndex - mouseRatio * newCandlesPerView;
+
+    setViewRange(normalizeViewRange(newStartIndex, newCandlesPerView, candles.length, rightOffsetBars));
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -793,27 +1028,19 @@ export default function Home() {
     if (isDragging && candles.length) {
       const { chartArea } = chartBounds.current;
       const deltaX = event.clientX - dragStart.x;
-      const candleWidth = chartArea.width / viewRange.candlesPerView;
+      const chartWidth = chartArea.width || getEstimatedChartWidth();
+      const candleWidth = chartWidth / viewRange.candlesPerView;
       const candlesDelta = Math.round(deltaX / candleWidth);
 
       if (candlesDelta !== 0) {
-        let newStartIndex = viewRange.startIndex - candlesDelta;
-        let newEndIndex = viewRange.endIndex - candlesDelta;
-
-        if (newStartIndex < 0) {
-          newStartIndex = 0;
-          newEndIndex = viewRange.candlesPerView;
-        }
-        if (newEndIndex > candles.length) {
-          newEndIndex = candles.length;
-          newStartIndex = Math.max(0, candles.length - viewRange.candlesPerView);
-        }
-
-        setViewRange({
-          ...viewRange,
-          startIndex: newStartIndex,
-          endIndex: newEndIndex,
-        });
+        setViewRange(
+          normalizeViewRange(
+            viewRange.startIndex - candlesDelta,
+            viewRange.candlesPerView,
+            candles.length,
+            getRightOffsetBars(chartWidth)
+          )
+        );
         setDragStart({ x: event.clientX, y: event.clientY });
       }
     }
@@ -888,7 +1115,9 @@ export default function Home() {
       height: Math.max(0, volumeHeight - 14),
     };
 
-    const visibleCandles = candles.slice(viewRange.startIndex, viewRange.endIndex);
+    const visibleBars = Math.max(1, viewRange.endIndex - viewRange.startIndex);
+    const visibleEndIndex = Math.min(viewRange.endIndex, candles.length);
+    const visibleCandles = candles.slice(viewRange.startIndex, visibleEndIndex);
     if (visibleCandles.length === 0) return;
 
     const prices = visibleCandles.flatMap((candle) => [candle.high, candle.low]);
@@ -908,35 +1137,37 @@ export default function Home() {
 
     const priceToY = (price: number) =>
       chartArea.top + ((maxPaddedPrice - price) / paddedPriceRange) * chartArea.height;
-    const candleSpacing = chartArea.width / visibleCandles.length;
-    const candleWidth = clamp(candleSpacing * 0.64, 1, 12);
-    const xForIndex = (index: number) => chartArea.left + (index + 0.5) * candleSpacing;
+    const candleSpacing = chartArea.width / visibleBars;
+    const candleWidth = clamp(candleSpacing * 0.62, 1, 12);
+    const xForAbsoluteIndex = (index: number) =>
+      chartArea.left + (index - viewRange.startIndex + 0.5) * candleSpacing;
+    const xForIndex = (index: number) => xForAbsoluteIndex(viewRange.startIndex + index);
+    const priceTickInfo = createPriceTicks(minPaddedPrice, maxPaddedPrice, chartArea.height);
+    const timelineTicks = createTimelineTicks(viewRange, candles, timeframe, chartArea.width, rect.width < 620);
 
     ctx.save();
     ctx.beginPath();
     ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
     ctx.clip();
 
-    const priceStep = calculateNiceInterval(rawPriceRange);
-    const startPrice = Math.floor(minPaddedPrice / priceStep) * priceStep;
     ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
     ctx.lineWidth = 1;
 
-    for (let price = startPrice; price <= maxPaddedPrice + priceStep; price += priceStep) {
+    for (const price of priceTickInfo.ticks) {
       const y = priceToY(price);
       if (y < chartArea.top || y > chartArea.top + chartArea.height) continue;
 
-      ctx.strokeStyle = Math.abs(price - latestCandle!.close) < priceStep * 0.1 ? palette.gridStrong : palette.grid;
+      ctx.strokeStyle =
+        Math.abs(price - latestCandle!.close) < priceTickInfo.step * 0.1 ? palette.gridStrong : palette.grid;
       ctx.beginPath();
       ctx.moveTo(chartArea.left, y);
       ctx.lineTo(chartArea.left + chartArea.width, y);
       ctx.stroke();
     }
 
-    const timeInterval = Math.max(1, Math.ceil(visibleCandles.length / (rect.width < 620 ? 4 : 9)));
-    for (let index = 0; index < visibleCandles.length; index += timeInterval) {
-      const x = xForIndex(index);
-      ctx.strokeStyle = palette.grid;
+    for (const tick of timelineTicks) {
+      const x = xForAbsoluteIndex(tick.index);
+      ctx.strokeStyle = tick.major ? palette.gridStrong : palette.grid;
       ctx.beginPath();
       ctx.moveTo(x, chartArea.top);
       ctx.lineTo(x, chartArea.top + chartArea.height);
@@ -1010,13 +1241,19 @@ export default function Home() {
     }
 
     const currentPriceY = priceToY(latestCandle!.close);
-    ctx.strokeStyle = latestCandle!.close >= latestCandle!.open ? palette.green : palette.red;
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath();
-    ctx.moveTo(chartArea.left, currentPriceY);
-    ctx.lineTo(chartArea.left + chartArea.width, currentPriceY);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    const currentPriceColor = latestCandle!.close >= latestCandle!.open ? palette.green : palette.red;
+    const currentPriceInside =
+      currentPriceY >= chartArea.top && currentPriceY <= chartArea.top + chartArea.height;
+
+    if (currentPriceInside) {
+      ctx.strokeStyle = currentPriceColor;
+      ctx.setLineDash([1.5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, currentPriceY);
+      ctx.lineTo(chartArea.left + chartArea.width, currentPriceY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.restore();
 
     if (showVolume && volumeArea.height > 0) {
@@ -1047,17 +1284,34 @@ export default function Home() {
     ctx.lineTo(chartArea.left, chartArea.top + chartArea.height);
     ctx.stroke();
 
-    ctx.fillStyle = palette.axisBg;
-    ctx.fillRect(chartArea.left + chartArea.width + 1, currentPriceY - 12, rightAxisWidth - 6, 24);
-    ctx.fillStyle = palette.textBright;
-    ctx.font = '12px var(--font-geist-mono), ui-monospace, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(formatPrice(latestCandle!.close), chartArea.left + chartArea.width + 7, currentPriceY + 4);
+    if (currentPriceInside) {
+      const countdown = formatCountdown(timeframe, latestCandle!.time);
+      const markerHeight = countdown ? 32 : 24;
+      const markerY = clamp(
+        currentPriceY - markerHeight / 2,
+        chartArea.top,
+        chartArea.top + chartArea.height - markerHeight
+      );
+
+      ctx.fillStyle = currentPriceColor;
+      ctx.fillRect(chartArea.left + chartArea.width + 1, markerY, rightAxisWidth - 6, markerHeight);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '12px var(--font-geist-mono), ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(formatPrice(latestCandle!.close), chartArea.left + chartArea.width + 7, markerY + 14);
+
+      if (countdown) {
+        ctx.globalAlpha = 0.84;
+        ctx.font = '10px var(--font-geist-mono), ui-monospace, monospace';
+        ctx.fillText(countdown, chartArea.left + chartArea.width + 7, markerY + 27);
+        ctx.globalAlpha = 1;
+      }
+    }
 
     ctx.font = '11px var(--font-geist-mono), ui-monospace, monospace';
     ctx.textAlign = 'right';
     ctx.fillStyle = palette.text;
-    for (let price = startPrice; price <= maxPaddedPrice + priceStep; price += priceStep) {
+    for (const price of priceTickInfo.ticks) {
       const y = priceToY(price);
       if (y < chartArea.top + 8 || y > chartArea.top + chartArea.height - 8) continue;
       ctx.fillText(formatPrice(price), rect.width - 8, y + 4);
@@ -1065,9 +1319,9 @@ export default function Home() {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = palette.text;
-    for (let index = 0; index < visibleCandles.length; index += timeInterval) {
-      const x = xForIndex(index);
-      const label = formatTime(visibleCandles[index].time);
+    for (const tick of timelineTicks) {
+      const x = xForAbsoluteIndex(tick.index);
+      const label = tick.label;
       const labelWidth = ctx.measureText(label).width;
       const labelX = clamp(
         x,
@@ -1077,7 +1331,7 @@ export default function Home() {
       ctx.fillText(label, labelX, rect.height - 10);
     }
 
-    let activeCandleIndex = visibleCandles.length - 1;
+    let activeCandle = latestCandle!;
     const crosshairInside =
       mousePos &&
       mousePos.x >= chartArea.left &&
@@ -1086,11 +1340,10 @@ export default function Home() {
       mousePos.y <= chartArea.top + chartArea.height;
 
     if (crosshairInside) {
-      activeCandleIndex = clamp(
-        Math.floor(((mousePos.x - chartArea.left) / chartArea.width) * visibleCandles.length),
-        0,
-        visibleCandles.length - 1
-      );
+      const virtualOffset = Math.floor((mousePos.x - chartArea.left) / candleSpacing);
+      const absoluteCandleIndex = Math.round(clamp(viewRange.startIndex + virtualOffset, 0, candles.length - 1));
+      const hoveredVirtualIndex = viewRange.startIndex + virtualOffset;
+      activeCandle = candles[absoluteCandleIndex];
 
       ctx.strokeStyle = palette.crosshair;
       ctx.lineWidth = 1;
@@ -1113,7 +1366,10 @@ export default function Home() {
       ctx.textAlign = 'left';
       ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, mousePos.y + 4);
 
-      const timeLabel = formatTime(visibleCandles[activeCandleIndex].time, true);
+      const timeLabel = formatTime(
+        getTimeAtVirtualIndex(hoveredVirtualIndex, candles, getTimeframeIntervalMs(timeframe)),
+        true
+      );
       const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
       const labelX = clamp(mousePos.x - timeLabelWidth / 2, chartArea.left, chartArea.left + chartArea.width - timeLabelWidth);
       ctx.fillStyle = palette.axisBg;
@@ -1123,7 +1379,6 @@ export default function Home() {
       ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, chartArea.top + chartArea.height + 17);
     }
 
-    const activeCandle = visibleCandles[activeCandleIndex];
     const activeChange = activeCandle.close - activeCandle.open;
     const activeTone = activeChange >= 0 ? palette.green : palette.red;
     const ohlc = [
@@ -1146,8 +1401,10 @@ export default function Home() {
     ctx.fillStyle = palette.text;
     ctx.textAlign = 'right';
     ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
+    const realStartIndex = Math.min(viewRange.startIndex + 1, candles.length);
+    const realEndIndex = Math.min(viewRange.endIndex, candles.length);
     ctx.fillText(
-      `${viewRange.startIndex + 1}-${viewRange.endIndex} of ${candles.length}`,
+      `${realStartIndex}-${realEndIndex} of ${candles.length}`,
       chartArea.left + chartArea.width - 4,
       chartArea.top + 14
     );

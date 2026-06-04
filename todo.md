@@ -1,3 +1,122 @@
+# TradingView Timeline, Price Axis, And Wheel Behavior Plan
+
+## Goal
+
+Make the `TEST/binance-chart-test` canvas chart place its timeline, price
+grid/labels, current price line, and mouse-wheel behavior closer to TradingView
+while keeping the existing Binance data flow and direct Canvas 2D renderer.
+
+## TradingView Findings
+
+- TradingView paints the plot, price axis, and time axis as stacked canvases.
+  At a 1280x720 viewport, the main plot canvas is roughly 1090px wide, the
+  right price axis is 80-86px wide, and the bottom time axis is 28px high.
+- Price grid lines target a visual cadence around 33-42px apart, choosing nice
+  price increments from the visible range. Examples observed on BTCUSDT:
+  `1m` uses about 100-point price steps, `5m` uses about 400-point steps, `1D`
+  uses about 2,500-point steps, and `1M` uses about 10,000-point steps.
+- Timeline labels are semantic, not just every N candles. Intraday charts label
+  readable hour/day boundaries; daily charts label months; weekly/monthly
+  charts label years. Labels are spaced roughly 90-180px apart and grid lines
+  align with those labels.
+- The current price is a dotted horizontal guide with a filled right-axis price
+  marker. The marker color follows the active candle direction and includes a
+  small countdown/secondary line on TradingView.
+- Default visible density is a stable pixel-per-bar relationship rather than a
+  hard fixed candle count. Observed BTCUSDT views land near 7-12px per bar on
+  a desktop-width plot, with larger spacing on higher intervals.
+- Browser wheel primitives showed TradingView reacting reliably to modifier
+  wheel/scale gestures and horizontal wheel gestures. For this app, implement
+  normal wheel as cursor-anchored time zoom, and horizontal or Shift+wheel as
+  timeline pan so ordinary mouse-wheel testing is deterministic.
+
+## Scope / Decisions
+
+- Keep changes focused on `TEST/binance-chart-test/app/page.tsx`,
+  `ARCHITECTURE.md`, and this `todo.md`.
+- Do not refactor the package renderer architecture; this chart route draws its
+  own Canvas 2D chart and is documented as the live UX/QA harness.
+- Preserve existing timeframes, symbol controls, chart styles, moving average,
+  volume, websocket, and API behavior.
+- Add small helper functions for interval metadata, visible range calculation,
+  semantic time ticks, and price ticks instead of introducing dependencies.
+- No blocking product question remains. Assumption: normal wheel zooms around
+  the cursor; horizontal/Shift wheel pans. This keeps the requested mouse-wheel
+  test useful while matching TradingView-style scale behavior.
+
+## Checklist
+
+- [x] Inspect CodeGraph context for chart rendering and interaction paths.
+- [x] Read the existing chart app, API route, CSS, QA docs, and architecture
+      notes.
+- [x] Use Browser/Playwright on TradingView across `1m`, `5m`, `15m`, `30m`,
+      `1h`, `4h`, `1d`, `1w`, and `1M`.
+- [x] Test TradingView wheel/scale behavior with browser scroll gestures.
+- [x] Add TradingView-style interval metadata and visible-range defaults.
+- [x] Replace fixed time-label cadence with semantic timeline ticks.
+- [x] Replace price-label cadence with pixel-targeted nice price ticks.
+- [x] Tune candle spacing, current-price marker, and time/price labels.
+- [x] Update wheel handling so vertical wheel zooms around the cursor and
+      horizontal/Shift wheel pans the timeline.
+- [x] Update `ARCHITECTURE.md` for the discovered/changed chart interaction
+      architecture.
+- [x] Run typecheck/lint/build checks for the touched app.
+- [x] Start the local app and verify with Browser/Playwright, including
+      timeframe switching and mouse-wheel scroll behavior.
+- [x] Add review notes with changed files, verification, and any residual
+      limitations.
+
+## Review
+
+Completed the TradingView-style timeline, price-axis, and wheel behavior pass
+for the standalone `TEST/binance-chart-test` chart app.
+
+- Added interval metadata for the supported `1m`, `5m`, `15m`, `30m`, `1h`,
+  `4h`, `1d`, `1w`, and `1M` chart periods.
+- Reset now uses a TradingView-like pixel-per-bar density and a small right-side
+  future offset instead of a fixed `60-140` candle window.
+- Timeline grid/labels are now semantic: intraday views prefer readable
+  minute/hour/day boundaries, daily views label month/day transitions, and
+  weekly/monthly views label broader calendar periods.
+- Price grid/labels now target about 40px visual spacing using nice increments
+  such as `100`, `400`, `2,500`, and `10,000` depending on the visible range.
+- The current price line is now a dotted guide with a colored right-axis marker
+  and countdown where the current interval has a remaining time.
+- Mouse wheel now zooms around the cursor; horizontal wheel and Shift+wheel pan
+  the timeline while keeping the visible bar count stable.
+- Updated `ARCHITECTURE.md` with the chart test app's new scale/interaction
+  behavior.
+
+TradingView reference checks:
+
+- Browser/Playwright inspected TradingView's public BINANCE:BTCUSDT chart across
+  all app timeframes.
+- Observed stacked plot/price/time canvases, right price axis around 80-86px,
+  bottom time axis around 28px, 33-42px price-grid cadence, semantic time labels,
+  current-price dotted guide/marker, and modifier/horizontal wheel scale/pan
+  behavior.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app --ext .ts,.tsx` passed.
+- `npm run build` in `TEST/binance-chart-test` passed. It still reports the
+  preexisting multiple-lockfile and missing Next ESLint plugin warnings.
+- `git diff --check` passed.
+- Browser/Playwright QA at 1280x720 passed with no local dev-log errors or
+  warnings. Default `1m` density showed `169 bars visible`.
+- Wheel QA passed: vertical wheel changed `169 bars visible` to `105` on zoom-in
+  and back to `170` on zoom-out; Shift+wheel preserved `170 bars visible` and
+  changed the canvas hash, confirming timeline pan.
+- Timeframe QA passed for `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`, and
+  `1M`, with each interval loading nonblank canvas data.
+- Mobile QA passed at `430x932` and `360x800` with no horizontal overflow and
+  responsive visible-bar counts of `51` and `42`.
+- Playwright screenshot captures succeeded through the dedicated screenshot
+  tool. The in-app browser could inspect DOM/dev logs, but its direct screenshot
+  capture timed out on the animated canvas, so Playwright was used for visual
+  screenshots.
+
 # TradingView Top Command Bar Plan
 
 ## Goal

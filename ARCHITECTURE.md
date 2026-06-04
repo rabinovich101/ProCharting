@@ -200,8 +200,11 @@ The chart app supports:
   active count, checkbox-style menu items, outside-click closing, and Escape
   closing.
 - Dark/light UI themes.
-- Wheel zoom, drag pan, reset, crosshair, OHLC legend, current price marker, and
-  responsive desktop/tablet/mobile layouts.
+- TradingView-style chart scale behavior: interval-specific default bar density,
+  a small right-side future offset, semantic time-axis ticks, pixel-targeted
+  nice price ticks, a dotted current-price guide with a right-axis marker,
+  cursor-anchored wheel zoom, horizontal/Shift-wheel timeline pan, drag pan,
+  reset, crosshair, OHLC legend, and responsive desktop/tablet/mobile layouts.
 
 As of May 31, 2026, the chart test app uses a TradingView-style single top
 command bar rather than separate instrument and control blocks. That command
