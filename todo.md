@@ -2394,3 +2394,73 @@ Browser QA:
 - Browser dev logs contained Vite/debug/log history and no error-level runtime
   entries; the current page DOM reported `Renderer: canvas2d` and `1,000` data
   points.
+
+# Remove Market Strip From Binance Chart Test App
+
+## Goal
+
+Remove the standalone `market-strip` row from the Binance chart QA app while
+preserving the top command bar, latest-price readout, and chart interactions.
+
+## Findings / Decisions
+
+- Literal search found `market-strip` only in
+  `TEST/binance-chart-test/app/page.tsx` and
+  `TEST/binance-chart-test/app/globals.css`.
+- CodeGraph confirmed the relevant app area is the standalone
+  `TEST/binance-chart-test` Next app, not the reusable package renderer.
+- No user clarification is needed because the request explicitly permits
+  removing `market-strip`; the narrowest implementation is to delete its JSX
+  section and its CSS selectors.
+
+## Checklist
+
+- [x] Inspect CodeGraph context, literal references, and the chart test app
+      layout around `market-strip`.
+- [x] Remove the standalone `market-strip` JSX section from the chart test app.
+- [x] Remove unused `market-strip` CSS selectors and responsive overrides.
+- [x] Update `ARCHITECTURE.md` to document that the chart test app no longer
+      has a separate market status strip.
+- [x] Run static verification for the touched Next app files.
+- [x] Run browser QA with Playwright or Browser/devtools on desktop and mobile.
+- [x] Add review notes with changed files, verification results, and any
+      remaining limitations.
+
+## Review
+
+Removed the standalone market status strip from the Binance chart test app.
+
+- Deleted the `market-strip` JSX section from
+  `TEST/binance-chart-test/app/page.tsx`.
+- Removed the base and mobile `market-strip` CSS selectors from
+  `TEST/binance-chart-test/app/globals.css`.
+- Updated `ARCHITECTURE.md` to document that the test app keeps chart
+  diagnostics in non-visible `data-*` attributes instead of a separate market
+  status strip.
+
+Verification results:
+
+- `rg -n "market[-_ ]?strip|MarketStrip|marketStrip|Market Strip|Market status"
+  TEST/binance-chart-test/app ARCHITECTURE.md todo.md` now finds only this
+  task note in `todo.md`.
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed before the review notes were added.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed.
+
+Browser QA:
+
+- Desktop in-app Browser QA at `http://127.0.0.1:3001/` passed at `1280x720`:
+  `.market-strip` count was `0`, the chart stage began directly below the
+  topbar, and devtools console had `0` error logs.
+- Mobile in-app Browser QA passed at `430x932`: `.market-strip` count was `0`,
+  there was no horizontal overflow, the chart stage began directly below the
+  topbar, and devtools console had `0` error logs.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-no-market-strip-desktop.png` and
+  `/tmp/procharting-no-market-strip-mobile.png`.
+
+Remaining notes:
+
+- Next build still reports existing warnings about multiple lockfiles and the
+  Next ESLint plugin not being detected; neither warning blocked the build.

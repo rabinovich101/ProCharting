@@ -289,7 +289,9 @@ As of May 31, 2026, the chart test app uses a TradingView-style single top
 command bar rather than separate instrument and control blocks. That command
 bar owns the symbol dropdown, live-feed dot, timeframe dropdown, chart-style
 icon dropdown, Indicators menu, theme toggle, reset action, and compact latest
-price/change readout.
+price/change readout. There is no separate market status strip below the
+command bar; chart diagnostics remain in non-visible `data-*` attributes for
+QA/devtools inspection.
 
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent
