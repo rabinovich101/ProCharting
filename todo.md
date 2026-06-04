@@ -27,7 +27,7 @@ chart stage into the selected multi-chart arrangement.
 - [x] Update architecture notes and todo review.
 - [x] Run focused typecheck/lint/build checks.
 - [x] Verify the layout panel and split panes with Browser/Playwright/devtools.
-- [ ] Commit and push `main`.
+- [x] Commit and push `main`.
 
 ## Review
 
@@ -69,6 +69,7 @@ Verification results:
   `/tmp/procharting-layout-4-grid.png`,
   `/tmp/procharting-layout-16-grid.png`, and
   `/tmp/procharting-layout-mobile.png`.
+- Committed and pushed `main` with `699458a`.
 
 # TradingView Header Functionality Reinspection Fix
 
