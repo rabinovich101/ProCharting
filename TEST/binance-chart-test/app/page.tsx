@@ -2858,13 +2858,6 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="market-strip" aria-label="Market status">
-        <span>{candles.length.toLocaleString()} candles</span>
-        <span>{Math.round(viewRange.candlesPerView)} bars visible</span>
-        <span>{latestCandle ? `Vol ${formatCompact(latestCandle.volume)}` : 'Vol -'}</span>
-        <span>{indicatorCount} indicators</span>
-      </section>
-
       <section className="chart-stage">
         <canvas
           ref={canvasRef}

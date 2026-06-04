@@ -83,8 +83,7 @@ summary {
 }
 
 .top-command-bar,
-.command-market-readout,
-.market-strip {
+.command-market-readout {
   align-items: center;
   display: flex;
 }
@@ -1041,17 +1040,6 @@ summary {
   opacity: 0.55;
 }
 
-.market-strip {
-  background: var(--surface-1);
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-muted);
-  flex-wrap: wrap;
-  font-size: 12px;
-  gap: 16px;
-  min-height: 34px;
-  padding: 8px 14px;
-}
-
 .chart-stage {
   background: var(--surface-0);
   flex: 1;
@@ -1295,13 +1283,6 @@ summary {
     font-size: 11px;
     line-height: 25px;
     padding: 0 10px;
-  }
-
-  .market-strip {
-    font-size: 11px;
-    gap: 9px;
-    min-height: 30px;
-    padding: 6px 10px;
   }
 
   .chart-canvas {

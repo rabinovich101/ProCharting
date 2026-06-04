@@ -1,3 +1,59 @@
+# Remove Market Strip From Main
+
+## Goal
+
+Remove the visible market-strip row from `main` so the chart begins directly
+under the TradingView-style top command bar.
+
+## Findings / Decisions
+
+- `main` still contains `<section className="market-strip">` in
+  `TEST/binance-chart-test/app/page.tsx`.
+- `main` still contains base and mobile `.market-strip` CSS in
+  `TEST/binance-chart-test/app/globals.css`.
+- This is the row showing candle count, visible bars, volume, and indicator
+  count below the topbar. Those diagnostics should stay non-visible through the
+  existing canvas `data-*` attributes instead of visible UI text.
+- Keep the fix narrow: remove only the market-strip JSX and CSS, preserve the
+  top command bar, latest-price readout, chart canvas, and indicator legends.
+
+## Checklist
+
+- [x] Inspect current `main` for remaining market-strip references.
+- [x] Remove the market-strip JSX.
+- [x] Remove `.market-strip` base and mobile CSS.
+- [x] Update `ARCHITECTURE.md` to state there is no separate market status strip.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify with Browser/Playwright/devtools on `localhost:3006`.
+- [x] Commit and push `main`.
+
+## Review
+
+Removed the remaining market-strip row from `main`.
+
+- Deleted the visible market status JSX from
+  `TEST/binance-chart-test/app/page.tsx`.
+- Removed base and mobile `.market-strip` CSS from
+  `TEST/binance-chart-test/app/globals.css`.
+- Updated `ARCHITECTURE.md` to state the test app has no separate market status
+  strip below the command bar.
+
+Verification results:
+
+- `rg` found no remaining `market-strip`, `Market status`, or `visible bars`
+  references in `TEST/binance-chart-test/app` or `ARCHITECTURE.md`.
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser QA at `http://localhost:3006/` passed on desktop: `.market-strip`
+  count was `0`, `aria-label="Market status"` count was `0`, the chart stage
+  started immediately after the topbar, and local app-origin error logs were
+  empty.
+- Mobile Browser QA at `390x844` passed with the same zero counts, no
+  horizontal overflow, and no local app-origin error logs.
+
 # Chart Legend Visibility Pass
 
 ## Goal
