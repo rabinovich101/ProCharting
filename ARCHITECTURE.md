@@ -249,9 +249,20 @@ The chart app supports:
 - Candlestick, line, and area drawing modes, exposed through a compact custom
   toolbar dropdown with icon-style glyphs. Unsupported chart types are not
   shown.
-- MA20 and volume overlays, grouped under a compact Indicators dropdown with
-  active count, checkbox-style menu items, outside-click closing, and Escape
-  closing.
+- A TradingView-style Indicators picker with search, built-in category filters,
+  active count, and support for the app's local technical-indicator registry:
+  Volume, SMA, EMA, Bollinger Bands, VWAP Session, RSI, MACD, Stochastic,
+  Donchian Channels, WMA, Momentum, Rate of Change, Accumulation/Distribution,
+  ATR, Bollinger %B, and Bollinger BandWidth.
+- Active indicators are stored as registry-backed instances with mutable
+  settings. A top-left HTML legend overlays the canvas and exposes hover/focus
+  controls for hide/show, settings, remove, duplicate, and ordering actions.
+  Settings such as length, source, standard deviation, MACD fast/slow/signal,
+  and primary color update the active instance and redraw the chart.
+- Selected price overlays participate in automatic Y-range fitting and draw on
+  the main price pane. Volume draws in the volume band, and oscillator
+  indicators draw in compact lower panes with guide lines and right-side value
+  labels.
 - Dark/light UI themes.
 - TradingView-style chart scale behavior: interval-specific default bar density,
   a small right-side future offset, semantic time-axis ticks, pixel-targeted
@@ -271,7 +282,8 @@ The chart app supports:
   timestamps instead of indexing the candle array directly.
 - The canvas exposes non-visible `data-*` diagnostics for browser QA/devtools
   inspection of pointer area, drag mode, logical view range, and manual price
-  bounds. These attributes are not part of the end-user visual surface.
+  bounds. These attributes are not part of the end-user visual surface, and
+  logical range counters are not painted into the chart canvas.
 
 As of May 31, 2026, the chart test app uses a TradingView-style single top
 command bar rather than separate instrument and control blocks. That command

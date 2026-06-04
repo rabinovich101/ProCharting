@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 interface Candle {
   time: number;
@@ -61,6 +61,25 @@ type FeedStatus = 'connecting' | 'live' | 'offline';
 type MenuKey = 'symbol' | 'timeframe' | 'chartStyle' | 'indicators';
 type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
+type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
+type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
+type IndicatorFormula =
+  | 'volume'
+  | 'sma'
+  | 'ema'
+  | 'wma'
+  | 'bb'
+  | 'vwap'
+  | 'rsi'
+  | 'macd'
+  | 'stochastic'
+  | 'donchian'
+  | 'momentum'
+  | 'roc'
+  | 'adl'
+  | 'atr'
+  | 'bb-percent'
+  | 'bb-width';
 
 interface ChartDragState {
   mode: ChartDragMode;
@@ -76,6 +95,56 @@ interface MenuOption<T extends string> {
   label: string;
   shortLabel?: string;
   description?: string;
+}
+
+interface IndicatorSettings {
+  period?: number;
+  fastPeriod?: number;
+  slowPeriod?: number;
+  signalPeriod?: number;
+  stdDev?: number;
+  source?: IndicatorSource;
+  color?: string;
+  secondaryColor?: string;
+  tertiaryColor?: string;
+  fillColor?: string;
+}
+
+interface IndicatorDefinition {
+  id: string;
+  name: string;
+  shortName: string;
+  description: string;
+  category: 'Volume' | 'Trend' | 'Momentum' | 'Volatility';
+  pane: IndicatorPaneKind;
+  formula: IndicatorFormula;
+  defaults: IndicatorSettings;
+  singleton?: boolean;
+  featured?: boolean;
+}
+
+interface ActiveIndicator {
+  id: string;
+  definitionId: string;
+  visible: boolean;
+  settings: IndicatorSettings;
+}
+
+interface IndicatorLineSeries {
+  label: string;
+  color: string;
+  values: Array<number | null>;
+}
+
+interface IndicatorComputedSeries {
+  lines: IndicatorLineSeries[];
+  histogram?: Array<number | null>;
+  histogramPositive?: string;
+  histogramNegative?: string;
+  fillColor?: string;
+  min?: number;
+  max?: number;
+  guideLines?: Array<{ value: number; label?: string }>;
 }
 
 const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
@@ -100,6 +169,217 @@ const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
   { value: 'line', label: 'Line', description: 'Close price line' },
   { value: 'area', label: 'Area', description: 'Filled close price line' },
 ];
+
+const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
+  {
+    id: 'volume',
+    name: 'Volume',
+    shortName: 'Vol',
+    description: 'Exchange volume bars',
+    category: 'Volume',
+    pane: 'volume',
+    formula: 'volume',
+    defaults: { color: '#26a69a', secondaryColor: '#ef5350' },
+    singleton: true,
+    featured: true,
+  },
+  {
+    id: 'sma-20',
+    name: 'Moving Average',
+    shortName: 'SMA',
+    description: 'Simple moving average',
+    category: 'Trend',
+    pane: 'price',
+    formula: 'sma',
+    defaults: { period: 20, source: 'close', color: '#f5c84b' },
+    featured: true,
+  },
+  {
+    id: 'sma-200',
+    name: 'Moving Average 200',
+    shortName: 'SMA',
+    description: 'Long simple moving average',
+    category: 'Trend',
+    pane: 'price',
+    formula: 'sma',
+    defaults: { period: 200, source: 'close', color: '#2962ff' },
+    featured: true,
+  },
+  {
+    id: 'ema-7',
+    name: 'Exponential Moving Average',
+    shortName: 'EMA',
+    description: 'Fast exponential moving average',
+    category: 'Trend',
+    pane: 'price',
+    formula: 'ema',
+    defaults: { period: 7, source: 'close', color: '#7e57c2' },
+    featured: true,
+  },
+  {
+    id: 'ema-20',
+    name: 'EMA 20',
+    shortName: 'EMA',
+    description: 'Exponential moving average',
+    category: 'Trend',
+    pane: 'price',
+    formula: 'ema',
+    defaults: { period: 20, source: 'close', color: '#7e57c2' },
+  },
+  {
+    id: 'bb-20',
+    name: 'Bollinger Bands',
+    shortName: 'BB',
+    description: 'SMA envelope with standard deviation bands',
+    category: 'Volatility',
+    pane: 'price',
+    formula: 'bb',
+    defaults: {
+      period: 20,
+      source: 'close',
+      stdDev: 2,
+      color: '#2962ff',
+      secondaryColor: '#f23645',
+      tertiaryColor: '#089981',
+      fillColor: 'rgba(41, 98, 255, 0.08)',
+    },
+    featured: true,
+  },
+  {
+    id: 'vwap-session',
+    name: 'VWAP Session',
+    shortName: 'VWAP',
+    description: 'Session volume weighted average price',
+    category: 'Trend',
+    pane: 'price',
+    formula: 'vwap',
+    defaults: { source: 'hlc3', color: '#ff9800' },
+    singleton: true,
+    featured: true,
+  },
+  {
+    id: 'donchian-20',
+    name: 'Donchian Channels',
+    shortName: 'DC',
+    description: 'High and low price channels',
+    category: 'Volatility',
+    pane: 'price',
+    formula: 'donchian',
+    defaults: { period: 20, color: '#26a69a', secondaryColor: '#ef5350', tertiaryColor: '#7c8da6' },
+  },
+  {
+    id: 'wma-20',
+    name: 'Weighted Moving Average',
+    shortName: 'WMA',
+    description: 'Weighted moving average',
+    category: 'Trend',
+    pane: 'price',
+    formula: 'wma',
+    defaults: { period: 20, source: 'close', color: '#00bcd4' },
+  },
+  {
+    id: 'rsi-14',
+    name: 'Relative Strength Index',
+    shortName: 'RSI',
+    description: 'Momentum oscillator',
+    category: 'Momentum',
+    pane: 'oscillator',
+    formula: 'rsi',
+    defaults: { period: 14, source: 'close', color: '#7e57c2', secondaryColor: '#f5c84b' },
+    featured: true,
+  },
+  {
+    id: 'macd',
+    name: 'MACD',
+    shortName: 'MACD',
+    description: 'Moving average convergence divergence',
+    category: 'Momentum',
+    pane: 'oscillator',
+    formula: 'macd',
+    defaults: {
+      fastPeriod: 12,
+      slowPeriod: 26,
+      signalPeriod: 9,
+      source: 'close',
+      color: '#2962ff',
+      secondaryColor: '#ff6d00',
+      tertiaryColor: '#7c8da6',
+    },
+    featured: true,
+  },
+  {
+    id: 'stochastic',
+    name: 'Stochastic',
+    shortName: 'Stoch',
+    description: 'Stochastic oscillator',
+    category: 'Momentum',
+    pane: 'oscillator',
+    formula: 'stochastic',
+    defaults: { period: 14, signalPeriod: 3, color: '#2962ff', secondaryColor: '#ff6d00' },
+  },
+  {
+    id: 'momentum',
+    name: 'Momentum',
+    shortName: 'Mom',
+    description: 'Close price momentum',
+    category: 'Momentum',
+    pane: 'oscillator',
+    formula: 'momentum',
+    defaults: { period: 10, source: 'close', color: '#00bcd4' },
+  },
+  {
+    id: 'roc',
+    name: 'Rate Of Change',
+    shortName: 'ROC',
+    description: 'Percent rate of change',
+    category: 'Momentum',
+    pane: 'oscillator',
+    formula: 'roc',
+    defaults: { period: 9, source: 'close', color: '#26a69a' },
+  },
+  {
+    id: 'adl',
+    name: 'Accumulation/Distribution',
+    shortName: 'A/D',
+    description: 'Volume accumulation distribution line',
+    category: 'Volume',
+    pane: 'oscillator',
+    formula: 'adl',
+    defaults: { color: '#2962ff' },
+  },
+  {
+    id: 'atr',
+    name: 'Average True Range',
+    shortName: 'ATR',
+    description: 'Average true range volatility',
+    category: 'Volatility',
+    pane: 'oscillator',
+    formula: 'atr',
+    defaults: { period: 14, color: '#ff9800' },
+  },
+  {
+    id: 'bb-percent',
+    name: 'Bollinger Bands %b',
+    shortName: 'BB %b',
+    description: 'Close position inside Bollinger Bands',
+    category: 'Volatility',
+    pane: 'oscillator',
+    formula: 'bb-percent',
+    defaults: { period: 20, source: 'close', stdDev: 2, color: '#2962ff' },
+  },
+  {
+    id: 'bb-width',
+    name: 'Bollinger BandWidth',
+    shortName: 'BBW',
+    description: 'Relative Bollinger Band width',
+    category: 'Volatility',
+    pane: 'oscillator',
+    formula: 'bb-width',
+    defaults: { period: 20, source: 'close', stdDev: 2, color: '#7e57c2' },
+  },
+];
+
+const INDICATOR_SOURCE_OPTIONS: IndicatorSource[] = ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4'];
 
 const PALETTES: Record<ThemeName, Palette> = {
   dark: {
@@ -439,23 +719,483 @@ const formatCountdown = (timeframe: string, candleOpenTime: number) => {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 };
 
-const movingAverage = (candles: Candle[], period: number) => {
-  const values: Array<number | null> = new Array(candles.length).fill(null);
+const sanitizePeriod = (value: number | undefined, fallback: number, min = 1, max = 500) =>
+  Math.round(clamp(value ?? fallback, min, max));
+
+const getIndicatorDefinition = (definitionId: string) =>
+  INDICATOR_DEFINITIONS.find((definition) => definition.id === definitionId) ?? INDICATOR_DEFINITIONS[0];
+
+const createActiveIndicator = (definitionId: string, suffix = `${Date.now()}`): ActiveIndicator => {
+  const definition = getIndicatorDefinition(definitionId);
+
+  return {
+    id: `${definition.id}-${suffix}`,
+    definitionId: definition.id,
+    visible: true,
+    settings: { ...definition.defaults },
+  };
+};
+
+const DEFAULT_ACTIVE_INDICATORS: ActiveIndicator[] = [
+  createActiveIndicator('volume', 'default'),
+  createActiveIndicator('sma-20', 'default'),
+];
+
+const getSourceValue = (candle: Candle, source: IndicatorSource = 'close') => {
+  switch (source) {
+    case 'open':
+      return candle.open;
+    case 'high':
+      return candle.high;
+    case 'low':
+      return candle.low;
+    case 'hl2':
+      return (candle.high + candle.low) / 2;
+    case 'hlc3':
+      return (candle.high + candle.low + candle.close) / 3;
+    case 'ohlc4':
+      return (candle.open + candle.high + candle.low + candle.close) / 4;
+    case 'close':
+    default:
+      return candle.close;
+  }
+};
+
+const getSourceValues = (candles: Candle[], source: IndicatorSource = 'close') =>
+  candles.map((candle) => getSourceValue(candle, source));
+
+const simpleMovingAverageValues = (values: number[], period: number) => {
+  const result: Array<number | null> = new Array(values.length).fill(null);
   let rollingSum = 0;
 
-  candles.forEach((candle, index) => {
-    rollingSum += candle.close;
+  values.forEach((value, index) => {
+    rollingSum += value;
 
     if (index >= period) {
-      rollingSum -= candles[index - period].close;
+      rollingSum -= values[index - period];
     }
 
     if (index >= period - 1) {
-      values[index] = rollingSum / period;
+      result[index] = rollingSum / period;
     }
   });
 
-  return values;
+  return result;
+};
+
+const simpleMovingAverageNullable = (values: Array<number | null>, period: number) => {
+  const result: Array<number | null> = new Array(values.length).fill(null);
+  const window: number[] = [];
+
+  values.forEach((value, index) => {
+    if (value === null) {
+      window.length = 0;
+      return;
+    }
+
+    window.push(value);
+    if (window.length > period) window.shift();
+    if (window.length === period) {
+      result[index] = window.reduce((sum, item) => sum + item, 0) / period;
+    }
+  });
+
+  return result;
+};
+
+const exponentialMovingAverageValues = (values: number[], period: number) => {
+  const result: Array<number | null> = new Array(values.length).fill(null);
+  const multiplier = 2 / (period + 1);
+  let rollingSum = 0;
+  let previous: number | null = null;
+
+  values.forEach((value, index) => {
+    if (previous === null) {
+      rollingSum += value;
+      if (index === period - 1) {
+        previous = rollingSum / period;
+        result[index] = previous;
+      }
+      return;
+    }
+
+    previous = (value - previous) * multiplier + previous;
+    result[index] = previous;
+  });
+
+  return result;
+};
+
+const exponentialMovingAverageNullable = (values: Array<number | null>, period: number) => {
+  const result: Array<number | null> = new Array(values.length).fill(null);
+  const multiplier = 2 / (period + 1);
+  let rollingSum = 0;
+  let count = 0;
+  let previous: number | null = null;
+
+  values.forEach((value, index) => {
+    if (value === null) return;
+
+    if (previous === null) {
+      rollingSum += value;
+      count += 1;
+      if (count === period) {
+        previous = rollingSum / period;
+        result[index] = previous;
+      }
+      return;
+    }
+
+    previous = (value - previous) * multiplier + previous;
+    result[index] = previous;
+  });
+
+  return result;
+};
+
+const weightedMovingAverageValues = (values: number[], period: number) => {
+  const result: Array<number | null> = new Array(values.length).fill(null);
+  const denominator = (period * (period + 1)) / 2;
+
+  for (let index = period - 1; index < values.length; index += 1) {
+    let weightedSum = 0;
+
+    for (let offset = 0; offset < period; offset += 1) {
+      weightedSum += values[index - offset] * (period - offset);
+    }
+
+    result[index] = weightedSum / denominator;
+  }
+
+  return result;
+};
+
+const calculateBollingerBands = (values: number[], period: number, stdDev: number) => {
+  const basis = simpleMovingAverageValues(values, period);
+  const upper: Array<number | null> = new Array(values.length).fill(null);
+  const lower: Array<number | null> = new Array(values.length).fill(null);
+
+  for (let index = period - 1; index < values.length; index += 1) {
+    const mean = basis[index];
+    if (mean === null) continue;
+
+    let variance = 0;
+    for (let offset = 0; offset < period; offset += 1) {
+      variance += Math.pow(values[index - offset] - mean, 2);
+    }
+
+    const deviation = Math.sqrt(variance / period) * stdDev;
+    upper[index] = mean + deviation;
+    lower[index] = mean - deviation;
+  }
+
+  return { basis, upper, lower };
+};
+
+const calculateVwapValues = (candles: Candle[], source: IndicatorSource) => {
+  const result: Array<number | null> = new Array(candles.length).fill(null);
+  let sessionKey = '';
+  let cumulativePriceVolume = 0;
+  let cumulativeVolume = 0;
+
+  candles.forEach((candle, index) => {
+    const date = new Date(candle.time);
+    const nextSessionKey = `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`;
+
+    if (nextSessionKey !== sessionKey) {
+      sessionKey = nextSessionKey;
+      cumulativePriceVolume = 0;
+      cumulativeVolume = 0;
+    }
+
+    cumulativePriceVolume += getSourceValue(candle, source) * candle.volume;
+    cumulativeVolume += candle.volume;
+    result[index] = cumulativeVolume > 0 ? cumulativePriceVolume / cumulativeVolume : null;
+  });
+
+  return result;
+};
+
+const calculateRsiValues = (values: number[], period: number) => {
+  const result: Array<number | null> = new Array(values.length).fill(null);
+  let averageGain = 0;
+  let averageLoss = 0;
+
+  for (let index = 1; index < values.length; index += 1) {
+    const change = values[index] - values[index - 1];
+    const gain = Math.max(change, 0);
+    const loss = Math.max(-change, 0);
+
+    if (index <= period) {
+      averageGain += gain;
+      averageLoss += loss;
+
+      if (index === period) {
+        averageGain /= period;
+        averageLoss /= period;
+      } else {
+        continue;
+      }
+    } else {
+      averageGain = (averageGain * (period - 1) + gain) / period;
+      averageLoss = (averageLoss * (period - 1) + loss) / period;
+    }
+
+    if (averageLoss === 0) {
+      result[index] = 100;
+    } else {
+      const relativeStrength = averageGain / averageLoss;
+      result[index] = 100 - 100 / (1 + relativeStrength);
+    }
+  }
+
+  return result;
+};
+
+const calculateMacdSeries = (values: number[], fastPeriod: number, slowPeriod: number, signalPeriod: number) => {
+  const fast = exponentialMovingAverageValues(values, fastPeriod);
+  const slow = exponentialMovingAverageValues(values, slowPeriod);
+  const macd = values.map((_, index) =>
+    fast[index] !== null && slow[index] !== null ? fast[index]! - slow[index]! : null
+  );
+  const signal = exponentialMovingAverageNullable(macd, signalPeriod);
+  const histogram = macd.map((value, index) =>
+    value !== null && signal[index] !== null ? value - signal[index]! : null
+  );
+
+  return { macd, signal, histogram };
+};
+
+const calculateStochasticSeries = (candles: Candle[], period: number, signalPeriod: number) => {
+  const k: Array<number | null> = new Array(candles.length).fill(null);
+
+  for (let index = period - 1; index < candles.length; index += 1) {
+    const window = candles.slice(index - period + 1, index + 1);
+    const highest = Math.max(...window.map((candle) => candle.high));
+    const lowest = Math.min(...window.map((candle) => candle.low));
+    const range = highest - lowest;
+    k[index] = range === 0 ? 50 : ((candles[index].close - lowest) / range) * 100;
+  }
+
+  return { k, d: simpleMovingAverageNullable(k, signalPeriod) };
+};
+
+const calculateDonchianSeries = (candles: Candle[], period: number) => {
+  const upper: Array<number | null> = new Array(candles.length).fill(null);
+  const lower: Array<number | null> = new Array(candles.length).fill(null);
+  const middle: Array<number | null> = new Array(candles.length).fill(null);
+
+  for (let index = period - 1; index < candles.length; index += 1) {
+    const window = candles.slice(index - period + 1, index + 1);
+    const highest = Math.max(...window.map((candle) => candle.high));
+    const lowest = Math.min(...window.map((candle) => candle.low));
+    upper[index] = highest;
+    lower[index] = lowest;
+    middle[index] = (highest + lowest) / 2;
+  }
+
+  return { upper, lower, middle };
+};
+
+const calculateMomentumValues = (values: number[], period: number) =>
+  values.map((value, index) => (index >= period ? value - values[index - period] : null));
+
+const calculateRocValues = (values: number[], period: number) =>
+  values.map((value, index) => {
+    if (index < period || values[index - period] === 0) return null;
+    return ((value - values[index - period]) / values[index - period]) * 100;
+  });
+
+const calculateAccumulationDistributionValues = (candles: Candle[]) => {
+  const result: Array<number | null> = new Array(candles.length).fill(null);
+  let runningTotal = 0;
+
+  candles.forEach((candle, index) => {
+    const range = candle.high - candle.low;
+    const moneyFlowMultiplier = range === 0 ? 0 : ((candle.close - candle.low) - (candle.high - candle.close)) / range;
+    runningTotal += moneyFlowMultiplier * candle.volume;
+    result[index] = runningTotal;
+  });
+
+  return result;
+};
+
+const calculateAtrValues = (candles: Candle[], period: number) => {
+  const trueRanges = candles.map((candle, index) => {
+    const previousClose = candles[index - 1]?.close ?? candle.close;
+    return Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previousClose),
+      Math.abs(candle.low - previousClose)
+    );
+  });
+
+  return simpleMovingAverageValues(trueRanges, period);
+};
+
+const computeIndicatorSeries = (indicator: ActiveIndicator, candles: Candle[]): IndicatorComputedSeries => {
+  const definition = getIndicatorDefinition(indicator.definitionId);
+  const settings = indicator.settings;
+  const source = settings.source ?? definition.defaults.source ?? 'close';
+  const values = getSourceValues(candles, source);
+  const period = sanitizePeriod(settings.period, definition.defaults.period ?? 20);
+  const fastPeriod = sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12);
+  const slowPeriod = sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26);
+  const signalPeriod = sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9);
+  const stdDev = clamp(settings.stdDev ?? definition.defaults.stdDev ?? 2, 0.1, 10);
+  const color = settings.color ?? definition.defaults.color ?? '#2962ff';
+  const secondaryColor = settings.secondaryColor ?? definition.defaults.secondaryColor ?? '#ff6d00';
+  const tertiaryColor = settings.tertiaryColor ?? definition.defaults.tertiaryColor ?? '#7c8da6';
+
+  if (definition.formula === 'sma') {
+    return { lines: [{ label: definition.shortName, color, values: simpleMovingAverageValues(values, period) }] };
+  }
+
+  if (definition.formula === 'ema') {
+    return { lines: [{ label: definition.shortName, color, values: exponentialMovingAverageValues(values, period) }] };
+  }
+
+  if (definition.formula === 'wma') {
+    return { lines: [{ label: definition.shortName, color, values: weightedMovingAverageValues(values, period) }] };
+  }
+
+  if (definition.formula === 'bb') {
+    const bands = calculateBollingerBands(values, period, stdDev);
+    return {
+      fillColor: settings.fillColor ?? definition.defaults.fillColor,
+      lines: [
+        { label: 'Basis', color, values: bands.basis },
+        { label: 'Upper', color: secondaryColor, values: bands.upper },
+        { label: 'Lower', color: tertiaryColor, values: bands.lower },
+      ],
+    };
+  }
+
+  if (definition.formula === 'vwap') {
+    return { lines: [{ label: definition.shortName, color, values: calculateVwapValues(candles, source) }] };
+  }
+
+  if (definition.formula === 'donchian') {
+    const channels = calculateDonchianSeries(candles, period);
+    return {
+      lines: [
+        { label: 'Upper', color, values: channels.upper },
+        { label: 'Lower', color: secondaryColor, values: channels.lower },
+        { label: 'Basis', color: tertiaryColor, values: channels.middle },
+      ],
+    };
+  }
+
+  if (definition.formula === 'rsi') {
+    return {
+      lines: [{ label: definition.shortName, color, values: calculateRsiValues(values, period) }],
+      min: 0,
+      max: 100,
+      guideLines: [{ value: 70 }, { value: 30 }],
+    };
+  }
+
+  if (definition.formula === 'macd') {
+    const macd = calculateMacdSeries(values, fastPeriod, slowPeriod, signalPeriod);
+    return {
+      lines: [
+        { label: 'MACD', color, values: macd.macd },
+        { label: 'Signal', color: secondaryColor, values: macd.signal },
+      ],
+      histogram: macd.histogram,
+      histogramPositive: '#26a69a',
+      histogramNegative: '#ef5350',
+    };
+  }
+
+  if (definition.formula === 'stochastic') {
+    const stochastic = calculateStochasticSeries(candles, period, signalPeriod);
+    return {
+      lines: [
+        { label: '%K', color, values: stochastic.k },
+        { label: '%D', color: secondaryColor, values: stochastic.d },
+      ],
+      min: 0,
+      max: 100,
+      guideLines: [{ value: 80 }, { value: 20 }],
+    };
+  }
+
+  if (definition.formula === 'momentum') {
+    return {
+      lines: [{ label: definition.shortName, color, values: calculateMomentumValues(values, period) }],
+      guideLines: [{ value: 0 }],
+    };
+  }
+
+  if (definition.formula === 'roc') {
+    return {
+      lines: [{ label: definition.shortName, color, values: calculateRocValues(values, period) }],
+      guideLines: [{ value: 0 }],
+    };
+  }
+
+  if (definition.formula === 'adl') {
+    return { lines: [{ label: definition.shortName, color, values: calculateAccumulationDistributionValues(candles) }] };
+  }
+
+  if (definition.formula === 'atr') {
+    return { lines: [{ label: definition.shortName, color, values: calculateAtrValues(candles, period) }] };
+  }
+
+  if (definition.formula === 'bb-percent' || definition.formula === 'bb-width') {
+    const bands = calculateBollingerBands(values, period, stdDev);
+    const lineValues = values.map((value, index) => {
+      const upper = bands.upper[index];
+      const lower = bands.lower[index];
+      const basis = bands.basis[index];
+      if (upper === null || lower === null || basis === null || upper === lower) return null;
+
+      if (definition.formula === 'bb-percent') {
+        return ((value - lower) / (upper - lower)) * 100;
+      }
+
+      return ((upper - lower) / basis) * 100;
+    });
+
+    return {
+      lines: [{ label: definition.shortName, color, values: lineValues }],
+      min: definition.formula === 'bb-percent' ? 0 : undefined,
+      max: definition.formula === 'bb-percent' ? 100 : undefined,
+      guideLines: definition.formula === 'bb-percent' ? [{ value: 80 }, { value: 20 }] : undefined,
+    };
+  }
+
+  return { lines: [] };
+};
+
+const getIndicatorLegendName = (indicator: ActiveIndicator, symbol: string) => {
+  const definition = getIndicatorDefinition(indicator.definitionId);
+  const settings = indicator.settings;
+  const source = settings.source ?? definition.defaults.source ?? 'close';
+  const period = sanitizePeriod(settings.period, definition.defaults.period ?? 20);
+  const fastPeriod = sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12);
+  const slowPeriod = sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26);
+  const signalPeriod = sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9);
+  const stdDev = clamp(settings.stdDev ?? definition.defaults.stdDev ?? 2, 0.1, 10);
+
+  if (definition.formula === 'volume') return `Vol · ${symbol.replace('USDT', '')}`;
+  if (definition.formula === 'bb') return `BB ${period} SMA ${source} ${Number(stdDev.toFixed(2))}`;
+  if (definition.formula === 'macd') return `MACD ${fastPeriod} ${slowPeriod} ${signalPeriod} ${source}`;
+  if (definition.formula === 'vwap') return 'VWAP Session';
+  if (definition.formula === 'donchian') return `DC ${period}`;
+  if (definition.formula === 'stochastic') return `Stoch ${period} ${signalPeriod}`;
+  if (definition.defaults.period !== undefined || settings.period !== undefined) {
+    return `${definition.shortName} ${period} ${source}`;
+  }
+
+  return definition.shortName;
+};
+
+const formatIndicatorNumber = (value: number | null | undefined) => {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '-';
+  if (Math.abs(value) >= 1000) return formatCompact(value);
+  return value.toFixed(Math.abs(value) < 10 ? 2 : 2);
 };
 
 const focusMenuItem = (menuKey: MenuKey, index: number) => {
@@ -608,39 +1348,43 @@ interface IndicatorsDropdownProps {
   count: number;
   openMenu: MenuKey | null;
   setOpenMenu: (menu: MenuKey | null) => void;
-  showMovingAverage: boolean;
-  showVolume: boolean;
-  onToggleMovingAverage: () => void;
-  onToggleVolume: () => void;
+  activeIndicators: ActiveIndicator[];
+  onAddIndicator: (definitionId: string) => void;
 }
 
 function IndicatorsDropdown({
   count,
   openMenu,
   setOpenMenu,
-  showMovingAverage,
-  showVolume,
-  onToggleMovingAverage,
-  onToggleVolume,
+  activeIndicators,
+  onAddIndicator,
 }: IndicatorsDropdownProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [category, setCategory] = useState<'Favorites' | 'Technicals' | IndicatorDefinition['category']>('Technicals');
   const isOpen = openMenu === 'indicators';
-  const options = [
-    {
-      id: 'ma20',
-      label: 'MA20',
-      description: 'Moving average',
-      enabled: showMovingAverage,
-      onToggle: onToggleMovingAverage,
-    },
-    {
-      id: 'volume',
-      label: 'Volume',
-      description: 'Volume pane',
-      enabled: showVolume,
-      onToggle: onToggleVolume,
-    },
+  const categories: Array<'Favorites' | 'Technicals' | IndicatorDefinition['category']> = [
+    'Favorites',
+    'Technicals',
+    'Volume',
+    'Trend',
+    'Momentum',
+    'Volatility',
   ];
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const options = INDICATOR_DEFINITIONS.filter((definition) => {
+    const matchesCategory =
+      category === 'Technicals' ||
+      (category === 'Favorites' ? definition.featured : definition.category === category);
+    const matchesSearch =
+      normalizedQuery.length === 0 ||
+      definition.name.toLowerCase().includes(normalizedQuery) ||
+      definition.shortName.toLowerCase().includes(normalizedQuery) ||
+      definition.description.toLowerCase().includes(normalizedQuery);
+
+    return matchesCategory && matchesSearch;
+  });
 
   const closeMenu = () => {
     setOpenMenu(null);
@@ -651,7 +1395,7 @@ function IndicatorsDropdown({
     if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       setOpenMenu('indicators');
-      focusMenuItem('indicators', 0);
+      window.requestAnimationFrame(() => searchRef.current?.focus());
     }
   };
 
@@ -680,9 +1424,15 @@ function IndicatorsDropdown({
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      option.onToggle();
+      onAddIndicator(option.id);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      window.requestAnimationFrame(() => searchRef.current?.focus());
+    }
+  }, [isOpen]);
 
   return (
     <div className="toolbar-dropdown indicator-dropdown align-right" data-open={isOpen}>
@@ -704,30 +1454,92 @@ function IndicatorsDropdown({
       </button>
 
       {isOpen && (
-        <div className="toolbar-menu indicator-menu-panel" id="indicators-menu" role="menu" aria-label="Indicators">
-          {options.map((option, index) => (
-            <button
-              key={option.id}
-              type="button"
-              role="menuitemcheckbox"
-              aria-checked={option.enabled}
-              className="toolbar-menu-item indicator-menu-item"
-              data-active={option.enabled}
-              data-menu-key="indicators"
-              data-menu-value={option.id}
-              onClick={option.onToggle}
-              onKeyDown={(event) => handleItemKeyDown(event, option, index)}
-            >
-              <span className="menu-check" aria-hidden="true" />
-              <span className="menu-item-copy">
-                <strong>{option.label}</strong>
-                <small>{option.description}</small>
-              </span>
-              <span className="indicator-switch" data-enabled={option.enabled} aria-hidden="true">
-                <span />
-              </span>
+        <div
+          className="toolbar-menu indicator-menu-panel"
+          id="indicators-menu"
+          role="dialog"
+          aria-label="Indicators, metrics, and strategies"
+        >
+          <div className="indicator-picker-header">
+            <strong>Indicators, metrics, and strategies</strong>
+            <button type="button" className="picker-close" aria-label="Close indicators" onClick={closeMenu}>
+              <span aria-hidden="true" />
             </button>
-          ))}
+          </div>
+
+          <label className="indicator-search">
+            <span className="search-glyph" aria-hidden="true" />
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="Search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') closeMenu();
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  focusMenuItem('indicators', 0);
+                }
+              }}
+            />
+          </label>
+
+          <div className="indicator-picker-body">
+            <div className="indicator-category-rail" aria-label="Indicator categories">
+              <span>Personal</span>
+              <button type="button" disabled>
+                My scripts
+              </button>
+              <span>Built-in</span>
+              {categories.map((nextCategory) => (
+                <button
+                  key={nextCategory}
+                  type="button"
+                  className="indicator-category-button"
+                  data-active={category === nextCategory}
+                  onClick={() => setCategory(nextCategory)}
+                >
+                  {nextCategory}
+                </button>
+              ))}
+            </div>
+
+            <div className="indicator-results" role="menu" aria-label={`${category} indicators`}>
+              <div className="indicator-tabs" aria-hidden="true">
+                <span data-active="true">Indicators</span>
+                <span>Strategies</span>
+                <span>Profiles</span>
+                <span>Patterns</span>
+              </div>
+              <span className="indicator-results-label">Script name</span>
+              {options.map((option, index) => {
+                const active = activeIndicators.some((indicator) => indicator.definitionId === option.id);
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={active}
+                    className="toolbar-menu-item indicator-menu-item"
+                    data-active={active}
+                    data-menu-key="indicators"
+                    data-menu-value={option.id}
+                    onClick={() => onAddIndicator(option.id)}
+                    onKeyDown={(event) => handleItemKeyDown(event, option, index)}
+                  >
+                    <span className="menu-check" aria-hidden="true" />
+                    <span className="menu-item-copy">
+                      <strong>{option.name}</strong>
+                      <small>{option.description}</small>
+                    </span>
+                    <span className="indicator-kind">{option.shortName}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -739,6 +1551,7 @@ export default function Home() {
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
+  const indicatorLegendRef = useRef<HTMLDivElement>(null);
   const activeStreamRef = useRef('');
   const selectedMarketRef = useRef({ symbol: 'BTCUSDT', timeframe: '1m' });
   const manualPriceRangeRef = useRef<PriceRange | null>(null);
@@ -772,8 +1585,9 @@ export default function Home() {
   const [timeframe, setTimeframe] = useState('1m');
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
   const [theme, setTheme] = useState<ThemeName>('dark');
-  const [showVolume, setShowVolume] = useState(true);
-  const [showMovingAverage, setShowMovingAverage] = useState(true);
+  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(DEFAULT_ACTIVE_INDICATORS);
+  const [settingsTargetId, setSettingsTargetId] = useState<string | null>(null);
+  const [moreTargetId, setMoreTargetId] = useState<string | null>(null);
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('connecting');
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -793,7 +1607,21 @@ export default function Home() {
   const priceChange = latestCandle && previousCandle ? latestCandle.close - previousCandle.close : 0;
   const priceChangePercent = previousCandle ? (priceChange / previousCandle.close) * 100 : 0;
   const changeTone = priceChange >= 0 ? 'positive' : 'negative';
-  const indicatorCount = Number(showMovingAverage) + Number(showVolume);
+  const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
+  const visibleVolumeIndicator = visibleIndicators.find(
+    (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
+  );
+  const visibleOscillatorIndicators = visibleIndicators.filter(
+    (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'oscillator'
+  );
+  const indicatorCount = activeIndicators.length;
+  const showVolume = visibleVolumeIndicator !== undefined;
+  const activeIndicatorSeries = useMemo(() => {
+    return activeIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
+      seriesById[indicator.id] = computeIndicatorSeries(indicator, candles);
+      return seriesById;
+    }, {});
+  }, [activeIndicators, candles]);
 
   const getEstimatedChartWidth = () => {
     const canvasWidth = canvasRef.current?.getBoundingClientRect().width ?? 0;
@@ -814,6 +1642,78 @@ export default function Home() {
     setViewRange(normalizeViewRange(endIndex - candlesPerView, candlesPerView, sourceCandles.length, futureBars));
   };
 
+  const addIndicator = (definitionId: string) => {
+    const definition = getIndicatorDefinition(definitionId);
+
+    setActiveIndicators((current) => {
+      if (definition.singleton) {
+        const existing = current.find((indicator) => indicator.definitionId === definition.id);
+        if (existing) {
+          return current.map((indicator) =>
+            indicator.id === existing.id ? { ...indicator, visible: true } : indicator
+          );
+        }
+      }
+
+      return [...current, createActiveIndicator(definition.id, `${Date.now()}-${current.length}`)];
+    });
+  };
+
+  const removeIndicator = (indicatorId: string) => {
+    setActiveIndicators((current) => current.filter((indicator) => indicator.id !== indicatorId));
+    setSettingsTargetId((current) => (current === indicatorId ? null : current));
+    setMoreTargetId((current) => (current === indicatorId ? null : current));
+  };
+
+  const toggleIndicatorVisibility = (indicatorId: string) => {
+    setActiveIndicators((current) =>
+      current.map((indicator) =>
+        indicator.id === indicatorId ? { ...indicator, visible: !indicator.visible } : indicator
+      )
+    );
+  };
+
+  const updateIndicatorSettings = (indicatorId: string, settings: IndicatorSettings) => {
+    setActiveIndicators((current) =>
+      current.map((indicator) =>
+        indicator.id === indicatorId
+          ? { ...indicator, settings: { ...indicator.settings, ...settings } }
+          : indicator
+      )
+    );
+  };
+
+  const duplicateIndicator = (indicatorId: string) => {
+    setActiveIndicators((current) => {
+      const sourceIndicator = current.find((indicator) => indicator.id === indicatorId);
+      if (!sourceIndicator) return current;
+
+      return [
+        ...current,
+        {
+          ...sourceIndicator,
+          id: `${sourceIndicator.definitionId}-${Date.now()}-${current.length}`,
+        },
+      ];
+    });
+    setMoreTargetId(null);
+  };
+
+  const moveIndicator = (indicatorId: string, direction: -1 | 1) => {
+    setActiveIndicators((current) => {
+      const index = current.findIndex((indicator) => indicator.id === indicatorId);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+
+      const next = [...current];
+      const [indicator] = next.splice(index, 1);
+      if (!indicator) return current;
+      next.splice(nextIndex, 0, indicator);
+      return next;
+    });
+    setMoreTargetId(null);
+  };
+
   useEffect(() => {
     viewRangeRef.current = viewRange;
   }, [viewRange]);
@@ -824,8 +1724,15 @@ export default function Home() {
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
-      if (!controlRackRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+
+      if (!controlRackRef.current?.contains(target)) {
         setOpenMenu(null);
+      }
+
+      if (!indicatorLegendRef.current?.contains(target)) {
+        setSettingsTargetId(null);
+        setMoreTargetId(null);
       }
     };
 
@@ -1251,12 +2158,45 @@ export default function Home() {
     const rightAxisWidth = rect.width < 520 ? 64 : 82;
     const bottomAxisHeight = rect.width < 520 ? 27 : 34;
     const topLegendHeight = rect.width < 520 ? 26 : 34;
-    const volumeHeight = showVolume ? clamp(rect.height * 0.17, 48, 104) : 0;
+    const oscillatorCount = visibleOscillatorIndicators.length;
+    const requestedVolumeHeight = showVolume ? clamp(rect.height * 0.15, 46, 96) : 0;
+    const minMainChartHeight = rect.width < 520 ? 176 : 220;
+    const availableAuxHeight = Math.max(
+      0,
+      rect.height - bottomAxisHeight - topLegendHeight - minMainChartHeight
+    );
+    const paneGap = 10;
+    const volumeHeight = showVolume ? Math.min(requestedVolumeHeight, Math.max(42, availableAuxHeight * 0.38)) : 0;
+    const availablePaneHeight = Math.max(
+      0,
+      availableAuxHeight - volumeHeight - (showVolume && oscillatorCount > 0 ? paneGap : 0)
+    );
+    const oscillatorPaneHeight =
+      oscillatorCount > 0
+        ? clamp(
+            (availablePaneHeight - paneGap * Math.max(0, oscillatorCount - 1)) / oscillatorCount,
+            58,
+            104
+          )
+        : 0;
+    const oscillatorTotalHeight =
+      oscillatorCount > 0
+        ? oscillatorPaneHeight * oscillatorCount + paneGap * Math.max(0, oscillatorCount - 1)
+        : 0;
     const chartArea = {
       left: rect.width < 520 ? 8 : 12,
       top: topLegendHeight,
       width: Math.max(80, rect.width - rightAxisWidth - (rect.width < 520 ? 10 : 18)),
-      height: Math.max(120, rect.height - bottomAxisHeight - topLegendHeight - volumeHeight),
+      height: Math.max(
+        120,
+        rect.height -
+          bottomAxisHeight -
+          topLegendHeight -
+          volumeHeight -
+          oscillatorTotalHeight -
+          (showVolume ? paneGap : 0) -
+          (oscillatorCount > 0 ? paneGap : 0)
+      ),
     };
     const volumeArea = {
       left: chartArea.left,
@@ -1264,6 +2204,18 @@ export default function Home() {
       width: chartArea.width,
       height: Math.max(0, volumeHeight - 14),
     };
+    const oscillatorStartTop =
+      chartArea.top +
+      chartArea.height +
+      (showVolume ? volumeHeight + paneGap : 0) +
+      (oscillatorCount > 0 ? paneGap : 0);
+    const oscillatorPaneAreas = visibleOscillatorIndicators.map((indicator, index) => ({
+      indicator,
+      left: chartArea.left,
+      top: oscillatorStartTop + index * (oscillatorPaneHeight + paneGap),
+      width: chartArea.width,
+      height: oscillatorPaneHeight,
+    }));
 
     const visibleIndexedCandles: Array<{ candle: Candle; index: number }> = [];
     const firstVisibleIndex = Math.max(0, Math.floor(viewRange.startIndex));
@@ -1279,7 +2231,20 @@ export default function Home() {
     const priceSource = visibleIndexedCandles.length > 0
       ? visibleIndexedCandles.map(({ candle }) => candle)
       : [latestCandle!];
-    const prices = priceSource.flatMap((candle) => [candle.high, candle.low]);
+    const visiblePriceIndicators = visibleIndicators.filter(
+      (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'price'
+    );
+    const indicatorPrices = visiblePriceIndicators.flatMap((indicator) => {
+      const computed = activeIndicatorSeries[indicator.id];
+      if (!computed) return [];
+
+      return computed.lines.flatMap((line) =>
+        visibleIndexedCandles
+          .map(({ index }) => line.values[index])
+          .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value))
+      );
+    });
+    const prices = [...priceSource.flatMap((candle) => [candle.high, candle.low]), ...indicatorPrices];
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const rawPriceRange = maxPrice - minPrice || Math.max(1, maxPrice * 0.001);
@@ -1401,22 +2366,57 @@ export default function Home() {
       });
     }
 
-    if (showMovingAverage) {
-      const averages = movingAverage(candles, 20);
-      const averagePoints = visibleIndexedCandles
-        .map(({ index }) => {
-          const average = averages[index];
-          return average === null
-            ? null
-            : {
-                x: xForIndex(index),
-                y: priceToY(average),
-              };
-        })
-        .filter((point): point is { x: number; y: number } => point !== null);
+    visiblePriceIndicators.forEach((indicator) => {
+      const computed = activeIndicatorSeries[indicator.id];
+      if (!computed) return;
 
-      drawLinePath(ctx, averagePoints, palette.ma, 1.6);
-    }
+      const definition = getIndicatorDefinition(indicator.definitionId);
+      const upperLine = computed.lines.find((line) => line.label === 'Upper');
+      const lowerLine = computed.lines.find((line) => line.label === 'Lower');
+
+      if (definition.formula === 'bb' && computed.fillColor && upperLine && lowerLine) {
+        const upperPoints = visibleIndexedCandles
+          .map(({ index }) => {
+            const value = upperLine.values[index];
+            return value === null || value === undefined ? null : { x: xForIndex(index), y: priceToY(value) };
+          })
+          .filter((point): point is { x: number; y: number } => point !== null);
+        const lowerPoints = visibleIndexedCandles
+          .map(({ index }) => {
+            const value = lowerLine.values[index];
+            return value === null || value === undefined ? null : { x: xForIndex(index), y: priceToY(value) };
+          })
+          .filter((point): point is { x: number; y: number } => point !== null);
+
+        if (upperPoints.length > 1 && lowerPoints.length > 1) {
+          ctx.fillStyle = computed.fillColor;
+          ctx.beginPath();
+          upperPoints.forEach((point, index) => {
+            if (index === 0) {
+              ctx.moveTo(point.x, point.y);
+            } else {
+              ctx.lineTo(point.x, point.y);
+            }
+          });
+          [...lowerPoints].reverse().forEach((point) => {
+            ctx.lineTo(point.x, point.y);
+          });
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      computed.lines.forEach((line) => {
+        const points = visibleIndexedCandles
+          .map(({ index }) => {
+            const value = line.values[index];
+            return value === null || value === undefined ? null : { x: xForIndex(index), y: priceToY(value) };
+          })
+          .filter((point): point is { x: number; y: number } => point !== null);
+
+        drawLinePath(ctx, points, line.color, definition.formula === 'bb' ? 1.25 : 1.7);
+      });
+    });
 
     const currentPriceY = priceToY(latestCandle!.close);
     const currentPriceColor = latestCandle!.close >= latestCandle!.open ? palette.green : palette.red;
@@ -1436,6 +2436,13 @@ export default function Home() {
 
     if (showVolume && volumeArea.height > 0) {
       const maxVolume = Math.max(...visibleIndexedCandles.map(({ candle }) => candle.volume), 1);
+      const volumeDefinition = visibleVolumeIndicator
+        ? getIndicatorDefinition(visibleVolumeIndicator.definitionId)
+        : getIndicatorDefinition('volume');
+      const volumeUpColor =
+        visibleVolumeIndicator?.settings.color ?? volumeDefinition.defaults.color ?? palette.greenSoft;
+      const volumeDownColor =
+        visibleVolumeIndicator?.settings.secondaryColor ?? volumeDefinition.defaults.secondaryColor ?? palette.redSoft;
       ctx.strokeStyle = palette.grid;
       ctx.beginPath();
       ctx.moveTo(volumeArea.left, volumeArea.top);
@@ -1445,8 +2452,10 @@ export default function Home() {
       visibleIndexedCandles.forEach(({ candle, index }) => {
         const x = xForIndex(index);
         const barHeight = Math.max(1, (candle.volume / maxVolume) * volumeArea.height);
-        ctx.fillStyle = candle.close >= candle.open ? palette.greenSoft : palette.redSoft;
+        ctx.globalAlpha = theme === 'dark' ? 0.42 : 0.34;
+        ctx.fillStyle = candle.close >= candle.open ? volumeUpColor : volumeDownColor;
         ctx.fillRect(x - candleWidth / 2, volumeArea.top + volumeArea.height - barHeight, candleWidth, barHeight);
+        ctx.globalAlpha = 1;
       });
 
       ctx.fillStyle = palette.text;
@@ -1454,6 +2463,119 @@ export default function Home() {
       ctx.textAlign = 'left';
       ctx.fillText(`Vol ${formatCompact(latestCandle!.volume)}`, volumeArea.left + 2, volumeArea.top + 14);
     }
+
+    oscillatorPaneAreas.forEach((pane) => {
+      const computed = activeIndicatorSeries[pane.indicator.id];
+      const definition = getIndicatorDefinition(pane.indicator.definitionId);
+      if (!computed || pane.height <= 0) return;
+
+      const visibleValues = [
+        ...computed.lines.flatMap((line) =>
+          visibleIndexedCandles
+            .map(({ index }) => line.values[index])
+            .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value))
+        ),
+        ...(computed.histogram
+          ? visibleIndexedCandles
+              .map(({ index }) => computed.histogram?.[index])
+              .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value))
+          : []),
+        ...(computed.guideLines?.map((guide) => guide.value) ?? []),
+      ];
+
+      if (visibleValues.length === 0) return;
+
+      const rawMin = computed.min ?? Math.min(...visibleValues);
+      const rawMax = computed.max ?? Math.max(...visibleValues);
+      const range = rawMax - rawMin || Math.max(1, Math.abs(rawMax) * 0.1);
+      const minValue = rawMin - range * 0.08;
+      const maxValue = rawMax + range * 0.08;
+      const valueRange = maxValue - minValue || 1;
+      const valueToY = (value: number) => pane.top + ((maxValue - value) / valueRange) * pane.height;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(pane.left, pane.top, pane.width, pane.height);
+      ctx.clip();
+
+      ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
+      ctx.fillRect(pane.left, pane.top, pane.width, pane.height);
+
+      const tickInfo = createPriceTicks(minValue, maxValue, pane.height);
+      tickInfo.ticks.forEach((tick) => {
+        const y = valueToY(tick);
+        if (y < pane.top || y > pane.top + pane.height) return;
+
+        ctx.strokeStyle = palette.grid;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pane.left, y);
+        ctx.lineTo(pane.left + pane.width, y);
+        ctx.stroke();
+      });
+
+      computed.guideLines?.forEach((guide) => {
+        const y = valueToY(guide.value);
+        ctx.strokeStyle = palette.gridStrong;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pane.left, y);
+        ctx.lineTo(pane.left + pane.width, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      if (computed.histogram) {
+        const zeroY = valueToY(0);
+        visibleIndexedCandles.forEach(({ index }) => {
+          const value = computed.histogram?.[index];
+          if (value === null || value === undefined) return;
+
+          const x = xForIndex(index);
+          const y = valueToY(value);
+          ctx.fillStyle = value >= 0 ? computed.histogramPositive ?? palette.greenSoft : computed.histogramNegative ?? palette.redSoft;
+          ctx.fillRect(
+            x - candleWidth / 2,
+            Math.min(zeroY, y),
+            Math.max(1, candleWidth),
+            Math.max(1, Math.abs(zeroY - y))
+          );
+        });
+      }
+
+      computed.lines.forEach((line) => {
+        const points = visibleIndexedCandles
+          .map(({ index }) => {
+            const value = line.values[index];
+            return value === null || value === undefined ? null : { x: xForIndex(index), y: valueToY(value) };
+          })
+          .filter((point): point is { x: number; y: number } => point !== null);
+
+        drawLinePath(ctx, points, line.color, 1.35);
+      });
+
+      ctx.restore();
+
+      ctx.strokeStyle = palette.axisBorder;
+      ctx.beginPath();
+      ctx.moveTo(pane.left, pane.top);
+      ctx.lineTo(pane.left + pane.width, pane.top);
+      ctx.lineTo(pane.left + pane.width, pane.top + pane.height);
+      ctx.stroke();
+
+      ctx.fillStyle = palette.text;
+      ctx.font = '11px var(--font-geist-mono), ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(getIndicatorLegendName(pane.indicator, symbol), pane.left + 2, pane.top + 14);
+
+      ctx.textAlign = 'right';
+      ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, pane.top + 14);
+      ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, pane.top + pane.height - 6);
+
+      if (definition.formula === 'rsi' || definition.formula === 'stochastic') {
+        ctx.fillText('50.00', rect.width - 8, valueToY(50) + 4);
+      }
+    });
 
     ctx.strokeStyle = palette.axisBorder;
     ctx.beginPath();
@@ -1571,17 +2693,6 @@ export default function Home() {
       legendX += ctx.measureText(text).width + (rect.width < 620 ? 8 : 14);
     });
 
-    ctx.fillStyle = palette.text;
-    ctx.textAlign = 'right';
-    ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
-    const visibleFrom = Math.min(candles.length, Math.max(1, Math.floor(viewRange.startIndex) + 1));
-    const visibleThrough = Math.min(candles.length, Math.max(visibleFrom, Math.ceil(viewRange.endIndex)));
-    const futureBars = Math.max(0, Math.ceil(viewRange.endIndex - candles.length));
-    const rangeLabel = futureBars > 0
-      ? `${visibleFrom}-${visibleThrough} +${futureBars} of ${candles.length}`
-      : `${visibleFrom}-${visibleThrough} of ${candles.length}`;
-
-    ctx.fillText(rangeLabel, chartArea.left + chartArea.width - 4, chartArea.top + 14);
   };
 
   useEffect(() => {
@@ -1603,8 +2714,9 @@ export default function Home() {
     viewRange,
     manualPriceRange,
     chartStyle,
+    activeIndicators,
+    activeIndicatorSeries,
     showVolume,
-    showMovingAverage,
     theme,
     symbol,
     timeframe,
@@ -1620,6 +2732,24 @@ export default function Home() {
           : pointerArea === 'time-scale'
             ? 'ew-resize'
             : 'crosshair';
+
+  const legendIndex = (() => {
+    if (candles.length === 0) return -1;
+
+    const { chartArea } = chartBounds.current;
+    const mouseInsideMainPane =
+      mousePos &&
+      mousePos.x >= chartArea.left &&
+      mousePos.x <= chartArea.left + chartArea.width &&
+      mousePos.y >= chartArea.top &&
+      mousePos.y <= chartArea.top + chartArea.height;
+
+    if (!mouseInsideMainPane) return candles.length - 1;
+
+    const ratio = clamp((mousePos.x - chartArea.left) / Math.max(1, chartArea.width), 0, 1);
+    return Math.floor(clamp(viewRange.startIndex + ratio * viewRange.candlesPerView, 0, candles.length - 1));
+  })();
+  const legendCandle = legendIndex >= 0 ? candles[legendIndex] ?? latestCandle : latestCandle;
 
   return (
     <main className="chart-terminal" data-theme={theme}>
@@ -1672,10 +2802,8 @@ export default function Home() {
             count={indicatorCount}
             openMenu={openMenu}
             setOpenMenu={setOpenMenu}
-            showMovingAverage={showMovingAverage}
-            showVolume={showVolume}
-            onToggleMovingAverage={() => setShowMovingAverage((value) => !value)}
-            onToggleVolume={() => setShowVolume((value) => !value)}
+            activeIndicators={activeIndicators}
+            onAddIndicator={addIndicator}
           />
 
           <button
@@ -1719,7 +2847,7 @@ export default function Home() {
         <span>{candles.length.toLocaleString()} candles</span>
         <span>{Math.round(viewRange.candlesPerView)} bars visible</span>
         <span>{latestCandle ? `Vol ${formatCompact(latestCandle.volume)}` : 'Vol -'}</span>
-        <span>{showMovingAverage ? 'MA20 on' : 'MA20 off'}</span>
+        <span>{indicatorCount} indicators</span>
       </section>
 
       <section className="chart-stage">
@@ -1741,6 +2869,216 @@ export default function Home() {
           onMouseLeave={handleMouseLeave}
           onWheel={handleWheel}
         />
+
+        {activeIndicators.length > 0 && legendCandle && (
+          <div ref={indicatorLegendRef} className="indicator-legend-overlay" aria-label="Active indicators">
+            {activeIndicators.map((indicator, index) => {
+              const definition = getIndicatorDefinition(indicator.definitionId);
+              const computed = activeIndicatorSeries[indicator.id];
+              const indicatorValues =
+                definition.formula === 'volume'
+                  ? [{ label: 'Volume', color: definition.defaults.color ?? palette.text, value: legendCandle.volume }]
+                  : computed?.lines.map((line) => ({
+                      label: line.label,
+                      color: line.color,
+                      value: legendIndex >= 0 ? line.values[legendIndex] : null,
+                    })) ?? [];
+              const settings = indicator.settings;
+              const canEditPeriod =
+                definition.defaults.period !== undefined ||
+                settings.period !== undefined ||
+                ['sma', 'ema', 'wma', 'rsi', 'stochastic', 'donchian', 'atr', 'momentum', 'roc'].includes(
+                  definition.formula
+                );
+              const canEditSource = definition.defaults.source !== undefined || settings.source !== undefined;
+              const canEditDeviation =
+                definition.formula === 'bb' ||
+                definition.formula === 'bb-percent' ||
+                definition.formula === 'bb-width';
+              const canEditMacd = definition.formula === 'macd';
+              const canEditSignal = canEditMacd || definition.formula === 'stochastic';
+
+              return (
+                <div
+                  key={indicator.id}
+                  className="indicator-legend-row"
+                  data-visible={indicator.visible}
+                  data-settings-open={settingsTargetId === indicator.id}
+                  data-more-open={moreTargetId === indicator.id}
+                >
+                  <div className="indicator-legend-main">
+                    <span className="indicator-legend-title">{getIndicatorLegendName(indicator, symbol)}</span>
+                    {indicatorValues.map((item) => (
+                      <span key={`${indicator.id}-${item.label}`} className="indicator-legend-value" style={{ color: item.color }}>
+                        {formatIndicatorNumber(item.value)}
+                      </span>
+                    ))}
+                    <span className="indicator-legend-actions">
+                      <button
+                        type="button"
+                        className="legend-action-button"
+                        aria-label={`${indicator.visible ? 'Hide' : 'Show'} ${definition.name}`}
+                        title={indicator.visible ? 'Hide' : 'Show'}
+                        onClick={() => toggleIndicatorVisibility(indicator.id)}
+                      >
+                        <span className={`legend-action-glyph ${indicator.visible ? 'eye' : 'eye-off'}`} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="legend-action-button"
+                        aria-label={`Settings for ${definition.name}`}
+                        title="Settings"
+                        onClick={() => {
+                          setSettingsTargetId((current) => (current === indicator.id ? null : indicator.id));
+                          setMoreTargetId(null);
+                        }}
+                      >
+                        <span className="legend-action-glyph settings" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="legend-action-button"
+                        aria-label={`Remove ${definition.name}`}
+                        title="Remove"
+                        onClick={() => removeIndicator(indicator.id)}
+                      >
+                        <span className="legend-action-glyph remove" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="legend-action-button"
+                        aria-label={`More actions for ${definition.name}`}
+                        title="More"
+                        onClick={() => {
+                          setMoreTargetId((current) => (current === indicator.id ? null : indicator.id));
+                          setSettingsTargetId(null);
+                        }}
+                      >
+                        <span className="legend-action-glyph more" aria-hidden="true" />
+                      </button>
+                    </span>
+                  </div>
+
+                  {settingsTargetId === indicator.id && (
+                    <div className="indicator-settings-panel" role="group" aria-label={`${definition.name} settings`}>
+                      <label>
+                        <span>Color</span>
+                        <input
+                          type="color"
+                          value={settings.color ?? definition.defaults.color ?? '#2962ff'}
+                          onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
+                        />
+                      </label>
+                      {canEditPeriod && (
+                        <label>
+                          <span>Length</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="500"
+                            value={sanitizePeriod(settings.period, definition.defaults.period ?? 20)}
+                            onChange={(event) => updateIndicatorSettings(indicator.id, { period: Number(event.target.value) })}
+                          />
+                        </label>
+                      )}
+                      {canEditSource && (
+                        <label>
+                          <span>Source</span>
+                          <select
+                            value={settings.source ?? definition.defaults.source ?? 'close'}
+                            onChange={(event) =>
+                              updateIndicatorSettings(indicator.id, { source: event.target.value as IndicatorSource })
+                            }
+                          >
+                            {INDICATOR_SOURCE_OPTIONS.map((sourceOption) => (
+                              <option key={sourceOption} value={sourceOption}>
+                                {sourceOption}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {canEditDeviation && (
+                        <label>
+                          <span>Std dev</span>
+                          <input
+                            type="number"
+                            min="0.1"
+                            max="10"
+                            step="0.1"
+                            value={settings.stdDev ?? definition.defaults.stdDev ?? 2}
+                            onChange={(event) => updateIndicatorSettings(indicator.id, { stdDev: Number(event.target.value) })}
+                          />
+                        </label>
+                      )}
+                      {canEditMacd && (
+                        <>
+                          <label>
+                            <span>Fast</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="200"
+                              value={sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12)}
+                              onChange={(event) =>
+                                updateIndicatorSettings(indicator.id, { fastPeriod: Number(event.target.value) })
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>Slow</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="300"
+                              value={sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26)}
+                              onChange={(event) =>
+                                updateIndicatorSettings(indicator.id, { slowPeriod: Number(event.target.value) })
+                              }
+                            />
+                          </label>
+                        </>
+                      )}
+                      {canEditSignal && (
+                        <label>
+                          <span>Signal</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="200"
+                            value={sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9)}
+                            onChange={(event) =>
+                              updateIndicatorSettings(indicator.id, { signalPeriod: Number(event.target.value) })
+                            }
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
+
+                  {moreTargetId === indicator.id && (
+                    <div className="indicator-more-panel" role="menu" aria-label={`${definition.name} actions`}>
+                      <button type="button" role="menuitem" onClick={() => duplicateIndicator(indicator.id)}>
+                        Duplicate
+                      </button>
+                      <button type="button" role="menuitem" disabled={index === 0} onClick={() => moveIndicator(indicator.id, -1)}>
+                        Move up
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={index === activeIndicators.length - 1}
+                        onClick={() => moveIndicator(indicator.id, 1)}
+                      >
+                        Move down
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {loading && (
           <div className="chart-overlay">
