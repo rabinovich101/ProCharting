@@ -242,14 +242,18 @@ than a direct example of the packaged renderer architecture.
 The standalone app's TradingView-style desktop Layout setup control is also a
 local QA-harness feature. The right-side layout panel defines grouped split
 layouts in `app/page.tsx`; selecting one applies the same grid definition to the
-chart stage. The first pane keeps the live Canvas 2D chart and interactive
-overlays, while additional panes use duplicate Canvas 2D elements drawn from the
-same chart state through the same `ChartPane` component and overlay renderers.
-Only the first pane updates interaction hit-testing bounds for pan, zoom, and
-price-axis scaling, so split layouts duplicate the visible chart efficiently
-without changing the packaged renderer contracts. Indicator legend popovers are
+chart stage. Every visible layout cell renders through the shared `ChartPane`
+component and owns an indexed chart session: symbol, timeframe, candles,
+loading/error state, live-feed status, crosshair, drag state, logical view
+range, and manual price range. Clicking any pane makes it the active pane; the
+top command-bar symbol and timeframe controls then update that pane only unless
+the corresponding layout sync toggle is enabled. New panes still start as copies
+of the active pane, then diverge independently after selection. A single Binance
+websocket subscribes to the unique streams required by visible panes and routes
+incoming klines to matching pane sessions. Indicator legend popovers remain
 targeted by pane index and indicator id so shared overlay controls do not open
-the same menu in every duplicated pane.
+the same menu in every pane. These split-pane behaviors remain local to the QA
+harness and do not change packaged renderer contracts.
 
 The chart app supports:
 
@@ -320,7 +324,7 @@ in non-visible `data-*` attributes for QA/devtools inspection.
 The command bar's desktop icon tools implement TradingView-like local behavior:
 the symbol trigger opens a centered TradingView-style symbol search dialog with
 focused query input, category pills, Binance-market rows, and click-to-select
-updates against the existing chart `symbol` state; indicator templates first
+updates against the active chart pane's `symbol` state; indicator templates first
 open the compact TradingView-style Save/Open menu and
 then route to persisted template save/apply surfaces, layout setup is a fixed
 right-side panel with chart-count/sync options, the save caret opens a layout

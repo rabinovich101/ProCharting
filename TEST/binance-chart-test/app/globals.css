@@ -1919,6 +1919,21 @@ summary {
   position: relative;
 }
 
+.chart-layout-cell::after {
+  border: 2px solid transparent;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  z-index: 20;
+}
+
+.chart-layout-cell[data-active="true"]::after {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-0) 72%, transparent);
+}
+
 .chart-canvas {
   display: block;
   height: 100%;

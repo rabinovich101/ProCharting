@@ -1,3 +1,91 @@
+# Active Independent Layout Panes
+
+## Goal
+
+Make every split-screen chart pane independently selectable and controllable,
+matching the TradingView behavior in the provided recording: click a pane to
+make it active, then header symbol/timeframe actions and chart interactions
+apply to that pane only, regardless of whether the layout has 1, 2, 4, 16, or
+any other supported pane count.
+
+## Findings / Decisions
+
+- The current app renders all selected layout cells through `ChartPane`, but
+  only pane 1 has interaction handlers. Secondary panes draw duplicate canvases
+  from the same global `symbol`, `timeframe`, `candles`, `viewRange`, and price
+  range state.
+- There is no separate watchlist component in this harness. The symbol search
+  dialog is the current symbol-control surface, so it should target the active
+  pane.
+- Preserve the previous split-layout expectation by creating new panes as a
+  copy of the currently active pane, then let each pane diverge after selection.
+- Keep global visual settings such as chart style, theme, indicators, and layout
+  settings shared. Scope market/session state to each pane: symbol, timeframe,
+  data loading/error, live feed status, candles, visible range, manual price
+  scale, cursor/crosshair, and drag state.
+- Use one WebSocket connection and subscribe to the unique streams required by
+  visible panes. Route incoming klines to every pane using that stream.
+- Avoid package renderer changes; this is a standalone QA harness behavior in
+  `TEST/binance-chart-test/app/page.tsx`.
+
+## Checklist
+
+- [x] Add per-pane chart session state and refs.
+- [x] Keep layout count changes synchronized with pane state.
+- [x] Fetch historical candles per pane and reset only that pane's view.
+- [x] Subscribe live Binance streams for all visible pane markets.
+- [x] Route click, wheel, drag, crosshair, retry, symbol, and timeframe actions
+  to the active pane.
+- [x] Render every pane with its own candles, legends, overlays, and interaction
+  metadata.
+- [x] Add active-pane visual styling and update architecture notes.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify with Browser/Playwright/devtools across multi-pane layouts.
+- [x] Commit and push `main`.
+
+## Review
+
+Implemented active independent split-screen chart panes in the standalone
+Binance chart QA app.
+
+- `TEST/binance-chart-test/app/page.tsx` now stores market/session state per
+  pane: symbol, timeframe, candles, loading/error status, feed status, crosshair,
+  drag state, logical view range, and manual price range.
+- Layout count changes now grow or trim the pane-session array. Newly added
+  panes clone the current active pane so split layouts still begin as exact
+  duplicates before the user selects and changes them.
+- Historical Binance REST requests now run per pane. Live Binance websocket
+  handling keeps one socket and subscribes to the unique streams required by
+  visible panes, routing incoming klines to all matching pane sessions.
+- Every `ChartPane` is interactive. Clicking a pane makes it active; header
+  symbol/timeframe controls target that active pane unless the existing layout
+  sync toggle for Symbol or Interval is enabled.
+- Wheel zoom/pan, price-scale drag, chart drag, crosshair, retry, overlays, and
+  canvas `data-*` QA diagnostics now read/write the pane being interacted with.
+- `TEST/binance-chart-test/app/globals.css` adds a non-layout-shifting active
+  pane outline.
+- `ARCHITECTURE.md` now documents the active pane-session model and the
+  websocket subscription routing contract.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser/Playwright/devtools verified `4-grid`: four real canvases, exactly one
+  active pane, no horizontal overflow, and no console errors.
+- Browser interaction verified selecting pane 3, changing its symbol to
+  `SOLUSDT`, and changing its interval to `5m` updated only pane 3 while panes
+  1, 2, and 4 stayed `BTCUSDT 1m`.
+- Browser wheel interaction over pane 3 changed only pane 3's logical visible
+  range while other panes stayed unchanged.
+- Browser interaction verified clicking pane 1 returns the header to
+  `BTCUSDT / 1m` while pane 3 remains `SOLUSDT / 5m`.
+- Saved QA screenshot outside the repo:
+  `/tmp/procharting-active-independent-panes.png`.
+
 # Component-Based Exact Layout Duplicates
 
 ## Goal

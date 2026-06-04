@@ -92,11 +92,23 @@ type IndicatorFormula =
 
 interface ChartDragState {
   mode: ChartDragMode;
+  paneIndex: number;
   startX: number;
   startY: number;
   startViewRange: ViewRange;
   startPriceRange: PriceRange | null;
   anchorPrice: number;
+}
+
+interface ChartInteractionBounds {
+  minPrice: number;
+  maxPrice: number;
+  chartArea: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
 }
 
 interface MenuOption<T extends string> {
@@ -231,6 +243,21 @@ interface ChartSettingsState {
   showCurrentPriceLine: boolean;
   showVolumePane: boolean;
   showCrosshair: boolean;
+}
+
+interface ChartPaneState {
+  symbol: string;
+  timeframe: string;
+  candles: Candle[];
+  loading: boolean;
+  error: string | null;
+  feedStatus: FeedStatus;
+  refreshNonce: number;
+  mousePos: MousePosition | null;
+  dragMode: ChartDragMode;
+  pointerArea: ChartPointerArea;
+  manualPriceRange: PriceRange | null;
+  viewRange: ViewRange;
 }
 
 interface QuickAction {
@@ -989,6 +1016,47 @@ const MAX_FUTURE_BARS = 120;
 const Y_AXIS_SCALE_SPEED = 1.7;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const createDefaultViewRange = (): ViewRange => ({
+  startIndex: 0,
+  endIndex: 100,
+  candlesPerView: 100,
+});
+const createDefaultChartBounds = (): ChartInteractionBounds => ({
+  minPrice: 0,
+  maxPrice: 0,
+  chartArea: { left: 12, top: 34, width: 0, height: 0 },
+});
+const createDragState = (paneIndex = 0): ChartDragState => ({
+  mode: 'none',
+  paneIndex,
+  startX: 0,
+  startY: 0,
+  startViewRange: createDefaultViewRange(),
+  startPriceRange: null,
+  anchorPrice: 0,
+});
+const createChartPaneState = (symbol = 'BTCUSDT', timeframe = '1m'): ChartPaneState => ({
+  symbol,
+  timeframe,
+  candles: [],
+  loading: true,
+  error: null,
+  feedStatus: 'connecting',
+  refreshNonce: 0,
+  mousePos: null,
+  dragMode: 'none',
+  pointerArea: 'outside',
+  manualPriceRange: null,
+  viewRange: createDefaultViewRange(),
+});
+const cloneChartPaneState = (source: ChartPaneState): ChartPaneState => ({
+  ...source,
+  candles: [...source.candles],
+  mousePos: null,
+  dragMode: 'none',
+  pointerArea: 'outside',
+});
+const getStreamKey = (symbol: string, timeframe: string) => `${symbol.toLowerCase()}@kline_${timeframe}`;
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -2250,6 +2318,8 @@ function LayoutOptionIcon({ option }: { option: ChartLayoutOption }) {
 interface ChartPaneProps {
   cell: LayoutCellSpec;
   paneIndex: number;
+  active: boolean;
+  onActivate: () => void;
   canvasRef: Ref<HTMLCanvasElement>;
   canvasProps: CanvasHTMLAttributes<HTMLCanvasElement> & Record<`data-${string}`, string | number | boolean | undefined>;
   children: ReactNode;
@@ -2257,13 +2327,27 @@ interface ChartPaneProps {
   style?: CSSProperties;
 }
 
-function ChartPane({ cell, paneIndex, canvasRef, canvasProps, children, className = '', style }: ChartPaneProps) {
+function ChartPane({
+  cell,
+  paneIndex,
+  active,
+  onActivate,
+  canvasRef,
+  canvasProps,
+  children,
+  className = '',
+  style,
+}: ChartPaneProps) {
   const canvasClassName = ['chart-canvas', canvasProps.className].filter(Boolean).join(' ');
 
   return (
     <div
       className={['chart-layout-cell', className].filter(Boolean).join(' ')}
-      data-pane-index={paneIndex}
+      data-active={active}
+      data-pane-index={paneIndex + 1}
+      aria-current={active ? 'true' : undefined}
+      onFocus={onActivate}
+      onPointerDownCapture={onActivate}
       style={{
         ...style,
         gridColumn: cell.column,
@@ -2277,50 +2361,24 @@ function ChartPane({ cell, paneIndex, canvasRef, canvasProps, children, classNam
 }
 
 export default function Home() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const duplicateCanvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
+  const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
   const symbolSearchInputRef = useRef<HTMLInputElement>(null);
   const indicatorLegendRef = useRef<HTMLDivElement>(null);
-  const activeStreamRef = useRef('');
-  const selectedMarketRef = useRef({ symbol: 'BTCUSDT', timeframe: '1m' });
-  const manualPriceRangeRef = useRef<PriceRange | null>(null);
-  const viewRangeRef = useRef<ViewRange>({
-    startIndex: 0,
-    endIndex: 100,
-    candlesPerView: 100,
-  });
-  const dragStateRef = useRef<ChartDragState>({
-    mode: 'none',
-    startX: 0,
-    startY: 0,
-    startViewRange: {
-      startIndex: 0,
-      endIndex: 100,
-      candlesPerView: 100,
-    },
-    startPriceRange: null,
-    anchorPrice: 0,
-  });
-  const chartBounds = useRef({
-    minPrice: 0,
-    maxPrice: 0,
-    chartArea: { left: 12, top: 34, width: 0, height: 0 },
-  });
+  const activeStreamsRef = useRef<Set<string>>(new Set());
+  const paneStatesRef = useRef<ChartPaneState[]>([]);
+  const chartBoundsRefs = useRef<ChartInteractionBounds[]>([createDefaultChartBounds()]);
+  const dragStateRef = useRef<ChartDragState>(createDragState());
 
-  const [candles, setCandles] = useState<Candle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [symbol, setSymbol] = useState('BTCUSDT');
-  const [timeframe, setTimeframe] = useState('1m');
+  const [chartPanes, setChartPanes] = useState<ChartPaneState[]>(() => [createChartPaneState()]);
+  const [activePaneIndex, setActivePaneIndex] = useState(0);
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
   const [theme, setTheme] = useState<ThemeName>('dark');
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(DEFAULT_ACTIVE_INDICATORS);
   const [settingsTarget, setSettingsTarget] = useState<IndicatorLegendTarget | null>(null);
   const [moreTarget, setMoreTarget] = useState<IndicatorLegendTarget | null>(null);
-  const [feedStatus, setFeedStatus] = useState<FeedStatus>('connecting');
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [headerPanel, setHeaderPanel] = useState<HeaderPanelKey | null>(null);
   const [indicatorTemplates, setIndicatorTemplates] = useState<IndicatorTemplate[]>([]);
@@ -2341,25 +2399,17 @@ export default function Home() {
     showVolumePane: true,
     showCrosshair: true,
   });
-  const [refreshNonce, setRefreshNonce] = useState(0);
-  const [mousePos, setMousePos] = useState<MousePosition | null>(null);
-  const [dragMode, setDragMode] = useState<ChartDragMode>('none');
-  const [pointerArea, setPointerArea] = useState<ChartPointerArea>('outside');
-  const [manualPriceRange, setManualPriceRange] = useState<PriceRange | null>(null);
-  const [viewRange, setViewRange] = useState<ViewRange>({
-    startIndex: 0,
-    endIndex: 100,
-    candlesPerView: 100,
-  });
 
   const palette = PALETTES[theme];
-  const latestCandle = candles.length > 0 ? candles[candles.length - 1] : null;
   const selectedLayout = ALL_LAYOUT_OPTIONS.find((option) => option.id === selectedLayoutId) ?? ALL_LAYOUT_OPTIONS[0]!;
   const selectedLayoutCells = selectedLayout.cells;
-  const primaryLayoutCell = selectedLayoutCells[0] ?? layoutCell(1, 1);
-  const duplicatePaneCount = Math.max(0, selectedLayoutCells.length - 1);
+  const paneCount = selectedLayoutCells.length;
+  const activePane = chartPanes[activePaneIndex] ?? chartPanes[0] ?? createChartPaneState();
+  const activeSymbol = activePane.symbol;
+  const activeTimeframe = activePane.timeframe;
+  const activeFeedStatus = activePane.feedStatus;
   const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
-  const selectedSymbolOption = getSymbolSearchOption(symbol);
+  const selectedSymbolOption = getSymbolSearchOption(activeSymbol);
   const visibleVolumeIndicator = visibleIndicators.find(
     (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
   );
@@ -2368,12 +2418,15 @@ export default function Home() {
   );
   const indicatorCount = activeIndicators.length;
   const showVolume = chartSettings.showVolumePane && visibleVolumeIndicator !== undefined;
-  const activeIndicatorSeries = useMemo(() => {
-    return activeIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
-      seriesById[indicator.id] = computeIndicatorSeries(indicator, candles);
-      return seriesById;
-    }, {});
-  }, [activeIndicators, candles]);
+  const paneIndicatorSeries = useMemo(() => {
+    return chartPanes.map((pane) =>
+      activeIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
+        seriesById[indicator.id] = computeIndicatorSeries(indicator, pane.candles);
+        return seriesById;
+      }, {})
+    );
+  }, [activeIndicators, chartPanes]);
+  paneStatesRef.current = chartPanes;
   const filteredSymbolOptions = useMemo(() => {
     return SYMBOL_SEARCH_OPTIONS.filter((option) =>
       matchesSymbolSearch(option, symbolSearchCategory, symbolSearchQuery)
@@ -2388,10 +2441,34 @@ export default function Home() {
       action.description.toLowerCase().includes(query)
     );
   });
+  const paneMarketRequestKey = chartPanes
+    .map((pane, index) => `${index}:${pane.symbol}:${pane.timeframe}:${pane.refreshNonce}`)
+    .join('|');
 
   useEffect(() => {
-    duplicateCanvasRefs.current = duplicateCanvasRefs.current.slice(0, duplicatePaneCount);
-  }, [duplicatePaneCount]);
+    canvasRefs.current = canvasRefs.current.slice(0, paneCount);
+    chartBoundsRefs.current = Array.from(
+      { length: paneCount },
+      (_unused, index) => chartBoundsRefs.current[index] ?? createDefaultChartBounds()
+    );
+
+    setChartPanes((current) => {
+      if (current.length === paneCount) return current;
+
+      if (current.length > paneCount) {
+        return current.slice(0, paneCount);
+      }
+
+      const source = current[activePaneIndex] ?? current[0] ?? createChartPaneState();
+      const next = [...current];
+      while (next.length < paneCount) {
+        next.push(cloneChartPaneState(source));
+      }
+
+      return next;
+    });
+    setActivePaneIndex((current) => clamp(current, 0, Math.max(0, paneCount - 1)));
+  }, [activePaneIndex, paneCount]);
 
   useEffect(() => {
     if (headerPanel !== 'symbolSearch') return;
@@ -2423,23 +2500,34 @@ export default function Home() {
     }
   }, []);
 
-  const getEstimatedChartWidth = () => {
-    const canvasWidth = canvasRef.current?.getBoundingClientRect().width ?? 0;
-    const measuredWidth = chartBounds.current.chartArea.width;
+  const getEstimatedChartWidth = (paneIndex = activePaneIndex) => {
+    const canvasWidth = canvasRefs.current[paneIndex]?.getBoundingClientRect().width ?? 0;
+    const measuredWidth = chartBoundsRefs.current[paneIndex]?.chartArea.width ?? 0;
 
     if (measuredWidth > 0) return measuredWidth;
     if (canvasWidth > 0) return Math.max(160, canvasWidth - (canvasWidth < 520 ? 74 : 100));
     return 980;
   };
 
-  const resetView = (sourceCandles = candles, nextTimeframe = timeframe) => {
-    const chartWidth = getEstimatedChartWidth();
+  const createResetViewRange = (paneIndex: number, sourceCandles: Candle[], nextTimeframe: string) => {
+    const chartWidth = getEstimatedChartWidth(paneIndex);
     const futureBars = getRightOffsetBars(chartWidth);
     const candlesPerView = getDefaultCandlesPerView(nextTimeframe, sourceCandles.length, chartWidth);
     const endIndex = sourceCandles.length + futureBars;
 
-    setManualPriceRange(null);
-    setViewRange(normalizeViewRange(endIndex - candlesPerView, candlesPerView, sourceCandles.length, futureBars));
+    return normalizeViewRange(endIndex - candlesPerView, candlesPerView, sourceCandles.length, futureBars);
+  };
+
+  const updatePaneState = (paneIndex: number, updater: (pane: ChartPaneState) => ChartPaneState) => {
+    setChartPanes((current) => current.map((pane, index) => (index === paneIndex ? updater(pane) : pane)));
+  };
+
+  const resetView = (paneIndex = activePaneIndex) => {
+    updatePaneState(paneIndex, (pane) => ({
+      ...pane,
+      manualPriceRange: null,
+      viewRange: createResetViewRange(paneIndex, pane.candles, pane.timeframe),
+    }));
   };
 
   const addIndicator = (definitionId: string) => {
@@ -2515,14 +2603,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    viewRangeRef.current = viewRange;
-  }, [viewRange]);
-
-  useEffect(() => {
-    manualPriceRangeRef.current = manualPriceRange;
-  }, [manualPriceRange]);
-
-  useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
 
@@ -2556,58 +2636,94 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    selectedMarketRef.current = { symbol, timeframe };
-  }, [symbol, timeframe]);
+    const paneRequests = paneStatesRef.current.map((pane, index) => ({
+      index,
+      symbol: pane.symbol,
+      timeframe: pane.timeframe,
+    }));
+    const controllers: AbortController[] = [];
 
-  useEffect(() => {
-    const controller = new AbortController();
+    paneRequests.forEach((request) => {
+      const controller = new AbortController();
+      controllers.push(controller);
 
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      setFeedStatus('connecting');
+      updatePaneState(request.index, (pane) =>
+        pane.symbol === request.symbol && pane.timeframe === request.timeframe
+          ? {
+              ...pane,
+              loading: true,
+              error: null,
+              feedStatus: pane.feedStatus === 'offline' ? 'connecting' : pane.feedStatus,
+            }
+          : pane
+      );
 
-      try {
-        const response = await fetch(
-          `/api/binance?symbol=${symbol}&interval=${timeframe}&limit=1000`,
-          { signal: controller.signal }
-        );
-        const payload = await response.json();
+      const fetchData = async () => {
+        try {
+          const response = await fetch(
+            `/api/binance?symbol=${request.symbol}&interval=${request.timeframe}&limit=1000`,
+            { signal: controller.signal }
+          );
+          const payload = await response.json();
 
-        if (!response.ok) {
-          throw new Error(payload?.error || `Market data request failed with ${response.status}.`);
+          if (!response.ok) {
+            throw new Error(payload?.error || `Market data request failed with ${response.status}.`);
+          }
+
+          const formattedCandles = parseCandles(payload);
+          setChartPanes((current) =>
+            current.map((pane, index) =>
+              index === request.index && pane.symbol === request.symbol && pane.timeframe === request.timeframe
+                ? {
+                    ...pane,
+                    candles: formattedCandles,
+                    loading: false,
+                    error: null,
+                    manualPriceRange: null,
+                    viewRange: createResetViewRange(request.index, formattedCandles, request.timeframe),
+                  }
+                : pane
+            )
+          );
+        } catch (fetchError) {
+          if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
+
+          setChartPanes((current) =>
+            current.map((pane, index) =>
+              index === request.index && pane.symbol === request.symbol && pane.timeframe === request.timeframe
+                ? {
+                    ...pane,
+                    candles: [],
+                    loading: false,
+                    error: fetchError instanceof Error ? fetchError.message : 'Failed to fetch market data.',
+                  }
+                : pane
+            )
+          );
         }
+      };
 
-        const formattedCandles = parseCandles(payload);
-        setCandles(formattedCandles);
-        resetView(formattedCandles, timeframe);
-      } catch (fetchError) {
-        if (fetchError instanceof DOMException && fetchError.name === 'AbortError') return;
+      void fetchData();
+    });
 
-        setCandles([]);
-        setError(fetchError instanceof Error ? fetchError.message : 'Failed to fetch market data.');
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      controllers.forEach((controller) => controller.abort());
     };
-
-    fetchData();
-
-    return () => controller.abort();
-  }, [symbol, timeframe, refreshNonce]);
+  }, [paneMarketRequestKey]);
 
   useEffect(() => {
     let isActive = true;
     const ws = new WebSocket('wss://stream.binance.com:9443/ws');
     socketRef.current = ws;
 
-    const sendStreamRequest = (method: 'SUBSCRIBE' | 'UNSUBSCRIBE', stream: string) => {
+    const sendStreamRequest = (method: 'SUBSCRIBE' | 'UNSUBSCRIBE', streams: string[]) => {
       if (ws.readyState !== WebSocket.OPEN) return;
+      if (streams.length === 0) return;
 
       ws.send(
         JSON.stringify({
           method,
-          params: [stream],
+          params: streams,
           id: Date.now(),
         })
       );
@@ -2616,17 +2732,22 @@ export default function Home() {
     ws.onopen = () => {
       if (!isActive) return;
 
-      const current = selectedMarketRef.current;
-      const stream = `${current.symbol.toLowerCase()}@kline_${current.timeframe}`;
-      activeStreamRef.current = stream;
-      sendStreamRequest('SUBSCRIBE', stream);
-      setFeedStatus('live');
+      const streams = Array.from(
+        new Set(paneStatesRef.current.map((pane) => getStreamKey(pane.symbol, pane.timeframe)))
+      );
+      activeStreamsRef.current = new Set(streams);
+      sendStreamRequest('SUBSCRIBE', streams);
+      setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'live' })));
     };
     ws.onerror = () => {
-      if (isActive) setFeedStatus('offline');
+      if (isActive) {
+        setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'offline' })));
+      }
     };
     ws.onclose = () => {
-      if (isActive) setFeedStatus('offline');
+      if (isActive) {
+        setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'offline' })));
+      }
     };
 
     ws.onmessage = (event) => {
@@ -2635,8 +2756,8 @@ export default function Home() {
       const data = JSON.parse(event.data);
       if (data.result !== undefined || !data.k) return;
 
-      const current = selectedMarketRef.current;
-      if (data.s !== current.symbol || data.k.i !== current.timeframe) return;
+      const eventSymbol = String(data.s);
+      const eventTimeframe = String(data.k.i);
 
       const newCandle: Candle = {
         time: Number(data.k.t),
@@ -2649,78 +2770,91 @@ export default function Home() {
 
       if (Object.values(newCandle).some((value) => !Number.isFinite(value))) return;
 
-      setCandles((previous) => {
-        const updated = [...previous];
-        const lastCandle = updated[updated.length - 1];
-        const currentRange = viewRangeRef.current;
-        const wasPinnedToLatest = currentRange.endIndex >= previous.length;
-        const futureBars = Math.max(0, currentRange.endIndex - previous.length);
+      setChartPanes((previous) =>
+        previous.map((pane) => {
+          if (pane.symbol !== eventSymbol || pane.timeframe !== eventTimeframe) return pane;
 
-        if (lastCandle && lastCandle.time === newCandle.time) {
-          updated[updated.length - 1] = newCandle;
-        } else if (!lastCandle || newCandle.time > lastCandle.time) {
-          updated.push(newCandle);
+          const updated = [...pane.candles];
+          const lastCandle = updated[updated.length - 1];
+          const currentRange = pane.viewRange;
+          const wasPinnedToLatest = currentRange.endIndex >= pane.candles.length;
+          const futureBars = Math.max(0, currentRange.endIndex - pane.candles.length);
+          let nextViewRange = currentRange;
 
-          if (wasPinnedToLatest) {
-            setViewRange((current) => {
+          if (lastCandle && lastCandle.time === newCandle.time) {
+            updated[updated.length - 1] = newCandle;
+          } else if (!lastCandle || newCandle.time > lastCandle.time) {
+            updated.push(newCandle);
+
+            if (wasPinnedToLatest) {
               const nextStartIndex = clamp(
-                updated.length + futureBars - current.candlesPerView,
+                updated.length + futureBars - currentRange.candlesPerView,
                 0,
-                getMaxStartIndex(updated.length, current.candlesPerView)
+                getMaxStartIndex(updated.length, currentRange.candlesPerView)
               );
 
-              return {
-                ...current,
+              nextViewRange = {
+                ...currentRange,
                 startIndex: nextStartIndex,
-                endIndex: nextStartIndex + current.candlesPerView,
+                endIndex: nextStartIndex + currentRange.candlesPerView,
               };
-            });
+            }
           }
-        }
 
-        return updated;
-      });
+          return {
+            ...pane,
+            candles: updated,
+            viewRange: nextViewRange,
+          };
+        })
+      );
     };
 
     return () => {
       isActive = false;
-      activeStreamRef.current = '';
+      activeStreamsRef.current = new Set();
       ws.close();
     };
   }, []);
 
   useEffect(() => {
     const ws = socketRef.current;
-    const nextStream = `${symbol.toLowerCase()}@kline_${timeframe}`;
+    const nextStreams = new Set(paneStatesRef.current.map((pane) => getStreamKey(pane.symbol, pane.timeframe)));
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      setFeedStatus('connecting');
+      setChartPanes((current) =>
+        current.map((pane) => (pane.feedStatus === 'offline' ? pane : { ...pane, feedStatus: 'connecting' }))
+      );
       return;
     }
 
-    if (activeStreamRef.current && activeStreamRef.current !== nextStream) {
+    const currentStreams = activeStreamsRef.current;
+    const streamsToUnsubscribe = Array.from(currentStreams).filter((stream) => !nextStreams.has(stream));
+    const streamsToSubscribe = Array.from(nextStreams).filter((stream) => !currentStreams.has(stream));
+
+    if (streamsToUnsubscribe.length > 0) {
       ws.send(
         JSON.stringify({
           method: 'UNSUBSCRIBE',
-          params: [activeStreamRef.current],
+          params: streamsToUnsubscribe,
           id: Date.now(),
         })
       );
     }
 
-    if (activeStreamRef.current !== nextStream) {
+    if (streamsToSubscribe.length > 0) {
       ws.send(
         JSON.stringify({
           method: 'SUBSCRIBE',
-          params: [nextStream],
+          params: streamsToSubscribe,
           id: Date.now(),
         })
       );
-      activeStreamRef.current = nextStream;
     }
 
-    setFeedStatus('live');
-  }, [symbol, timeframe]);
+    activeStreamsRef.current = nextStreams;
+    setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'live' })));
+  }, [paneMarketRequestKey]);
 
   const formatTime = (timestamp: number, detailed = false) => {
     const date = new Date(timestamp);
@@ -2734,18 +2868,18 @@ export default function Home() {
       });
     }
 
-    if (timeframe.includes('d') || timeframe.includes('w') || timeframe.includes('M')) {
+    if (activeTimeframe.includes('d') || activeTimeframe.includes('w') || activeTimeframe.includes('M')) {
       return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     }
-    if (timeframe.includes('h')) {
+    if (activeTimeframe.includes('h')) {
       return date.toLocaleString(undefined, { day: 'numeric', hour: '2-digit' });
     }
 
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const getPointerArea = (x: number, y: number): ChartPointerArea => {
-    const { chartArea } = chartBounds.current;
+  const getPointerArea = (paneIndex: number, x: number, y: number): ChartPointerArea => {
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     const right = chartArea.left + chartArea.width;
     const bottom = chartArea.top + chartArea.height;
 
@@ -2758,11 +2892,12 @@ export default function Home() {
     return 'outside';
   };
 
-  const getCurrentPriceRange = (): PriceRange | null => {
-    const manual = manualPriceRangeRef.current;
+  const getCurrentPriceRange = (paneIndex: number): PriceRange | null => {
+    const pane = paneStatesRef.current[paneIndex];
+    const manual = pane?.manualPriceRange ?? null;
     if (manual && manual.maxPrice > manual.minPrice) return manual;
 
-    const { minPrice, maxPrice } = chartBounds.current;
+    const { minPrice, maxPrice } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     if (Number.isFinite(minPrice) && Number.isFinite(maxPrice) && maxPrice > minPrice) {
       return { minPrice, maxPrice };
     }
@@ -2770,36 +2905,41 @@ export default function Home() {
     return null;
   };
 
-  const getPriceAtY = (y: number, range: PriceRange) => {
-    const { chartArea } = chartBounds.current;
+  const getPriceAtY = (paneIndex: number, y: number, range: PriceRange) => {
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     const localY = clamp(y - chartArea.top, 0, Math.max(1, chartArea.height));
     return range.maxPrice - (localY / Math.max(1, chartArea.height)) * (range.maxPrice - range.minPrice);
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
-    if (!candles.length) return;
+  const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
+    const pane = paneStatesRef.current[paneIndex];
+    setActivePaneIndex(paneIndex);
+    if (!pane?.candles.length) return;
     event.preventDefault();
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const { chartArea } = chartBounds.current;
-    const chartWidth = chartArea.width || getEstimatedChartWidth();
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    const chartWidth = chartArea.width || getEstimatedChartWidth(paneIndex);
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const area = getPointerArea(x, y);
+    const area = getPointerArea(paneIndex, x, y);
     const wheelScale = Math.exp(clamp(event.deltaY / 100, -3, 3) * 0.16);
 
     if (area === 'price-scale') {
-      const currentPriceRange = getCurrentPriceRange();
+      const currentPriceRange = getCurrentPriceRange(paneIndex);
       if (!currentPriceRange) return;
 
-      const anchorPrice = getPriceAtY(y, currentPriceRange);
-      setManualPriceRange(scalePriceRange(currentPriceRange, anchorPrice, wheelScale));
+      const anchorPrice = getPriceAtY(paneIndex, y, currentPriceRange);
+      updatePaneState(paneIndex, (currentPane) => ({
+        ...currentPane,
+        manualPriceRange: scalePriceRange(currentPriceRange, anchorPrice, wheelScale),
+      }));
       return;
     }
 
     if (area !== 'plot' && area !== 'time-scale') return;
 
-    const visibleBars = Math.max(1, viewRange.endIndex - viewRange.startIndex);
+    const visibleBars = Math.max(1, pane.viewRange.endIndex - pane.viewRange.startIndex);
     const candleWidth = chartWidth / visibleBars;
 
     if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
@@ -2807,113 +2947,137 @@ export default function Home() {
       const panBars = panPixels / Math.max(1, candleWidth);
 
       if (panBars !== 0) {
-        setViewRange(normalizeViewRange(viewRange.startIndex + panBars, visibleBars, candles.length));
+        updatePaneState(paneIndex, (currentPane) => ({
+          ...currentPane,
+          viewRange: normalizeViewRange(currentPane.viewRange.startIndex + panBars, visibleBars, currentPane.candles.length),
+        }));
       }
       return;
     }
 
     const newCandlesPerView = Math.round(
-      clamp(visibleBars * wheelScale, MIN_VISIBLE_BARS, Math.min(MAX_VISIBLE_BARS, candles.length + MAX_FUTURE_BARS))
+      clamp(visibleBars * wheelScale, MIN_VISIBLE_BARS, Math.min(MAX_VISIBLE_BARS, pane.candles.length + MAX_FUTURE_BARS))
     );
     const mouseRatio = clamp((event.clientX - rect.left - chartArea.left) / chartWidth, 0, 1);
-    const pointerIndex = viewRange.startIndex + mouseRatio * viewRange.candlesPerView;
+    const pointerIndex = pane.viewRange.startIndex + mouseRatio * pane.viewRange.candlesPerView;
     const newStartIndex = pointerIndex - newCandlesPerView * mouseRatio;
 
-    setViewRange(normalizeViewRange(newStartIndex, newCandlesPerView, candles.length));
+    updatePaneState(paneIndex, (currentPane) => ({
+      ...currentPane,
+      viewRange: normalizeViewRange(newStartIndex, newCandlesPerView, currentPane.candles.length),
+    }));
   };
 
-  const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!candles.length) return;
+  const handleMouseDown = (paneIndex: number, event: React.MouseEvent<HTMLCanvasElement>) => {
+    const pane = paneStatesRef.current[paneIndex];
+    setActivePaneIndex(paneIndex);
+    if (!pane?.candles.length) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const area = getPointerArea(x, y);
+    const area = getPointerArea(paneIndex, x, y);
 
     if (area === 'outside') return;
 
-    const currentPriceRange = getCurrentPriceRange();
+    const currentPriceRange = getCurrentPriceRange(paneIndex);
     const mode: ChartDragMode = area === 'price-scale' ? 'price-scale' : 'chart-pan';
 
     if (mode === 'price-scale' && !currentPriceRange) return;
     if (mode === 'price-scale' && currentPriceRange) {
-      setManualPriceRange(currentPriceRange);
+      updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, manualPriceRange: currentPriceRange }));
     }
 
     dragStateRef.current = {
       mode,
+      paneIndex,
       startX: event.clientX,
       startY: event.clientY,
-      startViewRange: viewRangeRef.current,
-      startPriceRange: mode === 'price-scale' || manualPriceRangeRef.current ? currentPriceRange : null,
-      anchorPrice: currentPriceRange ? getPriceAtY(y, currentPriceRange) : 0,
+      startViewRange: pane.viewRange,
+      startPriceRange: mode === 'price-scale' || pane.manualPriceRange ? currentPriceRange : null,
+      anchorPrice: currentPriceRange ? getPriceAtY(paneIndex, y, currentPriceRange) : 0,
     };
-    setDragMode(mode);
+    updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, dragMode: mode }));
     event.preventDefault();
   };
 
   const handleMouseUp = () => {
+    const paneIndex = dragStateRef.current.paneIndex;
     dragStateRef.current = {
       ...dragStateRef.current,
       mode: 'none',
     };
-    setDragMode('none');
+    updatePaneState(paneIndex, (pane) => ({ ...pane, dragMode: 'none' }));
   };
 
-  const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current) return;
+  const handleMouseMove = (paneIndex: number, event: React.MouseEvent<HTMLCanvasElement>) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
+    const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const area = getPointerArea(x, y);
-    setPointerArea(area);
+    const area = getPointerArea(paneIndex, x, y);
+    updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, pointerArea: area }));
 
     const dragState = dragStateRef.current;
-    if (dragState.mode !== 'none' && candles.length) {
-      const { chartArea } = chartBounds.current;
+    if (dragState.mode !== 'none' && dragState.paneIndex === paneIndex && pane.candles.length) {
+      const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
       const deltaX = event.clientX - dragState.startX;
       const deltaY = event.clientY - dragState.startY;
 
       if (dragState.mode === 'price-scale' && dragState.startPriceRange) {
+        const startPriceRange = dragState.startPriceRange;
         const scaleFactor = Math.exp((deltaY / Math.max(1, chartArea.height)) * Y_AXIS_SCALE_SPEED);
-        setManualPriceRange(scalePriceRange(dragState.startPriceRange, dragState.anchorPrice, scaleFactor));
+        updatePaneState(paneIndex, (currentPane) => ({
+          ...currentPane,
+          manualPriceRange: scalePriceRange(startPriceRange, dragState.anchorPrice, scaleFactor),
+        }));
       } else if (dragState.mode === 'chart-pan') {
         const { startViewRange } = dragState;
         const candleWidth = chartArea.width / Math.max(1, startViewRange.candlesPerView);
         const candlesDelta = deltaX / Math.max(1, candleWidth);
-        const maxStartIndex = getMaxStartIndex(candles.length, startViewRange.candlesPerView);
+        const maxStartIndex = getMaxStartIndex(pane.candles.length, startViewRange.candlesPerView);
         const newStartIndex = clamp(startViewRange.startIndex - candlesDelta, 0, maxStartIndex);
 
-        setViewRange({
-          ...startViewRange,
-          startIndex: newStartIndex,
-          endIndex: newStartIndex + startViewRange.candlesPerView,
-        });
+        updatePaneState(paneIndex, (currentPane) => ({
+          ...currentPane,
+          viewRange: {
+            ...startViewRange,
+            startIndex: newStartIndex,
+            endIndex: newStartIndex + startViewRange.candlesPerView,
+          },
+        }));
 
-        if (dragState.startPriceRange && manualPriceRangeRef.current) {
-          const priceRange = dragState.startPriceRange.maxPrice - dragState.startPriceRange.minPrice;
+        if (dragState.startPriceRange && pane.manualPriceRange) {
+          const startPriceRange = dragState.startPriceRange;
+          const priceRange = startPriceRange.maxPrice - startPriceRange.minPrice;
           const priceDelta = (deltaY / Math.max(1, chartArea.height)) * priceRange;
 
-          setManualPriceRange({
-            minPrice: dragState.startPriceRange.minPrice + priceDelta,
-            maxPrice: dragState.startPriceRange.maxPrice + priceDelta,
-          });
+          updatePaneState(paneIndex, (currentPane) => ({
+            ...currentPane,
+            manualPriceRange: {
+              minPrice: startPriceRange.minPrice + priceDelta,
+              maxPrice: startPriceRange.maxPrice + priceDelta,
+            },
+          }));
         }
       }
     }
 
-    const currentPriceRange = getCurrentPriceRange();
+    const currentPriceRange = getCurrentPriceRange(paneIndex);
     if (currentPriceRange) {
-      setMousePos({ x, y, dataY: getPriceAtY(y, currentPriceRange) });
+      updatePaneState(paneIndex, (currentPane) => ({
+        ...currentPane,
+        mousePos: { x, y, dataY: getPriceAtY(paneIndex, y, currentPriceRange) },
+      }));
     } else {
-      setMousePos({ x, y, dataY: 0 });
+      updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, mousePos: { x, y, dataY: 0 } }));
     }
   };
 
-  const handleMouseLeave = () => {
-    setMousePos(null);
-    setPointerArea('outside');
+  const handleMouseLeave = (paneIndex: number) => {
+    updatePaneState(paneIndex, (pane) => ({ ...pane, mousePos: null, pointerArea: 'outside' }));
     handleMouseUp();
   };
 
@@ -2940,11 +3104,18 @@ export default function Home() {
 
   const drawChart = (
     canvas: HTMLCanvasElement,
+    paneIndex: number,
     {
       updateInteractionBounds = false,
       crosshairPosition = null,
     }: { updateInteractionBounds?: boolean; crosshairPosition?: MousePosition | null } = {}
   ) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane) return;
+
+    const { candles, viewRange, manualPriceRange, timeframe, symbol } = pane;
+    const latestCandle = candles.length > 0 ? candles[candles.length - 1] : null;
+    const activeIndicatorSeries = paneIndicatorSeries[paneIndex] ?? {};
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -3070,7 +3241,7 @@ export default function Home() {
     const paddedPriceRange = maxPaddedPrice - minPaddedPrice || 1;
 
     if (updateInteractionBounds) {
-      chartBounds.current = {
+      chartBoundsRefs.current[paneIndex] = {
         minPrice: minPaddedPrice,
         maxPrice: maxPaddedPrice,
         chartArea,
@@ -3505,13 +3676,13 @@ export default function Home() {
 
   useEffect(() => {
     const animate = () => {
-      if (canvasRef.current) {
-        drawChart(canvasRef.current, { updateInteractionBounds: true, crosshairPosition: mousePos });
-      }
-
-      duplicateCanvasRefs.current.forEach((canvas) => {
+      canvasRefs.current.forEach((canvas, paneIndex) => {
         if (canvas) {
-          drawChart(canvas, { updateInteractionBounds: false, crosshairPosition: null });
+          const pane = paneStatesRef.current[paneIndex];
+          drawChart(canvas, paneIndex, {
+            updateInteractionBounds: true,
+            crosshairPosition: pane?.mousePos ?? null,
+          });
         }
       });
 
@@ -3526,58 +3697,78 @@ export default function Home() {
       }
     };
   }, [
-    candles,
-    mousePos,
-    viewRange,
-    manualPriceRange,
+    chartPanes,
     chartStyle,
     activeIndicators,
-    activeIndicatorSeries,
+    paneIndicatorSeries,
     showVolume,
     theme,
-    symbol,
-    timeframe,
     chartSettings,
-    duplicatePaneCount,
+    paneCount,
   ]);
 
-  const canvasCursor =
-    dragMode === 'price-scale'
+  const getCanvasCursor = (pane: ChartPaneState) =>
+    pane.dragMode === 'price-scale'
       ? 'ns-resize'
-      : dragMode === 'chart-pan'
+      : pane.dragMode === 'chart-pan'
         ? 'grabbing'
-        : pointerArea === 'price-scale'
+        : pane.pointerArea === 'price-scale'
           ? 'ns-resize'
-          : pointerArea === 'time-scale'
+          : pane.pointerArea === 'time-scale'
             ? 'ew-resize'
             : 'crosshair';
+  const getPaneLegendSnapshot = (paneIndex: number) => {
+    const pane = chartPanes[paneIndex];
+    if (!pane || pane.candles.length === 0) {
+      return {
+        pane,
+        legendIndex: -1,
+        legendCandle: null,
+        legendChange: 0,
+        legendChangePercent: 0,
+        legendTone: 'positive' as const,
+      };
+    }
 
-  const legendIndex = (() => {
-    if (candles.length === 0) return -1;
-
-    const { chartArea } = chartBounds.current;
+    const latestCandle = pane.candles[pane.candles.length - 1] ?? null;
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    const mousePos = pane.mousePos;
     const mouseInsideMainPane =
       mousePos &&
       mousePos.x >= chartArea.left &&
       mousePos.x <= chartArea.left + chartArea.width &&
       mousePos.y >= chartArea.top &&
       mousePos.y <= chartArea.top + chartArea.height;
+    const legendIndex = mouseInsideMainPane
+      ? Math.floor(
+          clamp(
+            pane.viewRange.startIndex +
+              (clamp((mousePos.x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) *
+                pane.viewRange.candlesPerView),
+            0,
+            pane.candles.length - 1
+          )
+        )
+      : pane.candles.length - 1;
+    const legendCandle = legendIndex >= 0 ? pane.candles[legendIndex] ?? latestCandle : latestCandle;
+    const legendChange = legendCandle ? legendCandle.close - legendCandle.open : 0;
+    const legendChangePercent =
+      legendCandle && legendCandle.open !== 0 ? (legendChange / legendCandle.open) * 100 : 0;
 
-    if (!mouseInsideMainPane) return candles.length - 1;
-
-    const ratio = clamp((mousePos.x - chartArea.left) / Math.max(1, chartArea.width), 0, 1);
-    return Math.floor(clamp(viewRange.startIndex + ratio * viewRange.candlesPerView, 0, candles.length - 1));
-  })();
-  const legendCandle = legendIndex >= 0 ? candles[legendIndex] ?? latestCandle : latestCandle;
-  const legendChange = legendCandle ? legendCandle.close - legendCandle.open : 0;
-  const legendChangePercent =
-    legendCandle && legendCandle.open !== 0 ? (legendChange / legendCandle.open) * 100 : 0;
-  const legendTone = legendChange >= 0 ? 'positive' : 'negative';
+    return {
+      pane,
+      legendIndex,
+      legendCandle,
+      legendChange,
+      legendChangePercent,
+      legendTone: legendChange >= 0 ? ('positive' as const) : ('negative' as const),
+    };
+  };
   const closeHeaderOverlays = () => {
     setOpenMenu(null);
     setHeaderPanel(null);
     setQuickSearchQuery('');
-    setSymbolSearchQuery(symbol);
+    setSymbolSearchQuery(activeSymbol);
     setSnapshotStatus('');
     setSettingsTarget(null);
     setMoreTarget(null);
@@ -3587,12 +3778,25 @@ export default function Home() {
     setSettingsTarget(null);
     setMoreTarget(null);
     setSnapshotStatus('');
-    setSymbolSearchQuery(symbol);
+    setSymbolSearchQuery(activeSymbol);
     setSymbolSearchCategory('all');
     setHeaderPanel('symbolSearch');
   };
   const selectSymbolSearchOption = (nextSymbol: string) => {
-    setSymbol(nextSymbol);
+    setChartPanes((current) =>
+      current.map((pane, index) =>
+        layoutSync.symbol || index === activePaneIndex
+          ? {
+              ...pane,
+              symbol: nextSymbol,
+              loading: true,
+              error: null,
+              mousePos: null,
+              manualPriceRange: null,
+            }
+          : pane
+      )
+    );
     setSymbolSearchQuery(nextSymbol);
     setOpenMenu(null);
     setHeaderPanel(null);
@@ -3600,6 +3804,22 @@ export default function Home() {
     setSnapshotStatus('');
     setSettingsTarget(null);
     setMoreTarget(null);
+  };
+  const updateActiveTimeframe = (nextTimeframe: string) => {
+    setChartPanes((current) =>
+      current.map((pane, index) =>
+        layoutSync.interval || index === activePaneIndex
+          ? {
+              ...pane,
+              timeframe: nextTimeframe,
+              loading: true,
+              error: null,
+              mousePos: null,
+              manualPriceRange: null,
+            }
+          : pane
+      )
+    );
   };
   const toggleHeaderPanel = (panel: HeaderPanelKey) => {
     setOpenMenu(null);
@@ -3677,12 +3897,12 @@ export default function Home() {
   const downloadChartSnapshot = () => {
     closeHeaderOverlays();
 
-    const canvas = canvasRef.current;
+    const canvas = canvasRefs.current[activePaneIndex];
     if (!canvas) return;
 
     const link = document.createElement('a');
     link.href = canvas.toDataURL('image/png');
-    link.download = `procharting-${symbol.toLowerCase()}-${timeframe}.png`;
+    link.download = `procharting-${activeSymbol.toLowerCase()}-${activeTimeframe}.png`;
     link.click();
   };
   const copySnapshotLink = async () => {
@@ -3694,7 +3914,7 @@ export default function Home() {
     }
   };
   const copySnapshotImage = () => {
-    const canvas = canvasRef.current;
+    const canvas = canvasRefs.current[activePaneIndex];
     if (!canvas) return;
 
     canvas.toBlob(async (blob) => {
@@ -3712,7 +3932,7 @@ export default function Home() {
     }, 'image/png');
   };
   const openSnapshotInNewTab = () => {
-    const canvas = canvasRef.current;
+    const canvas = canvasRefs.current[activePaneIndex];
     if (!canvas) return;
 
     window.open(canvas.toDataURL('image/png'), '_blank', 'noopener,noreferrer');
@@ -3765,44 +3985,50 @@ export default function Home() {
     resetView();
     closeHeaderOverlays();
   };
-  const renderInstrumentLegend = (paneIndex: number) =>
-    chartSettings.showStatusLine && legendCandle ? (
-      <div
-        className="instrument-legend-overlay"
-        aria-label={`${formatSymbol(symbol)} ${timeframe.toUpperCase()} OHLC legend pane ${paneIndex}`}
-      >
-        <span className="instrument-legend-symbol">
-          {formatSymbol(symbol)} {timeframe.toUpperCase()}
-        </span>
-        <span className="instrument-legend-field">
-          <span>O</span>
-          {formatPrice(legendCandle.open)}
-        </span>
-        <span className="instrument-legend-field">
-          <span>H</span>
-          {formatPrice(legendCandle.high)}
-        </span>
-        <span className="instrument-legend-field">
-          <span>L</span>
-          {formatPrice(legendCandle.low)}
-        </span>
-        <span className="instrument-legend-field">
-          <span>C</span>
-          {formatPrice(legendCandle.close)}
-        </span>
-        <span className={`instrument-legend-change ${legendTone}`}>
-          {legendChange >= 0 ? '+' : ''}
-          {formatPrice(legendChange)} ({legendChangePercent >= 0 ? '+' : ''}
-          {legendChangePercent.toFixed(2)}%)
-        </span>
-      </div>
-    ) : null;
-  const renderIndicatorLegend = (paneIndex: number, attachRef: boolean) =>
-    chartSettings.showIndicatorLegend && activeIndicators.length > 0 && legendCandle ? (
+  const renderInstrumentLegend = (paneIndex: number) => {
+    const { pane, legendCandle, legendChange, legendChangePercent, legendTone } = getPaneLegendSnapshot(paneIndex);
+
+    return chartSettings.showStatusLine && pane && legendCandle ? (
+        <div
+          className="instrument-legend-overlay"
+          aria-label={`${formatSymbol(pane.symbol)} ${pane.timeframe.toUpperCase()} OHLC legend pane ${paneIndex + 1}`}
+        >
+          <span className="instrument-legend-symbol">
+            {formatSymbol(pane.symbol)} {pane.timeframe.toUpperCase()}
+          </span>
+          <span className="instrument-legend-field">
+            <span>O</span>
+            {formatPrice(legendCandle.open)}
+          </span>
+          <span className="instrument-legend-field">
+            <span>H</span>
+            {formatPrice(legendCandle.high)}
+          </span>
+          <span className="instrument-legend-field">
+            <span>L</span>
+            {formatPrice(legendCandle.low)}
+          </span>
+          <span className="instrument-legend-field">
+            <span>C</span>
+            {formatPrice(legendCandle.close)}
+          </span>
+          <span className={`instrument-legend-change ${legendTone}`}>
+            {legendChange >= 0 ? '+' : ''}
+            {formatPrice(legendChange)} ({legendChangePercent >= 0 ? '+' : ''}
+            {legendChangePercent.toFixed(2)}%)
+          </span>
+        </div>
+      ) : null;
+  };
+  const renderIndicatorLegend = (paneIndex: number, attachRef: boolean) => {
+    const { pane, legendIndex, legendCandle } = getPaneLegendSnapshot(paneIndex);
+    const activeIndicatorSeries = paneIndicatorSeries[paneIndex] ?? {};
+
+    return chartSettings.showIndicatorLegend && activeIndicators.length > 0 && pane && legendCandle ? (
       <div
         ref={attachRef ? indicatorLegendRef : undefined}
         className="indicator-legend-overlay"
-        aria-label={`Active indicators pane ${paneIndex}`}
+        aria-label={`Active indicators pane ${paneIndex + 1}`}
       >
         {activeIndicators.map((indicator, index) => {
           const definition = getIndicatorDefinition(indicator.definitionId);
@@ -3839,7 +4065,7 @@ export default function Home() {
               data-more-open={moreTarget?.indicatorId === indicator.id && moreTarget.paneIndex === paneIndex}
             >
               <div className="indicator-legend-main">
-                <span className="indicator-legend-title">{getIndicatorLegendName(indicator, symbol)}</span>
+                <span className="indicator-legend-title">{getIndicatorLegendName(indicator, pane.symbol)}</span>
                 {indicatorValues.map((item) => (
                   <span key={`${paneIndex}-${indicator.id}-${item.label}`} className="indicator-legend-value" style={{ color: item.color }}>
                     {formatIndicatorNumber(item.value)}
@@ -4024,43 +4250,52 @@ export default function Home() {
         })}
       </div>
     ) : null;
-  const renderPaneOverlays = (paneIndex: number, attachLegendRef: boolean) => (
-    <>
-      {renderInstrumentLegend(paneIndex)}
-      {renderIndicatorLegend(paneIndex, attachLegendRef)}
+  };
+  const retryPane = (paneIndex: number) => {
+    updatePaneState(paneIndex, (pane) => ({ ...pane, refreshNonce: pane.refreshNonce + 1 }));
+  };
+  const renderPaneOverlays = (paneIndex: number, attachLegendRef: boolean) => {
+    const pane = chartPanes[paneIndex];
+    if (!pane) return null;
 
-      {loading && (
-        <div className="chart-overlay">
-          <div className="loading-panel">
-            <span className="loading-line" />
-            <span className="loading-line short" />
-            <span className="state-copy">Loading market data</span>
-          </div>
-        </div>
-      )}
+    return (
+      <>
+        {renderInstrumentLegend(paneIndex)}
+        {renderIndicatorLegend(paneIndex, attachLegendRef)}
 
-      {!loading && error && (
-        <div className="chart-overlay">
-          <div className="state-panel">
-            <strong>Market data unavailable</strong>
-            <span>{error}</span>
-            <button type="button" onClick={() => setRefreshNonce((value) => value + 1)}>
-              Retry
-            </button>
+        {pane.loading && (
+          <div className="chart-overlay">
+            <div className="loading-panel">
+              <span className="loading-line" />
+              <span className="loading-line short" />
+              <span className="state-copy">Loading market data</span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {!loading && !error && candles.length === 0 && (
-        <div className="chart-overlay">
-          <div className="state-panel">
-            <strong>No candles returned</strong>
-            <span>Try another symbol or timeframe.</span>
+        {!pane.loading && pane.error && (
+          <div className="chart-overlay">
+            <div className="state-panel">
+              <strong>Market data unavailable</strong>
+              <span>{pane.error}</span>
+              <button type="button" onClick={() => retryPane(paneIndex)}>
+                Retry
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-    </>
-  );
+        )}
+
+        {!pane.loading && !pane.error && pane.candles.length === 0 && (
+          <div className="chart-overlay">
+            <div className="state-panel">
+              <strong>No candles returned</strong>
+              <span>Try another symbol or timeframe.</span>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
   const featureDialog =
     headerPanel === 'alert' || headerPanel === 'replay' || headerPanel === 'save'
       ? FEATURE_DIALOGS[headerPanel]
@@ -4083,7 +4318,7 @@ export default function Home() {
                 {selectedSymbolOption.base.slice(0, 1)}
               </span>
               <span className="symbol-trigger-copy">
-                <span className="trigger-label">{symbol}</span>
+                <span className="trigger-label">{activeSymbol}</span>
                 <small>{selectedSymbolOption.exchange}</small>
               </span>
               <span className="symbol-data-switch" aria-hidden="true">
@@ -4091,7 +4326,7 @@ export default function Home() {
               </span>
             </button>
           </div>
-          <span className={`feed-dot ${feedStatus}`} aria-label={`Feed ${feedStatus}`} role="status" />
+          <span className={`feed-dot ${activeFeedStatus}`} aria-label={`Feed ${activeFeedStatus}`} role="status" />
 
           <span className="command-divider" aria-hidden="true" />
 
@@ -4100,10 +4335,10 @@ export default function Home() {
             label="Timeframe"
             className="timeframe-dropdown"
             options={TIMEFRAME_OPTIONS}
-            value={timeframe}
+            value={activeTimeframe}
             openMenu={openMenu}
             setOpenMenu={setOpenMenu}
-            onChange={setTimeframe}
+            onChange={updateActiveTimeframe}
           />
 
           <ToolbarDropdown
@@ -4597,7 +4832,7 @@ export default function Home() {
                 </div>
                 <div className="symbol-search-results" role="listbox" aria-label="Symbol search results">
                   {filteredSymbolOptions.map((option) => {
-                    const active = option.symbol === symbol;
+                    const active = option.symbol === activeSymbol;
 
                     return (
                       <button
@@ -4708,7 +4943,7 @@ export default function Home() {
                     {settingsTab === 'symbol' && (
                       <>
                         <strong>Symbol</strong>
-                        <span className="settings-current-symbol">{formatSymbol(symbol)}</span>
+                        <span className="settings-current-symbol">{formatSymbol(activeSymbol)}</span>
                         <div className="settings-segmented" aria-label="Chart type">
                           {CHART_STYLE_OPTIONS.map((option) => (
                             <button
@@ -4836,7 +5071,7 @@ export default function Home() {
                     {settingsTab === 'alerts' && (
                       <>
                         <strong>Alerts</strong>
-                        <span className="settings-current-symbol">Feed {feedStatus}</span>
+                        <span className="settings-current-symbol">Feed {activeFeedStatus}</span>
                       </>
                     )}
                     {settingsTab === 'events' && (
@@ -4869,46 +5104,38 @@ export default function Home() {
             gridTemplateRows: selectedLayout.templateRows,
           }}
         >
-          <ChartPane
-            cell={primaryLayoutCell}
-            paneIndex={1}
-            canvasRef={canvasRef}
-            canvasProps={{
-              'aria-label': `${formatSymbol(symbol)} ${timeframe} chart`,
-              'data-drag-mode': dragMode,
-              'data-manual-price-scale': manualPriceRange ? 'true' : 'false',
-              'data-pointer-area': pointerArea,
-              'data-price-max': manualPriceRange ? manualPriceRange.maxPrice.toFixed(2) : '',
-              'data-price-min': manualPriceRange ? manualPriceRange.minPrice.toFixed(2) : '',
-              'data-view-end': viewRange.endIndex.toFixed(2),
-              'data-view-start': viewRange.startIndex.toFixed(2),
-              style: { cursor: canvasCursor },
-              onMouseMove: handleMouseMove,
-              onMouseDown: handleMouseDown,
-              onMouseUp: handleMouseUp,
-              onMouseLeave: handleMouseLeave,
-              onWheel: handleWheel,
-            }}
-          >
-            {renderPaneOverlays(1, true)}
-          </ChartPane>
-
-          {selectedLayoutCells.slice(1).map((cellSpec, index) => {
-            const paneIndex = index + 2;
+          {selectedLayoutCells.map((cellSpec, paneIndex) => {
+            const pane = chartPanes[paneIndex] ?? activePane;
 
             return (
               <ChartPane
-                key={`${selectedLayout.id}-${paneIndex}`}
+                key={`${selectedLayout.id}-${paneIndex + 1}`}
                 cell={cellSpec}
                 paneIndex={paneIndex}
+                active={activePaneIndex === paneIndex}
+                onActivate={() => setActivePaneIndex(paneIndex)}
                 canvasRef={(node) => {
-                  duplicateCanvasRefs.current[index] = node;
+                  canvasRefs.current[paneIndex] = node;
                 }}
                 canvasProps={{
-                  'aria-label': `${formatSymbol(symbol)} ${timeframe} duplicate chart pane ${paneIndex}`,
+                  'aria-label': `${formatSymbol(pane.symbol)} ${pane.timeframe} chart pane ${paneIndex + 1}`,
+                  'data-active-pane': activePaneIndex === paneIndex ? 'true' : 'false',
+                  'data-drag-mode': pane.dragMode,
+                  'data-manual-price-scale': pane.manualPriceRange ? 'true' : 'false',
+                  'data-pointer-area': pane.pointerArea,
+                  'data-price-max': pane.manualPriceRange ? pane.manualPriceRange.maxPrice.toFixed(2) : '',
+                  'data-price-min': pane.manualPriceRange ? pane.manualPriceRange.minPrice.toFixed(2) : '',
+                  'data-view-end': pane.viewRange.endIndex.toFixed(2),
+                  'data-view-start': pane.viewRange.startIndex.toFixed(2),
+                  style: { cursor: getCanvasCursor(pane) },
+                  onMouseMove: (event) => handleMouseMove(paneIndex, event),
+                  onMouseDown: (event) => handleMouseDown(paneIndex, event),
+                  onMouseUp: handleMouseUp,
+                  onMouseLeave: () => handleMouseLeave(paneIndex),
+                  onWheel: (event) => handleWheel(paneIndex, event),
                 }}
               >
-                {renderPaneOverlays(paneIndex, false)}
+                {renderPaneOverlays(paneIndex, activePaneIndex === paneIndex)}
               </ChartPane>
             );
           })}
