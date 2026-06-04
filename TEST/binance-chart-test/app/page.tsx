@@ -2157,12 +2157,12 @@ export default function Home() {
 
     const compactChart = rect.width < 520;
     const narrowChart = rect.width < 620;
-    const axisFontSize = compactChart ? 11 : 12;
-    const legendFontSize = compactChart ? 12 : 14;
-    const indicatorPaneFontSize = compactChart ? 12 : 13;
-    const rightAxisWidth = compactChart ? 68 : 86;
-    const bottomAxisHeight = compactChart ? 29 : 36;
-    const topLegendHeight = compactChart ? 34 : 44;
+    const axisFontSize = compactChart ? 12 : 13;
+    const legendFontSize = compactChart ? 14 : 16;
+    const indicatorPaneFontSize = compactChart ? 13 : 14;
+    const rightAxisWidth = compactChart ? 72 : 92;
+    const bottomAxisHeight = compactChart ? 31 : 38;
+    const topLegendHeight = compactChart ? 42 : 56;
     const oscillatorCount = visibleOscillatorIndicators.length;
     const requestedVolumeHeight = showVolume ? clamp(rect.height * 0.15, 46, 96) : 0;
     const minMainChartHeight = rect.width < 520 ? 176 : 220;
@@ -2469,7 +2469,7 @@ export default function Home() {
       ctx.fillText(
         `Vol ${formatCompact(latestCandle!.volume)}`,
         volumeArea.left + 2,
-        volumeArea.top + indicatorPaneFontSize + 4
+        volumeArea.top + indicatorPaneFontSize + 5
       );
     }
 
@@ -2578,11 +2578,11 @@ export default function Home() {
       ctx.fillText(
         getIndicatorLegendName(pane.indicator, symbol),
         pane.left + 2,
-        pane.top + indicatorPaneFontSize + 4
+        pane.top + indicatorPaneFontSize + 5
       );
 
       ctx.textAlign = 'right';
-      ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, pane.top + indicatorPaneFontSize + 4);
+      ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, pane.top + indicatorPaneFontSize + 5);
       ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, pane.top + pane.height - 7);
 
       if (definition.formula === 'rsi' || definition.formula === 'stochastic') {
@@ -2599,7 +2599,7 @@ export default function Home() {
 
     if (currentPriceInside) {
       const countdown = formatCountdown(timeframe, latestCandle!.time);
-      const markerHeight = countdown ? 34 : 26;
+      const markerHeight = countdown ? 38 : 30;
       const markerY = clamp(
         currentPriceY - markerHeight / 2,
         chartArea.top,
@@ -2611,12 +2611,12 @@ export default function Home() {
       ctx.fillStyle = '#ffffff';
       ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
       ctx.textAlign = 'left';
-      ctx.fillText(formatPrice(latestCandle!.close), chartArea.left + chartArea.width + 7, markerY + 15);
+      ctx.fillText(formatPrice(latestCandle!.close), chartArea.left + chartArea.width + 7, markerY + 18);
 
       if (countdown) {
         ctx.globalAlpha = 0.84;
         ctx.font = `${Math.max(10, axisFontSize - 1)}px var(--font-geist-mono), ui-monospace, monospace`;
-        ctx.fillText(countdown, chartArea.left + chartArea.width + 7, markerY + 29);
+        ctx.fillText(countdown, chartArea.left + chartArea.width + 7, markerY + 33);
         ctx.globalAlpha = 1;
       }
     }
@@ -2627,7 +2627,7 @@ export default function Home() {
     for (const price of priceTickInfo.ticks) {
       const y = priceToY(price);
       if (y < chartArea.top + 8 || y > chartArea.top + chartArea.height - 8) continue;
-      ctx.fillText(formatPrice(price), rect.width - 8, y + 4);
+      ctx.fillText(formatPrice(price), rect.width - 8, y + 5);
     }
 
     ctx.textAlign = 'center';
@@ -2674,7 +2674,7 @@ export default function Home() {
       ctx.fillStyle = palette.textBright;
       ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
       ctx.textAlign = 'left';
-      ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, mousePos.y + 4);
+      ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, mousePos.y + 5);
 
       const timeLabel = formatTime(timeForIndex(crosshairLogicalIndex), true);
       const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
@@ -2697,16 +2697,22 @@ export default function Home() {
       `C ${formatPrice(activeCandle.close)}`,
       `${activeChange >= 0 ? '+' : ''}${formatPrice(activeChange)}`,
     ];
-    ctx.font = `600 ${legendFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
+    ctx.font = `700 ${legendFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
     ctx.textAlign = 'left';
     let legendX = chartArea.left + 2;
-    const legendBaseline = compactChart ? 22 : 25;
-    const legendGap = narrowChart ? 9 : 16;
+    const legendBaseline = compactChart ? 28 : 34;
+    const legendGap = narrowChart ? 11 : 18;
+    ctx.shadowColor = theme === 'dark' ? 'rgba(0, 0, 0, 0.72)' : 'rgba(255, 255, 255, 0.78)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
     ohlc.forEach((text, index) => {
       ctx.fillStyle = index === 0 ? palette.textBright : index === ohlc.length - 1 ? activeTone : palette.text;
       ctx.fillText(text, legendX, legendBaseline);
       legendX += ctx.measureText(text).width + legendGap;
     });
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
   };
 

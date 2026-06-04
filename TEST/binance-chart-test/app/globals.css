@@ -760,40 +760,40 @@ summary {
   align-items: flex-start;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  left: 16px;
-  max-width: min(680px, calc(100vw - 124px));
+  gap: 5px;
+  left: 18px;
+  max-width: min(760px, calc(100vw - 132px));
   pointer-events: auto;
   position: absolute;
-  top: 50px;
+  top: 64px;
   z-index: 12;
 }
 
 .indicator-legend-row {
   color: var(--text-strong);
   font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
-  font-size: 13px;
-  font-weight: 520;
+  font-size: 15px;
+  font-weight: 620;
   position: relative;
 }
 
 .indicator-legend-main {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
-  border: 1px solid transparent;
-  border-radius: 5px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.16);
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.18);
   display: flex;
-  gap: 9px;
+  gap: 11px;
   max-width: 100%;
-  min-height: 30px;
-  padding: 4px 6px 4px 8px;
+  min-height: 38px;
+  padding: 6px 8px 6px 10px;
   white-space: nowrap;
 }
 
 .chart-terminal[data-theme="light"] .indicator-legend-main {
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 1px 0 rgba(20, 32, 51, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 2px 9px rgba(20, 32, 51, 0.1);
 }
 
 .indicator-legend-row:hover .indicator-legend-main,
@@ -810,16 +810,23 @@ summary {
 .indicator-legend-title {
   color: var(--text-strong);
   flex: 0 1 auto;
-  font-weight: 650;
+  font-weight: 760;
   overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
   text-overflow: ellipsis;
 }
 
 .indicator-legend-value {
   flex: 0 0 auto;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 760;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
+}
+
+.chart-terminal[data-theme="light"] .indicator-legend-title,
+.chart-terminal[data-theme="light"] .indicator-legend-value {
+  text-shadow: none;
 }
 
 .indicator-legend-actions {
@@ -844,11 +851,11 @@ summary {
   border-radius: 4px;
   color: var(--text-muted);
   display: inline-flex;
-  height: 24px;
+  height: 28px;
   justify-content: center;
   outline: 0;
   padding: 0;
-  width: 24px;
+  width: 28px;
 }
 
 .legend-action-button:hover,
@@ -860,9 +867,9 @@ summary {
 .legend-action-glyph {
   color: currentColor;
   display: inline-block;
-  height: 15px;
+  height: 16px;
   position: relative;
-  width: 15px;
+  width: 16px;
 }
 
 .legend-action-glyph.eye::before,
@@ -1291,27 +1298,27 @@ summary {
 
   .indicator-legend-overlay {
     left: 8px;
-    max-width: calc(100vw - 86px);
-    top: 42px;
+    max-width: calc(100vw - 88px);
+    top: 50px;
   }
 
   .indicator-legend-row {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .indicator-legend-main {
-    gap: 6px;
-    min-height: 27px;
-    padding: 3px 4px 3px 6px;
+    gap: 7px;
+    min-height: 31px;
+    padding: 4px 5px 4px 7px;
   }
 
   .indicator-legend-value {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .legend-action-button {
-    height: 22px;
-    width: 22px;
+    height: 24px;
+    width: 24px;
   }
 
   .indicator-settings-panel {

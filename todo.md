@@ -1,3 +1,69 @@
+# Stronger TradingView Legend Visibility Pass
+
+## Goal
+
+Make the top-left OHLC row and the indicator labels below it unmistakably
+visible on the dark chart, using larger TradingView-like chart text and stronger
+study legend contrast.
+
+## Findings / Decisions
+
+- Current `main` has no visible `market-strip`; the remaining visibility issue
+  is the canvas OHLC line and the active-study legend overlay.
+- Live TradingView uses a readable top-left instrument/OHLC line around normal
+  14px UI size, but the local dark chart needs heavier/larger text because the
+  labels sit over dark grid and candle content.
+- Keep the change scoped to `TEST/binance-chart-test/app/page.tsx`,
+  `TEST/binance-chart-test/app/globals.css`, `ARCHITECTURE.md`, and this
+  `todo.md`.
+- Do not change data fetching, indicator calculations, or chart interactions.
+
+## Checklist
+
+- [x] Inspect current `main`, local browser state, and TradingView reference.
+- [x] Increase canvas OHLC/axis/current-price/indicator-pane text hierarchy.
+- [x] Increase active indicator legend row size, contrast, and action targets.
+- [x] Update `ARCHITECTURE.md` for the stronger visible legend treatment.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify with Browser/Playwright/devtools on desktop and mobile.
+- [x] Commit and push `main`.
+
+## Review
+
+Completed the stronger chart legend visibility pass.
+
+- `TEST/binance-chart-test/app/page.tsx` now uses a larger text hierarchy:
+  desktop OHLC legend text is 16px/700, compact OHLC text is 14px/700, axis and
+  current-price marker text are larger, and volume/oscillator pane labels are
+  larger.
+- `TEST/binance-chart-test/app/globals.css` now renders active indicator rows
+  as bigger high-contrast TradingView-style study labels: 15px/760 title/value
+  text, 38px minimum rows, stronger translucent backgrounds, text shadows on
+  dark theme, and 28px desktop action targets. Mobile keeps a 13px/31px compact
+  treatment.
+- `ARCHITECTURE.md` documents the enlarged high-contrast TradingView-style
+  legend and OHLC treatment.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `rg` found no remaining `market-strip`, `Market status`, or `visible bars`
+  source references in `TEST/binance-chart-test/app` or `ARCHITECTURE.md`.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser QA on `http://localhost:3006/` passed on desktop: active study rows
+  measured `15px`, title/value font weights measured `760`, rendered rows
+  measured `42px` high, action buttons measured `28px`, `.market-strip` count
+  was `0`, and local app-origin error logs were empty.
+- Mobile Browser QA at `390x844` passed: active study rows measured `13px`,
+  rendered rows measured `34px`, `.market-strip` count was `0`, there was no
+  horizontal overflow, and local app-origin error logs were empty.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-strong-legend-desktop.png` and
+  `/tmp/procharting-strong-legend-mobile.png`.
+
 # Remove Market Strip From Main
 
 ## Goal
