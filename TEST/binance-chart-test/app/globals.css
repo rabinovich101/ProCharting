@@ -832,7 +832,7 @@ summary {
 .indicator-legend-row {
   color: var(--text-strong);
   font-family: var(--font-geist-sans), ui-sans-serif, sans-serif;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 620;
   position: relative;
 }
@@ -879,7 +879,7 @@ summary {
 .indicator-legend-value {
   flex: 0 0 auto;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 760;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
 }
@@ -1377,7 +1377,7 @@ summary {
   }
 
   .indicator-legend-row {
-    font-size: 13px;
+    font-size: 10.4px;
   }
 
   .indicator-legend-main {
@@ -1387,7 +1387,7 @@ summary {
   }
 
   .indicator-legend-value {
-    font-size: 13px;
+    font-size: 10.4px;
   }
 
   .legend-action-button {

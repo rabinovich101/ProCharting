@@ -2158,7 +2158,7 @@ export default function Home() {
     const compactChart = rect.width < 520;
     const narrowChart = rect.width < 620;
     const axisFontSize = compactChart ? 12 : 13;
-    const indicatorPaneFontSize = compactChart ? 13 : 14;
+    const indicatorPaneFontSize = compactChart ? 10.4 : 11.2;
     const rightAxisWidth = compactChart ? 72 : 92;
     const bottomAxisHeight = compactChart ? 31 : 38;
     const topPlotInset = 0;

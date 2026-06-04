@@ -1,3 +1,60 @@
+# Indicator Font 20 Percent Reduction
+
+## Goal
+
+Make indicator text 20% smaller while leaving the `BTC/USDT` OHLC overlay and
+chart grid geometry unchanged.
+
+## Findings / Decisions
+
+- The visible indicator text lives in two places: active indicator DOM legend
+  rows (`Vol`, `SMA`, etc.) and canvas-drawn indicator pane labels.
+- Current active indicator legend sizes are `15px` desktop and `13px` mobile.
+  A 20% reduction makes them `12px` desktop and `10.4px` mobile.
+- Current canvas indicator pane label sizes are `14px` desktop and `13px`
+  compact. A 20% reduction makes them `11.2px` desktop and `10.4px` compact.
+- Keep action button sizes and overlay spacing stable unless verification shows
+  text layout problems.
+
+## Checklist
+
+- [x] Reduce active indicator legend font sizes by 20%.
+- [x] Reduce canvas indicator pane label font sizes by 20%.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify desktop and mobile with Browser/Playwright/devtools.
+- [x] Update review notes.
+- [x] Commit and push `main`.
+
+## Review
+
+Completed the 20% indicator font reduction.
+
+- `TEST/binance-chart-test/app/globals.css` now uses `12px` for desktop active
+  indicator legend rows/values, down from `15px`.
+- Mobile active indicator legend rows/values now use `10.4px`, down from
+  `13px`.
+- `TEST/binance-chart-test/app/page.tsx` now uses `11.2px` desktop and `10.4px`
+  compact canvas indicator pane labels, down from `14px` and `13px`.
+- The `BTC/USDT` OHLC overlay and chart grid geometry were not changed.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- Browser QA at desktop measured `.indicator-legend-row`,
+  `.indicator-legend-title`, and `.indicator-legend-value` at `12px`, with
+  `.market-strip` count `0` and no horizontal overflow.
+- Mobile Browser QA at `390x844` measured the same indicator row/title/value
+  selectors at `10.4px`, kept indicators below the OHLC overlay, had
+  `.market-strip` count `0`, and had no horizontal overflow.
+- Devtools logs for the local app showed zero local error entries.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-indicator-fonts-20-desktop.png` and
+  `/tmp/procharting-indicator-fonts-20-mobile.png`.
+
 # Exact Top Grid Alignment Follow-Up
 
 ## Goal
