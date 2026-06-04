@@ -26,7 +26,7 @@ currently visible chart one-to-one instead of showing a simplified preview.
 - [x] Update architecture notes and todo review.
 - [x] Run focused typecheck/lint/build checks.
 - [x] Verify two-chart and four-chart duplication with Browser/Playwright/devtools.
-- [ ] Commit and push `main`.
+- [x] Commit and push `main`.
 
 ## Review
 
@@ -66,6 +66,7 @@ Verification results:
 - Saved QA screenshots outside the repo:
   `/tmp/procharting-duplicate-layout-2.png` and
   `/tmp/procharting-duplicate-layout-4.png`.
+- Committed and pushed `main` with `cd721d8`.
 
 # TradingView Layout Setup Split Screen
 
