@@ -45,7 +45,11 @@ export const Platform = {
     if (!this.isWebGPUSupported()) return null;
 
     try {
-      const gpu = (navigator as any).gpu;
+      const gpu = (navigator as NavigatorWithGPU).gpu;
+      if (!gpu) {
+        return null;
+      }
+
       const adapter = await gpu.requestAdapter();
       if (!adapter) return null;
 
@@ -95,8 +99,8 @@ export const Platform = {
     return match?.[1] ?? 'unknown';
   },
 
-  async checkFeatureSupport(): Promise<FeatureSupport> {
-    return {
+  checkFeatureSupport(): Promise<FeatureSupport> {
+    return Promise.resolve({
       webgpu: this.isWebGPUSupported(),
       webgl2: this.isWebGL2Supported(),
       sharedArrayBuffer: this.isSharedArrayBufferSupported(),
@@ -107,9 +111,21 @@ export const Platform = {
       touchEvents: this.isTouchDevice(),
       resizeObserver: 'ResizeObserver' in window,
       intersectionObserver: 'IntersectionObserver' in window,
-    };
+    });
   },
 };
+
+interface NavigatorWithGPU extends Navigator {
+  gpu?: BrowserGPU;
+}
+
+interface BrowserGPU {
+  requestAdapter(): Promise<BrowserGPUAdapter | null>;
+}
+
+interface BrowserGPUAdapter {
+  requestAdapterInfo(): Promise<GPUInfo>;
+}
 
 interface GPUInfo {
   vendor: string;

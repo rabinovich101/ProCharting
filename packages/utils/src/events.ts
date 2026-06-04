@@ -4,10 +4,12 @@ export class EventEmitter<T extends object = Record<string, unknown>> {
   private readonly handlers = new Map<keyof T, Set<EventHandler>>();
 
   on<K extends keyof T>(event: K, handler: EventHandler<T[K]>): void {
-    if (!this.handlers.has(event)) {
-      this.handlers.set(event, new Set());
+    let handlers = this.handlers.get(event);
+    if (!handlers) {
+      handlers = new Set();
+      this.handlers.set(event, handlers);
     }
-    this.handlers.get(event)!.add(handler as EventHandler);
+    handlers.add(handler as EventHandler);
   }
 
   off<K extends keyof T>(event: K, handler: EventHandler<T[K]>): void {

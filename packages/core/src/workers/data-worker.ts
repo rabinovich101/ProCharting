@@ -1,9 +1,38 @@
 /// <reference lib="webworker" />
 
-import type { WorkerMessage, WorkerResponse } from '@procharting/utils';
-import { BinaryDecoder, BinaryEncoder, douglasPeucker, Vec2 } from '@procharting/utils';
+import type { WorkerMessage, WorkerResponse, Vec2 } from '@procharting/utils';
+import { BinaryDecoder, BinaryEncoder, douglasPeucker } from '@procharting/utils';
 
 declare const self: DedicatedWorkerGlobalScope;
+
+type InitData = {
+  bufferSize: number;
+};
+
+type ProcessData = {
+  input: ArrayBuffer;
+  format: string;
+};
+
+type DecimateData = {
+  input: ArrayBuffer;
+  targetPoints: number;
+  algorithm: string;
+};
+
+type AggregateData = {
+  input: ArrayBuffer;
+  interval: number;
+};
+
+type Candle = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
 
 // Message handlers
 self.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
@@ -48,8 +77,8 @@ self.addEventListener('message', (event: MessageEvent<WorkerMessage>) => {
   }
 });
 
-function handleInit(data: any): { dataBuffer: SharedArrayBuffer; metadataBuffer: SharedArrayBuffer } {
-  const { bufferSize } = data;
+function handleInit(data: unknown): { dataBuffer: SharedArrayBuffer; metadataBuffer: SharedArrayBuffer } {
+  const { bufferSize } = readInitData(data);
   
   // Create shared buffers
   if (typeof SharedArrayBuffer !== 'undefined') {
@@ -67,8 +96,8 @@ function handleInit(data: any): { dataBuffer: SharedArrayBuffer; metadataBuffer:
   throw new Error('SharedArrayBuffer not available');
 }
 
-function handleProcess(data: any): ArrayBuffer {
-  const { input, format } = data;
+function handleProcess(data: unknown): ArrayBuffer {
+  const { input, format } = readProcessData(data);
   
   if (format === 'binary') {
     // Process binary data
@@ -97,8 +126,8 @@ function handleProcess(data: any): ArrayBuffer {
   return input;
 }
 
-function handleDecimate(data: any): ArrayBuffer {
-  const { input, targetPoints, algorithm } = data;
+function handleDecimate(data: unknown): ArrayBuffer {
+  const { input, targetPoints, algorithm } = readDecimateData(data);
   
   // Decode points
   const decoder = new BinaryDecoder(input);
@@ -154,19 +183,12 @@ function handleDecimate(data: any): ArrayBuffer {
   return encoder.getBuffer();
 }
 
-function handleAggregate(data: any): ArrayBuffer {
-  const { input, interval } = data;
+function handleAggregate(data: unknown): ArrayBuffer {
+  const { input, interval } = readAggregateData(data);
   
   // Decode OHLC data
   const decoder = new BinaryDecoder(input);
-  const candles: Array<{
-    time: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  }> = [];
+  const candles: Candle[] = [];
   
   while (decoder.hasMore) {
     candles.push({
@@ -180,24 +202,30 @@ function handleAggregate(data: any): ArrayBuffer {
   }
   
   // Group by interval
-  const grouped = new Map<number, typeof candles>();
+  const grouped = new Map<number, Candle[]>();
   
   for (const candle of candles) {
     const key = Math.floor(candle.time / interval) * interval;
-    if (!grouped.has(key)) {
-      grouped.set(key, []);
+    const group = grouped.get(key);
+    if (group) {
+      group.push(candle);
+    } else {
+      grouped.set(key, [candle]);
     }
-    grouped.get(key)!.push(candle);
   }
   
   // Aggregate each group
-  const aggregated: typeof candles = [];
+  const aggregated: Candle[] = [];
   
   for (const [time, group] of grouped) {
     if (group.length === 0) continue;
     
-    const open = group[0]!.open;
-    const close = group[group.length - 1]!.close;
+    const first = group[0];
+    const last = group[group.length - 1];
+    if (!first || !last) continue;
+
+    const open = first.open;
+    const close = last.close;
     const high = Math.max(...group.map(c => c.high));
     const low = Math.min(...group.map(c => c.low));
     const volume = group.reduce((sum, c) => sum + c.volume, 0);
@@ -220,4 +248,67 @@ function handleAggregate(data: any): ArrayBuffer {
   }
   
   return encoder.getBuffer();
+}
+
+function readInitData(data: unknown): InitData {
+  const record = readRecord(data);
+  return {
+    bufferSize: readNumber(record, 'bufferSize'),
+  };
+}
+
+function readProcessData(data: unknown): ProcessData {
+  const record = readRecord(data);
+  return {
+    input: readArrayBuffer(record, 'input'),
+    format: readString(record, 'format'),
+  };
+}
+
+function readDecimateData(data: unknown): DecimateData {
+  const record = readRecord(data);
+  return {
+    input: readArrayBuffer(record, 'input'),
+    targetPoints: readNumber(record, 'targetPoints'),
+    algorithm: readString(record, 'algorithm'),
+  };
+}
+
+function readAggregateData(data: unknown): AggregateData {
+  const record = readRecord(data);
+  return {
+    input: readArrayBuffer(record, 'input'),
+    interval: readNumber(record, 'interval'),
+  };
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('Worker payload must be an object');
+  }
+  return value as Record<string, unknown>;
+}
+
+function readArrayBuffer(record: Record<string, unknown>, field: string): ArrayBuffer {
+  const value = record[field];
+  if (!(value instanceof ArrayBuffer)) {
+    throw new Error(`Worker payload ${field} must be an ArrayBuffer`);
+  }
+  return value;
+}
+
+function readNumber(record: Record<string, unknown>, field: string): number {
+  const value = record[field];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`Worker payload ${field} must be a finite number`);
+  }
+  return value;
+}
+
+function readString(record: Record<string, unknown>, field: string): string {
+  const value = record[field];
+  if (typeof value !== 'string') {
+    throw new Error(`Worker payload ${field} must be a string`);
+  }
+  return value;
 }

@@ -8,7 +8,7 @@ import { BarRenderer } from './renderers/bar';
 
 export class WebGL2Renderer implements Renderer {
   readonly type = 'webgl2' as const;
-  readonly capabilities: RendererCapabilities;
+  capabilities: RendererCapabilities;
   
   private gl!: WebGL2RenderingContext;
   private canvas!: HTMLCanvasElement;
@@ -35,7 +35,7 @@ export class WebGL2Renderer implements Renderer {
     };
   }
 
-  async initialize(canvas: HTMLCanvasElement): Promise<void> {
+  initialize(canvas: HTMLCanvasElement): Promise<void> {
     this.canvas = canvas;
     
     const gl = canvas.getContext('webgl2', {
@@ -56,8 +56,11 @@ export class WebGL2Renderer implements Renderer {
     this.gl = gl;
     
     // Update capabilities based on actual limits
-    (this.capabilities as any).maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-    (this.capabilities as any).maxVertices = gl.getParameter(gl.MAX_ELEMENTS_VERTICES);
+    this.capabilities = {
+      ...this.capabilities,
+      maxTextureSize: this.readNumberParameter(gl.MAX_TEXTURE_SIZE, this.capabilities.maxTextureSize),
+      maxVertices: this.readNumberParameter(gl.MAX_ELEMENTS_VERTICES, this.capabilities.maxVertices),
+    };
     
     // Enable required extensions
     const extensions = [
@@ -92,13 +95,14 @@ export class WebGL2Renderer implements Renderer {
     
     // Setup MSAA framebuffer
     this.setupMSAA();
+    return Promise.resolve();
   }
 
   private setupMSAA(): void {
     const gl = this.gl;
     
     // Check max samples
-    const maxSamples = gl.getParameter(gl.MAX_SAMPLES);
+    const maxSamples = this.readNumberParameter(gl.MAX_SAMPLES, this.samples);
     this.samples = Math.min(this.samples, maxSamples);
     
     if (this.samples <= 1) return; // No MSAA
@@ -254,5 +258,10 @@ export class WebGL2Renderer implements Renderer {
       return { r, g, b, a };
     }
     return { r: 1, g: 1, b: 1, a: 1 };
+  }
+
+  private readNumberParameter(parameter: number, fallback: number): number {
+    const value = this.gl.getParameter(parameter) as unknown;
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
   }
 }

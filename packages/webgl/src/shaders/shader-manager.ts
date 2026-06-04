@@ -43,7 +43,7 @@ export class ShaderManager {
     
     // Get attribute locations
     const attributes: Record<string, number> = {};
-    const numAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
+    const numAttributes = this.readProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
     
     for (let i = 0; i < numAttributes; i++) {
       const info = gl.getActiveAttrib(program, i);
@@ -54,7 +54,7 @@ export class ShaderManager {
     
     // Get uniform locations
     const uniforms: Record<string, WebGLUniformLocation> = {};
-    const numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+    const numUniforms = this.readProgramParameter(program, gl.ACTIVE_UNIFORMS);
     
     for (let i = 0; i < numUniforms; i++) {
       const info = gl.getActiveUniform(program, i);
@@ -124,6 +124,11 @@ export class ShaderManager {
     if (location) {
       this.gl.uniform1i(location, value);
     }
+  }
+
+  private readProgramParameter(program: WebGLProgram, parameter: number): number {
+    const value = this.gl.getProgramParameter(program, parameter) as unknown;
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
   
   destroy(): void {

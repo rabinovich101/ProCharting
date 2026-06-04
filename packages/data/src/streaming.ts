@@ -5,7 +5,7 @@ import { DataBuffer } from './buffer';
 type StreamingEvents = {
   data: ArrayBuffer;
   error: Error;
-  end: void;
+  end: undefined;
 };
 
 export class StreamingDataSource extends EventEmitter<StreamingEvents> {
@@ -91,12 +91,21 @@ export class StreamingDataSource extends EventEmitter<StreamingEvents> {
     const buffer = new ArrayBuffer(batch.length * 8);
     const view = new DataView(buffer);
     
-    batch.forEach((item: any, i) => {
+    batch.forEach((item, i) => {
       const offset = i * 8;
-      view.setFloat32(offset, item.time || 0, true);
-      view.setFloat32(offset + 4, item.value || 0, true);
+      view.setFloat32(offset, this.readNumberField(item, 'time'), true);
+      view.setFloat32(offset + 4, this.readNumberField(item, 'value'), true);
     });
     
     return buffer;
+  }
+
+  private readNumberField(item: unknown, field: string): number {
+    if (typeof item !== 'object' || item === null) {
+      return 0;
+    }
+
+    const value = (item as Record<string, unknown>)[field];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
 }

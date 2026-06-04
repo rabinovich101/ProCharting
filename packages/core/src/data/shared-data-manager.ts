@@ -98,7 +98,7 @@ export class SharedDataManager {
       
       // Copy point data
       for (let j = 0; j < this.pointSize; j++) {
-        resultView[destOffset + j] = sourceView[sourceOffset + j]!;
+        resultView[destOffset + j] = sourceView[sourceOffset + j] ?? 0;
       }
     }
     

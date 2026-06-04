@@ -9,6 +9,15 @@ export enum MessageType {
   Heartbeat = 6,
 }
 
+const MESSAGE_TYPE_VALUES: readonly number[] = [
+  MessageType.Subscribe,
+  MessageType.Unsubscribe,
+  MessageType.Update,
+  MessageType.Snapshot,
+  MessageType.Error,
+  MessageType.Heartbeat,
+];
+
 export interface SubscribeMessage {
   type: MessageType.Subscribe;
   symbols: string[];
@@ -32,8 +41,8 @@ export interface UpdateMessage {
   };
 }
 
-export class BinaryProtocol {
-  static encodeSubscribe(symbols: string[], dataTypes: string[]): ArrayBuffer {
+export const BinaryProtocol = {
+  encodeSubscribe(symbols: string[], dataTypes: string[]): ArrayBuffer {
     const encoder = new BinaryEncoder();
     
     encoder.writeUint8(MessageType.Subscribe);
@@ -49,9 +58,9 @@ export class BinaryProtocol {
     }
     
     return encoder.getBuffer();
-  }
+  },
   
-  static encodeUnsubscribe(symbols: string[]): ArrayBuffer {
+  encodeUnsubscribe(symbols: string[]): ArrayBuffer {
     const encoder = new BinaryEncoder();
     
     encoder.writeUint8(MessageType.Unsubscribe);
@@ -62,11 +71,16 @@ export class BinaryProtocol {
     }
     
     return encoder.getBuffer();
-  }
+  },
   
-  static decodeMessage(buffer: ArrayBuffer): UpdateMessage | null {
+  decodeMessage(buffer: ArrayBuffer): UpdateMessage | null {
     const decoder = new BinaryDecoder(buffer);
     const messageType = decoder.readUint8();
+
+    if (!isMessageType(messageType)) {
+      console.warn('Unknown message type:', messageType);
+      return null;
+    }
     
     switch (messageType) {
       case MessageType.Update:
@@ -81,12 +95,11 @@ export class BinaryProtocol {
         // Heartbeat messages don't need processing
         return null;
       default:
-        console.warn('Unknown message type:', messageType);
         return null;
     }
-  }
+  },
   
-  private static decodeUpdate(decoder: BinaryDecoder): UpdateMessage {
+  decodeUpdate(decoder: BinaryDecoder): UpdateMessage {
     const symbol = decoder.readString();
     const timestamp = decoder.readFloat64();
     
@@ -110,12 +123,16 @@ export class BinaryProtocol {
       timestamp,
       data,
     };
-  }
+  },
   
-  static encodeHeartbeat(): ArrayBuffer {
+  encodeHeartbeat(): ArrayBuffer {
     const encoder = new BinaryEncoder(5);
     encoder.writeUint8(MessageType.Heartbeat);
     encoder.writeUint32(Date.now());
     return encoder.getBuffer();
-  }
+  },
+};
+
+function isMessageType(value: number): value is MessageType {
+  return MESSAGE_TYPE_VALUES.includes(value);
 }

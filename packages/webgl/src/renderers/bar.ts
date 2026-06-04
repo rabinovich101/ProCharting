@@ -1,6 +1,6 @@
 import type { RenderScene, RenderableSeries } from '@procharting/types';
 import type { Mat4 } from '@procharting/utils';
-import type { ShaderManager } from '../shaders/shader-manager';
+import type { ShaderManager, ShaderProgram } from '../shaders/shader-manager';
 import type { BufferManager } from '../buffer-manager';
 import { createVertexArray, setVertexAttribute } from '../utils';
 
@@ -88,35 +88,39 @@ export class BarRenderer {
     gl.bindVertexArray(this.vao);
     
     // Setup vertex attributes
-    const quadBuffer = this.bufferManager.getBuffer('bar_quad')!;
-    const instanceBuffer = this.bufferManager.getBuffer('bar_instances')!;
+    const quadBuffer = this.getBuffer('bar_quad');
+    const instanceBuffer = this.getBuffer('bar_instances');
     
     // Quad attributes (per vertex)
-    setVertexAttribute(gl, program.attributes['a_position']!, quadBuffer, 2, gl.FLOAT, false, 8, 0);
+    setVertexAttribute(gl, this.getAttribute(program, 'a_position'), quadBuffer, 2, gl.FLOAT, false, 8, 0);
     
     // Instance attributes (per instance)
     const instanceStride = 16; // 4 floats * 4 bytes
     gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
     
     // Time
-    gl.enableVertexAttribArray(program.attributes['a_time']!);
-    gl.vertexAttribPointer(program.attributes['a_time']!, 1, gl.FLOAT, false, instanceStride, 0);
-    gl.vertexAttribDivisor(program.attributes['a_time']!, 1);
+    const timeAttribute = this.getAttribute(program, 'a_time');
+    gl.enableVertexAttribArray(timeAttribute);
+    gl.vertexAttribPointer(timeAttribute, 1, gl.FLOAT, false, instanceStride, 0);
+    gl.vertexAttribDivisor(timeAttribute, 1);
     
     // Value
-    gl.enableVertexAttribArray(program.attributes['a_value']!);
-    gl.vertexAttribPointer(program.attributes['a_value']!, 1, gl.FLOAT, false, instanceStride, 4);
-    gl.vertexAttribDivisor(program.attributes['a_value']!, 1);
+    const valueAttribute = this.getAttribute(program, 'a_value');
+    gl.enableVertexAttribArray(valueAttribute);
+    gl.vertexAttribPointer(valueAttribute, 1, gl.FLOAT, false, instanceStride, 4);
+    gl.vertexAttribDivisor(valueAttribute, 1);
     
     // Color
-    gl.enableVertexAttribArray(program.attributes['a_color']!);
-    gl.vertexAttribPointer(program.attributes['a_color']!, 1, gl.FLOAT, false, instanceStride, 8);
-    gl.vertexAttribDivisor(program.attributes['a_color']!, 1);
+    const colorAttribute = this.getAttribute(program, 'a_color');
+    gl.enableVertexAttribArray(colorAttribute);
+    gl.vertexAttribPointer(colorAttribute, 1, gl.FLOAT, false, instanceStride, 8);
+    gl.vertexAttribDivisor(colorAttribute, 1);
     
     // Instance ID
-    gl.enableVertexAttribArray(program.attributes['a_instanceId']!);
-    gl.vertexAttribPointer(program.attributes['a_instanceId']!, 1, gl.FLOAT, false, instanceStride, 12);
-    gl.vertexAttribDivisor(program.attributes['a_instanceId']!, 1);
+    const instanceIdAttribute = this.getAttribute(program, 'a_instanceId');
+    gl.enableVertexAttribArray(instanceIdAttribute);
+    gl.vertexAttribPointer(instanceIdAttribute, 1, gl.FLOAT, false, instanceStride, 12);
+    gl.vertexAttribDivisor(instanceIdAttribute, 1);
     
     // Set uniforms
     this.shaderManager.setUniformMatrix4fv(program, 'u_projection', projection.m);
@@ -144,12 +148,28 @@ export class BarRenderer {
     this.shaderManager.setUniform1f(program, 'u_opacity', 1);
     
     // Draw instanced
-    const indexBuffer = this.bufferManager.getBuffer('bar_indices')!;
+    const indexBuffer = this.getBuffer('bar_indices');
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0, this.instanceCount);
     
     // Cleanup
     gl.bindVertexArray(null);
+  }
+
+  private getBuffer(key: string): WebGLBuffer {
+    const buffer = this.bufferManager.getBuffer(key);
+    if (!buffer) {
+      throw new Error(`Buffer ${key} not found`);
+    }
+    return buffer;
+  }
+
+  private getAttribute(program: ShaderProgram, name: string): number {
+    const attribute = program.attributes[name];
+    if (attribute === undefined || attribute < 0) {
+      throw new Error(`Shader attribute ${name} not found`);
+    }
+    return attribute;
   }
   
   destroy(): void {

@@ -58,8 +58,8 @@ const TIME_INTERVALS_MS = [
   12 * MONTH_MS,
 ];
 
-export class RendererFactory {
-  static create(type: RendererType): Renderer {
+export const RendererFactory = {
+  create(type: RendererType): Renderer {
     if (type === 'auto') {
       type = this.detectBestRenderer();
     }
@@ -85,13 +85,13 @@ export class RendererFactory {
       default:
         throw new Error(`Unknown renderer type: ${type}`);
     }
-  }
+  },
 
-  private static detectBestRenderer(): RendererType {
+  detectBestRenderer(): RendererType {
     return 'canvas2d';
-  }
+  },
 
-  private static createWebGPUWrapper(): Renderer {
+  createWebGPUWrapper(): Renderer {
     let renderer: Renderer | null = null;
     let initPromise: Promise<void> | null = null;
     
@@ -134,9 +134,9 @@ export class RendererFactory {
         renderer?.destroy();
       },
     };
-  }
+  },
 
-  private static createWebGL2Renderer(): Renderer {
+  createWebGL2Renderer(): Renderer {
     let renderer: Renderer | null = null;
     let initPromise: Promise<void> | null = null;
     
@@ -179,9 +179,9 @@ export class RendererFactory {
         renderer?.destroy();
       },
     };
-  }
+  },
 
-  private static createCanvas2DRenderer(): Renderer {
+  createCanvas2DRenderer(): Renderer {
     let canvas: HTMLCanvasElement | null = null;
     let context: CanvasRenderingContext2D | null = null;
 
@@ -223,8 +223,8 @@ export class RendererFactory {
         // Canvas2D doesn't need cleanup
       },
     };
-  }
-}
+  },
+};
 
 function renderCanvasScene(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, scene: RenderScene): void {
   const width = canvas.width;

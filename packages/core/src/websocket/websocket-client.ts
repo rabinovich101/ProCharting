@@ -41,7 +41,9 @@ export class WebSocketClient extends EventEmitter<WebSocketEvents> {
       this.ws.onopen = this.handleOpen.bind(this);
       this.ws.onclose = this.handleClose.bind(this);
       this.ws.onerror = this.handleError.bind(this);
-      this.ws.onmessage = this.handleMessage.bind(this);
+      this.ws.onmessage = (event): void => {
+        void this.handleMessage(event);
+      };
     } catch (error) {
       this.handleError(new Event('error'));
     }
@@ -66,26 +68,45 @@ export class WebSocketClient extends EventEmitter<WebSocketEvents> {
     this.emit('error', event);
   }
   
-  private async handleMessage(event: MessageEvent): Promise<void> {
-    let data: ArrayBuffer | string = event.data;
+  private async handleMessage(event: MessageEvent<unknown>): Promise<void> {
+    let data = await this.readMessageData(event.data);
     
     // Handle compression if enabled
     if (this.options.compression && this.options.compression !== 'none') {
-      data = await this.decompress(data as ArrayBuffer);
+      if (!(data instanceof ArrayBuffer)) {
+        throw new Error('Compressed websocket messages must be binary');
+      }
+      data = await this.decompress(data);
     }
     
     // Convert to appropriate format
     if (this.options.protocol === 'json' && data instanceof ArrayBuffer) {
-      data = this.decoder!.decode(data);
+      const decoder = this.decoder ?? new TextDecoder();
+      data = decoder.decode(data);
     }
     
     this.emit('message', data);
+  }
+
+  private async readMessageData(data: unknown): Promise<ArrayBuffer | string> {
+    if (data instanceof ArrayBuffer || typeof data === 'string') {
+      return data;
+    }
+
+    if (data instanceof Blob) {
+      return data.arrayBuffer();
+    }
+
+    throw new Error('Unsupported websocket message payload');
   }
   
   private async decompress(data: ArrayBuffer): Promise<ArrayBuffer> {
     switch (this.options.compression) {
       case 'gzip': {
-        const stream = new Response(data).body!;
+        const stream = new Response(data).body;
+        if (!stream) {
+          throw new Error('Failed to create gzip response stream');
+        }
         const decompressed = stream.pipeThrough(new DecompressionStream('gzip'));
         const buffer = await new Response(decompressed).arrayBuffer();
         return buffer;
@@ -114,7 +135,10 @@ export class WebSocketClient extends EventEmitter<WebSocketEvents> {
   
   private flushMessageQueue(): void {
     while (this.messageQueue.length > 0 && this.ws?.readyState === WebSocket.OPEN) {
-      const message = this.messageQueue.shift()!;
+      const message = this.messageQueue.shift();
+      if (!message) {
+        break;
+      }
       this.ws.send(message);
     }
   }
@@ -144,7 +168,10 @@ export class WebSocketClient extends EventEmitter<WebSocketEvents> {
   }
   
   private scheduleReconnect(): void {
-    const reconnect = this.options.reconnect!;
+    const reconnect = this.options.reconnect;
+    if (!reconnect) {
+      return;
+    }
     const baseDelay = reconnect.delay ?? 1000;
     const maxDelay = reconnect.maxDelay ?? 30000;
     

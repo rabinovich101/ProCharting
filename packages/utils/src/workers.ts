@@ -31,7 +31,7 @@ export class WorkerPool {
   private initialize(): void {
     for (let i = 0; i < this.size; i++) {
       const worker = this.workerFactory();
-      worker.addEventListener('message', (event) => this.handleMessage(event));
+      worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => this.handleMessage(event));
       worker.addEventListener('error', (event) => this.handleError(event));
       this.workers.push(worker);
       this.available.push(worker);
@@ -70,7 +70,11 @@ export class WorkerPool {
         checkAvailable();
       });
     }
-    return this.available.pop()!;
+    const worker = this.available.pop();
+    if (!worker) {
+      throw new Error('No worker available');
+    }
+    return worker;
   }
 
   private handleMessage(event: MessageEvent<WorkerResponse>): void {
@@ -102,7 +106,7 @@ export class WorkerPool {
   }
 }
 
-export function createWorkerFromFunction(fn: Function): Worker {
+export function createWorkerFromFunction(fn: (type: string, data: unknown) => unknown): Worker {
   const blob = new Blob([`
     self.addEventListener('message', async (event) => {
       const { id, type, data } = event.data;

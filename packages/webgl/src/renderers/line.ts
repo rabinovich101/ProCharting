@@ -1,6 +1,6 @@
 import type { RenderScene, RenderableSeries } from '@procharting/types';
 import type { Mat4 } from '@procharting/utils';
-import type { ShaderManager } from '../shaders/shader-manager';
+import type { ShaderManager, ShaderProgram } from '../shaders/shader-manager';
 import type { BufferManager } from '../buffer-manager';
 import { createVertexArray } from '../utils';
 
@@ -74,16 +74,18 @@ export class LineRenderer {
     gl.bindVertexArray(this.vao);
     
     // Setup vertex attributes
-    const vertexBuffer = this.bufferManager.getBuffer('line_vertices')!;
+    const vertexBuffer = this.getBuffer('line_vertices');
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
     
     // Position attribute
-    gl.enableVertexAttribArray(program.attributes['a_position']!);
-    gl.vertexAttribPointer(program.attributes['a_position']!, 2, gl.FLOAT, false, 12, 0);
+    const positionAttribute = this.getAttribute(program, 'a_position');
+    gl.enableVertexAttribArray(positionAttribute);
+    gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 12, 0);
     
     // Direction attribute
-    gl.enableVertexAttribArray(program.attributes['a_direction']!);
-    gl.vertexAttribPointer(program.attributes['a_direction']!, 1, gl.FLOAT, false, 12, 8);
+    const directionAttribute = this.getAttribute(program, 'a_direction');
+    gl.enableVertexAttribArray(directionAttribute);
+    gl.vertexAttribPointer(directionAttribute, 1, gl.FLOAT, false, 12, 8);
     
     // Set uniforms
     this.shaderManager.setUniformMatrix4fv(program, 'u_projection', projection.m);
@@ -111,7 +113,7 @@ export class LineRenderer {
     this.shaderManager.setUniform1f(program, 'u_opacity', series.style.strokeOpacity || 1);
     
     // Draw
-    const indexBuffer = this.bufferManager.getBuffer('line_indices')!;
+    const indexBuffer = this.getBuffer('line_indices');
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
     
@@ -128,6 +130,22 @@ export class LineRenderer {
       return { r, g, b, a: 1 };
     }
     return { r: 0, g: 0.4, b: 1, a: 1 };
+  }
+
+  private getBuffer(key: string): WebGLBuffer {
+    const buffer = this.bufferManager.getBuffer(key);
+    if (!buffer) {
+      throw new Error(`Buffer ${key} not found`);
+    }
+    return buffer;
+  }
+
+  private getAttribute(program: ShaderProgram, name: string): number {
+    const attribute = program.attributes[name];
+    if (attribute === undefined || attribute < 0) {
+      throw new Error(`Shader attribute ${name} not found`);
+    }
+    return attribute;
   }
   
   destroy(): void {

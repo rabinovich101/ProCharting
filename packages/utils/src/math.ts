@@ -117,27 +117,29 @@ export const Mat4 = {
 
   translate(out: Mat4, v: Vec3): Mat4 {
     const m = out.m;
-    m[12] = m[0]! * v.x + m[4]! * v.y + m[8]! * v.z + m[12]!;
-    m[13] = m[1]! * v.x + m[5]! * v.y + m[9]! * v.z + m[13]!;
-    m[14] = m[2]! * v.x + m[6]! * v.y + m[10]! * v.z + m[14]!;
-    m[15] = m[3]! * v.x + m[7]! * v.y + m[11]! * v.z + m[15]!;
+    const read = (index: number): number => m[index] ?? 0;
+    m[12] = read(0) * v.x + read(4) * v.y + read(8) * v.z + read(12);
+    m[13] = read(1) * v.x + read(5) * v.y + read(9) * v.z + read(13);
+    m[14] = read(2) * v.x + read(6) * v.y + read(10) * v.z + read(14);
+    m[15] = read(3) * v.x + read(7) * v.y + read(11) * v.z + read(15);
     return out;
   },
 
   scale(out: Mat4, v: Vec3): Mat4 {
     const m = out.m;
-    m[0] = m[0]! * v.x;
-    m[1] = m[1]! * v.x;
-    m[2] = m[2]! * v.x;
-    m[3] = m[3]! * v.x;
-    m[4] = m[4]! * v.y;
-    m[5] = m[5]! * v.y;
-    m[6] = m[6]! * v.y;
-    m[7] = m[7]! * v.y;
-    m[8] = m[8]! * v.z;
-    m[9] = m[9]! * v.z;
-    m[10] = m[10]! * v.z;
-    m[11] = m[11]! * v.z;
+    const read = (index: number): number => m[index] ?? 0;
+    m[0] = read(0) * v.x;
+    m[1] = read(1) * v.x;
+    m[2] = read(2) * v.x;
+    m[3] = read(3) * v.x;
+    m[4] = read(4) * v.y;
+    m[5] = read(5) * v.y;
+    m[6] = read(6) * v.y;
+    m[7] = read(7) * v.y;
+    m[8] = read(8) * v.z;
+    m[9] = read(9) * v.z;
+    m[10] = read(10) * v.z;
+    m[11] = read(11) * v.z;
     return out;
   },
 };
@@ -148,11 +150,19 @@ export function douglasPeucker(points: Vec2[], tolerance: number): Vec2[] {
   let maxDistance = 0;
   let maxIndex = 0;
 
-  const first = points[0]!;
-  const last = points[points.length - 1]!;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) {
+    return points;
+  }
 
   for (let i = 1; i < points.length - 1; i++) {
-    const distance = perpendicularDistance(points[i]!, first, last);
+    const point = points[i];
+    if (!point) {
+      continue;
+    }
+
+    const distance = perpendicularDistance(point, first, last);
     if (distance > maxDistance) {
       maxDistance = distance;
       maxIndex = i;

@@ -1,3 +1,67 @@
+# Full Verification Green Plan
+
+## Goal
+
+Make the project verification surface green after the indicator work: root tests,
+typecheck, lint, builds, and browser QA for the standalone chart app.
+
+## Findings
+
+- `pnpm test` passes: the `packages/prices` Vitest suite reports 10 passing
+  tests, and packages without test files exit cleanly with `--passWithNoTests`.
+- `pnpm run typecheck` passes for packages and the standalone Next test app.
+- `pnpm run lint` is the remaining failing command. The failures are legacy
+  package lint errors in `packages/core`, `packages/data`, `packages/utils`,
+  `packages/webgl`, and `packages/webgpu`; the chart app passes focused lint.
+- The Next dev server Internal Server Error was from generated `.next` cache
+  corruption after running `next build` while dev was active. Cleaning `.next`
+  and restarting dev fixed it without source changes.
+
+## Scope / Decisions
+
+- Keep the indicator UI behavior unchanged while making repository verification
+  pass.
+- Fix lint failures in source code rather than weakening the lint script or
+  hiding package folders from lint.
+- Keep edits mechanical and local to lint/root-cause issues: type imports,
+  safer typed helpers, no floating promises, no non-null assertions, no raw
+  `any` where a narrower local type is enough, and no console warnings in
+  library code.
+- Stop the Next dev server before running production builds so `.next` is not
+  corrupted again.
+
+## Checklist
+
+- [x] Run root test, typecheck, and lint to identify the failing surface.
+- [x] Add focused lint fixes in package code.
+- [x] Run focused ESLint until clean.
+- [x] Run `pnpm run lint` until clean.
+- [x] Run `pnpm test`, `pnpm run typecheck`, and root/chart builds.
+- [x] Restart the chart app from a clean `.next` cache and verify with
+      Browser/Playwright.
+- [x] Update this review with exact verification results.
+- [x] Commit, push, and confirm the worktree is clean.
+
+## Review
+
+Completed package lint cleanup and full verification.
+
+- `pnpm run lint` passes at the root.
+- `pnpm test` passes: `packages/prices` reports 10 passing tests, and packages
+  without test files exit cleanly through `--passWithNoTests`.
+- `pnpm run typecheck` passes for package projects and
+  `TEST/binance-chart-test`.
+- `pnpm run build` passes for packages, examples, benchmarks, and the root
+  facade build.
+- `pnpm --dir TEST/binance-chart-test build` passes. Next reports the existing
+  multiple-lockfile warning for `TEST/binance-chart-test/package-lock.json`, but
+  compilation, lint/type validation, and static generation complete.
+- Browser QA on `http://127.0.0.1:3006` passes from a clean `.next` cache:
+  the page loads, `/api/binance` returns `200`, the indicator picker opens with
+  the broad built-in list, Bollinger Bands can be added, the BB legend appears,
+  settings controls open, remove works, and the active indicator count returns
+  from 3 to 2. Browser devtools show no local app-origin console errors.
+
 # TradingView-Style Indicator Picker And Legend Plan
 
 ## Goal

@@ -9,16 +9,28 @@ export class BufferManager {
   
   constructor(private gl: WebGL2RenderingContext) {
     this.bufferPool = new MemoryPool({
-      factory: () => this.gl.createBuffer()!,
-      reset: (_buffer) => {
+      factory: (): WebGLBuffer => {
+        const buffer = this.gl.createBuffer();
+        if (!buffer) {
+          throw new Error('Failed to create pooled buffer');
+        }
+        return buffer;
+      },
+      reset: (_buffer: WebGLBuffer): void => {
         // Buffers don't need reset, just reuse
       },
       maxSize: 100,
     });
     
     this.vaoPool = new MemoryPool({
-      factory: () => this.gl.createVertexArray()!,
-      reset: (_vao) => {
+      factory: (): WebGLVertexArrayObject => {
+        const vao = this.gl.createVertexArray();
+        if (!vao) {
+          throw new Error('Failed to create pooled vertex array');
+        }
+        return vao;
+      },
+      reset: (_vao: WebGLVertexArrayObject): void => {
         // VAOs don't need reset
       },
       maxSize: 50,

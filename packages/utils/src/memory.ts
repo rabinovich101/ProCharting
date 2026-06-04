@@ -61,7 +61,7 @@ export class RingBuffer {
     const writeView = new Uint8Array(this.buffer);
 
     for (let i = 0; i < bytes.length; i++) {
-      writeView[this.writeOffset] = bytes[i]!;
+      writeView[this.writeOffset] = bytes[i] ?? 0;
       this.writeOffset = (this.writeOffset + 1) % this.capacity;
     }
 
@@ -79,7 +79,7 @@ export class RingBuffer {
     const readView = new Uint8Array(this.buffer);
 
     for (let i = 0; i < length; i++) {
-      resultView[i] = readView[this.readOffset]!;
+      resultView[i] = readView[this.readOffset] ?? 0;
       this.readOffset = (this.readOffset + 1) % this.capacity;
     }
 
@@ -98,7 +98,7 @@ export class RingBuffer {
     let offset = this.readOffset;
 
     for (let i = 0; i < length; i++) {
-      resultView[i] = readView[offset]!;
+      resultView[i] = readView[offset] ?? 0;
       offset = (offset + 1) % this.capacity;
     }
 
@@ -125,7 +125,7 @@ export function createSharedBuffer(size: number): SharedArrayBuffer | ArrayBuffe
 
 export function transferArrayBuffer(buffer: ArrayBuffer): ArrayBuffer {
   if ('transfer' in buffer && typeof buffer.transfer === 'function') {
-    return buffer.transfer();
+    return (buffer.transfer as () => ArrayBuffer)();
   }
   // Fallback for browsers without ArrayBuffer.transfer()
   const newBuffer = new ArrayBuffer(buffer.byteLength);

@@ -1,4 +1,4 @@
-import type { Chart, ChartOptions, ChartEventMap, ChartGridControlId, ConnectionOptions, InteractionOptions, Renderer, RenderableSeries, RenderTheme, Series, SeriesOptions } from '@procharting/types';
+import type { Chart, ChartOptions, ChartEventMap, ChartGridControlId, ConnectionOptions, InteractionOptions, Renderer, RenderableOverlay, RenderableSeries, RenderTheme, Series, SeriesOptions } from '@procharting/types';
 import type { StreamingOptions } from '@procharting/types';
 import { EventEmitter, type EventHandler } from '@procharting/utils';
 import { createCssGridLayout, getBottomControlAt, getGridArea, resolveGridOptions, type CssGridLayout, type GridHitArea } from './grid-layout';
@@ -12,6 +12,12 @@ type ChartEventPayloadMap = {
 
 type NumericRecord = Record<string, unknown>;
 type DragMode = 'none' | 'time-pan' | 'price-scale';
+type RealtimeUpdateMessage = {
+  symbol: string;
+  data: {
+    close?: number;
+  };
+};
 
 type RenderSeriesStyle = {
   color?: string;
@@ -42,7 +48,7 @@ const DARK_RENDER_THEME: RenderTheme = {
 
 export function createChart(container: HTMLElement | string, options: ChartOptions = {}): Chart {
   const element = typeof container === 'string' 
-    ? document.querySelector<HTMLElement>(container)! 
+    ? document.querySelector<HTMLElement>(container)
     : container;
     
   if (!element) {
@@ -107,7 +113,7 @@ class ChartImpl implements Chart {
     this.updateCanvasSize();
     
     // Initialize renderer
-    this.initializeRenderer();
+    void this.initializeRenderer();
     
     // Setup resize observer
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
@@ -675,16 +681,20 @@ class ChartImpl implements Chart {
   }
 
   private readNumberField(point: unknown, field: string): number {
+    return this.readOptionalNumberField(point, field) ?? 0;
+  }
+
+  private readOptionalNumberField(point: unknown, field: string): number | undefined {
     if (typeof point !== 'object' || point === null) {
-      return 0;
+      return undefined;
     }
 
     const value = (point as NumericRecord)[field];
-    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
   }
   
-  private createOverlays(): any[] {
-    const overlays: any[] = [];
+  private createOverlays(): RenderableOverlay[] {
+    const overlays: RenderableOverlay[] = [];
     
     // Add crosshair overlay if enabled and mouse is over chart
     if (
@@ -797,19 +807,23 @@ class ChartImpl implements Chart {
     
     for (const series of this.series.values()) {
       if (Array.isArray(series.options.data)) {
-        const data = series.options.data as any[];
-        for (const point of data) {
-          if (point.time !== undefined) {
-            minX = Math.min(minX, point.time);
-            maxX = Math.max(maxX, point.time);
+        for (const point of series.options.data) {
+          const time = this.readOptionalNumberField(point, 'time');
+          const value = this.readOptionalNumberField(point, 'value');
+          const high = this.readOptionalNumberField(point, 'high');
+          const low = this.readOptionalNumberField(point, 'low');
+
+          if (time !== undefined) {
+            minX = Math.min(minX, time);
+            maxX = Math.max(maxX, time);
           }
-          if (point.value !== undefined) {
-            minY = Math.min(minY, point.value);
-            maxY = Math.max(maxY, point.value);
+          if (value !== undefined) {
+            minY = Math.min(minY, value);
+            maxY = Math.max(maxY, value);
           }
-          if (point.high !== undefined && point.low !== undefined) {
-            minY = Math.min(minY, point.low);
-            maxY = Math.max(maxY, point.high);
+          if (high !== undefined && low !== undefined) {
+            minY = Math.min(minY, low);
+            maxY = Math.max(maxY, high);
           }
         }
       }
@@ -844,17 +858,24 @@ class ChartImpl implements Chart {
     
     for (const series of this.series.values()) {
       if (Array.isArray(series.options.data)) {
-        const data = series.options.data as any[];
-        for (const point of data) {
-          const time = point.time || point.x;
+        for (const point of series.options.data) {
+          const time = this.readOptionalNumberField(point, 'time') ?? this.readOptionalNumberField(point, 'x');
+          if (time === undefined) {
+            continue;
+          }
+
           if (time >= this.viewState.dataMinX && time <= this.viewState.dataMaxX) {
-            if (point.value !== undefined) {
-              minY = Math.min(minY, point.value);
-              maxY = Math.max(maxY, point.value);
+            const value = this.readOptionalNumberField(point, 'value');
+            const high = this.readOptionalNumberField(point, 'high');
+            const low = this.readOptionalNumberField(point, 'low');
+
+            if (value !== undefined) {
+              minY = Math.min(minY, value);
+              maxY = Math.max(maxY, value);
             }
-            if (point.high !== undefined && point.low !== undefined) {
-              minY = Math.min(minY, point.low);
-              maxY = Math.max(maxY, point.high);
+            if (high !== undefined && low !== undefined) {
+              minY = Math.min(minY, low);
+              maxY = Math.max(maxY, high);
             }
           }
         }
@@ -920,7 +941,7 @@ class ChartImpl implements Chart {
       } else {
         // Handle JSON messages
         try {
-          const message = JSON.parse(data);
+          const message = JSON.parse(data) as unknown;
           this.handleJSONUpdate(message);
         } catch (error) {
           console.error('Failed to parse message:', error);
@@ -930,7 +951,6 @@ class ChartImpl implements Chart {
     
     // Handle connection events
     this.wsClient.on('open', () => {
-      console.log('WebSocket connected');
       // Subscribe to symbols from all series
       const symbols: string[] = [];
       for (const series of this.series.values()) {
@@ -944,19 +964,15 @@ class ChartImpl implements Chart {
       }
     });
     
-    this.wsClient.on('close', () => {
-      console.log('WebSocket disconnected');
-    });
+    this.wsClient.on('close', () => undefined);
     
-    this.wsClient.on('reconnecting', ({ attempt, delay }) => {
-      console.log(`Reconnecting... Attempt ${attempt}, delay ${delay}ms`);
-    });
+    this.wsClient.on('reconnecting', () => undefined);
     
     // Connect
     this.wsClient.connect();
   }
   
-  private handleRealtimeUpdate(message: any): void {
+  private handleRealtimeUpdate(message: RealtimeUpdateMessage): void {
     // Find series by symbol
     for (const series of this.series.values()) {
       if (series.options.name === message.symbol) {
@@ -964,17 +980,29 @@ class ChartImpl implements Chart {
         const data = message.data;
         if (data.close !== undefined) {
           // TODO: Update series data efficiently
-          console.log('Realtime update:', message.symbol, data);
         }
       }
     }
   }
   
-  private handleJSONUpdate(message: any): void {
+  private handleJSONUpdate(message: unknown): void {
     // Handle JSON format updates
-    if (message.type === 'update' && message.data) {
+    if (this.isJSONRealtimeUpdate(message)) {
       this.handleRealtimeUpdate(message);
     }
+  }
+
+  private isJSONRealtimeUpdate(message: unknown): message is RealtimeUpdateMessage & { type: 'update' } {
+    if (typeof message !== 'object' || message === null) {
+      return false;
+    }
+
+    const record = message as NumericRecord;
+    if (record['type'] !== 'update' || typeof record['symbol'] !== 'string') {
+      return false;
+    }
+
+    return typeof record['data'] === 'object' && record['data'] !== null;
   }
 
   on<K extends keyof ChartEventMap>(event: K, handler: ChartEventMap[K]): void {
@@ -1015,18 +1043,25 @@ class SeriesImpl<T extends SeriesOptions> implements Series<T> {
   
   appendData(data: T['data'][0]): void {
     if (Array.isArray(this.options.data)) {
-      (this.options.data as any[]).push(data);
+      const seriesData = this.options.data as Array<T['data'][number]>;
+      seriesData.push(data);
       this.chart.resetView();
     }
   }
   
   updateLast(data: Partial<T['data'][0]>): void {
     if (Array.isArray(this.options.data) && this.options.data.length > 0) {
+      const seriesData = this.options.data as Array<T['data'][number]>;
       const lastIndex = this.options.data.length - 1;
-      (this.options.data as any[])[lastIndex] = {
-        ...(this.options.data as any[])[lastIndex],
+      const previous = seriesData[lastIndex];
+      if (!previous) {
+        return;
+      }
+
+      seriesData[lastIndex] = {
+        ...previous,
         ...data
-      };
+      } as T['data'][number];
       this.chart.resetView();
     }
   }

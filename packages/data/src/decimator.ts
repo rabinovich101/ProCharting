@@ -1,5 +1,6 @@
 import type { DataDecimator as IDataDecimator } from '@procharting/types';
-import { douglasPeucker, Vec2 } from '@procharting/utils';
+import type { Vec2 } from '@procharting/utils';
+import { douglasPeucker } from '@procharting/utils';
 
 export class DataDecimator implements IDataDecimator {
   decimate(data: ArrayBuffer, targetPoints: number): ArrayBuffer {
@@ -25,7 +26,9 @@ export class DataDecimator implements IDataDecimator {
     const simplified = douglasPeucker(vec2Points, tolerance);
     
     // Convert back to data points
-    const simplifiedPoints = simplified.map(v => points[Math.round(v.x)]!);
+    const simplifiedPoints = simplified
+      .map(v => points[Math.round(v.x)])
+      .filter((point): point is { time: number; value: number } => point !== undefined);
     
     // Encode back to ArrayBuffer
     return this.encodePoints(simplifiedPoints);

@@ -1,4 +1,4 @@
-import type { Renderer, RendererCapabilities, RenderScene } from '@procharting/types';
+import type { Renderer, RendererCapabilities, RenderableSeries, RenderScene } from '@procharting/types';
 import { GPUResourceManager } from './resources';
 import { createPipeline } from './pipeline';
 import { CandlestickShader } from './shaders/candlestick';
@@ -180,7 +180,7 @@ export class WebGPURenderer implements Renderer {
   private renderSeries(
     passEncoder: GPURenderPassEncoder,
     pipeline: GPURenderPipeline,
-    _series: any,
+    _series: RenderableSeries,
     _scene: RenderScene,
   ): void {
     passEncoder.setPipeline(pipeline);
