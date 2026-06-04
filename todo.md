@@ -28,7 +28,7 @@ theme/reset buttons and market readout there.
 - [x] Update `ARCHITECTURE.md` for the standalone header contract.
 - [x] Run focused typecheck/lint/build checks.
 - [x] Verify desktop and mobile with Browser/Playwright/devtools.
-- [ ] Commit and push `main`.
+- [x] Commit and push `main`.
 
 ## Review
 
@@ -69,6 +69,7 @@ Verification results:
 - Saved screenshots outside the repo:
   `/tmp/procharting-tradingview-header-desktop.png` and
   `/tmp/procharting-tradingview-header-mobile.png`.
+- Committed and pushed `main` with `a4d5282`.
 
 # Indicator Settings Gear Icon
 
