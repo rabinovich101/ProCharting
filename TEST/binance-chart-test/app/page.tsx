@@ -2161,7 +2161,7 @@ export default function Home() {
     const indicatorPaneFontSize = compactChart ? 13 : 14;
     const rightAxisWidth = compactChart ? 72 : 92;
     const bottomAxisHeight = compactChart ? 31 : 38;
-    const topPlotInset = compactChart ? 6 : 8;
+    const topPlotInset = 0;
     const oscillatorCount = visibleOscillatorIndicators.length;
     const requestedVolumeHeight = showVolume ? clamp(rect.height * 0.15, 46, 96) : 0;
     const minMainChartHeight = rect.width < 520 ? 176 : 220;

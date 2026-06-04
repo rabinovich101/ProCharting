@@ -1,3 +1,56 @@
+# Exact Top Grid Alignment Follow-Up
+
+## Goal
+
+Move the chart grid fully up into the same top band as the `BTC/USDT` overlay,
+with no remaining top plot inset.
+
+## Findings / Decisions
+
+- The previous fix moved the grid behind the overlay but intentionally left a
+  small `topPlotInset` (`8px` desktop, `6px` compact).
+- The requested behavior is stricter: the plot/grid should begin at the exact
+  top of the chart canvas/stage, behind the `BTC/USDT` overlay.
+- Keep this as a focused geometry change only.
+
+## Checklist
+
+- [x] Set the chart plot top inset to `0`.
+- [x] Verify the plot hit area starts at the first pixel band below the topbar.
+- [x] Run focused typecheck/lint/build checks.
+- [x] Verify desktop and mobile with Browser/Playwright/devtools.
+- [x] Update `ARCHITECTURE.md` and review notes.
+- [x] Commit and push `main`.
+
+## Review
+
+Completed the exact top grid alignment follow-up.
+
+- `TEST/binance-chart-test/app/page.tsx` now sets `topPlotInset` to `0`, so the
+  chart plot/grid begins at the exact top of the canvas behind the `BTC/USDT`
+  overlay.
+- `ARCHITECTURE.md` now states that the grid begins at the top of the chart
+  stage behind the floating legend.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `rg` found no remaining `topLegendHeight`, responsive `topPlotInset`, or
+  market-strip source references.
+- Desktop Browser QA at `1280x720` passed: moving the pointer `1px` below the
+  canvas top reported `data-pointer-area="plot"`.
+- Mobile Browser QA at `390x844` passed: moving the pointer `1px` below the
+  canvas top reported `data-pointer-area="plot"`, with no horizontal overflow
+  and the indicator legend still below the `BTC/USDT` overlay.
+- Devtools logs for the local app showed zero local error entries.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Saved screenshots outside the repo:
+  `/tmp/procharting-grid-exact-top-desktop.png` and
+  `/tmp/procharting-grid-exact-top-mobile.png`.
+
 # TradingView Grid Top Alignment Fix
 
 ## Goal

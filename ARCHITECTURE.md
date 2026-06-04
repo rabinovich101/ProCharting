@@ -258,8 +258,8 @@ The chart app supports:
   synced to the latest candle or the candle under the crosshair. The canvas no
   longer paints that instrument row directly, which keeps the white-rectangle
   OHLC area crisp and readable over the dark grid. The canvas plot/grid begins
-  near the top of the chart stage behind this overlay instead of reserving a
-  blank legend strip, matching TradingView's floating-legend layout.
+  at the top of the chart stage behind this overlay instead of reserving a blank
+  legend strip, matching TradingView's floating-legend layout.
 - Active indicators are stored as registry-backed instances with mutable
   settings. A separate top-left HTML legend sits below the instrument/OHLC row
   with enlarged, high-contrast TradingView-style typography and exposes
