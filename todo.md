@@ -1,3 +1,67 @@
+# Remove Visible Candle Range Label Plan
+
+## Goal
+
+Remove the small top-right candle range/count text from the Binance chart test
+canvas because it is a visual diagnostic, not user-facing trading information.
+
+## Findings
+
+- The screenshot text, for example `892-1000 +1 of 1000`, is generated in
+  `TEST/binance-chart-test/app/page.tsx` as a `rangeLabel`.
+- It represents the visible candle index range, optional future/right-margin
+  bars, and the total loaded candle count.
+- The same logical range information remains available through non-visible
+  canvas `data-*` diagnostics for QA/devtools, so the visual label is not
+  needed.
+
+## Scope / Decisions
+
+- Remove only the `rangeLabel` canvas drawing block.
+- Keep the top status row that shows total candles and bars visible.
+- Keep candles, price labels, OHLC legend, crosshair, volume, MA20, and
+  diagnostics unchanged.
+- No product question is blocking this task; the requested behavior is clear
+  from the screenshot.
+
+## Checklist
+
+- [x] Inspect CodeGraph/project context and locate the label source.
+- [x] Remove the canvas range-label calculation and draw call.
+- [x] Update `ARCHITECTURE.md` to clarify that logical range diagnostics are
+      non-visible.
+- [x] Run focused code checks.
+- [x] Verify the local chart visually with Browser/Playwright.
+- [x] Add review notes with files changed and verification results.
+- [x] Commit, push, and confirm the working tree is clean.
+
+## Review
+
+Removed the visible candle range label from the Binance chart test canvas.
+
+- `TEST/binance-chart-test/app/page.tsx` no longer calculates or draws
+  `rangeLabel`, which was the top-right text like `892-1000 +1 of 1000`.
+- `ARCHITECTURE.md` now clarifies that logical range diagnostics remain
+  non-visible and are not painted into the chart canvas.
+- The top status row still shows `1,000 candles` and `bars visible`; candles,
+  OHLC legend, price axis, crosshair, MA20, volume, and interactions were left
+  unchanged.
+
+Verification results:
+
+- `pnpm run typecheck` passed.
+- `git diff --check` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .ts,.tsx`
+  passed.
+- `pnpm --dir TEST/binance-chart-test build` passed. Next still reports the
+  existing multiple-lockfile and missing Next ESLint plugin warnings.
+- `pnpm run lint` still fails on existing package-wide lint issues outside this
+  change; the failures are in packages such as `packages/core`, `packages/utils`,
+  `packages/webgl`, and `packages/webgpu`, not the edited chart file.
+- Browser/Playwright QA at `http://127.0.0.1:3005` passed: the chart loaded,
+  the top-right plot crop no longer shows the candle range label, the status
+  row remains visible, and browser warn/error logs were empty.
+
 # PR Merge Conflict Resolution Plan
 
 ## Goal

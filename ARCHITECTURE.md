@@ -271,7 +271,8 @@ The chart app supports:
   timestamps instead of indexing the candle array directly.
 - The canvas exposes non-visible `data-*` diagnostics for browser QA/devtools
   inspection of pointer area, drag mode, logical view range, and manual price
-  bounds. These attributes are not part of the end-user visual surface.
+  bounds. These attributes are not part of the end-user visual surface, and
+  logical range counters are not painted into the chart canvas.
 
 As of May 31, 2026, the chart test app uses a TradingView-style single top
 command bar rather than separate instrument and control blocks. That command

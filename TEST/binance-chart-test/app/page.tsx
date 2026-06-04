@@ -1571,17 +1571,6 @@ export default function Home() {
       legendX += ctx.measureText(text).width + (rect.width < 620 ? 8 : 14);
     });
 
-    ctx.fillStyle = palette.text;
-    ctx.textAlign = 'right';
-    ctx.font = '11px var(--font-geist-sans), ui-sans-serif, sans-serif';
-    const visibleFrom = Math.min(candles.length, Math.max(1, Math.floor(viewRange.startIndex) + 1));
-    const visibleThrough = Math.min(candles.length, Math.max(visibleFrom, Math.ceil(viewRange.endIndex)));
-    const futureBars = Math.max(0, Math.ceil(viewRange.endIndex - candles.length));
-    const rangeLabel = futureBars > 0
-      ? `${visibleFrom}-${visibleThrough} +${futureBars} of ${candles.length}`
-      : `${visibleFrom}-${visibleThrough} of ${candles.length}`;
-
-    ctx.fillText(rangeLabel, chartArea.left + chartArea.width - 4, chartArea.top + 14);
   };
 
   useEffect(() => {
