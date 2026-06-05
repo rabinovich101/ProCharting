@@ -184,6 +184,11 @@ interface PaneIndicatorSeriesCache {
   seriesById: Record<string, IndicatorComputedSeries>;
 }
 
+interface PaneHoverState {
+  mousePos: MousePosition | null;
+  pointerArea: ChartPointerArea;
+}
+
 type HeaderPanelKey =
   | 'symbolSearch'
   | 'templates'
@@ -1076,6 +1081,10 @@ const createDragState = (paneIndex = 0): ChartDragState => ({
   startViewRange: createDefaultViewRange(),
   startPriceRange: null,
   anchorPrice: 0,
+});
+const createPaneHoverState = (): PaneHoverState => ({
+  mousePos: null,
+  pointerArea: 'outside',
 });
 const createChartPaneState = (symbol = 'BTCUSDT', timeframe = '1m'): ChartPaneState => ({
   symbol,
@@ -2435,8 +2444,11 @@ export default function Home() {
   const chartBoundsRefs = useRef<ChartInteractionBounds[]>([createDefaultChartBounds()]);
   const dragStateRef = useRef<ChartDragState>(createDragState());
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
+  const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
+  const legendRenderFrameRef = useRef<number | undefined>(undefined);
 
   const [chartPanes, setChartPanes] = useState<ChartPaneState[]>(() => [createChartPaneState()]);
+  const [legendRenderVersion, setLegendRenderVersion] = useState(0);
   const [activePaneIndex, setActivePaneIndex] = useState(0);
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
   const [theme, setTheme] = useState<ThemeName>('dark');
@@ -2527,6 +2539,10 @@ export default function Home() {
       { length: paneCount },
       (_unused, index) => chartBoundsRefs.current[index] ?? createDefaultChartBounds()
     );
+    paneHoverStatesRef.current = Array.from(
+      { length: paneCount },
+      (_unused, index) => paneHoverStatesRef.current[index] ?? createPaneHoverState()
+    );
 
     setChartPanes((current) => {
       if (current.length === paneCount) return current;
@@ -2545,6 +2561,14 @@ export default function Home() {
     });
     setActivePaneIndex((current) => clamp(current, 0, Math.max(0, paneCount - 1)));
   }, [activePaneIndex, paneCount]);
+
+  useEffect(() => {
+    return () => {
+      if (legendRenderFrameRef.current !== undefined) {
+        window.cancelAnimationFrame(legendRenderFrameRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (headerPanel !== 'symbolSearch') return;
@@ -2622,6 +2646,65 @@ export default function Home() {
   const updatePaneState = (paneIndex: number, updater: (pane: ChartPaneState) => ChartPaneState) => {
     setChartPanes((current) => current.map((pane, index) => (index === paneIndex ? updater(pane) : pane)));
   };
+
+  const getPaneHoverState = (paneIndex: number) =>
+    paneHoverStatesRef.current[paneIndex] ?? createPaneHoverState();
+
+  const requestLegendRender = () => {
+    if (legendRenderFrameRef.current !== undefined) return;
+
+    legendRenderFrameRef.current = window.requestAnimationFrame(() => {
+      legendRenderFrameRef.current = undefined;
+      setLegendRenderVersion((current) => current + 1);
+    });
+  };
+
+  const resetPaneHoverState = (paneIndex: number) => {
+    const current = getPaneHoverState(paneIndex);
+    paneHoverStatesRef.current[paneIndex] = createPaneHoverState();
+
+    if (current.mousePos || current.pointerArea !== 'outside') {
+      requestLegendRender();
+    }
+  };
+
+  const resetPaneHoverStates = (shouldReset: (pane: ChartPaneState, index: number) => boolean) => {
+    chartPanes.forEach((pane, index) => {
+      if (shouldReset(pane, index)) {
+        resetPaneHoverState(index);
+      }
+    });
+  };
+
+  const getHoverLegendIndex = (paneIndex: number, pane: ChartPaneState, mousePos: MousePosition | null) => {
+    if (!mousePos || pane.candles.length === 0) return null;
+
+    const { chartArea, crosshairAreas } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    const paneAreas = crosshairAreas.length > 0 ? crosshairAreas : [chartArea];
+    const mouseInsideCrosshairArea =
+      mousePos.x >= chartArea.left &&
+      mousePos.x <= chartArea.left + chartArea.width &&
+      paneAreas.some(
+        (area) =>
+          mousePos.y >= area.top &&
+          mousePos.y <= area.top + area.height
+      );
+
+    return mouseInsideCrosshairArea
+      ? Math.floor(clamp(mousePos.logicalIndex, 0, pane.candles.length - 1))
+      : null;
+  };
+
+  const getCanvasCursorForState = (dragMode: ChartDragMode, pointerArea: ChartPointerArea) =>
+    dragMode === 'price-scale'
+      ? 'ns-resize'
+      : dragMode === 'chart-pan'
+        ? 'grabbing'
+        : pointerArea === 'price-scale'
+          ? 'ns-resize'
+          : pointerArea === 'time-scale'
+            ? 'ew-resize'
+            : 'crosshair';
 
   const resetView = (paneIndex = activePaneIndex) => {
     updatePaneState(paneIndex, (pane) => ({
@@ -3144,6 +3227,8 @@ export default function Home() {
   };
 
   const handleMouseUp = () => {
+    if (dragStateRef.current.mode === 'none') return;
+
     const paneIndex = dragStateRef.current.paneIndex;
     dragStateRef.current = {
       ...dragStateRef.current,
@@ -3214,27 +3299,26 @@ export default function Home() {
       dataY: currentPriceRange ? getPriceAtY(paneIndex, y, currentPriceRange) : 0,
       logicalIndex: snappedCrosshair.logicalIndex,
     };
+    const currentHoverState = getPaneHoverState(paneIndex);
+    const currentLegendIndex = getHoverLegendIndex(paneIndex, pane, currentHoverState.mousePos);
+    const nextLegendIndex = getHoverLegendIndex(paneIndex, pane, nextMousePos);
 
-    updatePaneState(paneIndex, (currentPane) => {
-      const currentMousePos = currentPane.mousePos;
-      const sameMousePos =
-        currentMousePos?.x === nextMousePos.x &&
-        currentMousePos.y === nextMousePos.y &&
-        currentMousePos.dataY === nextMousePos.dataY &&
-        currentMousePos.logicalIndex === nextMousePos.logicalIndex;
+    paneHoverStatesRef.current[paneIndex] = {
+      mousePos: nextMousePos,
+      pointerArea: area,
+    };
+    event.currentTarget.dataset.pointerArea = area;
+    event.currentTarget.style.cursor = getCanvasCursorForState(pane.dragMode, area);
 
-      if (currentPane.pointerArea === area && sameMousePos) return currentPane;
-
-      return {
-        ...currentPane,
-        pointerArea: area,
-        mousePos: nextMousePos,
-      };
-    });
+    if (currentLegendIndex !== nextLegendIndex) {
+      requestLegendRender();
+    }
   };
 
-  const handleMouseLeave = (paneIndex: number) => {
-    updatePaneState(paneIndex, (pane) => ({ ...pane, mousePos: null, pointerArea: 'outside' }));
+  const handleMouseLeave = (paneIndex: number, event: React.MouseEvent<HTMLCanvasElement>) => {
+    resetPaneHoverState(paneIndex);
+    event.currentTarget.dataset.pointerArea = 'outside';
+    event.currentTarget.style.cursor = getCanvasCursorForState(dragStateRef.current.mode, 'outside');
     handleMouseUp();
   };
 
@@ -3866,10 +3950,10 @@ export default function Home() {
     const animate = () => {
       canvasRefs.current.forEach((canvas, paneIndex) => {
         if (canvas) {
-          const pane = paneStatesRef.current[paneIndex];
+          const hoverState = paneHoverStatesRef.current[paneIndex];
           drawChart(canvas, paneIndex, {
             updateInteractionBounds: true,
-            crosshairPosition: pane?.mousePos ?? null,
+            crosshairPosition: hoverState?.mousePos ?? null,
           });
         }
       });
@@ -3895,16 +3979,8 @@ export default function Home() {
     paneCount,
   ]);
 
-  const getCanvasCursor = (pane: ChartPaneState) =>
-    pane.dragMode === 'price-scale'
-      ? 'ns-resize'
-      : pane.dragMode === 'chart-pan'
-        ? 'grabbing'
-        : pane.pointerArea === 'price-scale'
-          ? 'ns-resize'
-          : pane.pointerArea === 'time-scale'
-            ? 'ew-resize'
-            : 'crosshair';
+  const getCanvasCursor = (paneIndex: number, pane: ChartPaneState) =>
+    getCanvasCursorForState(pane.dragMode, getPaneHoverState(paneIndex).pointerArea);
   const getPaneLegendSnapshot = (paneIndex: number) => {
     const pane = chartPanes[paneIndex];
     if (!pane || pane.candles.length === 0) {
@@ -3919,21 +3995,8 @@ export default function Home() {
     }
 
     const latestCandle = pane.candles[pane.candles.length - 1] ?? null;
-    const { chartArea, crosshairAreas } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
-    const mousePos = pane.mousePos;
-    const paneAreas = crosshairAreas.length > 0 ? crosshairAreas : [chartArea];
-    const mouseInsideCrosshairArea =
-      mousePos &&
-      mousePos.x >= chartArea.left &&
-      mousePos.x <= chartArea.left + chartArea.width &&
-      paneAreas.some(
-        (area) =>
-          mousePos.y >= area.top &&
-          mousePos.y <= area.top + area.height
-      );
-    const legendIndex = mouseInsideCrosshairArea
-      ? Math.floor(clamp(mousePos.logicalIndex, 0, pane.candles.length - 1))
-      : pane.candles.length - 1;
+    const legendIndex =
+      getHoverLegendIndex(paneIndex, pane, getPaneHoverState(paneIndex).mousePos) ?? pane.candles.length - 1;
     const legendCandle = legendIndex >= 0 ? pane.candles[legendIndex] ?? latestCandle : latestCandle;
     const legendChange = legendCandle ? legendCandle.close - legendCandle.open : 0;
     const legendChangePercent =
@@ -3969,6 +4032,7 @@ export default function Home() {
     setHeaderPanel('symbolSearch');
   };
   const selectSymbolSearchOption = (nextSymbol: string) => {
+    resetPaneHoverStates((_pane, index) => layoutSync.symbol || index === activePaneIndex);
     setChartPanes((current) =>
       current.map((pane, index) =>
         layoutSync.symbol || index === activePaneIndex
@@ -3992,6 +4056,7 @@ export default function Home() {
     setMoreTarget(null);
   };
   const updateActiveTimeframe = (nextTimeframe: string) => {
+    resetPaneHoverStates((_pane, index) => layoutSync.interval || index === activePaneIndex);
     setChartPanes((current) =>
       current.map((pane, index) =>
         layoutSync.interval || index === activePaneIndex
@@ -4092,6 +4157,8 @@ export default function Home() {
       createChartPaneStateFromSnapshot(paneSnapshots[index] ?? paneSnapshots[0], restoreNonce)
     );
 
+    paneHoverStatesRef.current = Array.from({ length: layoutOption.cells.length }, createPaneHoverState);
+    requestLegendRender();
     setSelectedLayoutId(layoutOption.id);
     setLayoutSync({ ...DEFAULT_LAYOUT_SYNC, ...layout.layoutSync });
     setChartStyle(layout.chartStyle);
@@ -5524,7 +5591,12 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="chart-stage" data-layout-count={selectedLayout.count} data-layout-id={selectedLayout.id}>
+      <section
+        className="chart-stage"
+        data-layout-count={selectedLayout.count}
+        data-layout-id={selectedLayout.id}
+        data-legend-version={legendRenderVersion}
+      >
         <div
           className="chart-layout-grid"
           style={{
@@ -5534,6 +5606,7 @@ export default function Home() {
         >
           {selectedLayoutCells.map((cellSpec, paneIndex) => {
             const pane = chartPanes[paneIndex] ?? activePane;
+            const hoverState = getPaneHoverState(paneIndex);
 
             return (
               <ChartPane
@@ -5550,16 +5623,16 @@ export default function Home() {
                   'data-active-pane': activePaneIndex === paneIndex ? 'true' : 'false',
                   'data-drag-mode': pane.dragMode,
                   'data-manual-price-scale': pane.manualPriceRange ? 'true' : 'false',
-                  'data-pointer-area': pane.pointerArea,
+                  'data-pointer-area': hoverState.pointerArea,
                   'data-price-max': pane.manualPriceRange ? pane.manualPriceRange.maxPrice.toFixed(2) : '',
                   'data-price-min': pane.manualPriceRange ? pane.manualPriceRange.minPrice.toFixed(2) : '',
                   'data-view-end': pane.viewRange.endIndex.toFixed(2),
                   'data-view-start': pane.viewRange.startIndex.toFixed(2),
-                  style: { cursor: getCanvasCursor(pane) },
+                  style: { cursor: getCanvasCursor(paneIndex, pane) },
                   onMouseMove: (event) => handleMouseMove(paneIndex, event),
                   onMouseDown: (event) => handleMouseDown(paneIndex, event),
                   onMouseUp: handleMouseUp,
-                  onMouseLeave: () => handleMouseLeave(paneIndex),
+                  onMouseLeave: (event) => handleMouseLeave(paneIndex, event),
                   onWheel: (event) => handleWheel(paneIndex, event),
                 }}
               >

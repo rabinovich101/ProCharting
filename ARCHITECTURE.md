@@ -344,9 +344,13 @@ The chart app supports:
   visible canvas pane while the horizontal price guide and price label remain
   scoped to the main price pane.
 - TradingView-style magnet hover: raw mouse X is converted to the nearest
-  logical candle slot before storing `mousePos`, so the crosshair vertical guide,
-  time label, OHLC row, and indicator legend jump candle-to-candle while pan,
-  wheel zoom, and price-scale drag continue to use continuous pointer deltas.
+  logical candle slot before storing the hover position in a ref-backed pane
+  hover state. The canvas animation loop reads that ref directly for crosshair
+  drawing, while React receives a coalesced legend refresh only when the snapped
+  candle index changes. This keeps crosshair movement fast and lets the OHLC row
+  and indicator legend jump candle-to-candle without mutating `chartPanes` on
+  every pointer event. Pan, wheel zoom, and price-scale drag continue to use
+  continuous pointer deltas because those gestures change chart view/range state.
 - The canvas exposes non-visible `data-*` diagnostics for browser QA/devtools
   inspection of pointer area, drag mode, logical view range, and manual price
   bounds. These attributes are not part of the end-user visual surface, and

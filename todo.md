@@ -4161,3 +4161,61 @@ crosshair as the user moves from candle to candle.
 - Playwright verification passed through `http://host.docker.internal:3000`:
   page title `ProCharting Market Desk`, chart and active indicator overlays
   rendered, and console diagnostics reported 0 warnings and 0 errors.
+
+# Faster Crosshair Hover Path
+
+## Goal
+
+Make indicator/OHLC legend updates feel closer to TradingView speed by removing
+React chart-pane state writes from ordinary hover movement.
+
+## Investigation / Decisions
+
+- Volume is not recalculated on hover; it is read from `legendCandle.volume`.
+- Indicator arrays are already cached from the previous change, so the remaining
+  bottleneck is hover state itself.
+- `handleMouseMove` still writes `mousePos` and `pointerArea` into
+  `chartPanes`, which re-renders the full chart app and restarts dependent
+  render effects during pointer movement.
+- Move hover-only data into refs. Let the canvas animation loop read the ref
+  every frame for crosshair drawing, and trigger a tiny React refresh only when
+  the snapped candle index changes.
+
+## Checklist
+
+- [x] Add ref-backed pane hover state and a coalesced legend refresh tick.
+- [x] Stop writing hover-only `mousePos` / `pointerArea` into `chartPanes`.
+- [x] Keep cursor/data diagnostics and legend snapshots in sync with the ref state.
+- [x] Verify type/build checks.
+- [x] Test with browser/Playwright that candle-to-candle legend updates are fast and console-clean.
+- [x] Update `ARCHITECTURE.md` with the refined hover-state model.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+- Added ref-backed pane hover state in `TEST/binance-chart-test/app/page.tsx`.
+  Ordinary mouse movement now updates `paneHoverStatesRef` instead of mutating
+  `chartPanes`.
+- Added a coalesced `requestAnimationFrame` legend refresh tick. React updates
+  the OHLC/indicator legend when the snapped candle index changes, not on every
+  pointer pixel.
+- Updated canvas drawing, legend snapshots, cursor, and non-visible
+  `data-pointer-area` diagnostics to read from the hover ref.
+- Cleared hover refs on mouse leave, symbol changes, timeframe changes, and
+  saved-layout restores.
+- Updated `ARCHITECTURE.md` to document the refined ref-backed hover/crosshair
+  model.
+- Local validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `pnpm run typecheck`
+  - `git diff --check`
+- Browser verification passed on `http://127.0.0.1:3000`: after entering a
+  candle, `data-legend-version` moved from `0` to `1`; moving two pixels within
+  the same candle kept it at `1`; jumping to another candle advanced it to `2`
+  and updated values from `Vol 78.83` / `SMA 20 close 60.88K` to `Vol 82.46` /
+  `SMA 20 close 60.45K`.
+- Playwright verification passed through `http://host.docker.internal:3000`:
+  page title `ProCharting Market Desk`, chart and active indicator overlays
+  rendered, screenshot captured, and console diagnostics reported 0 warnings and
+  0 errors.
