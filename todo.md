@@ -3882,10 +3882,36 @@ repository.
 - [x] Remove now-unused static demo serving code from the deployment path.
 - [x] Update `ARCHITECTURE.md` to record the corrected public app target.
 - [x] Run local validation for the Next app deployment path.
-- [ ] Commit, push, and confirm GitHub -> VM redeploy succeeds.
-- [ ] Verify `https://procharts.thefiscalwire.com` with Browser/Playwright and
+- [x] Commit, push, and confirm GitHub -> VM redeploy succeeds.
+- [x] Verify `https://procharts.thefiscalwire.com` with Browser/Playwright and
       devtools after the switch.
 
 ## Review
 
-Pending.
+- Corrected the deployment target from the `examples/basic` package demo to the
+  actual standalone chart app in `TEST/binance-chart-test`.
+- `scripts/deploy-vm.sh` now runs `npm ci`, `npm run build`, and starts the
+  Next app with `npm start -- -H 127.0.0.1 -p 3000` under pm2.
+- Removed `scripts/static-server.mjs` because the deployment no longer serves a
+  static Vite build.
+- Renamed the GitHub deployment job to `Deploy ProCharts App` and the pm2
+  process to `procharts-app`; the deploy script deletes the old
+  `procharts-demo` process if present.
+- Updated `ARCHITECTURE.md` to document the corrected public app target.
+- Local validation passed:
+  - `bash -n scripts/deploy-vm.sh`
+  - `git diff --check`
+  - `npm --prefix TEST/binance-chart-test run build`
+- GitHub deployment verification passed:
+  - `Deploy VM` run `27020123572` succeeded for the Next app switch.
+  - `Deploy VM` run `27020222859` succeeded after the naming cleanup.
+  - CI run `27020222875` succeeded.
+- VM verification passed: pm2 now reports only `procharts-app` online, running
+  `npm start -- -H 127.0.0.1 -p 3000`, and `curl http://127.0.0.1:3000/`
+  returns HTTP 200 with Next.js headers.
+- Public verification passed: `https://procharts.thefiscalwire.com` returns
+  HTTP 200, serves title `ProCharting Market Desk`, exposes live
+  `/api/binance` kline JSON, and Browser/Playwright verified the chart terminal
+  with BTCUSDT controls, one nonblank canvas, OHLC legend text, and no app
+  warnings. The only current-page console error observed was Cloudflare's
+  optional analytics beacon DNS failure for `static.cloudflareinsights.com`.
