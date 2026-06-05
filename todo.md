@@ -3823,12 +3823,36 @@ an automatic CI/CD path from GitHub `main` to the VM.
       model.
 - [x] Install VM runtime dependencies needed by the deployment.
 - [x] Register and start the GitHub self-hosted runner on the VM.
-- [ ] Run the deploy script on the VM and confirm local service health.
+- [x] Run the deploy script on the VM and confirm local service health.
 - [x] Run repo validation locally.
-- [ ] Verify `https://procharts.thefiscalwire.com` with Browser/Playwright and
+- [x] Verify `https://procharts.thefiscalwire.com` with Browser/Playwright and
       devtools.
-- [ ] Commit, push, and confirm the GitHub -> VM deployment workflow.
+- [x] Commit, push, and confirm the GitHub -> VM deployment workflow.
 
 ## Review
 
-Pending.
+- Added `.github/workflows/deploy-vm.yml`, a `main`/manual GitHub Actions
+  workflow that runs on the VM self-hosted runner labelled `procharts-vm`.
+- Added `scripts/deploy-vm.sh`, which installs workspace dependencies, builds
+  the monorepo and `@procharting/example-basic`, restarts pm2 process
+  `procharts-demo`, saves the pm2 process list, and health-checks
+  `http://127.0.0.1:3000/`.
+- Added `scripts/static-server.mjs`, a small dependency-free static server for
+  the built Vite demo files.
+- Updated `ARCHITECTURE.md` with the Cloudflare Tunnel + VM-local runner
+  deployment model.
+- VM setup completed: installed Node.js 18.19.1, npm 9.2.0, pnpm 10.17.0, pm2
+  7.0.1, enabled pm2 startup, and registered the online GitHub runner
+  `procharts-vm`.
+- First GitHub-triggered deploy succeeded in run `27016678782`; CI succeeded in
+  run `27016678808`.
+- VM service verification passed: `pm2 describe procharts-demo` reports online
+  and `curl http://127.0.0.1:3000/` returns HTTP 200.
+- Public verification passed: `https://procharts.thefiscalwire.com` returns
+  HTTP 200, loads the ProCharting demo, renders one nonblank 740x600 canvas with
+  renderer `canvas2d`, shows 1,000 data points initially, and the Add Random
+  Data button updates the count to 1,100.
+- Browser/devtools note: the deployed app logs loaded/initialized messages with
+  no app warnings. The only browser error observed was Cloudflare's optional
+  analytics beacon failing to resolve `static.cloudflareinsights.com`, not an
+  app asset or deploy failure.
