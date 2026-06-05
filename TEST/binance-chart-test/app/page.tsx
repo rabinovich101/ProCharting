@@ -178,6 +178,12 @@ interface IndicatorComputedSeries {
   guideLines?: Array<{ value: number; label?: string }>;
 }
 
+interface PaneIndicatorSeriesCache {
+  candles: Candle[];
+  indicators: ActiveIndicator[];
+  seriesById: Record<string, IndicatorComputedSeries>;
+}
+
 type HeaderPanelKey =
   | 'symbolSearch'
   | 'templates'
@@ -2428,6 +2434,7 @@ export default function Home() {
   const paneStatesRef = useRef<ChartPaneState[]>([]);
   const chartBoundsRefs = useRef<ChartInteractionBounds[]>([createDefaultChartBounds()]);
   const dragStateRef = useRef<ChartDragState>(createDragState());
+  const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
 
   const [chartPanes, setChartPanes] = useState<ChartPaneState[]>(() => [createChartPaneState()]);
   const [activePaneIndex, setActivePaneIndex] = useState(0);
@@ -2476,12 +2483,24 @@ export default function Home() {
   const indicatorCount = activeIndicators.length;
   const showVolume = chartSettings.showVolumePane && visibleVolumeIndicator !== undefined;
   const paneIndicatorSeries = useMemo(() => {
-    return chartPanes.map((pane) =>
-      activeIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
-        seriesById[indicator.id] = computeIndicatorSeries(indicator, pane.candles);
-        return seriesById;
-      }, {})
-    );
+    const nextCache = chartPanes.map((pane, paneIndex) => {
+      const cached = indicatorSeriesCacheRef.current[paneIndex];
+      if (cached?.candles === pane.candles && cached.indicators === activeIndicators) {
+        return cached;
+      }
+
+      return {
+        candles: pane.candles,
+        indicators: activeIndicators,
+        seriesById: activeIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
+          seriesById[indicator.id] = computeIndicatorSeries(indicator, pane.candles);
+          return seriesById;
+        }, {}),
+      };
+    });
+
+    indicatorSeriesCacheRef.current = nextCache;
+    return nextCache.map((cache) => cache.seriesById);
   }, [activeIndicators, chartPanes]);
   paneStatesRef.current = chartPanes;
   const filteredSymbolOptions = useMemo(() => {
@@ -3141,7 +3160,6 @@ export default function Home() {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const area = getPointerArea(paneIndex, x, y);
-    updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, pointerArea: area }));
 
     const dragState = dragStateRef.current;
     if (dragState.mode !== 'none' && dragState.paneIndex === paneIndex && pane.candles.length) {
@@ -3190,22 +3208,29 @@ export default function Home() {
 
     const snappedCrosshair = getSnappedCrosshairPosition(paneIndex, x);
     const currentPriceRange = getCurrentPriceRange(paneIndex);
-    if (currentPriceRange) {
-      updatePaneState(paneIndex, (currentPane) => ({
+    const nextMousePos = {
+      x: snappedCrosshair.x,
+      y,
+      dataY: currentPriceRange ? getPriceAtY(paneIndex, y, currentPriceRange) : 0,
+      logicalIndex: snappedCrosshair.logicalIndex,
+    };
+
+    updatePaneState(paneIndex, (currentPane) => {
+      const currentMousePos = currentPane.mousePos;
+      const sameMousePos =
+        currentMousePos?.x === nextMousePos.x &&
+        currentMousePos.y === nextMousePos.y &&
+        currentMousePos.dataY === nextMousePos.dataY &&
+        currentMousePos.logicalIndex === nextMousePos.logicalIndex;
+
+      if (currentPane.pointerArea === area && sameMousePos) return currentPane;
+
+      return {
         ...currentPane,
-        mousePos: {
-          x: snappedCrosshair.x,
-          y,
-          dataY: getPriceAtY(paneIndex, y, currentPriceRange),
-          logicalIndex: snappedCrosshair.logicalIndex,
-        },
-      }));
-    } else {
-      updatePaneState(paneIndex, (currentPane) => ({
-        ...currentPane,
-        mousePos: { x: snappedCrosshair.x, y, dataY: 0, logicalIndex: snappedCrosshair.logicalIndex },
-      }));
-    }
+        pointerArea: area,
+        mousePos: nextMousePos,
+      };
+    });
   };
 
   const handleMouseLeave = (paneIndex: number) => {
@@ -4336,14 +4361,29 @@ export default function Home() {
         {activeIndicators.map((indicator, index) => {
           const definition = getIndicatorDefinition(indicator.definitionId);
           const computed = activeIndicatorSeries[indicator.id];
+          const histogramValue = legendIndex >= 0 ? computed?.histogram?.[legendIndex] : null;
           const indicatorValues =
             definition.formula === 'volume'
               ? [{ label: 'Volume', color: definition.defaults.color ?? palette.text, value: legendCandle.volume }]
-              : computed?.lines.map((line) => ({
-                  label: line.label,
-                  color: line.color,
-                  value: legendIndex >= 0 ? line.values[legendIndex] : null,
-                })) ?? [];
+              : [
+                  ...(computed?.lines.map((line) => ({
+                    label: line.label,
+                    color: line.color,
+                    value: legendIndex >= 0 ? line.values[legendIndex] : null,
+                  })) ?? []),
+                  ...(computed?.histogram
+                    ? [
+                        {
+                          label: 'Histogram',
+                          color:
+                            histogramValue !== null && histogramValue !== undefined && histogramValue < 0
+                              ? computed.histogramNegative ?? palette.red
+                              : computed.histogramPositive ?? palette.green,
+                          value: histogramValue,
+                        },
+                      ]
+                    : []),
+                ];
           const settings = indicator.settings;
           const canEditPeriod =
             definition.defaults.period !== undefined ||

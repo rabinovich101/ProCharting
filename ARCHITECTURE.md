@@ -311,7 +311,10 @@ The chart app supports:
   default and expand on desktop hover/focus/open states to expose controls for
   hide/show, settings, remove, duplicate, and ordering actions. Settings such
   as length, source, standard deviation, MACD fast/slow/signal, and primary
-  color update the active instance and redraw the chart.
+  color update the active instance and redraw the chart. Indicator series are
+  cached per pane by candle-array reference and active-indicator state, so
+  hover-only `mousePos` updates can refresh legend values for the snapped candle
+  without recomputing every indicator from the full candle history.
 - Selected price overlays participate in automatic Y-range fitting and draw on
   the main price pane. Volume draws in the volume band, and oscillator
   indicators draw in compact lower panes with guide lines and right-side value

@@ -4107,3 +4107,57 @@ first.
   nonblank canvas, and no app warnings. The only current-page console error was
   Cloudflare's optional analytics beacon DNS failure for
   `static.cloudflareinsights.com`.
+
+# Fast Indicator Legend Values
+
+## Goal
+
+Match the TradingView-style behavior from the June 5, 2026 screen recording:
+indicator legend values should update immediately to the candle under the
+crosshair as the user moves from candle to candle.
+
+## Investigation / Decisions
+
+- The indicator legend already renders values from `legendIndex`, which is
+  derived from `pane.mousePos.logicalIndex`.
+- The slowdown root cause is that every mouse move updates `chartPanes`, and
+  `paneIndicatorSeries` currently recomputes every indicator series from all
+  candles whenever `chartPanes` changes.
+- Keep the existing UI and data model intact; add a small cache so indicator
+  series recompute only when candles or indicator settings change.
+- Keep mouse movement responsive by avoiding duplicate pane state writes for
+  pointer area and crosshair position.
+
+## Checklist
+
+- [x] Add an indicator-series cache that survives hover-only chart state changes.
+- [x] Consolidate mouse-move pane state updates for pointer area and crosshair data.
+- [x] Verify TypeScript/build checks for the Next chart app.
+- [x] Test in browser with Playwright/devtools and confirm legend values change across candles quickly.
+- [x] Update `ARCHITECTURE.md` if the architecture understanding changes.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+- Added a per-pane indicator-series cache in
+  `TEST/binance-chart-test/app/page.tsx` so hover-only `mousePos` updates reuse
+  the existing computed indicator arrays instead of recalculating from the full
+  candle history.
+- Consolidated chart mouse-move state writes so `pointerArea` and snapped
+  crosshair data update together, with a no-op return when nothing changed.
+- Included computed histogram output in the indicator legend value list, so
+  MACD displays its histogram value alongside its line values.
+- Updated `ARCHITECTURE.md` to document the indicator-series cache and snapped
+  candle legend behavior.
+- Local validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `pnpm run typecheck`
+  - `git diff --check`
+- Browser verification passed on `http://127.0.0.1:3000`: moving/clicking from
+  an older candle to a later candle updated the indicator legend immediately
+  from `Vol 29.79` / `SMA 20 close 62.07K` to `Vol 1.07K` /
+  `SMA 20 close 60.63K`.
+- Playwright verification passed through `http://host.docker.internal:3000`:
+  page title `ProCharting Market Desk`, chart and active indicator overlays
+  rendered, and console diagnostics reported 0 warnings and 0 errors.
