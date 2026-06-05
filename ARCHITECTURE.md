@@ -54,7 +54,7 @@ CI/CD is VM-local through a GitHub Actions self-hosted runner labelled
 `procharts-vm`. Pushes to `main` run `.github/workflows/deploy-vm.yml` on that
 runner, checkout the repository on the VM, and execute `scripts/deploy-vm.sh`.
 The deploy script runs `npm ci` and `npm run build` inside
-`TEST/binance-chart-test`, then restarts the `procharts-demo` pm2 process with
+`TEST/binance-chart-test`, then restarts the `procharts-app` pm2 process with
 `npm start -- -H 127.0.0.1 -p 3000`.
 
 ### 2. Verification Tooling

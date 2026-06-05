@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="${PROCHARTS_APP_DIR:-TEST/binance-chart-test}"
-APP_NAME="${PROCHARTS_APP_NAME:-procharts-demo}"
+APP_NAME="${PROCHARTS_APP_NAME:-procharts-app}"
+LEGACY_APP_NAME="procharts-demo"
 HOST="${PROCHARTS_HOST:-127.0.0.1}"
 PORT="${PROCHARTS_PORT:-3000}"
 
@@ -34,9 +35,11 @@ fi
 npm ci
 npm run build
 
-if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
-  pm2 delete "$APP_NAME"
-fi
+for process_name in "$APP_NAME" "$LEGACY_APP_NAME"; do
+  if pm2 describe "$process_name" >/dev/null 2>&1; then
+    pm2 delete "$process_name"
+  fi
+done
 
 pm2 start npm \
   --name "$APP_NAME" \

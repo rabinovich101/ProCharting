@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy ProCharting Demo
+    name: Deploy ProCharts App
     runs-on: [self-hosted, procharts-vm]
     timeout-minutes: 30
 
