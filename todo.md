@@ -3941,9 +3941,34 @@ first.
 - [x] Remove the examples workspace entry and lockfile importer.
 - [x] Update README and architecture references to point at the real Next app.
 - [x] Run focused build/type/test validation.
-- [ ] Verify the live deployed app with Browser/Playwright and devtools.
-- [ ] Commit, push, and confirm GitHub CI/deploy still pass.
+- [x] Verify the live deployed app with Browser/Playwright and devtools.
+- [x] Commit, push, and confirm GitHub CI/deploy still pass.
 
 ## Review
 
-Pending.
+- Removed the tracked `examples/basic` package files:
+  `index.html`, `main.js`, `package.json`, and `vite.config.js`.
+- Removed the ignored/generated `examples/basic/dist` leftovers locally and the
+  now-empty `examples` directory.
+- Removed `examples/*` from `pnpm-workspace.yaml` and removed the
+  `examples/basic` importer from `pnpm-lock.yaml`; `pnpm install
+  --lockfile-only` now reports 10 workspace projects.
+- Updated `README.md` to run the real Next chart app with
+  `npm --prefix TEST/binance-chart-test run dev`.
+- Updated `ARCHITECTURE.md` so the runnable product app is
+  `TEST/binance-chart-test` and the old Vite demo is described as removed.
+- Local validation passed:
+  - `pnpm install --lockfile-only`
+  - `pnpm build`
+  - `pnpm test`
+  - `pnpm typecheck`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `git diff --check`
+- GitHub verification passed after commit `ef6f711`: Deploy VM run
+  `27020600281` succeeded, CI run `27020600256` succeeded, and the public
+  `/api/binance` endpoint returned live kline JSON.
+- Browser/Playwright verification passed on `https://procharts.thefiscalwire.com`:
+  title `ProCharting Market Desk`, BTCUSDT chart terminal, one 780x454
+  nonblank canvas, and no app warnings. The only current-page console error was
+  Cloudflare's optional analytics beacon DNS failure for
+  `static.cloudflareinsights.com`.
