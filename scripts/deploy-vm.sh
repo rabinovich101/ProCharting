@@ -2,12 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_FILTER="${PROCHARTS_APP_FILTER:-@procharting/example-basic}"
-APP_DIR="${PROCHARTS_APP_DIR:-examples/basic}"
+APP_DIR="${PROCHARTS_APP_DIR:-TEST/binance-chart-test}"
 APP_NAME="${PROCHARTS_APP_NAME:-procharts-demo}"
 HOST="${PROCHARTS_HOST:-127.0.0.1}"
 PORT="${PROCHARTS_PORT:-3000}"
-PNPM_VERSION="${PROCHARTS_PNPM_VERSION:-10.17.0}"
 
 cd "$ROOT_DIR"
 
@@ -16,15 +14,8 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v pnpm >/dev/null 2>&1; then
-  if command -v corepack >/dev/null 2>&1; then
-    corepack enable
-    corepack prepare "pnpm@${PNPM_VERSION}" --activate
-  fi
-fi
-
-if ! command -v pnpm >/dev/null 2>&1; then
-  echo "pnpm is required before deployment." >&2
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm is required before deployment." >&2
   exit 1
 fi
 
@@ -33,24 +24,24 @@ if ! command -v pm2 >/dev/null 2>&1; then
   exit 1
 fi
 
-pnpm install --frozen-lockfile
-pnpm build
-pnpm --filter "$APP_FILTER" build
+cd "$ROOT_DIR/$APP_DIR"
 
-DIST_DIR="$ROOT_DIR/$APP_DIR/dist"
-if [[ ! -f "$DIST_DIR/index.html" ]]; then
-  echo "Expected built app at $DIST_DIR/index.html" >&2
+if [[ ! -f package-lock.json ]]; then
+  echo "Expected npm lockfile at $ROOT_DIR/$APP_DIR/package-lock.json" >&2
   exit 1
 fi
+
+npm ci
+npm run build
 
 if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
   pm2 delete "$APP_NAME"
 fi
 
-pm2 start "$ROOT_DIR/scripts/static-server.mjs" \
+pm2 start npm \
   --name "$APP_NAME" \
   --time \
-  -- "$DIST_DIR" "$HOST" "$PORT"
+  -- start -- -H "$HOST" -p "$PORT"
 
 pm2 save
 

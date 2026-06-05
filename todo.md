@@ -3856,3 +3856,36 @@ an automatic CI/CD path from GitHub `main` to the VM.
   no app warnings. The only browser error observed was Cloudflare's optional
   analytics beacon failing to resolve `static.cloudflareinsights.com`, not an
   app asset or deploy failure.
+
+# Correct VM App Deployment
+
+## Goal
+
+Replace the placeholder ProCharting library demo at
+`https://procharts.thefiscalwire.com` with the actual chart application in this
+repository.
+
+## Investigation / Decisions
+
+- The first deployment served `examples/basic` because the architecture notes
+  identify it as the primary package demo. That was technically deployable, but
+  it is not the product surface the user expected.
+- The app-shaped project in this repository is `TEST/binance-chart-test`, a
+  Next.js app with a Binance API route and the TradingView-style chart UI.
+- Keep the same Cloudflare Tunnel, same GitHub self-hosted runner, same public
+  port, and same pm2 process name. Change only what the VM deploy command
+  builds and serves.
+
+## Checklist
+
+- [x] Update the VM deploy script to build and start `TEST/binance-chart-test`.
+- [x] Remove now-unused static demo serving code from the deployment path.
+- [x] Update `ARCHITECTURE.md` to record the corrected public app target.
+- [x] Run local validation for the Next app deployment path.
+- [ ] Commit, push, and confirm GitHub -> VM redeploy succeeds.
+- [ ] Verify `https://procharts.thefiscalwire.com` with Browser/Playwright and
+      devtools after the switch.
+
+## Review
+
+Pending.

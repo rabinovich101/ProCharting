@@ -22,26 +22,40 @@ ProCharting/
 └── benchmarks/        # Performance tests
 ```
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 The primary runnable ProCharting package demo is `examples/basic`, a Vite app
 inside the pnpm workspace that imports `@procharting/core` and exercises the
-packaged chart API. The `TEST/binance-chart-test` Next.js app is outside the
-workspace and remains a standalone live-market QA harness rather than the
-default product/demo page.
+packaged chart API. The public VM app deployment uses
+`TEST/binance-chart-test`, a standalone Next.js live-market chart application
+outside the pnpm workspace.
 
 ### 1.1 VM Deployment
 
-The public demo deployment for `procharts.thefiscalwire.com` serves the
-workspace `examples/basic` Vite build from the VM on `127.0.0.1:3000`.
-Cloudflare Tunnel publishes that local service to the subdomain without
-requiring inbound VM ports.
+The public app deployment for `procharts.thefiscalwire.com` serves the
+standalone `TEST/binance-chart-test` Next.js app from the VM on
+`127.0.0.1:3000`. Cloudflare Tunnel publishes that local service to the
+subdomain without requiring inbound VM ports.
 
 CI/CD is VM-local through a GitHub Actions self-hosted runner labelled
 `procharts-vm`. Pushes to `main` run `.github/workflows/deploy-vm.yml` on that
 runner, checkout the repository on the VM, and execute `scripts/deploy-vm.sh`.
-The deploy script installs workspace dependencies, builds the monorepo, builds
-the `@procharting/example-basic` app, and restarts the `procharts-demo` pm2
-process using `scripts/static-server.mjs` to serve the generated
-`examples/basic/dist` files.
+The deploy script runs `npm ci` and `npm run build` inside
+`TEST/binance-chart-test`, then restarts the `procharts-demo` pm2 process with
+`npm start -- -H 127.0.0.1 -p 3000`.
 
 ### 2. Verification Tooling
 
