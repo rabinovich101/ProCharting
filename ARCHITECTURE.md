@@ -328,16 +328,26 @@ updates against the active chart pane's `symbol` state; indicator templates firs
 open the compact TradingView-style Save/Open menu and
 then route to persisted template save/apply surfaces, layout setup is a fixed
 right-side panel with chart-count/sync options, the save caret opens a layout
-management menu, quick search opens a command dialog that can route to toolbar
-menus and actions, chart settings expose local
+management menu with local saved chart layouts, quick search opens a command
+dialog that can route to toolbar menus and actions, chart settings expose local
 status-line/grid/current-price/crosshair/theme/volume toggles plus Symbol rows
 for candle body/borders/wick/data/precision/timezone/template, fullscreen is a
 direct document fullscreen toggle, and snapshot opens a menu for download,
-clipboard, link, new-tab, and Tweet actions. Alert, Replay, and Save open
-TradingView-like feature/sign-in dialogs, Trade opens a broker-selection dialog,
-and Publish opens the compact idea/video/note menu. Undo and redo intentionally
-remain disabled in the clean-chart state, matching TradingView before chart
-history is created.
+clipboard, link, new-tab, and Tweet actions. Alert and Replay open
+TradingView-like feature/sign-in dialogs, Save opens a persisted chart-layout
+dialog, Trade opens a broker-selection dialog, and Publish opens the compact
+idea/video/note menu. Undo and redo intentionally remain disabled in the
+clean-chart state, matching TradingView before chart history is created.
+
+Saved chart layouts in the standalone QA app persist to browser `localStorage`
+under `procharting.chartLayouts`. Each saved layout stores the selected split
+grid, active pane index, layout sync toggles, chart style, theme, chart settings,
+active indicator instances, and per-pane symbol, interval, manual price range,
+and logical view range. Candles, live feed status, pointer/crosshair state, and
+drag state are intentionally excluded so restoring a layout recreates fresh pane
+sessions and reloads market data through the existing Binance REST and websocket
+pipeline. This keeps the client-side store small while preserving a plain JSON
+snapshot shape that can move to a server-backed chart-layout table later.
 
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent

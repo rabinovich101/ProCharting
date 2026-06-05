@@ -515,6 +515,14 @@ summary {
   text-align: center;
 }
 
+.saved-layouts-heading {
+  margin-top: 4px;
+}
+
+.saved-layout-row[data-active="true"] button:first-child {
+  background: var(--surface-3);
+}
+
 .layout-matrix {
   display: grid;
 }
@@ -696,6 +704,7 @@ summary {
 }
 
 .template-save-dialog,
+.layout-save-dialog,
 .feature-dialog {
   width: min(420px, calc(100vw - 28px));
 }
@@ -1002,6 +1011,40 @@ summary {
 .feature-dialog-body,
 .broker-dialog-body {
   padding: 16px;
+}
+
+.layout-save-body {
+  display: grid;
+  gap: 12px;
+}
+
+.layout-save-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.layout-save-summary span {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  display: grid;
+  gap: 3px;
+  min-height: 64px;
+  padding: 10px;
+}
+
+.layout-save-summary strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-save-summary small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .feature-dialog-body {

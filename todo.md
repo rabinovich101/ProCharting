@@ -1,3 +1,81 @@
+# Saved Chart Layouts
+
+## Goal
+
+Add a TradingView-style saved chart layout feature to the standalone Binance
+chart QA app so a configured chart setup can be saved and restored instead of
+rebuilt from scratch.
+
+## Findings / Decisions
+
+- The reference recording shows TradingView's layout save menu: Save layout,
+  Autosave, Share layout, Make a copy, Rename, Download chart data, Create new
+  layout, and a recently used saved-layout list.
+- The current app already has the correct command-bar surface: a Save button
+  and a manage-layout caret menu, but Save currently opens a placeholder
+  sign-up dialog and manage-layout rows close without saving or restoring state.
+- Existing indicator templates persist to `localStorage`, so the smallest
+  project-consistent persistence layer is a local browser layout store. Treat it
+  as a lightweight client-side DB for this QA harness, and keep the snapshot
+  schema portable for a future server DB.
+- Persist configuration, not market data: selected grid layout, sync toggles,
+  chart style, theme, settings, active indicators, active pane index, and each
+  pane's symbol/timeframe/view/manual price range. Candles reload through the
+  existing Binance REST/websocket flow after restore.
+- Keep the implementation local to
+  `TEST/binance-chart-test/app/page.tsx` and the matching CSS, with no package
+  renderer contract changes.
+
+## Checklist
+
+- [x] Capture the video/reference behavior in a JSON analysis file.
+- [x] Add saved chart layout snapshot types and local persistence helpers.
+- [x] Replace the placeholder Save dialog with a real save-layout modal.
+- [x] Add saved-layout open/apply/delete actions to the manage-layout menu.
+- [x] Restore saved pane sessions without persisting stale candles.
+- [x] Update styles for saved-layout rows and modal status text.
+- [x] Update architecture notes for the saved-layout persistence model.
+- [x] Run focused typecheck/diff checks.
+- [x] Verify save, open, and restore with Browser/Playwright/devtools.
+- [x] Commit and push `main`.
+
+## Review
+
+Implemented TradingView-style saved chart layouts in the standalone Binance
+chart QA app.
+
+- `TEST/binance-chart-test/saved-layout-feature-analysis.json` captures the
+  video observations, current app gap, storage decision, snapshot schema, and QA
+  plan.
+- `TEST/binance-chart-test/app/page.tsx` now stores saved chart layouts under
+  `procharting.chartLayouts`, builds snapshots from current chart state, and
+  restores them as fresh pane sessions so candles reload from Binance rather
+  than being persisted.
+- The top Save button now opens a real save-layout dialog with a name field and
+  saved-state summary instead of the placeholder sign-up dialog.
+- The manage-layout caret menu now supports Save all charts, Create new layout,
+  Make a copy, Rename/save, Auto-save toggle, recently used saved layouts, open,
+  and delete.
+- `TEST/binance-chart-test/app/globals.css` adds compact saved-layout row and
+  save-summary styling.
+- `ARCHITECTURE.md` documents the local saved-layout persistence model and why
+  candles/live pointer state are excluded.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `pnpm --dir TEST/binance-chart-test exec next build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser/Playwright/devtools verified saving a 4-grid layout named
+  `QA saved layout 1780652188188`, changing the app back to one chart, restoring
+  the saved layout from Manage layouts, and seeing `data-layout-id="4-grid"`,
+  four chart panes, four canvases, one active pane, no horizontal overflow, and
+  no console errors.
+- Browser reload verified the saved layout row remained available after reload,
+  confirming persistence through the app's local saved-layout store.
+
 # Hide Single-Pane Active Outline
 
 ## Goal

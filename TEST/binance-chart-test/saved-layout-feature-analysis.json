@@ -1,0 +1,81 @@
+{
+  "feature": "Saved chart layouts",
+  "sourceVideo": "/Users/olegrabinovich/Desktop/Screen Recording 2026-06-05 at 12.13.51.mov",
+  "recordingSummary": {
+    "durationSeconds": 34.724,
+    "resolution": "1904x1042",
+    "observedProduct": "TradingView web chart",
+    "observedBehavior": [
+      "A configured chart contains a symbol, timeframe, drawn price zones/channels, multiple indicators, watchlist context, and split-layout state.",
+      "The top-right Save control opens a layout menu with Save layout, Autosave, Share layout, Make a copy, Rename, Download chart data, Create new layout, and a recently used saved-layout list.",
+      "The layout picker can switch between one chart and multi-chart grids while preserving a configured chart environment.",
+      "The intended value is restoring a prepared chart workspace instead of manually rebuilding indicators, layout, symbols, and view settings each time."
+    ]
+  },
+  "currentProjectFindings": {
+    "app": "TEST/binance-chart-test",
+    "mainFile": "TEST/binance-chart-test/app/page.tsx",
+    "currentSaveSurface": "The command bar already has a Save button and manage-layout caret menu.",
+    "currentGap": "Save opens a placeholder feature dialog. Manage-layout rows do not persist or restore layout state.",
+    "existingPersistencePattern": "Indicator templates already use localStorage under procharting.indicatorTemplates."
+  },
+  "storageDecision": {
+    "chosenStore": "localStorage",
+    "storageKey": "procharting.chartLayouts",
+    "why": [
+      "The QA app is a client-only Next.js harness with no existing backend database or server auth model.",
+      "Saved chart layout snapshots are small because candles are intentionally excluded.",
+      "localStorage matches the existing indicator-template persistence pattern and avoids adding unrelated dependencies.",
+      "The snapshot schema is plain JSON, so it can be migrated to IndexedDB or a server table later."
+    ],
+    "futureServerDbShape": {
+      "table": "chart_layouts",
+      "columns": [
+        "id",
+        "user_id",
+        "name",
+        "created_at",
+        "updated_at",
+        "snapshot_json",
+        "is_autosave_target"
+      ]
+    }
+  },
+  "snapshotSchema": {
+    "id": "string",
+    "name": "string",
+    "createdAt": "number epoch ms",
+    "updatedAt": "number epoch ms",
+    "selectedLayoutId": "ChartLayoutOption id",
+    "activePaneIndex": "number",
+    "chartStyle": "candles | line | area",
+    "theme": "dark | light",
+    "layoutSync": "Record<LayoutSyncKey, boolean>",
+    "chartSettings": "ChartSettingsState",
+    "indicators": "ActiveIndicator[]",
+    "panes": [
+      {
+        "symbol": "string",
+        "timeframe": "string",
+        "manualPriceRange": "PriceRange | null",
+        "viewRange": "ViewRange"
+      }
+    ]
+  },
+  "implementationPlan": [
+    "Add SavedChartLayout and SavedChartPaneSnapshot interfaces near existing template types.",
+    "Load saved layouts from localStorage on mount with validation and fallback to an empty list.",
+    "Create a current-layout snapshot from existing app state, excluding candles/loading/feed/crosshair drag state.",
+    "Persist new snapshots through Save and Create new layout flows.",
+    "Restore snapshots by setting layout id, sync toggles, theme/style/settings, indicators, active pane, and pane states with fresh loading state.",
+    "Replace placeholder Save dialog with a name input and layout summary.",
+    "Render recently saved layouts in the manage-layout menu with open and delete controls.",
+    "Document the persistence model in ARCHITECTURE.md and verify in browser devtools."
+  ],
+  "qaPlan": [
+    "Run TypeScript checks for TEST/binance-chart-test.",
+    "Use Browser/Playwright to open the app, create a multi-pane modified layout, save it, mutate the chart, restore the saved layout, and inspect localStorage.",
+    "Check console errors and horizontal overflow after restore.",
+    "Confirm candles reload through existing market-data flow rather than being read from storage."
+  ]
+}

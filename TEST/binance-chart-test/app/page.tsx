@@ -236,6 +236,28 @@ interface IndicatorTemplate {
   indicators: ActiveIndicator[];
 }
 
+interface SavedChartPaneSnapshot {
+  symbol: string;
+  timeframe: string;
+  manualPriceRange: PriceRange | null;
+  viewRange: ViewRange;
+}
+
+interface SavedChartLayout {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  selectedLayoutId: string;
+  activePaneIndex: number;
+  chartStyle: ChartStyle;
+  theme: ThemeName;
+  layoutSync: Record<LayoutSyncKey, boolean>;
+  chartSettings: ChartSettingsState;
+  indicators: ActiveIndicator[];
+  panes: SavedChartPaneSnapshot[];
+}
+
 interface ChartSettingsState {
   showStatusLine: boolean;
   showIndicatorLegend: boolean;
@@ -280,6 +302,8 @@ interface SymbolSearchOption {
 }
 
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
+const CHART_LAYOUT_STORAGE_KEY = 'procharting.chartLayouts';
+const MAX_SAVED_CHART_LAYOUTS = 12;
 const LAYOUT_SYNC_LABELS: Record<LayoutSyncKey, string> = {
   symbol: 'Symbol',
   interval: 'Interval',
@@ -293,6 +317,14 @@ const DEFAULT_LAYOUT_SYNC: Record<LayoutSyncKey, boolean> = {
   crosshair: true,
   time: false,
   dateRange: false,
+};
+const DEFAULT_CHART_SETTINGS: ChartSettingsState = {
+  showStatusLine: true,
+  showIndicatorLegend: true,
+  showGridLines: true,
+  showCurrentPriceLine: true,
+  showVolumePane: true,
+  showCrosshair: true,
 };
 
 const layoutCell = (column: number, row: number, columnSpan = 1, rowSpan = 1): LayoutCellSpec => ({
@@ -543,6 +575,8 @@ const LAYOUT_GROUPS: ChartLayoutGroup[] = [
 ];
 const ALL_LAYOUT_OPTIONS = LAYOUT_GROUPS.flatMap((group) => group.options);
 const DEFAULT_LAYOUT_ID = '1-single';
+const getLayoutOptionById = (layoutId: string) =>
+  ALL_LAYOUT_OPTIONS.find((option) => option.id === layoutId) ?? ALL_LAYOUT_OPTIONS[0]!;
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'symbol', label: 'Symbol' },
   { id: 'status', label: 'Status line' },
@@ -569,7 +603,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: 'fullscreen', label: 'Fullscreen mode', description: 'Toggle fullscreen chart' },
   { id: 'reset', label: 'Reset chart view', description: 'Restore automatic view' },
 ];
-const FEATURE_DIALOGS: Record<'alert' | 'replay' | 'save', { title: string; eyebrow: string; body: string }> = {
+const FEATURE_DIALOGS: Record<'alert' | 'replay', { title: string; eyebrow: string; body: string }> = {
   alert: {
     title: 'Never miss a trade again',
     eyebrow: 'Create alert',
@@ -579,11 +613,6 @@ const FEATURE_DIALOGS: Record<'alert' | 'replay' | 'save', { title: string; eyeb
     title: 'Unlock Bar Replay',
     eyebrow: 'Bar replay',
     body: 'Step through historical candles and practice decisions with the chart paused at any point in time.',
-  },
-  save: {
-    title: 'Save this chart',
-    eyebrow: 'Chart layout',
-    body: 'Keep this symbol, interval, drawings, indicators, and layout available across browser sessions.',
   },
 };
 const BROKER_OPTIONS = [
@@ -1049,6 +1078,27 @@ const createChartPaneState = (symbol = 'BTCUSDT', timeframe = '1m'): ChartPaneSt
   manualPriceRange: null,
   viewRange: createDefaultViewRange(),
 });
+const createSavedPaneSnapshot = (pane: ChartPaneState): SavedChartPaneSnapshot => ({
+  symbol: pane.symbol,
+  timeframe: pane.timeframe,
+  manualPriceRange: pane.manualPriceRange ? { ...pane.manualPriceRange } : null,
+  viewRange: { ...pane.viewRange },
+});
+const createChartPaneStateFromSnapshot = (
+  snapshot: SavedChartPaneSnapshot | undefined,
+  refreshNonce = Date.now()
+): ChartPaneState => {
+  const symbol = typeof snapshot?.symbol === 'string' && snapshot.symbol.length > 0 ? snapshot.symbol : 'BTCUSDT';
+  const timeframe =
+    typeof snapshot?.timeframe === 'string' && snapshot.timeframe.length > 0 ? snapshot.timeframe : '1m';
+
+  return {
+    ...createChartPaneState(symbol, timeframe),
+    refreshNonce,
+    manualPriceRange: snapshot?.manualPriceRange ? { ...snapshot.manualPriceRange } : null,
+    viewRange: snapshot?.viewRange ? { ...snapshot.viewRange } : createDefaultViewRange(),
+  };
+};
 const cloneChartPaneState = (source: ChartPaneState): ChartPaneState => ({
   ...source,
   candles: [...source.candles],
@@ -2383,6 +2433,12 @@ export default function Home() {
   const [headerPanel, setHeaderPanel] = useState<HeaderPanelKey | null>(null);
   const [indicatorTemplates, setIndicatorTemplates] = useState<IndicatorTemplate[]>([]);
   const [templateName, setTemplateName] = useState('My indicator template');
+  const [savedChartLayouts, setSavedChartLayouts] = useState<SavedChartLayout[]>([]);
+  const [layoutName, setLayoutName] = useState('My chart layout');
+  const [activeSavedLayoutId, setActiveSavedLayoutId] = useState<string | null>(null);
+  const [layoutSaveTargetId, setLayoutSaveTargetId] = useState<string | null>(null);
+  const [layoutAutosave, setLayoutAutosave] = useState(false);
+  const [layoutSaveStatus, setLayoutSaveStatus] = useState('');
   const [selectedLayoutId, setSelectedLayoutId] = useState(DEFAULT_LAYOUT_ID);
   const [layoutSync, setLayoutSync] = useState<Record<LayoutSyncKey, boolean>>(DEFAULT_LAYOUT_SYNC);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('symbol');
@@ -2391,19 +2447,13 @@ export default function Home() {
   const [symbolSearchCategory, setSymbolSearchCategory] = useState<SymbolSearchCategory>('all');
   const [snapshotStatus, setSnapshotStatus] = useState('');
   const [selectedBroker, setSelectedBroker] = useState('Paper Trading');
-  const [chartSettings, setChartSettings] = useState<ChartSettingsState>({
-    showStatusLine: true,
-    showIndicatorLegend: true,
-    showGridLines: true,
-    showCurrentPriceLine: true,
-    showVolumePane: true,
-    showCrosshair: true,
-  });
+  const [chartSettings, setChartSettings] = useState<ChartSettingsState>(DEFAULT_CHART_SETTINGS);
 
   const palette = PALETTES[theme];
-  const selectedLayout = ALL_LAYOUT_OPTIONS.find((option) => option.id === selectedLayoutId) ?? ALL_LAYOUT_OPTIONS[0]!;
+  const selectedLayout = getLayoutOptionById(selectedLayoutId);
   const selectedLayoutCells = selectedLayout.cells;
   const paneCount = selectedLayoutCells.length;
+  const activeSavedLayout = savedChartLayouts.find((layout) => layout.id === activeSavedLayoutId) ?? null;
   const activePane = chartPanes[activePaneIndex] ?? chartPanes[0] ?? createChartPaneState();
   const activeSymbol = activePane.symbol;
   const activeTimeframe = activePane.timeframe;
@@ -2497,6 +2547,31 @@ export default function Home() {
       );
     } catch {
       setIndicatorTemplates([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const rawLayouts = window.localStorage.getItem(CHART_LAYOUT_STORAGE_KEY);
+      if (!rawLayouts) return;
+
+      const parsedLayouts = JSON.parse(rawLayouts) as SavedChartLayout[];
+      if (!Array.isArray(parsedLayouts)) return;
+
+      setSavedChartLayouts(
+        parsedLayouts
+          .filter(
+            (layout) =>
+              typeof layout.id === 'string' &&
+              typeof layout.name === 'string' &&
+              typeof layout.selectedLayoutId === 'string' &&
+              Array.isArray(layout.panes) &&
+              Array.isArray(layout.indicators)
+          )
+          .slice(0, MAX_SAVED_CHART_LAYOUTS)
+      );
+    } catch {
+      setSavedChartLayouts([]);
     }
   }, []);
 
@@ -3770,6 +3845,8 @@ export default function Home() {
     setQuickSearchQuery('');
     setSymbolSearchQuery(activeSymbol);
     setSnapshotStatus('');
+    setLayoutSaveStatus('');
+    setLayoutSaveTargetId(null);
     setSettingsTarget(null);
     setMoreTarget(null);
   };
@@ -3834,6 +3911,144 @@ export default function Home() {
     setOpenMenu(null);
     setHeaderPanel('quickSearch');
   };
+  const persistSavedChartLayouts = (layouts: SavedChartLayout[]) => {
+    const nextLayouts = layouts.slice(0, MAX_SAVED_CHART_LAYOUTS);
+    setSavedChartLayouts(nextLayouts);
+    window.localStorage.setItem(CHART_LAYOUT_STORAGE_KEY, JSON.stringify(nextLayouts));
+  };
+  const copyIndicatorsForSnapshot = (indicators: ActiveIndicator[]) =>
+    indicators.map((indicator) => ({
+      ...indicator,
+      settings: { ...indicator.settings },
+    }));
+  const buildSavedChartLayout = (name: string, existingLayout?: SavedChartLayout): SavedChartLayout => {
+    const now = Date.now();
+    const visiblePaneSnapshots = chartPanes.slice(0, paneCount).map(createSavedPaneSnapshot);
+
+    return {
+      id: existingLayout?.id ?? `layout-${now}`,
+      name,
+      createdAt: existingLayout?.createdAt ?? now,
+      updatedAt: now,
+      selectedLayoutId: selectedLayout.id,
+      activePaneIndex: clamp(activePaneIndex, 0, Math.max(0, paneCount - 1)),
+      chartStyle,
+      theme,
+      layoutSync: { ...layoutSync },
+      chartSettings: { ...chartSettings },
+      indicators: copyIndicatorsForSnapshot(activeIndicators),
+      panes: visiblePaneSnapshots.length > 0 ? visiblePaneSnapshots : [createSavedPaneSnapshot(activePane)],
+    };
+  };
+  const openSaveLayoutDialog = (nameOverride?: string, targetLayoutId = activeSavedLayoutId) => {
+    setOpenMenu(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
+    setSnapshotStatus('');
+    setLayoutSaveStatus('');
+    setLayoutSaveTargetId(targetLayoutId);
+    setLayoutName(
+      nameOverride ?? activeSavedLayout?.name ?? `Chart layout ${Math.min(savedChartLayouts.length + 1, 99)}`
+    );
+    setHeaderPanel('save');
+  };
+  const confirmChartLayoutSave = () => {
+    const trimmedName = layoutName.trim();
+    const name = trimmedName.length > 0 ? trimmedName : `Chart layout ${savedChartLayouts.length + 1}`;
+    const existingLayout = layoutSaveTargetId
+      ? savedChartLayouts.find((layout) => layout.id === layoutSaveTargetId)
+      : undefined;
+    const nextLayout = buildSavedChartLayout(name, existingLayout);
+    const otherLayouts = savedChartLayouts.filter((layout) => layout.id !== nextLayout.id);
+
+    persistSavedChartLayouts([nextLayout, ...otherLayouts]);
+    setActiveSavedLayoutId(nextLayout.id);
+    setLayoutName(name);
+    closeHeaderOverlays();
+  };
+  const copyCurrentChartLayout = () => {
+    const sourceName = activeSavedLayout?.name ?? (layoutName.trim() || `Chart layout ${savedChartLayouts.length + 1}`);
+    const nextLayout = buildSavedChartLayout(`${sourceName} copy`);
+
+    persistSavedChartLayouts([nextLayout, ...savedChartLayouts]);
+    setActiveSavedLayoutId(nextLayout.id);
+    setLayoutName(nextLayout.name);
+    setLayoutSaveStatus('Saved copy');
+  };
+  const applySavedChartLayout = (layout: SavedChartLayout) => {
+    const layoutOption = getLayoutOptionById(layout.selectedLayoutId);
+    const paneSnapshots = layout.panes.length > 0 ? layout.panes : [createSavedPaneSnapshot(createChartPaneState())];
+    const restoreNonce = Date.now();
+    const restoredPanes = Array.from({ length: layoutOption.cells.length }, (_unused, index) =>
+      createChartPaneStateFromSnapshot(paneSnapshots[index] ?? paneSnapshots[0], restoreNonce)
+    );
+
+    setSelectedLayoutId(layoutOption.id);
+    setLayoutSync({ ...DEFAULT_LAYOUT_SYNC, ...layout.layoutSync });
+    setChartStyle(layout.chartStyle);
+    setTheme(layout.theme);
+    setChartSettings({ ...DEFAULT_CHART_SETTINGS, ...layout.chartSettings });
+    setActiveIndicators(
+      copyIndicatorsForSnapshot(layout.indicators).map((indicator, index) => ({
+        ...indicator,
+        id: `${indicator.definitionId}-${Date.now()}-${index}`,
+      }))
+    );
+    setChartPanes(restoredPanes);
+    setActivePaneIndex(clamp(layout.activePaneIndex, 0, Math.max(0, layoutOption.cells.length - 1)));
+    setActiveSavedLayoutId(layout.id);
+    setLayoutName(layout.name);
+    closeHeaderOverlays();
+  };
+  const removeSavedChartLayout = (layoutId: string) => {
+    persistSavedChartLayouts(savedChartLayouts.filter((layout) => layout.id !== layoutId));
+    setActiveSavedLayoutId((current) => (current === layoutId ? null : current));
+  };
+  const formatSavedLayoutMetadata = (layout: SavedChartLayout) => {
+    const layoutOption = getLayoutOptionById(layout.selectedLayoutId);
+    const updatedAt = Number.isFinite(layout.updatedAt) ? layout.updatedAt : layout.createdAt;
+    const savedAt = new Date(updatedAt).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    return `${layoutOption.count} ${layoutOption.count === 1 ? 'chart' : 'charts'} - ${savedAt}`;
+  };
+  useEffect(() => {
+    if (!layoutAutosave || !activeSavedLayoutId) return;
+
+    const handle = window.setTimeout(() => {
+      setSavedChartLayouts((current) => {
+        const existingLayout = current.find((layout) => layout.id === activeSavedLayoutId);
+        if (!existingLayout) return current;
+
+        const nextLayout = buildSavedChartLayout(existingLayout.name, existingLayout);
+        const nextLayouts = [nextLayout, ...current.filter((layout) => layout.id !== nextLayout.id)].slice(
+          0,
+          MAX_SAVED_CHART_LAYOUTS
+        );
+
+        window.localStorage.setItem(CHART_LAYOUT_STORAGE_KEY, JSON.stringify(nextLayouts));
+        return nextLayouts;
+      });
+    }, 600);
+
+    return () => window.clearTimeout(handle);
+  }, [
+    activeIndicators,
+    activePaneIndex,
+    activeSavedLayoutId,
+    chartPanes,
+    chartSettings,
+    chartStyle,
+    layoutAutosave,
+    layoutSync,
+    paneCount,
+    selectedLayoutId,
+    theme,
+  ]);
   const persistIndicatorTemplates = (templates: IndicatorTemplate[]) => {
     setIndicatorTemplates(templates);
     window.localStorage.setItem(INDICATOR_TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
@@ -3961,6 +4176,11 @@ export default function Home() {
       return;
     }
 
+    if (actionId === 'save') {
+      openSaveLayoutDialog();
+      return;
+    }
+
     if (
       actionId === 'templates' ||
       actionId === 'layout' ||
@@ -3968,7 +4188,6 @@ export default function Home() {
       actionId === 'snapshot' ||
       actionId === 'alert' ||
       actionId === 'replay' ||
-      actionId === 'save' ||
       actionId === 'trade' ||
       actionId === 'publish'
     ) {
@@ -4297,7 +4516,7 @@ export default function Home() {
     );
   };
   const featureDialog =
-    headerPanel === 'alert' || headerPanel === 'replay' || headerPanel === 'save'
+    headerPanel === 'alert' || headerPanel === 'replay'
       ? FEATURE_DIALOGS[headerPanel]
       : null;
 
@@ -4520,7 +4739,7 @@ export default function Home() {
               aria-label="Save all charts for all symbols and intervals on your layout"
               title="Save all charts for all symbols and intervals on your layout"
               data-active={headerPanel === 'save'}
-              onClick={() => toggleHeaderPanel('save')}
+              onClick={() => openSaveLayoutDialog()}
             >
               <span>Save</span>
             </button>
@@ -4538,22 +4757,58 @@ export default function Home() {
               {headerPanel === 'manageLayouts' && (
                 <div className="header-panel manage-layouts-panel" role="menu" aria-label="Manage layouts">
                   <strong>Manage layouts</strong>
-                  <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('save')}>
-                    Save all charts...
+                  <button type="button" className="header-menu-row stacked" role="menuitem" onClick={() => openSaveLayoutDialog()}>
+                    <span>Save all charts...</span>
+                    <small>{activeSavedLayout ? activeSavedLayout.name : 'Create a saved layout snapshot'}</small>
                   </button>
-                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
-                    Open layout...
+                  <button
+                    type="button"
+                    className="header-menu-row stacked"
+                    role="menuitem"
+                    onClick={() => openSaveLayoutDialog(`Chart layout ${savedChartLayouts.length + 1}`, null)}
+                  >
+                    <span>Create new layout...</span>
+                    <small>Save current panes as a separate layout</small>
                   </button>
-                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
-                    Make a copy...
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={copyCurrentChartLayout}>
+                    <span>Make a copy...</span>
+                    <small>Duplicate current setup</small>
                   </button>
-                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
+                  <button type="button" className="header-menu-row" role="menuitem" onClick={() => openSaveLayoutDialog()}>
                     Rename...
                   </button>
-                  <button type="button" className="header-menu-row" role="menuitem" onClick={closeHeaderOverlays}>
+                  <button
+                    type="button"
+                    className="header-menu-row"
+                    role="menuitemcheckbox"
+                    aria-checked={layoutAutosave}
+                    onClick={() => setLayoutAutosave((current) => !current)}
+                  >
                     <span>Auto-save</span>
-                    <small>On</small>
+                    <small>{layoutAutosave ? 'On' : 'Off'}</small>
                   </button>
+                  {layoutSaveStatus && <span className="header-panel-status">{layoutSaveStatus}</span>}
+                  <span className="header-panel-label saved-layouts-heading">RECENTLY USED</span>
+                  {savedChartLayouts.length === 0 ? (
+                    <span className="header-panel-empty">No saved layouts</span>
+                  ) : (
+                    savedChartLayouts.map((layout) => (
+                      <div key={layout.id} className="template-menu-row saved-layout-row" data-active={layout.id === activeSavedLayoutId}>
+                        <button type="button" role="menuitem" onClick={() => applySavedChartLayout(layout)}>
+                          <strong>{layout.name}</strong>
+                          <small>{formatSavedLayoutMetadata(layout)}</small>
+                        </button>
+                        <button
+                          type="button"
+                          className="template-remove"
+                          aria-label={`Remove ${layout.name}`}
+                          onClick={() => removeSavedChartLayout(layout.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -4681,6 +4936,55 @@ export default function Home() {
                     Cancel
                   </button>
                   <button type="button" className="settings-ok" onClick={confirmIndicatorTemplateSave}>
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {headerPanel === 'save' && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <div
+                className="header-modal template-save-dialog layout-save-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Save chart layout"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="header-modal-title">
+                  <strong>Save chart layout</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <div className="template-save-body layout-save-body">
+                  <label className="header-panel-field">
+                    <span>Layout name</span>
+                    <input autoFocus value={layoutName} onChange={(event) => setLayoutName(event.target.value)} />
+                  </label>
+                  <div className="layout-save-summary" aria-label="Saved layout contents">
+                    <span>
+                      <strong>{selectedLayout.label}</strong>
+                      <small>{paneCount} chart panes</small>
+                    </span>
+                    <span>
+                      <strong>{activeIndicators.length}</strong>
+                      <small>Indicators</small>
+                    </span>
+                    <span>
+                      <strong>{activeSymbol}</strong>
+                      <small>{activeTimeframe.toUpperCase()} active pane</small>
+                    </span>
+                  </div>
+                  <span className="header-panel-status">
+                    Saves symbols, intervals, layout grid, indicators, settings, and current view ranges.
+                  </span>
+                </div>
+                <div className="settings-footer">
+                  <button type="button" onClick={closeHeaderOverlays}>
+                    Cancel
+                  </button>
+                  <button type="button" className="settings-ok" onClick={confirmChartLayoutSave}>
                     Save
                   </button>
                 </div>
