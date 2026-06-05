@@ -1,3 +1,73 @@
+# Crosshair Across Indicator Panes
+
+## Goal
+
+Make the mouse-following dotted crosshair behave like TradingView Supercharts:
+the vertical guide should extend through the main price chart and every visible
+lower indicator/volume pane, not stop at the main chart.
+
+## Findings / Decisions
+
+- TradingView's Supercharts settings describe the crosshair as following the
+  cursor, and TradingView's vertical-line behavior extends through indicator
+  panes. The closest local match is a shared vertical crosshair guide across all
+  visible canvas panes.
+- The live product surface is `TEST/binance-chart-test/app/page.tsx`, not the
+  packaged `@procharting/core` renderer. This app draws the main price pane,
+  volume pane, and oscillator panes inside a single Canvas 2D render pass.
+- The root cause is local: `getPointerArea` treats anything below the main price
+  pane as the time scale, and `drawChart` only draws the crosshair when the
+  pointer is inside `chartArea`.
+- Keep the fix simple: store all visible pane rectangles in the existing chart
+  interaction bounds, classify lower panes as plot hit areas, and draw the
+  vertical dotted crosshair inside every visible pane rectangle. Keep the
+  horizontal price guide and price label scoped to the main price pane.
+- This does not require a packaged renderer contract change.
+
+## Checklist
+
+- [x] Add pane-aware interaction bounds to the standalone chart app.
+- [x] Update pointer hit detection so lower indicator/volume panes act like plot
+      areas instead of time scale.
+- [x] Draw the vertical dotted crosshair through every visible pane while
+      keeping the horizontal price label on the main pane.
+- [x] Update `ARCHITECTURE.md` for the discovered pane/crosshair behavior.
+- [x] Run focused type/lint/diff checks.
+- [x] Verify with Browser/Playwright/devtools.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Implemented TradingView-style pane-spanning crosshair behavior in the
+standalone Binance chart app.
+
+- `TEST/binance-chart-test/app/page.tsx` now stores pane-aware interaction
+  bounds: the main price pane, volume pane, oscillator panes, and bottom time
+  scale.
+- Pointer hit detection now classifies visible lower panes as chart plot areas
+  instead of the bottom time scale, so the cursor stays as a crosshair over
+  volume/oscillator panes.
+- The vertical dotted crosshair now draws through every visible pane. The
+  horizontal guide and price label remain scoped to the main price pane, and the
+  crosshair time label is anchored to the bottom time scale.
+- `ARCHITECTURE.md` documents the standalone app's pane-aware crosshair model.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `npm --prefix TEST/binance-chart-test run build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser/Playwright/devtools verified the default volume pane and an added RSI
+  oscillator pane report `data-pointer-area="plot"` with `cursor: crosshair`
+  when hovered.
+- Screenshot verification at `/tmp/procharting-crosshair-rsi.png` shows the
+  dotted vertical crosshair through main, volume, and RSI panes. Pixel-column
+  contrast measured visible guide pixels in all three pane regions: main 208,
+  volume 46, RSI 53.
+- Browser console log check returned no warnings or errors.
+
 # Saved Chart Layouts
 
 ## Goal

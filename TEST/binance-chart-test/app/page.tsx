@@ -100,15 +100,19 @@ interface ChartDragState {
   anchorPrice: number;
 }
 
+interface ChartCanvasArea {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 interface ChartInteractionBounds {
   minPrice: number;
   maxPrice: number;
-  chartArea: {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  };
+  chartArea: ChartCanvasArea;
+  crosshairAreas: ChartCanvasArea[];
+  timeScaleArea: ChartCanvasArea;
 }
 
 interface MenuOption<T extends string> {
@@ -1054,6 +1058,8 @@ const createDefaultChartBounds = (): ChartInteractionBounds => ({
   minPrice: 0,
   maxPrice: 0,
   chartArea: { left: 12, top: 34, width: 0, height: 0 },
+  crosshairAreas: [],
+  timeScaleArea: { left: 12, top: 34, width: 0, height: 0 },
 });
 const createDragState = (paneIndex = 0): ChartDragState => ({
   mode: 'none',
@@ -2954,15 +2960,34 @@ export default function Home() {
   };
 
   const getPointerArea = (paneIndex: number, x: number, y: number): ChartPointerArea => {
-    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    const { chartArea, crosshairAreas, timeScaleArea } =
+      chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     const right = chartArea.left + chartArea.width;
     const bottom = chartArea.top + chartArea.height;
+    const paneAreas = crosshairAreas.length > 0 ? crosshairAreas : [chartArea];
 
     if (chartArea.width <= 0 || chartArea.height <= 0) return 'outside';
 
     if (x >= right && y >= chartArea.top && y <= bottom) return 'price-scale';
-    if (x >= chartArea.left && x <= right && y >= chartArea.top && y <= bottom) return 'plot';
-    if (x >= chartArea.left && x <= right && y > bottom) return 'time-scale';
+    if (
+      paneAreas.some(
+        (area) =>
+          x >= area.left &&
+          x <= area.left + area.width &&
+          y >= area.top &&
+          y <= area.top + area.height
+      )
+    ) {
+      return 'plot';
+    }
+    if (
+      x >= timeScaleArea.left &&
+      x <= timeScaleArea.left + timeScaleArea.width &&
+      y >= timeScaleArea.top &&
+      y <= timeScaleArea.top + timeScaleArea.height
+    ) {
+      return 'time-scale';
+    }
 
     return 'outside';
   };
@@ -3273,6 +3298,19 @@ export default function Home() {
       width: chartArea.width,
       height: oscillatorPaneHeight,
     }));
+    const crosshairAreas: ChartCanvasArea[] = [
+      chartArea,
+      ...(showVolume && volumeArea.height > 0 ? [volumeArea] : []),
+      ...oscillatorPaneAreas
+        .filter((area) => area.height > 0)
+        .map(({ left, top, width, height }) => ({ left, top, width, height })),
+    ];
+    const timeScaleArea = {
+      left: chartArea.left,
+      top: Math.max(chartArea.top, rect.height - bottomAxisHeight),
+      width: chartArea.width,
+      height: bottomAxisHeight,
+    };
 
     const visibleIndexedCandles: Array<{ candle: Candle; index: number }> = [];
     const firstVisibleIndex = Math.max(0, Math.floor(viewRange.startIndex));
@@ -3320,6 +3358,8 @@ export default function Home() {
         minPrice: minPaddedPrice,
         maxPrice: maxPaddedPrice,
         chartArea,
+        crosshairAreas,
+        timeScaleArea,
       };
     }
 
@@ -3700,13 +3740,23 @@ export default function Home() {
       ctx.fillText(tick.label, labelX, rect.height - 10);
     }
 
-    const crosshairInside =
+    const crosshairXInside =
       chartSettings.showCrosshair &&
       crosshairPosition &&
       crosshairPosition.x >= chartArea.left &&
-      crosshairPosition.x <= chartArea.left + chartArea.width &&
+      crosshairPosition.x <= chartArea.left + chartArea.width;
+    const crosshairYInsidePane =
+      crosshairPosition &&
+      crosshairAreas.some(
+        (area) =>
+          crosshairPosition.y >= area.top &&
+          crosshairPosition.y <= area.top + area.height
+      );
+    const crosshairInsidePricePane =
+      crosshairPosition &&
       crosshairPosition.y >= chartArea.top &&
       crosshairPosition.y <= chartArea.top + chartArea.height;
+    const crosshairInside = crosshairXInside && crosshairYInsidePane;
 
     if (crosshairInside && crosshairPosition) {
       const crosshairRatio = clamp((crosshairPosition.x - chartArea.left) / chartArea.width, 0, 1);
@@ -3716,22 +3766,29 @@ export default function Home() {
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      ctx.moveTo(crosshairPosition.x, chartArea.top);
-      ctx.lineTo(crosshairPosition.x, chartArea.top + chartArea.height);
+      crosshairAreas.forEach((area) => {
+        ctx.moveTo(crosshairPosition.x, area.top);
+        ctx.lineTo(crosshairPosition.x, area.top + area.height);
+      });
       ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(chartArea.left, crosshairPosition.y);
-      ctx.lineTo(chartArea.left + chartArea.width, crosshairPosition.y);
-      ctx.stroke();
+
+      if (crosshairInsidePricePane) {
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, crosshairPosition.y);
+        ctx.lineTo(chartArea.left + chartArea.width, crosshairPosition.y);
+        ctx.stroke();
+      }
       ctx.setLineDash([]);
 
-      const priceLabel = formatPrice(crosshairPosition.dataY);
-      ctx.fillStyle = palette.axisBg;
-      ctx.fillRect(chartArea.left + chartArea.width + 1, crosshairPosition.y - 11, rightAxisWidth - 6, 22);
-      ctx.fillStyle = palette.textBright;
-      ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
-      ctx.textAlign = 'left';
-      ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, crosshairPosition.y + 5);
+      if (crosshairInsidePricePane) {
+        const priceLabel = formatPrice(crosshairPosition.dataY);
+        ctx.fillStyle = palette.axisBg;
+        ctx.fillRect(chartArea.left + chartArea.width + 1, crosshairPosition.y - 11, rightAxisWidth - 6, 22);
+        ctx.fillStyle = palette.textBright;
+        ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, crosshairPosition.y + 5);
+      }
 
       const timeLabel = formatTime(timeForIndex(crosshairLogicalIndex), true);
       const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
@@ -3741,10 +3798,10 @@ export default function Home() {
         chartArea.left + chartArea.width - timeLabelWidth
       );
       ctx.fillStyle = palette.axisBg;
-      ctx.fillRect(labelX, chartArea.top + chartArea.height + 2, timeLabelWidth, 22);
+      ctx.fillRect(labelX, timeScaleArea.top + 4, timeLabelWidth, 22);
       ctx.fillStyle = palette.textBright;
       ctx.textAlign = 'center';
-      ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, chartArea.top + chartArea.height + 17);
+      ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, timeScaleArea.top + 19);
     }
 
   };

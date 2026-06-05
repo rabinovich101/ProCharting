@@ -334,6 +334,12 @@ The chart app supports:
   Wheel and drag gestures may leave the logical range on fractional slots, so
   timeline tick generation converts slot positions into interpolated candle
   timestamps instead of indexing the candle array directly.
+- Pane-aware crosshair geometry: `drawChart` records the main price pane,
+  volume band, oscillator panes, and bottom time scale in each pane's
+  interaction bounds. Pointer hit testing treats visible lower panes as chart
+  plot areas, so the dotted vertical crosshair follows the cursor through every
+  visible canvas pane while the horizontal price guide and price label remain
+  scoped to the main price pane.
 - The canvas exposes non-visible `data-*` diagnostics for browser QA/devtools
   inspection of pointer area, drag mode, logical view range, and manual price
   bounds. These attributes are not part of the end-user visual surface, and
