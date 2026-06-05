@@ -318,7 +318,10 @@ The chart app supports:
 - Selected price overlays participate in automatic Y-range fitting and draw on
   the main price pane. Volume draws in the volume band, and oscillator
   indicators draw in compact lower panes with guide lines and right-side value
-  labels.
+  labels. Oscillator pane headers share the same per-candle legend-value
+  extraction as the DOM indicator legend, so MACD line, signal, and histogram
+  values update to the candle under the crosshair without recalculating the
+  indicator series during hover.
 - Dark/light UI themes.
 - TradingView-style chart scale behavior: interval-specific default bar density,
   a small right-side future offset, semantic time-axis ticks, pixel-targeted

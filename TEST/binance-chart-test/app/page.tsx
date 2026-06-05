@@ -178,6 +178,12 @@ interface IndicatorComputedSeries {
   guideLines?: Array<{ value: number; label?: string }>;
 }
 
+interface IndicatorLegendValue {
+  label: string;
+  color: string;
+  value: number | null | undefined;
+}
+
 interface PaneIndicatorSeriesCache {
   candles: Candle[];
   indicators: ActiveIndicator[];
@@ -1926,6 +1932,55 @@ const formatIndicatorNumber = (value: number | null | undefined) => {
   if (value === null || value === undefined || !Number.isFinite(value)) return '-';
   if (Math.abs(value) >= 1000) return formatCompact(value);
   return value.toFixed(Math.abs(value) < 10 ? 2 : 2);
+};
+
+const getIndicatorLegendValues = ({
+  definition,
+  computed,
+  legendIndex,
+  legendCandle,
+  defaultColor,
+  positiveColor,
+  negativeColor,
+}: {
+  definition: IndicatorDefinition;
+  computed: IndicatorComputedSeries | undefined;
+  legendIndex: number;
+  legendCandle: Candle | null;
+  defaultColor: string;
+  positiveColor: string;
+  negativeColor: string;
+}): IndicatorLegendValue[] => {
+  if (definition.formula === 'volume') {
+    return [
+      {
+        label: 'Volume',
+        color: definition.defaults.color ?? defaultColor,
+        value: legendCandle?.volume ?? null,
+      },
+    ];
+  }
+
+  const values: IndicatorLegendValue[] =
+    computed?.lines.map((line) => ({
+      label: line.label,
+      color: line.color,
+      value: legendIndex >= 0 ? line.values[legendIndex] : null,
+    })) ?? [];
+  const histogramValue = legendIndex >= 0 ? computed?.histogram?.[legendIndex] : null;
+
+  if (computed?.histogram) {
+    values.push({
+      label: 'Histogram',
+      color:
+        histogramValue !== null && histogramValue !== undefined && histogramValue < 0
+          ? computed.histogramNegative ?? negativeColor
+          : computed.histogramPositive ?? positiveColor,
+      value: histogramValue,
+    });
+  }
+
+  return values;
 };
 
 const focusMenuItem = (menuKey: MenuKey, index: number) => {
@@ -3850,13 +3905,36 @@ export default function Home() {
       ctx.fillStyle = palette.text;
       ctx.font = `${indicatorPaneFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
       ctx.textAlign = 'left';
-      ctx.fillText(
-        getIndicatorLegendName(pane.indicator, symbol),
-        pane.left + 2,
-        pane.top + indicatorPaneFontSize + 5
-      );
+      const headerY = pane.top + indicatorPaneFontSize + 5;
+      const headerMaxX = rect.width - rightAxisWidth - 8;
+      const headerTitle = getIndicatorLegendName(pane.indicator, symbol);
+      const oscillatorLegendIndex = crosshairLegendIndex ?? candles.length - 1;
+      const oscillatorLegendValues = getIndicatorLegendValues({
+        definition,
+        computed,
+        legendIndex: oscillatorLegendIndex,
+        legendCandle: activeLegendCandle,
+        defaultColor: palette.text,
+        positiveColor: palette.green,
+        negativeColor: palette.red,
+      });
+      let headerX = pane.left + 2;
+
+      ctx.fillText(headerTitle, headerX, headerY);
+      headerX += ctx.measureText(headerTitle).width + 8;
+
+      for (const item of oscillatorLegendValues) {
+        const valueText = formatIndicatorNumber(item.value);
+        const valueWidth = ctx.measureText(valueText).width;
+        if (headerX + valueWidth > headerMaxX) break;
+
+        ctx.fillStyle = item.color;
+        ctx.fillText(valueText, headerX, headerY);
+        headerX += valueWidth + 7;
+      }
 
       ctx.textAlign = 'right';
+      ctx.fillStyle = palette.text;
       ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, pane.top + indicatorPaneFontSize + 5);
       ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, pane.top + pane.height - 7);
 
@@ -4463,29 +4541,15 @@ export default function Home() {
         {activeIndicators.map((indicator, index) => {
           const definition = getIndicatorDefinition(indicator.definitionId);
           const computed = activeIndicatorSeries[indicator.id];
-          const histogramValue = legendIndex >= 0 ? computed?.histogram?.[legendIndex] : null;
-          const indicatorValues =
-            definition.formula === 'volume'
-              ? [{ label: 'Volume', color: definition.defaults.color ?? palette.text, value: legendCandle.volume }]
-              : [
-                  ...(computed?.lines.map((line) => ({
-                    label: line.label,
-                    color: line.color,
-                    value: legendIndex >= 0 ? line.values[legendIndex] : null,
-                  })) ?? []),
-                  ...(computed?.histogram
-                    ? [
-                        {
-                          label: 'Histogram',
-                          color:
-                            histogramValue !== null && histogramValue !== undefined && histogramValue < 0
-                              ? computed.histogramNegative ?? palette.red
-                              : computed.histogramPositive ?? palette.green,
-                          value: histogramValue,
-                        },
-                      ]
-                    : []),
-                ];
+          const indicatorValues = getIndicatorLegendValues({
+            definition,
+            computed,
+            legendIndex,
+            legendCandle,
+            defaultColor: palette.text,
+            positiveColor: palette.green,
+            negativeColor: palette.red,
+          });
           const settings = indicator.settings;
           const canEditPeriod =
             definition.defaults.period !== undefined ||

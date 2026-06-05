@@ -4220,6 +4220,62 @@ React chart-pane state writes from ordinary hover movement.
   rendered, screenshot captured, and console diagnostics reported 0 warnings and
   0 errors.
 
+# MACD Oscillator Pane Values
+
+## Goal
+
+Match the TradingView behavior shown in the June 5, 2026 recording: MACD and
+other oscillator panes should show their per-candle values beside the pane title
+when the crosshair is on a candle.
+
+## Investigation / Decisions
+
+- MACD is already computed with MACD line, Signal line, and Histogram arrays.
+- The top-left DOM indicator legend can show those values, but the MACD
+  oscillator pane itself only paints the static indicator title.
+- TradingView shows the oscillator pane title followed by colored values for the
+  candle under the crosshair.
+- Add a shared indicator-value helper so DOM and canvas legends use the same
+  extraction logic for line values and histogram values.
+- Paint those values in the oscillator pane header for all oscillator
+  indicators, not just MACD.
+
+## Checklist
+
+- [x] Add a shared helper for per-candle indicator legend values.
+- [x] Use the helper in the existing DOM indicator legend.
+- [x] Paint oscillator pane header values from the same helper.
+- [x] Verify type/build checks.
+- [x] Test adding MACD in browser/Playwright and confirm values appear/change on candles.
+- [x] Update `ARCHITECTURE.md` if needed.
+- [ ] Commit, push, and leave the worktree clean.
+
+## Review
+
+- Added a shared per-candle indicator value helper in
+  `TEST/binance-chart-test/app/page.tsx` so line values and histogram values
+  are extracted in one place.
+- Reused that helper in the DOM indicator legend and in the canvas oscillator
+  pane header. MACD now shows MACD, signal, and histogram values beside the
+  lower pane title, and the same pattern applies to other oscillator panes.
+- Updated `ARCHITECTURE.md` to document that oscillator pane headers share the
+  cached per-candle legend-value extraction and do not recalculate indicators on
+  hover.
+- Local validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `pnpm run typecheck`
+  - `git diff --check`
+- Browser verification passed on `http://127.0.0.1:3000`: added MACD from the
+  Indicators picker and confirmed the lower canvas pane header rendered colored
+  values. Moving the crosshair changed MACD from `110.72 / 11.82 / 98.90` on
+  one candle to `93.03 / 109.10 / -16.07` on another.
+- Screenshot verification captured:
+  - `/tmp/procharting-macd-pane.png`
+  - `/tmp/procharting-macd-hover-left.png`
+  - `/tmp/procharting-macd-hover-right.png`
+- Browser console/devtools check returned 0 warnings and 0 errors.
+
 # Correct Volume Candle Binding
 
 ## Goal
