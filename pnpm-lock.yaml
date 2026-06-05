@@ -49,16 +49,6 @@ importers:
         specifier: ^5.0.0
         version: 5.4.19(@types/node@20.19.9)
 
-  examples/basic:
-    dependencies:
-      '@procharting/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-    devDependencies:
-      vite:
-        specifier: ^5.0.0
-        version: 5.4.19(@types/node@20.19.9)
-
   packages/core:
     dependencies:
       '@procharting/types':

@@ -18,7 +18,7 @@ ProCharting/
 │   ├── data/          # Data management and streaming
 │   ├── types/         # TypeScript type definitions
 │   └── utils/         # Shared utilities
-├── examples/          # Demo applications
+├── TEST/              # Standalone chart application and QA harnesses
 └── benchmarks/        # Performance tests
 ```
 
@@ -37,11 +37,11 @@ ProCharting/
 
 
 
-The primary runnable ProCharting package demo is `examples/basic`, a Vite app
-inside the pnpm workspace that imports `@procharting/core` and exercises the
-packaged chart API. The public VM app deployment uses
-`TEST/binance-chart-test`, a standalone Next.js live-market chart application
-outside the pnpm workspace.
+The runnable product app is `TEST/binance-chart-test`, a standalone Next.js
+live-market chart application outside the pnpm workspace. It owns the browser
+UI used for local QA and for the public VM deployment. The old
+Vite package demo has been removed so it cannot be mistaken for the product
+app.
 
 ### 1.1 VM Deployment
 
@@ -106,9 +106,9 @@ completes, so explicit GPU renderers cannot be called while their
 device/context fields are still unset.
 
 As of May 31, 2026, the automatic renderer path selects Canvas2D because it is
-the complete package-rendering path for the runnable `examples/basic` product
-demo. The WebGPU and WebGL packages remain available behind explicit renderer
-selection while their full data upload and draw paths continue to mature.
+the complete package-rendering path used by the runnable chart app. The WebGPU
+and WebGL packages remain available behind explicit renderer selection while
+their full data upload and draw paths continue to mature.
 
 ### 3. Renderer Architecture
 
@@ -184,12 +184,12 @@ all six fields into fixed-width candle records, so consumers should pass
 
 Canvas2D time-axis rendering accepts millisecond Unix timestamps as the primary
 contract and still normalizes legacy second-based timestamps for compatibility.
-The runnable `examples/basic` demo now generates millisecond timestamps so the
-package demo exercises the public data contract directly.
+The standalone chart app consumes millisecond timestamps from its Binance data
+flow so the public data contract is exercised directly.
 
 `@procharting/core` render scenes currently carry both `sourceData` and binary
 series buffers. Canvas2D renders directly from `sourceData` to preserve
-timestamp precision and keep the runnable package demo usable, while the binary
+timestamp precision and keep the runnable chart app usable, while the binary
 buffer remains the handoff shape for GPU-oriented renderer work.
 
 ### 5. Price Data Package
@@ -467,7 +467,7 @@ chart.on('click', (event) => {
 ## Future Enhancements
 
 ### Phase 1: Core Features (Current)
-- ✅ Functional Canvas2D renderer for the package demo
+- ✅ Functional Canvas2D renderer for the chart app
 - [ ] Complete WebGPU/WebGL2 data upload and draw paths
 - ✅ Basic chart types
 - ✅ Type-safe API

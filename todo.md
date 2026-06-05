@@ -3915,3 +3915,35 @@ repository.
   with BTCUSDT controls, one nonblank canvas, OHLC legend text, and no app
   warnings. The only current-page console error observed was Cloudflare's
   optional analytics beacon DNS failure for `static.cloudflareinsights.com`.
+
+# Remove Old Basic Demo
+
+## Goal
+
+Remove the old `examples/basic` demo package so the repository no longer
+contains or builds the placeholder library demo that was accidentally deployed
+first.
+
+## Investigation / Decisions
+
+- The obsolete demo is the tracked workspace package
+  `examples/basic` / `@procharting/example-basic`.
+- The actual product surface remains `TEST/binance-chart-test`, the standalone
+  Next.js chart application deployed to `procharts.thefiscalwire.com`.
+- Remove `examples/*` from the pnpm workspace because no example packages
+  remain.
+- Keep historical `todo.md` entries as history, but add this new removal record
+  and update current docs/architecture.
+
+## Checklist
+
+- [x] Delete the tracked `examples/basic` package files.
+- [x] Remove the examples workspace entry and lockfile importer.
+- [x] Update README and architecture references to point at the real Next app.
+- [x] Run focused build/type/test validation.
+- [ ] Verify the live deployed app with Browser/Playwright and devtools.
+- [ ] Commit, push, and confirm GitHub CI/deploy still pass.
+
+## Review
+
+Pending.

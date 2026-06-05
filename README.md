@@ -31,14 +31,15 @@ pnpm install
 pnpm build
 ```
 
-Run the basic browser example:
+Run the live chart app:
 
 ```bash
-cd examples/basic
-pnpm dev
+npm --prefix TEST/binance-chart-test install
+npm --prefix TEST/binance-chart-test run dev
 ```
 
-Then open the local Vite URL printed by the command.
+Then open the local Next.js URL printed by the command. The deployed app is
+served at https://procharts.thefiscalwire.com.
 
 ## How To Use In Another Project
 
