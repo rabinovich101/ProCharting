@@ -28,6 +28,21 @@ packaged chart API. The `TEST/binance-chart-test` Next.js app is outside the
 workspace and remains a standalone live-market QA harness rather than the
 default product/demo page.
 
+### 1.1 VM Deployment
+
+The public demo deployment for `procharts.thefiscalwire.com` serves the
+workspace `examples/basic` Vite build from the VM on `127.0.0.1:3000`.
+Cloudflare Tunnel publishes that local service to the subdomain without
+requiring inbound VM ports.
+
+CI/CD is VM-local through a GitHub Actions self-hosted runner labelled
+`procharts-vm`. Pushes to `main` run `.github/workflows/deploy-vm.yml` on that
+runner, checkout the repository on the VM, and execute `scripts/deploy-vm.sh`.
+The deploy script installs workspace dependencies, builds the monorepo, builds
+the `@procharting/example-basic` app, and restarts the `procharts-demo` pm2
+process using `scripts/static-server.mjs` to serve the generated
+`examples/basic/dist` files.
+
 ### 2. Verification Tooling
 
 The root TypeScript config is a solution-style project that references the package

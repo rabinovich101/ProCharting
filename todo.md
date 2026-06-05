@@ -3791,3 +3791,44 @@ worktree clean.
   dialog open, and devtools logs.
 - The temporary port-3002 dev server was stopped. The repaired port-3000 dev
   server remains running for user testing.
+
+# VM CI/CD Deployment
+
+## Goal
+
+Deploy the ProCharting public demo to the VM behind Cloudflare Tunnel and create
+an automatic CI/CD path from GitHub `main` to the VM.
+
+## Investigation / Decisions
+
+- `procharts.thefiscalwire.com` resolves through Cloudflare but currently
+  returns HTTP 502 because no app service is listening behind the tunnel yet.
+- The VM is reachable through the existing SSH jump-host path and runs Ubuntu
+  24.04.4 LTS.
+- `cloudflared` is installed on the VM, but Node.js, pnpm, and pm2 are not yet
+  installed there.
+- Use a GitHub self-hosted runner on the VM for CI/CD. This avoids exposing SSH
+  to GitHub-hosted runners and matches the private VM + Cloudflare Tunnel
+  topology.
+- Deploy the workspace `examples/basic` Vite demo as the public
+  `procharts.thefiscalwire.com` app. Build from GitHub source on the VM and
+  serve the generated static files on local port 3000 for Cloudflare Tunnel.
+
+## Checklist
+
+- [x] Confirm repo, Cloudflare hostname, and VM reachability.
+- [x] Add a repo deployment script for building and serving the Vite demo.
+- [x] Add a GitHub Actions deployment workflow for the VM self-hosted runner.
+- [x] Update `ARCHITECTURE.md` with the Cloudflare Tunnel + runner deployment
+      model.
+- [x] Install VM runtime dependencies needed by the deployment.
+- [x] Register and start the GitHub self-hosted runner on the VM.
+- [ ] Run the deploy script on the VM and confirm local service health.
+- [x] Run repo validation locally.
+- [ ] Verify `https://procharts.thefiscalwire.com` with Browser/Playwright and
+      devtools.
+- [ ] Commit, push, and confirm the GitHub -> VM deployment workflow.
+
+## Review
+
+Pending.
