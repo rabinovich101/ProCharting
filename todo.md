@@ -1,3 +1,68 @@
+# Candle-Snapped Crosshair Magnet Mode
+
+## Goal
+
+Make crosshair mouse movement feel like TradingView magnet mode: horizontal
+mouse movement should snap the crosshair from candle slot to candle slot instead
+of allowing the vertical guide to rest between candles.
+
+## Findings / Decisions
+
+- TradingView Lightweight Charts documents `CrosshairMode.Magnet` as the
+  default crosshair mode and describes it as snapping the crosshair to data
+  points. `CrosshairMode.Normal` is the free-moving mode.
+- The standalone Binance chart app currently stores raw mouse `x` in
+  `MousePosition`, so the vertical guide and time label can land anywhere
+  between candle centers.
+- The app already models the timeline as logical candle slots and renders
+  candles with `xForIndex(index) = chartArea.left + (index - startIndex + 0.5)
+  * candleSpacing`. The simplest correct fix is to convert raw mouse X to the
+  nearest logical candle slot, then store the snapped X and logical index in
+  `mousePos`.
+- Keep drag and wheel math continuous. Only hover/crosshair/readout behavior
+  should be snapped.
+- Let the OHLC and indicator legend read from the snapped logical index while
+  hovering any visible pane, not only the main price pane.
+
+## Checklist
+
+- [x] Add snapped candle slot data to hover mouse state.
+- [x] Snap crosshair X/time label/legend to the nearest candle slot.
+- [x] Keep pan, zoom, and price-scale drag continuous.
+- [x] Update `ARCHITECTURE.md` for magnet-mode hover behavior.
+- [x] Run focused type/lint/diff checks.
+- [x] Verify with Browser/Playwright/devtools and screenshot/pixel checks.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Implemented TradingView-style candle-snapped hover movement in the standalone
+Binance chart app.
+
+- `TEST/binance-chart-test/app/page.tsx` now carries `logicalIndex` in
+  `MousePosition` and converts raw hover X into the nearest visible logical
+  candle slot.
+- The crosshair vertical guide, bottom time label, OHLC row, and indicator
+  legend now use the snapped candle slot instead of raw mouse X.
+- Drag, wheel zoom, and price-scale drag continue to use raw pointer deltas, so
+  interaction controls remain smooth.
+- `ARCHITECTURE.md` documents the magnet-mode hover behavior.
+
+Verification results:
+
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `npm --prefix TEST/binance-chart-test run build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser/Playwright/devtools moved the pointer in 3px horizontal increments
+  while the rendered crosshair stayed on repeated candle columns, then jumped by
+  candle-slot-sized steps. Detected rendered X sequence:
+  `458, 466, 466, 473, 473, 480, 480, 480, 486, 486, 494, 494, 499`.
+- Screenshot verification at `/tmp/procharting-snap-08.png` shows the snapped
+  vertical guide still spanning the lower volume pane.
+- Browser console log check returned no warnings or errors.
+
 # Crosshair Across Indicator Panes
 
 ## Goal

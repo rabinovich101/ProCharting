@@ -24,6 +24,7 @@ interface MousePosition {
   x: number;
   y: number;
   dataY: number;
+  logicalIndex: number;
 }
 
 interface ViewRange {
@@ -3011,6 +3012,28 @@ export default function Home() {
     return range.maxPrice - (localY / Math.max(1, chartArea.height)) * (range.maxPrice - range.minPrice);
   };
 
+  const getSnappedCrosshairPosition = (paneIndex: number, x: number) => {
+    const pane = paneStatesRef.current[paneIndex];
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    if (!pane || chartArea.width <= 0) {
+      return { x, logicalIndex: 0 };
+    }
+
+    const candleSpacing = chartArea.width / Math.max(1, pane.viewRange.candlesPerView);
+    const rawLogicalIndex =
+      pane.viewRange.startIndex +
+      clamp((x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) * pane.viewRange.candlesPerView;
+    const visibleStartIndex = Math.floor(pane.viewRange.startIndex);
+    const visibleEndIndex = Math.max(visibleStartIndex, Math.ceil(pane.viewRange.endIndex) - 1);
+    const logicalIndex = clamp(Math.floor(rawLogicalIndex), visibleStartIndex, visibleEndIndex);
+    const snappedX = chartArea.left + (logicalIndex - pane.viewRange.startIndex + 0.5) * candleSpacing;
+
+    return {
+      x: clamp(snappedX, chartArea.left, chartArea.left + chartArea.width),
+      logicalIndex,
+    };
+  };
+
   const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
     const pane = paneStatesRef.current[paneIndex];
     setActivePaneIndex(paneIndex);
@@ -3165,14 +3188,23 @@ export default function Home() {
       }
     }
 
+    const snappedCrosshair = getSnappedCrosshairPosition(paneIndex, x);
     const currentPriceRange = getCurrentPriceRange(paneIndex);
     if (currentPriceRange) {
       updatePaneState(paneIndex, (currentPane) => ({
         ...currentPane,
-        mousePos: { x, y, dataY: getPriceAtY(paneIndex, y, currentPriceRange) },
+        mousePos: {
+          x: snappedCrosshair.x,
+          y,
+          dataY: getPriceAtY(paneIndex, y, currentPriceRange),
+          logicalIndex: snappedCrosshair.logicalIndex,
+        },
       }));
     } else {
-      updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, mousePos: { x, y, dataY: 0 } }));
+      updatePaneState(paneIndex, (currentPane) => ({
+        ...currentPane,
+        mousePos: { x: snappedCrosshair.x, y, dataY: 0, logicalIndex: snappedCrosshair.logicalIndex },
+      }));
     }
   };
 
@@ -3759,8 +3791,7 @@ export default function Home() {
     const crosshairInside = crosshairXInside && crosshairYInsidePane;
 
     if (crosshairInside && crosshairPosition) {
-      const crosshairRatio = clamp((crosshairPosition.x - chartArea.left) / chartArea.width, 0, 1);
-      const crosshairLogicalIndex = Math.floor(viewRange.startIndex + crosshairRatio * viewRange.candlesPerView);
+      const crosshairLogicalIndex = crosshairPosition.logicalIndex;
 
       ctx.strokeStyle = palette.crosshair;
       ctx.lineWidth = 1;
@@ -3863,24 +3894,20 @@ export default function Home() {
     }
 
     const latestCandle = pane.candles[pane.candles.length - 1] ?? null;
-    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    const { chartArea, crosshairAreas } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     const mousePos = pane.mousePos;
-    const mouseInsideMainPane =
+    const paneAreas = crosshairAreas.length > 0 ? crosshairAreas : [chartArea];
+    const mouseInsideCrosshairArea =
       mousePos &&
       mousePos.x >= chartArea.left &&
       mousePos.x <= chartArea.left + chartArea.width &&
-      mousePos.y >= chartArea.top &&
-      mousePos.y <= chartArea.top + chartArea.height;
-    const legendIndex = mouseInsideMainPane
-      ? Math.floor(
-          clamp(
-            pane.viewRange.startIndex +
-              (clamp((mousePos.x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) *
-                pane.viewRange.candlesPerView),
-            0,
-            pane.candles.length - 1
-          )
-        )
+      paneAreas.some(
+        (area) =>
+          mousePos.y >= area.top &&
+          mousePos.y <= area.top + area.height
+      );
+    const legendIndex = mouseInsideCrosshairArea
+      ? Math.floor(clamp(mousePos.logicalIndex, 0, pane.candles.length - 1))
       : pane.candles.length - 1;
     const legendCandle = legendIndex >= 0 ? pane.candles[legendIndex] ?? latestCandle : latestCandle;
     const legendChange = legendCandle ? legendCandle.close - legendCandle.open : 0;
