@@ -187,6 +187,8 @@ interface PaneIndicatorSeriesCache {
 interface PaneHoverState {
   mousePos: MousePosition | null;
   pointerArea: ChartPointerArea;
+  pointerX: number | null;
+  pointerY: number | null;
 }
 
 type HeaderPanelKey =
@@ -1085,6 +1087,8 @@ const createDragState = (paneIndex = 0): ChartDragState => ({
 const createPaneHoverState = (): PaneHoverState => ({
   mousePos: null,
   pointerArea: 'outside',
+  pointerX: null,
+  pointerY: null,
 });
 const createChartPaneState = (symbol = 'BTCUSDT', timeframe = '1m'): ChartPaneState => ({
   symbol,
@@ -2676,6 +2680,23 @@ export default function Home() {
     });
   };
 
+  const getCurrentHoverMousePosition = (paneIndex: number): MousePosition | null => {
+    const hoverState = getPaneHoverState(paneIndex);
+    if (hoverState.pointerX === null || hoverState.pointerY === null) {
+      return hoverState.mousePos;
+    }
+
+    const snappedCrosshair = getSnappedCrosshairPosition(paneIndex, hoverState.pointerX);
+    const currentPriceRange = getCurrentPriceRange(paneIndex);
+
+    return {
+      x: snappedCrosshair.x,
+      y: hoverState.pointerY,
+      dataY: currentPriceRange ? getPriceAtY(paneIndex, hoverState.pointerY, currentPriceRange) : 0,
+      logicalIndex: snappedCrosshair.logicalIndex,
+    };
+  };
+
   const getHoverLegendIndex = (paneIndex: number, pane: ChartPaneState, mousePos: MousePosition | null) => {
     if (!mousePos || pane.candles.length === 0) return null;
 
@@ -3299,13 +3320,14 @@ export default function Home() {
       dataY: currentPriceRange ? getPriceAtY(paneIndex, y, currentPriceRange) : 0,
       logicalIndex: snappedCrosshair.logicalIndex,
     };
-    const currentHoverState = getPaneHoverState(paneIndex);
-    const currentLegendIndex = getHoverLegendIndex(paneIndex, pane, currentHoverState.mousePos);
+    const currentLegendIndex = getHoverLegendIndex(paneIndex, pane, getCurrentHoverMousePosition(paneIndex));
     const nextLegendIndex = getHoverLegendIndex(paneIndex, pane, nextMousePos);
 
     paneHoverStatesRef.current[paneIndex] = {
       mousePos: nextMousePos,
       pointerArea: area,
+      pointerX: x,
+      pointerY: y,
     };
     event.currentTarget.dataset.pointerArea = area;
     event.currentTarget.style.cursor = getCanvasCursorForState(pane.dragMode, area);
@@ -3664,6 +3686,20 @@ export default function Home() {
     const currentPriceColor = latestCandle!.close >= latestCandle!.open ? palette.green : palette.red;
     const currentPriceInside =
       currentPriceY >= chartArea.top && currentPriceY <= chartArea.top + chartArea.height;
+    const crosshairLegendIndex =
+      chartSettings.showCrosshair &&
+      crosshairPosition &&
+      crosshairPosition.x >= chartArea.left &&
+      crosshairPosition.x <= chartArea.left + chartArea.width &&
+      crosshairAreas.some(
+        (area) =>
+          crosshairPosition.y >= area.top &&
+          crosshairPosition.y <= area.top + area.height
+      )
+        ? Math.floor(clamp(crosshairPosition.logicalIndex, 0, candles.length - 1))
+        : null;
+    const activeLegendCandle =
+      crosshairLegendIndex !== null ? candles[crosshairLegendIndex] ?? latestCandle! : latestCandle!;
 
     if (chartSettings.showCurrentPriceLine && currentPriceInside) {
       ctx.strokeStyle = currentPriceColor;
@@ -3704,7 +3740,7 @@ export default function Home() {
       ctx.font = `${indicatorPaneFontSize}px var(--font-geist-sans), ui-sans-serif, sans-serif`;
       ctx.textAlign = 'left';
       ctx.fillText(
-        `Vol ${formatCompact(latestCandle!.volume)}`,
+        `Vol ${formatCompact(activeLegendCandle.volume)}`,
         volumeArea.left + 2,
         volumeArea.top + indicatorPaneFontSize + 5
       );
@@ -3950,10 +3986,9 @@ export default function Home() {
     const animate = () => {
       canvasRefs.current.forEach((canvas, paneIndex) => {
         if (canvas) {
-          const hoverState = paneHoverStatesRef.current[paneIndex];
           drawChart(canvas, paneIndex, {
             updateInteractionBounds: true,
-            crosshairPosition: hoverState?.mousePos ?? null,
+            crosshairPosition: getCurrentHoverMousePosition(paneIndex),
           });
         }
       });
@@ -3996,7 +4031,7 @@ export default function Home() {
 
     const latestCandle = pane.candles[pane.candles.length - 1] ?? null;
     const legendIndex =
-      getHoverLegendIndex(paneIndex, pane, getPaneHoverState(paneIndex).mousePos) ?? pane.candles.length - 1;
+      getHoverLegendIndex(paneIndex, pane, getCurrentHoverMousePosition(paneIndex)) ?? pane.candles.length - 1;
     const legendCandle = legendIndex >= 0 ? pane.candles[legendIndex] ?? latestCandle : latestCandle;
     const legendChange = legendCandle ? legendCandle.close - legendCandle.open : 0;
     const legendChangePercent =

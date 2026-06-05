@@ -4219,3 +4219,60 @@ React chart-pane state writes from ordinary hover movement.
   page title `ProCharting Market Desk`, chart and active indicator overlays
   rendered, screenshot captured, and console diagnostics reported 0 warnings and
   0 errors.
+
+# Correct Volume Candle Binding
+
+## Goal
+
+Make the volume indicator show the volume for the actual candle under the
+crosshair, and stop the visible volume value from drifting to the live/latest
+candle while the user is inspecting another candle.
+
+## Investigation / Decisions
+
+- The top-left indicator legend reads `legendCandle.volume`, but the hover ref
+  stores the snapped candle index from the last mouse event. If the chart view
+  shifts with live candles while the mouse is still, that index can stop
+  matching the candle under the cursor.
+- The canvas-painted volume-pane label still uses `latestCandle.volume`, so it
+  changes with the live current candle even when the crosshair is over a
+  historical candle.
+- Store raw pointer coordinates in the hover ref and derive the current snapped
+  candle from the latest chart bounds/view range each render.
+- Use the same crosshair-derived candle for the canvas volume label and DOM
+  indicator legend.
+
+## Checklist
+
+- [x] Store raw pointer coordinates in pane hover state.
+- [x] Recompute snapped hover candle from current chart bounds/view range for canvas and legends.
+- [x] Make the canvas volume-pane label use the crosshair candle when available.
+- [x] Verify type/build checks.
+- [x] Test in browser/Playwright that volume matches the crosshair candle and console stays clean.
+- [x] Update `ARCHITECTURE.md` if needed.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+- Added raw pointer coordinates to the ref-backed pane hover state in
+  `TEST/binance-chart-test/app/page.tsx`.
+- Recomputed the snapped hover candle from current chart bounds/view range for
+  canvas drawing and DOM legend snapshots, so live view shifts do not leave the
+  legend reading an old candle index.
+- Changed the canvas-painted volume-pane label from `latestCandle.volume` to the
+  same crosshair-derived candle used by the top-left volume indicator.
+- Updated `ARCHITECTURE.md` to document the shared crosshair candle used by the
+  OHLC row, indicator legend, and volume-pane label.
+- Local validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `pnpm run typecheck`
+  - `git diff --check`
+- Browser verification passed on `http://127.0.0.1:3000`: the latest candle
+  showed matching top-left and volume-pane values (`26.54`), a historical
+  crosshair candle showed matching values (`129.41`), and the historical value
+  stayed `129.41` after waiting while the live candle continued updating.
+- Playwright verification passed through `http://host.docker.internal:3000`:
+  page title `ProCharting Market Desk`, chart and active indicator overlays
+  rendered, screenshot captured, and console diagnostics reported 0 warnings and
+  0 errors.
