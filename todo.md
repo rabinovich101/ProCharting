@@ -4248,7 +4248,7 @@ when the crosshair is on a candle.
 - [x] Verify type/build checks.
 - [x] Test adding MACD in browser/Playwright and confirm values appear/change on candles.
 - [x] Update `ARCHITECTURE.md` if needed.
-- [ ] Commit, push, and leave the worktree clean.
+- [x] Commit, push, and leave the worktree clean.
 
 ## Review
 
