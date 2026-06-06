@@ -9,21 +9,28 @@ blocked by the jump host.
 ## Investigation / Decisions
 
 - The production runtime `.env` import succeeded on the VM, but
-  `/auth/v1/settings` still reports `external.google: false`.
-- The local runtime has `GOTRUE_EXTERNAL_GOOGLE_*` Docker Compose passthrough
-  lines. Production likely lacks those lines in the generated runtime
-  `docker-compose.yml`, so the Auth container cannot see the imported Google
-  env values.
-- Use a temporary `workflow_dispatch` job on the existing self-hosted runner to
-  inspect the production runtime without printing secrets, patch Compose
-  idempotently, recreate only the `auth` container, and verify status.
+  `/auth/v1/settings` initially still reported `external.google: false`.
+- The runner confirmed production `/home/ooo/procharts-supabase/runtime/.env`
+  contains `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, and `GOOGLE_SECRET` without
+  printing secrets.
+- Production had the `GOTRUE_EXTERNAL_GOOGLE_*` Docker Compose passthrough
+  lines commented out, so Auth could not see the imported Google env values.
+- After uncommenting the passthrough and recreating Auth, direct Kong
+  (`http://127.0.0.1:8000/auth/v1/settings`) reports `external.google: true`.
+- The remaining public failure is the Next.js same-domain rewrite layer:
+  production PM2 logs show `Cannot find module 'next/dist/compiled/http-proxy'`
+  and `/auth/v1/*` requests through Next return HTTP 500.
+- Use the temporary `workflow_dispatch` job on the existing self-hosted runner
+  to clean-redeploy the production Next app, then verify direct Kong, local
+  Next rewrites, and the public Google authorize redirect.
 - Remove the temporary workflow after the VM fix is complete.
 
 ## Checklist
 
-- [ ] Add temporary self-hosted runner workflow for the production OAuth fix.
+- [x] Add temporary self-hosted runner workflow for the production OAuth fix.
 - [ ] Run the workflow and inspect its non-secret output.
-- [ ] Verify production `oauth-status` reports `google: true`.
+- [x] Verify direct Supabase/Kong Auth settings report `google: true`.
+- [ ] Verify production same-domain `oauth-status` reports `google: true`.
 - [ ] Verify the public Google authorize endpoint no longer returns provider
       disabled.
 - [ ] Remove the temporary workflow and leave the repo clean.
@@ -38,6 +45,12 @@ blocked by the jump host.
   Google env values and `external.google` stayed false.
 - Updated the temporary workflow to uncomment existing Google passthrough lines
   as well as insert them if they are absent.
+- A later runner attempt confirmed Auth is now configured correctly through
+  direct Kong (`google: true`), but the public Next rewrite layer returns HTTP
+  500 because the VM install is missing Next's compiled `http-proxy` module.
+- Updated the temporary workflow to remove the VM app's stale `node_modules`
+  and `.next`, run the normal VM deploy script, assert the Next proxy module
+  exists, and retest the local/public auth paths.
 
 # Production Google OAuth Provider Enablement
 

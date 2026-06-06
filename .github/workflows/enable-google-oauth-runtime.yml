@@ -25,12 +25,16 @@ jobs:
           runtime_dir="/home/ooo/procharts-supabase/runtime"
           google_json="/home/ooo/client_secret_798085098917-rufl7av9jf0v2g3u9pfc9de5h6bn85a4.apps.googleusercontent.com.json"
           helper="$GITHUB_WORKSPACE/infra/supabase/scripts/supabase.sh"
+          app_dir="$GITHUB_WORKSPACE/TEST/binance-chart-test"
+          deploy_script="$GITHUB_WORKSPACE/scripts/deploy-vm.sh"
           anon_key="$(awk -F= '/^ANON_KEY=/ { sub(/^[^=]*=/, ""); print; exit }' "$runtime_dir/.env")"
 
           test -f "$runtime_dir/.env"
           test -f "$runtime_dir/docker-compose.yml"
           test -f "$google_json"
           test -f "$helper"
+          test -d "$app_dir"
+          test -f "$deploy_script"
           test -n "$anon_key"
 
           echo "Runtime: $runtime_dir"
@@ -97,13 +101,36 @@ jobs:
             -H "apikey: $anon_key" \
             -H "Authorization: Bearer $anon_key" \
             http://127.0.0.1:8000/auth/v1/settings | tee /tmp/procharts-kong-oauth-settings.json
-          grep -q '"google":true' /tmp/procharts-kong-oauth-settings.json
+          grep -Eq '"google":[[:space:]]*true' /tmp/procharts-kong-oauth-settings.json
+
+          echo "Clean redeploying the production Next app:"
+          rm -rf "$app_dir/node_modules" "$app_dir/.next"
+          bash "$deploy_script"
+
+          test -e "$app_dir/node_modules/next/dist/compiled/http-proxy"
 
           echo "Local Next rewrite settings response:"
-          curl -i -sS \
-            -H "apikey: $anon_key" \
-            -H "Authorization: Bearer $anon_key" \
-            http://127.0.0.1:3000/auth/v1/settings | tee /tmp/procharts-next-settings-response.txt || true
+          for attempt in {1..20}; do
+            next_status="$(curl -sS -o /tmp/procharts-next-settings-body.json \
+              -w "%{http_code}" \
+              -H "apikey: $anon_key" \
+              -H "Authorization: Bearer $anon_key" \
+              http://127.0.0.1:3000/auth/v1/settings || true)"
+
+            if [ "$next_status" = "200" ] && grep -Eq '"google":[[:space:]]*true' /tmp/procharts-next-settings-body.json; then
+              cat /tmp/procharts-next-settings-body.json
+              break
+            fi
+
+            if [ "$attempt" -eq 20 ]; then
+              echo "Local Next rewrite status: $next_status"
+              cat /tmp/procharts-next-settings-body.json || true
+              pm2 logs procharts-app --lines 120 --nostream || true
+              exit 1
+            fi
+
+            sleep 2
+          done
 
           for attempt in {1..20}; do
             if PROCHARTING_SUPABASE_RUNTIME_DIR="$runtime_dir" \
@@ -131,7 +158,7 @@ jobs:
 
           cat /tmp/procharts-oauth-settings.json
 
-          grep -q '"google":true' /tmp/procharts-oauth-settings.json
+          grep -Eq '"google":[[:space:]]*true' /tmp/procharts-oauth-settings.json
 
           curl -sS -o /tmp/procharts-google-authorize-body.txt \
             -D /tmp/procharts-google-authorize-headers.txt \
@@ -144,3 +171,15 @@ jobs:
             cat /tmp/procharts-google-authorize-body.txt
             exit 1
           fi
+
+          authorize_status="$(awk 'NR == 1 { gsub(/\r/, ""); print $2 }' /tmp/procharts-google-authorize-headers.txt)"
+          case "$authorize_status" in
+            302|303)
+              echo "Google authorize endpoint redirects successfully."
+              ;;
+            *)
+              cat /tmp/procharts-google-authorize-body.txt
+              echo "Unexpected authorize status: $authorize_status"
+              exit 1
+              ;;
+          esac
