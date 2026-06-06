@@ -1,3 +1,58 @@
+# Header Button Vertical Spacing Polish
+
+## Goal
+
+Give the chart header controls more vertical breathing room so the buttons no
+longer feel cramped against the top and bottom edge of the header.
+
+## Investigation / Decisions
+
+- The active product surface is the standalone Next.js app at
+  `TEST/binance-chart-test`.
+- The header control styles live in `TEST/binance-chart-test/app/globals.css`.
+- The current desktop header has `padding: 0 8px`, a `38px` command bar, and
+  controls with `38px` minimum height, leaving no visible vertical inset.
+- Keep the change scoped to header spacing CSS only. Do not change chart
+  rendering, auth logic, menu behavior, or saved-layout behavior.
+- `ARCHITECTURE.md` does not need an update because this is a visual CSS polish
+  change, not an architecture change.
+
+## Checklist
+
+- [x] Add desktop vertical padding around the header controls.
+- [x] Keep mobile header spacing consistent with the existing compact layout.
+- [x] Run build and browser verification with Playwright/devtools-style checks.
+- [x] Update this review with verification results.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Added vertical breathing room to the chart header controls.
+
+- Updated `TEST/binance-chart-test/app/globals.css` so the desktop
+  `.chart-topbar` now uses `5px` top and bottom padding instead of sitting
+  flush against the header buttons.
+- Kept the existing mobile override unchanged; compact mobile still uses its
+  established `6px` header padding and `30px` controls.
+- No `ARCHITECTURE.md` update was needed because this is a scoped visual CSS
+  polish change, not an architecture change.
+
+Verification results:
+
+- `npm run build` passed in `TEST/binance-chart-test`.
+- Browser screenshot verification at `1512x751` showed visible header breathing
+  room around the controls.
+- Playwright/devtools-style measurement at `1512x751` confirmed desktop header
+  buttons have `5px` top inset and `6px` bottom inset, with no horizontal
+  overflow and no captured console warning/error logs.
+- Playwright/devtools-style measurement at `390x700` confirmed mobile keeps
+  `6px` top padding, `7px` bottom clearance on the lower auth row, no
+  horizontal overflow, and no captured console warning/error logs.
+- `npm run test:e2e` passed: 3 Playwright tests.
+- Existing non-blocking warnings remain: Next reports multiple lockfiles, the
+  missing Next ESLint plugin during build, and Playwright startup prints the
+  existing `NO_COLOR`/`FORCE_COLOR` warning.
+
 # Signup Name Placeholder Cleanup
 
 ## Goal
