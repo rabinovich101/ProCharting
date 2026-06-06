@@ -349,6 +349,18 @@ interface AuthFormState {
   password: string;
 }
 
+interface PasswordSecurityRequirement {
+  id: string;
+  label: string;
+  isMet: boolean;
+}
+
+interface PasswordSecurityReport {
+  isValid: boolean;
+  missingRequirements: string[];
+  requirements: PasswordSecurityRequirement[];
+}
+
 type SymbolSearchCategory = 'all' | 'favorites' | 'spot' | 'layer1' | 'defi' | 'meme';
 
 interface SymbolSearchOption {
@@ -714,6 +726,197 @@ const AUTH_OAUTH_PROVIDERS: Array<{ provider: AuthOAuthProvider; label: string; 
   { provider: 'google', label: 'Continue with Google', iconSrc: '/auth/google.svg' },
   { provider: 'github', label: 'Continue with GitHub', iconSrc: '/auth/github.svg' },
 ];
+const PASSWORD_MIN_LENGTH = 15;
+const PASSWORD_MAX_LENGTH = 128;
+const PASSWORD_PASSPHRASE_LENGTH = 20;
+const PASSWORD_SEQUENCE_LENGTH = 5;
+const PASSWORD_CHARACTER_GROUPS = {
+  lower: 'abcdefghijkmnopqrstuvwxyz',
+  upper: 'ABCDEFGHJKLMNPQRSTUVWXYZ',
+  number: '23456789',
+  symbol: '!@#$%^&*()-_=+[]{};:,.?',
+} as const;
+const PASSWORD_GENERATOR_GROUPS = Object.values(PASSWORD_CHARACTER_GROUPS);
+const PASSWORD_GENERATOR_POOL = PASSWORD_GENERATOR_GROUPS.join('');
+const PASSWORD_GENERATOR_LENGTH = 20;
+const PASSWORD_BLOCKED_TERMS = [
+  'password',
+  'passw0rd',
+  'qwerty',
+  'letmein',
+  'welcome',
+  'admin',
+  'login',
+  'changeme',
+  'default',
+  'procharting',
+  'procharts',
+  'binance',
+  'tradingview',
+];
+const PASSWORD_SEQUENCE_SOURCES = [
+  'abcdefghijklmnopqrstuvwxyz',
+  'qwertyuiop',
+  'asdfghjkl',
+  'zxcvbnm',
+  '0123456789',
+];
+
+const getPasswordCharacterTypeCount = (password: string) =>
+  Number(/[a-z]/.test(password)) +
+  Number(/[A-Z]/.test(password)) +
+  Number(/[0-9]/.test(password)) +
+  Number(/[^A-Za-z0-9]/.test(password));
+
+const hasPasswordSequence = (password: string) => {
+  const normalized = password.toLowerCase();
+
+  return PASSWORD_SEQUENCE_SOURCES.some((source) => {
+    const reversed = source.split('').reverse().join('');
+
+    for (let index = 0; index <= source.length - PASSWORD_SEQUENCE_LENGTH; index += 1) {
+      const forward = source.slice(index, index + PASSWORD_SEQUENCE_LENGTH);
+      const backward = reversed.slice(index, index + PASSWORD_SEQUENCE_LENGTH);
+
+      if (normalized.includes(forward) || normalized.includes(backward)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+};
+
+const hasRepeatedPasswordRun = (password: string) => /(.)\1{4,}/.test(password);
+
+const getPasswordContextTerms = (email: string, displayName: string) => {
+  const terms = new Set<string>();
+  const [emailLocalPart] = email.toLowerCase().split('@');
+
+  for (const value of [emailLocalPart ?? '', displayName.toLowerCase()]) {
+    value
+      .split(/[^a-z0-9]+/)
+      .filter((part) => part.length >= 3)
+      .forEach((part) => terms.add(part));
+  }
+
+  return [...terms];
+};
+
+const getPasswordSecurityReport = (
+  password: string,
+  context: Pick<AuthFormState, 'displayName' | 'email'>
+): PasswordSecurityReport => {
+  const normalizedPassword = password.toLowerCase();
+  const characterTypeCount = getPasswordCharacterTypeCount(password);
+  const contextTerms = getPasswordContextTerms(context.email, context.displayName);
+  const hasCommonTerm = PASSWORD_BLOCKED_TERMS.some((term) => normalizedPassword.includes(term));
+  const hasContextTerm = contextTerms.some((term) => normalizedPassword.includes(term));
+  const hasPassphraseLength = password.length >= PASSWORD_PASSPHRASE_LENGTH;
+
+  const requirements: PasswordSecurityRequirement[] = [
+    {
+      id: 'visible',
+      label: 'Use at least one visible character.',
+      isMet: /\S/.test(password),
+    },
+    {
+      id: 'length',
+      label: `Use at least ${PASSWORD_MIN_LENGTH} characters.`,
+      isMet: password.length >= PASSWORD_MIN_LENGTH,
+    },
+    {
+      id: 'maximum',
+      label: `Keep it ${PASSWORD_MAX_LENGTH} characters or fewer.`,
+      isMet: password.length <= PASSWORD_MAX_LENGTH,
+    },
+    {
+      id: 'variety',
+      label: `Use at least 3 character types, or ${PASSWORD_PASSPHRASE_LENGTH}+ characters as a passphrase.`,
+      isMet: characterTypeCount >= 3 || hasPassphraseLength,
+    },
+    {
+      id: 'common',
+      label: 'Avoid common words, defaults, and product names.',
+      isMet: !hasCommonTerm,
+    },
+    {
+      id: 'personal',
+      label: 'Do not include your name or email.',
+      isMet: !hasContextTerm,
+    },
+    {
+      id: 'patterns',
+      label: 'Avoid repeated characters and keyboard or number runs.',
+      isMet: !hasRepeatedPasswordRun(password) && !hasPasswordSequence(password),
+    },
+  ];
+
+  const missingRequirements = requirements
+    .filter((requirement) => !requirement.isMet)
+    .map((requirement) => requirement.label);
+
+  return {
+    isValid: missingRequirements.length === 0,
+    missingRequirements,
+    requirements,
+  };
+};
+
+const formatPasswordSecurityMessage = (report: PasswordSecurityReport) =>
+  `Secure password missing: ${report.missingRequirements.join(' ')}`;
+
+const getSecureRandomIndex = (maxExclusive: number) => {
+  const cryptoApi = globalThis.crypto;
+
+  if (!cryptoApi?.getRandomValues) {
+    throw new Error('Secure password generation is unavailable in this browser.');
+  }
+
+  const randomValues = new Uint32Array(1);
+  const randomLimit = 0x100000000;
+  const maxUnbiased = randomLimit - (randomLimit % maxExclusive);
+
+  do {
+    cryptoApi.getRandomValues(randomValues);
+  } while (randomValues[0]! >= maxUnbiased);
+
+  return randomValues[0]! % maxExclusive;
+};
+
+const pickSecurePasswordCharacter = (characters: string) => characters[getSecureRandomIndex(characters.length)]!;
+
+const shuffleSecurePasswordCharacters = (characters: string[]) => {
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = getSecureRandomIndex(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex]!, characters[index]!];
+  }
+
+  return characters;
+};
+
+const generateSecurePasswordCandidate = () => {
+  const passwordCharacters = PASSWORD_GENERATOR_GROUPS.map(pickSecurePasswordCharacter);
+
+  while (passwordCharacters.length < PASSWORD_GENERATOR_LENGTH) {
+    passwordCharacters.push(pickSecurePasswordCharacter(PASSWORD_GENERATOR_POOL));
+  }
+
+  return shuffleSecurePasswordCharacters(passwordCharacters).join('');
+};
+
+const generateSecurePassword = () => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const password = generateSecurePasswordCandidate();
+
+    if (getPasswordSecurityReport(password, DEFAULT_AUTH_FORM_STATE).isValid) {
+      return password;
+    }
+  }
+
+  throw new Error('Secure password generation failed.');
+};
+
 const FEATURE_DIALOGS: Record<'alert' | 'replay', { title: string; eyebrow: string; body: string }> = {
   alert: {
     title: 'Never miss a trade again',
@@ -2636,6 +2839,7 @@ export default function Home() {
   const [authActionLabel, setAuthActionLabel] = useState('');
   const [authMessage, setAuthMessage] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [authPasswordVisible, setAuthPasswordVisible] = useState(false);
 
   if (supabaseRef.current === null) {
     supabaseRef.current = createSupabaseBrowserClient();
@@ -2644,6 +2848,10 @@ export default function Home() {
   const supabase = supabaseRef.current;
   const isAuthenticated = authUser !== null;
   const authUserLabel = authUser?.email ?? 'Account';
+  const authPasswordSecurity = useMemo(
+    () => getPasswordSecurityReport(authForm.password, authForm),
+    [authForm]
+  );
   const palette = PALETTES[theme];
   const selectedLayout = getLayoutOptionById(selectedLayoutId);
   const selectedLayoutCells = selectedLayout.cells;
@@ -2758,6 +2966,8 @@ export default function Home() {
         setAuthMode(null);
         setAuthActionLabel('');
         setAuthMessage('');
+        setAuthForm(DEFAULT_AUTH_FORM_STATE);
+        setAuthPasswordVisible(false);
       }
     });
 
@@ -4467,6 +4677,8 @@ export default function Home() {
     setLayoutSaveTargetId(null);
     setAuthActionLabel('');
     setAuthMessage('');
+    setAuthForm(DEFAULT_AUTH_FORM_STATE);
+    setAuthPasswordVisible(false);
     setSettingsTarget(null);
     setMoreTarget(null);
   };
@@ -4479,6 +4691,8 @@ export default function Home() {
     setLayoutSaveTargetId(null);
     setSettingsTarget(null);
     setMoreTarget(null);
+    setAuthForm(DEFAULT_AUTH_FORM_STATE);
+    setAuthPasswordVisible(false);
     setAuthMode(mode);
     setAuthActionLabel(actionLabel);
     setAuthMessage(
@@ -4493,21 +4707,45 @@ export default function Home() {
   };
   const switchAuthMode = (mode: AuthMode) => {
     setAuthMode(mode);
+    setAuthForm((current) => ({
+      ...DEFAULT_AUTH_FORM_STATE,
+      email: current.email,
+    }));
+    setAuthPasswordVisible(false);
     setAuthMessage(supabase ? '' : 'Accounts are not connected on this deployment yet.');
+  };
+  const handleGenerateSignupPassword = () => {
+    try {
+      setAuthForm((current) => ({ ...current, password: generateSecurePassword() }));
+      setAuthPasswordVisible(true);
+      setAuthMessage('');
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Secure password generation failed.');
+    }
   };
   const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!authMode) return;
 
-    if (!supabase) {
-      setAuthMessage('Accounts are not connected on this deployment yet.');
+    const email = authForm.email.trim();
+    const password = authForm.password;
+    if (!email || !password) {
+      setAuthMessage('Enter your email and password.');
       return;
     }
 
-    const email = authForm.email.trim();
-    const password = authForm.password;
-    if (!email || password.length < 6) {
-      setAuthMessage('Enter an email and a password with at least 6 characters.');
+    const passwordSecurity = getPasswordSecurityReport(password, {
+      displayName: authForm.displayName,
+      email,
+    });
+
+    if (authMode === 'signup' && !passwordSecurity.isValid) {
+      setAuthMessage(formatPasswordSecurityMessage(passwordSecurity));
+      return;
+    }
+
+    if (!supabase) {
+      setAuthMessage('Accounts are not connected on this deployment yet.');
       return;
     }
 
@@ -5872,18 +6110,76 @@ export default function Home() {
                       onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))}
                     />
                   </label>
-                  <label className="header-panel-field">
-                    <span>Password</span>
-                    <input
-                      autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
-                      minLength={6}
-                      placeholder="At least 6 characters"
-                      required
-                      type="password"
-                      value={authForm.password}
-                      onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))}
-                    />
-                  </label>
+                  <div className="header-panel-field auth-password-field">
+                    <label htmlFor="auth-password-input">Password</label>
+                    <div className="auth-password-control">
+                      <input
+                        id="auth-password-input"
+                        aria-describedby={authMode === 'signup' ? 'auth-password-guidance auth-password-requirements' : undefined}
+                        aria-invalid={
+                          authMode === 'signup' && authForm.password.length > 0 && !authPasswordSecurity.isValid
+                            ? true
+                            : undefined
+                        }
+                        autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                        maxLength={authMode === 'signup' ? PASSWORD_MAX_LENGTH : undefined}
+                        minLength={authMode === 'signup' ? PASSWORD_MIN_LENGTH : undefined}
+                        placeholder={authMode === 'signup' ? '15+ unique characters' : 'Your password'}
+                        required
+                        type={authPasswordVisible ? 'text' : 'password'}
+                        value={authForm.password}
+                        onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))}
+                      />
+                      <button
+                        type="button"
+                        className="auth-password-visibility"
+                        aria-label={authPasswordVisible ? 'Hide password' : 'Show password'}
+                        title={authPasswordVisible ? 'Hide password' : 'Show password'}
+                        onClick={() => setAuthPasswordVisible((current) => !current)}
+                      >
+                        {authPasswordVisible ? (
+                          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                            <path d="M3 3l18 18" />
+                            <path d="M10.6 10.6A2 2 0 0 0 12 14a2 2 0 0 0 1.4-.6" />
+                            <path d="M9.9 5.2A10.4 10.4 0 0 1 12 5c5.5 0 9 5.3 9 7a6.8 6.8 0 0 1-1.8 2.8" />
+                            <path d="M6.6 6.6C4.4 8 3 10.5 3 12c0 1.7 3.5 7 9 7 1.3 0 2.5-.3 3.5-.8" />
+                          </svg>
+                        ) : (
+                          <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                            <path d="M2.8 12s3.4-7 9.2-7 9.2 7 9.2 7-3.4 7-9.2 7-9.2-7-9.2-7Z" />
+                            <circle cx="12" cy="12" r="2.7" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  {authMode === 'signup' && (
+                    <div className="auth-password-guidance" id="auth-password-guidance">
+                      <div className="auth-password-guidance-header">
+                        <strong>Secure password standard</strong>
+                        <button
+                          type="button"
+                          className="auth-generate-password-button"
+                          disabled={authLoading}
+                          onClick={handleGenerateSignupPassword}
+                        >
+                          Generate secure password
+                        </button>
+                      </div>
+                      <p>
+                        Use a unique password from a password manager or generate one here. ProCharting public tables
+                        never store your password.
+                      </p>
+                      <ul className="auth-password-requirements" id="auth-password-requirements" aria-live="polite">
+                        {authPasswordSecurity.requirements.map((requirement) => (
+                          <li key={requirement.id} className={requirement.isMet ? 'met' : 'missing'}>
+                            <span className="auth-password-requirement-dot" aria-hidden="true" />
+                            <span>{requirement.label}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {authMessage && <span className="auth-dialog-status">{authMessage}</span>}
                 </div>
                 <div className="settings-footer auth-dialog-footer">

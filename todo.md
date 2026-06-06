@@ -1,3 +1,86 @@
+# Auth Password Security Upgrade
+
+## Goal
+
+Make the existing Sign up and Log in dialogs more professional and safer by
+adding password visibility controls, a secure generated-password option for
+signup, live password-standard guidance, and a signup submission block when the
+password does not meet the app standard.
+
+## Investigation / Decisions
+
+- The runnable product surface is the standalone Next.js app at
+  `TEST/binance-chart-test`.
+- Credentials, sessions, OAuth, email verification, password reset, and hashing
+  remain owned by Supabase Auth. This task must not create a custom password
+  database or duplicate secrets in app-owned public tables.
+- Password generation and password-strength guidance belong in the existing
+  browser auth dialog because the current request is about signup/login UX and
+  pre-submit standards.
+- Follow current length-first guidance: allow password managers and paste, use
+  a meaningful minimum length, reject obvious weak/common/reused-context
+  passwords, and explain every missing rule before signup is sent to Supabase.
+- Keep login permissive except for non-empty email/password so existing users
+  with older passwords are not blocked from signing in. Enforce the new
+  password standard on signup.
+
+## Checklist
+
+- [x] Add password security helpers and a crypto-backed random password
+      generator to the auth UI.
+- [x] Add show/hide password controls to signup and login.
+- [x] Add signup-only secure password declaration and live missing-rule
+      checklist.
+- [x] Block signup submission when the password misses the app standard and
+      show actionable feedback.
+- [x] Update responsive auth styling for the password controls and checklist.
+- [x] Extend Playwright coverage for weak-password blocking, generated
+      passwords, and show/hide password behavior.
+- [x] Update `ARCHITECTURE.md` for the new auth-dialog client validation and
+      generated-password boundary.
+- [x] Run build, e2e, and browser/devtools verification.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Implemented the auth password security upgrade for the standalone Next.js app.
+
+- Added signup-only password standard helpers in
+  `TEST/binance-chart-test/app/page.tsx`: 15+ character minimum, 128 character
+  maximum, visible-character requirement, character-variety or passphrase
+  allowance, common/default/product-name screening, email/name screening, and
+  repeated/sequence screening.
+- Added a Web Crypto-backed generated-password flow that returns a 20-character
+  password only after it passes the same signup policy.
+- Added show/hide password controls to both signup and login.
+- Added signup-only secure password declaration, generate button, and live
+  missing-rule checklist. Signup submission is blocked before Supabase when the
+  password misses the standard. Login remains permissive beyond non-empty
+  email/password so existing users are not locked out by a newer signup policy.
+- Passwords now clear from React state when the auth modal closes, switches
+  mode, or a Supabase session is observed.
+- Updated responsive CSS for the password control, generator, and checklist.
+- Extended signed-out Playwright coverage for weak-password blocking, generated
+  passwords, all-rules-passing state, and show/hide behavior.
+- Updated `ARCHITECTURE.md` to document the browser-only auth password UX
+  guardrail while keeping Supabase Auth as the credential authority.
+
+Verification results:
+
+- `git diff --check` passed.
+- `npm run build` passed in `TEST/binance-chart-test`.
+- `npm run test:e2e` passed: 3 Playwright tests.
+- Production `next start` browser/devtools-style verification passed at
+  `1280x720` and `320x568`: weak passwords were blocked with actionable
+  messages, generated passwords were 20 characters and satisfied all checklist
+  rules, show password changed the input type to text, valid disconnected
+  signup preserved the existing no-Supabase message, dialogs fit within the
+  viewport, no horizontal overflow appeared, and captured console warning/error
+  logs were empty.
+- Existing warnings remain: Next reports multiple lockfiles and the missing
+  Next ESLint plugin, and Playwright startup still prints the existing
+  `NO_COLOR`/`FORCE_COLOR` warning.
+
 # TradingView Desktop Axis Font Benchmark
 
 ## Goal

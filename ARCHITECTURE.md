@@ -128,6 +128,16 @@ Provider brand icons for those auth buttons are static public app assets under
 They are presentation-only assets and do not change the Supabase auth boundary
 or provider configuration.
 
+The auth dialogs also own the browser-only password UX guardrail before
+signup is sent to Supabase Auth. Signup shows a password standard declaration,
+live missing-rule checklist, show/hide password control, and a Web
+Crypto-backed generated-password button. This client-side validation blocks
+weak signup submissions early for usability, but Supabase Auth remains the
+credential authority for server-side account creation, password storage,
+hashing, sessions, email verification, reset flows, and OAuth identity state.
+Login stays permissive beyond non-empty email/password so existing users are
+not locked out by newer signup policy.
+
 Signed-out users are allowed to use the public chart exploration surface:
 loading charts, changing/searching pairs, changing timeframe, switching chart
 type, using indicators, panning/zooming, fullscreen, and resetting view.

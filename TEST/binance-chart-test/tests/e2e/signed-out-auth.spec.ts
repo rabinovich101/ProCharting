@@ -94,6 +94,9 @@ test.describe('signed-out chart access', () => {
     await expect(signupDialog.getByText('Create your account')).toBeVisible();
     await expect(signupDialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
     await expect(signupDialog.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
+    await expect(signupDialog.getByText('Secure password standard')).toBeVisible();
+    await expect(signupDialog.getByRole('button', { name: 'Generate secure password' })).toBeVisible();
+    const signupPasswordInput = signupDialog.locator('#auth-password-input');
     await expect(signupDialog.locator('.auth-provider-button.google .auth-provider-icon')).toHaveAttribute(
       'src',
       '/auth/google.svg'
@@ -112,7 +115,24 @@ test.describe('signed-out chart access', () => {
 
     await signupDialog.getByLabel('Name').fill('Chart Tester');
     await signupDialog.getByLabel('Email').fill('chart-tester@example.com');
-    await signupDialog.getByLabel('Password').fill('testing-password');
+    await signupPasswordInput.fill('testing-password');
+    await signupDialog.getByRole('button', { name: 'Sign up' }).click();
+    await expect(signupDialog.getByText('Secure password missing:')).toBeVisible();
+    await expect(
+      signupDialog.locator('.auth-password-requirements li.missing', { hasText: 'Use at least 3 character types' })
+    ).toBeVisible();
+
+    await signupDialog.getByRole('button', { name: 'Show password' }).click();
+    await expect(signupPasswordInput).toHaveAttribute('type', 'text');
+    await signupDialog.getByRole('button', { name: 'Hide password' }).click();
+    await expect(signupPasswordInput).toHaveAttribute('type', 'password');
+
+    await signupDialog.getByRole('button', { name: 'Generate secure password' }).click();
+    await expect(signupPasswordInput).toHaveAttribute('type', 'text');
+    const generatedPassword = await signupPasswordInput.inputValue();
+    expect(generatedPassword.length).toBeGreaterThanOrEqual(15);
+    await expect(signupDialog.locator('.auth-password-requirements li.missing')).toHaveCount(0);
+
     await signupDialog.getByRole('button', { name: 'Sign up' }).click();
     await expect(signupDialog.getByText('Accounts are not connected on this deployment yet.')).toBeVisible();
 
@@ -122,6 +142,10 @@ test.describe('signed-out chart access', () => {
     await expect(loginDialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
     await expect(loginDialog.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
     await expect(loginDialog.getByRole('button', { name: 'Create account' })).toBeVisible();
+    const loginPasswordInput = loginDialog.locator('#auth-password-input');
+    await loginPasswordInput.fill('old-password');
+    await loginDialog.getByRole('button', { name: 'Show password' }).click();
+    await expect(loginPasswordInput).toHaveAttribute('type', 'text');
     await loginDialog.getByRole('button', { name: 'Close menu' }).click();
     await expect(header.getByRole('button', { name: 'Sign up' })).toBeVisible();
   });

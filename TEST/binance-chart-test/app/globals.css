@@ -1237,9 +1237,12 @@ summary {
   gap: 6px;
 }
 
-.auth-dialog .header-panel-field span {
+.auth-dialog .header-panel-field span,
+.auth-dialog .header-panel-field label {
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
+  line-height: 1.1;
   text-transform: uppercase;
 }
 
@@ -1250,6 +1253,137 @@ summary {
 
 .auth-dialog .header-panel-field input::placeholder {
   color: color-mix(in srgb, var(--text-muted) 58%, transparent);
+}
+
+.auth-password-control {
+  display: grid;
+  position: relative;
+}
+
+.auth-password-control input {
+  padding-right: 44px;
+}
+
+.auth-password-visibility {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-muted);
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+}
+
+.auth-password-visibility:hover,
+.auth-password-visibility:focus-visible {
+  background: var(--surface-2);
+  border-color: var(--border-subtle);
+  color: var(--text-strong);
+}
+
+.auth-password-visibility svg {
+  display: block;
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 18px;
+}
+
+.auth-password-guidance {
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+}
+
+.auth-password-guidance-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.auth-password-guidance-header strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.auth-generate-password-button {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-subtle));
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-strong));
+  font-size: 12px;
+  font-weight: 760;
+  min-height: 30px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.auth-generate-password-button:hover,
+.auth-generate-password-button:focus-visible {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border-subtle));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.auth-generate-password-button:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.auth-password-guidance p {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.auth-password-requirements {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.auth-password-requirements li {
+  align-items: flex-start;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 12.2px;
+  gap: 7px;
+  line-height: 1.35;
+}
+
+.auth-password-requirements li.met {
+  color: color-mix(in srgb, var(--positive) 78%, var(--text-strong));
+}
+
+.auth-password-requirement-dot {
+  background: var(--negative);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--negative) 13%, transparent);
+  flex: 0 0 auto;
+  height: 6px;
+  margin-top: 5px;
+  width: 6px;
+}
+
+.auth-password-requirements li.met .auth-password-requirement-dot {
+  background: var(--positive);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--positive) 13%, transparent);
 }
 
 .auth-dialog-status {
@@ -2662,6 +2796,40 @@ summary {
 
   .auth-dialog .header-panel-field input {
     min-height: 34px;
+  }
+
+  .auth-password-control input {
+    padding-right: 40px;
+  }
+
+  .auth-password-visibility {
+    height: 28px;
+    width: 28px;
+  }
+
+  .auth-password-guidance {
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .auth-password-guidance-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .auth-generate-password-button {
+    min-height: 28px;
+    width: 100%;
+  }
+
+  .auth-password-guidance p,
+  .auth-password-requirements li {
+    font-size: 11.5px;
+  }
+
+  .auth-password-requirements {
+    gap: 4px;
   }
 
   .auth-dialog-status {
