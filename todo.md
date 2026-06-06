@@ -5345,6 +5345,56 @@ React chart-pane state writes from ordinary hover movement.
   rendered, screenshot captured, and console diagnostics reported 0 warnings and
   0 errors.
 
+# Distinguish Header Indicator Icon
+
+## Goal
+
+Make the Indicators control in the chart header use a different icon from the
+Chart type control, because the current indicator glyph reads like a chart-type
+glyph.
+
+## Investigation / Decisions
+
+- The relevant header lives in `TEST/binance-chart-test/app/page.tsx`.
+- Chart type already renders per-style CSS glyphs through `chart-type-glyph`.
+- Indicators currently renders `indicator-glyph`, a CSS pseudo-element glyph
+  that visually overlaps with chart-type/candlestick marks.
+- Use the existing `HeaderIcon` SVG map for a distinct Indicators icon so header
+  command icons stay consistent.
+- Remove the old `indicator-glyph` CSS once the trigger no longer uses it.
+
+## Checklist
+
+- [x] Add a dedicated Indicators header icon.
+- [x] Replace the Indicators trigger glyph with the new icon.
+- [x] Remove the unused chart-like indicator CSS glyph.
+- [x] Update `ARCHITECTURE.md` with the header icon location/ownership note.
+- [x] Run local type/build validation.
+- [x] Verify visually with Playwright/browser and console diagnostics.
+- [x] Review changes, commit, push, and leave the worktree clean if possible.
+
+## Review
+
+- Added a dedicated `indicators` SVG to the chart app's shared `HeaderIcon`
+  map in `TEST/binance-chart-test/app/page.tsx`.
+- Replaced the Indicators trigger's old CSS-only `indicator-glyph` with the new
+  SVG, leaving the Chart type dropdown's `chart-type-glyph` unchanged.
+- Removed the unused `indicator-glyph` CSS from
+  `TEST/binance-chart-test/app/globals.css`.
+- Updated `ARCHITECTURE.md` to document local header SVG icon ownership versus
+  CSS chart-style selector glyphs.
+- Local validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `git diff --check`
+- Browser verification passed on `http://127.0.0.1:3000`: the Indicators
+  button rendered an SVG with 2 paths and 2 circles, the Chart type button kept
+  `chart-type-glyph candles`, the old `indicator-glyph` was absent, and console
+  diagnostics reported 0 warnings and 0 errors.
+- Git scope note: unrelated local Supabase OAuth `ARCHITECTURE.md`/`todo.md`
+  edits were already present in the worktree and are not part of this icon
+  change.
+
 # Dockerized Supabase Microservice Architecture
 
 ## Goal

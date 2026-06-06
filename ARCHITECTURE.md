@@ -410,6 +410,9 @@ The chart app supports:
   Volume, SMA, EMA, Bollinger Bands, VWAP Session, RSI, MACD, Stochastic,
   Donchian Channels, WMA, Momentum, Rate of Change, Accumulation/Distribution,
   ATR, Bollinger %B, and Bollinger BandWidth.
+- Header command SVG icons are registered in the local `HeaderIcon` map in
+  `app/page.tsx`; chart-style selector glyphs remain CSS-drawn per option in
+  `app/globals.css`.
 - The chart stage owns a TradingView-style top-left DOM instrument/OHLC overlay
   synced to the latest candle or the candle under the crosshair. The canvas no
   longer paints that instrument row directly, which keeps the white-rectangle

@@ -2534,7 +2534,7 @@ function IndicatorsDropdown({
         onClick={() => setOpenMenu(isOpen ? null : 'indicators')}
         onKeyDown={handleTriggerKeyDown}
       >
-        <span className="indicator-glyph" aria-hidden="true" />
+        <HeaderIcon name="indicators" />
         <span className="trigger-label">Indicators</span>
         <span className="indicator-count">{count}</span>
         <span className="trigger-caret" aria-hidden="true" />
@@ -2634,6 +2634,7 @@ function IndicatorsDropdown({
 }
 
 type HeaderIconName =
+  | 'indicators'
   | 'templates'
   | 'alert'
   | 'replay'
@@ -2647,6 +2648,14 @@ type HeaderIconName =
   | 'snapshot';
 
 const HEADER_ICON_PATHS: Record<HeaderIconName, ReactNode> = {
+  indicators: (
+    <>
+      <path d="M3 13.5c1.8 0 2.4-7 4.4-7 2.5 0 2.3 7 4.8 7 2 0 2.6-5 4.8-5" />
+      <circle cx="7.4" cy="6.5" r="1.1" />
+      <circle cx="12.2" cy="13.5" r="1.1" />
+      <path d="M3 16.5h14" />
+    </>
+  ),
   templates: (
     <>
       <rect x="3" y="3" width="5" height="5" rx="1" />

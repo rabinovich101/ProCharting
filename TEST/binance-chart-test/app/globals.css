@@ -1650,8 +1650,7 @@ summary {
   padding: 0 5px;
 }
 
-.chart-type-glyph,
-.indicator-glyph {
+.chart-type-glyph {
   color: currentColor;
   flex: 0 0 auto;
   height: 16px;
@@ -1690,28 +1689,6 @@ summary {
   opacity: 0.86;
   position: absolute;
   right: 1px;
-}
-
-.indicator-glyph::before,
-.indicator-glyph::after {
-  background: currentColor;
-  border-radius: 999px;
-  content: "";
-  position: absolute;
-  width: 2px;
-}
-
-.indicator-glyph::before {
-  box-shadow: 5px -2px 0 currentColor, 10px 3px 0 currentColor;
-  height: 10px;
-  left: 2px;
-  top: 4px;
-}
-
-.indicator-glyph::after {
-  height: 16px;
-  left: 12px;
-  opacity: 0;
 }
 
 .indicator-menu-panel {
