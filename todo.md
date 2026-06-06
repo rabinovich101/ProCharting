@@ -1,3 +1,84 @@
+# Responsive Typography Accessibility Audit
+
+## Goal
+
+Audit the standalone ProCharting website for practical human readability across
+mobile, tablet, laptop, desktop, and large desktop viewports. Check headings,
+body copy, buttons, navigation controls, form labels, placeholders, cards,
+menus, modals, footer/status text, and financial/numeric data.
+
+## Investigation / Decisions
+
+- The website surface for this audit is the standalone Next.js app at
+  `TEST/binance-chart-test`, which `ARCHITECTURE.md` identifies as the runnable
+  product app and public chart surface.
+- This pass is read-only unless the audit itself uncovers a requested follow-up
+  fix. The deliverable is an evidence-backed report, not a typography rewrite.
+- Use browser automation at the requested viewport sizes and inspect computed
+  font-size, line-height, font-weight, contrast, wrapping, overflow, and visual
+  density from the rendered DOM.
+- Include both the default chart shell and modal/menu states because important
+  text appears in auth dialogs, symbol search, indicator picker, layout/settings
+  menus, and financial overlays.
+
+## Checklist
+
+- [x] Confirm how to run the standalone website locally.
+- [x] Start or connect to the local app.
+- [x] Capture typography evidence for all requested viewports.
+- [x] Inspect chart shell text, financial overlays, menus, dialogs, inputs, and
+      small metadata text for readability.
+- [x] Save screenshots and a detailed report with selectors, current computed
+      styles, and recommendations.
+- [x] Update this review section with findings and verification notes.
+- [x] Leave architecture unchanged unless the audit discovers or changes an
+      architectural boundary.
+
+## Review
+
+Completed the responsive typography accessibility audit for the standalone
+Next.js chart app.
+
+- Ran the app locally at `http://127.0.0.1:3100`.
+- Captured Playwright screenshots for all requested viewport sizes:
+  `360x640`, `390x844`, `430x932`, `768x1024`, `1024x768`,
+  `1366x768`, `1440x900`, and `1920x1080`.
+- Captured the default chart shell, Log in modal, Sign up modal, symbol search
+  dialog, and indicator picker for each viewport.
+- Saved screenshots under
+  `TEST/binance-chart-test/design-audit/responsive-typography-audit-2026-06-06/screenshots`.
+- Saved computed typography evidence at
+  `TEST/binance-chart-test/design-audit/responsive-typography-audit-2026-06-06/typography-evidence.json`.
+- Saved the written audit report at
+  `TEST/binance-chart-test/design-audit/responsive-typography-audit-2026-06-06/report.md`.
+- Verified with the in-app browser/devtools that the tablet portrait indicator
+  picker is positioned off-screen at `768x1024`: the panel opens at `x = -370`
+  with title/search content hidden to the left. Browser warning/error logs were
+  empty during that check.
+- Did not update `ARCHITECTURE.md` because the audit did not change or discover
+  a new architecture boundary.
+
+Primary findings:
+
+- Mobile header controls and signed-out auth buttons use `11px` text and about
+  `30px` control height, which is small for mobile readability and tap comfort.
+- Canvas chart axes use `12px` on compact charts and `13px` otherwise; canvas
+  indicator labels use about `10.4px` to `11.2px`, which is too small for
+  important financial/numeric data.
+- The current price marker uses white text on lime or pink canvas fills,
+  producing poor contrast for one of the most important chart numbers.
+- The mobile ticker truncates to `BTCUS...`, making the ticker symbol less
+  clear.
+- Indicator picker labels, descriptions, short codes, and category labels are
+  repeatedly `10px` to `11px`.
+- Auth modal inputs and provider buttons are readable, but form labels,
+  divider labels, and small-mobile support copy are too small.
+- Symbol search has a low-contrast exchange badge.
+- Authenticated-only controls could not be audited yet because neither the
+  local app nor the deployed app had an active session, and the local app has no
+  Supabase public auth config loaded. A test account is needed for the signed-in
+  pass.
+
 # Second Designer QA Audit
 
 ## Goal
