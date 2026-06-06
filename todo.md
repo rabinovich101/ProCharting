@@ -1,3 +1,143 @@
+# GitHub OAuth Production Deployment
+
+## Goal
+
+Use the newly provided GitHub OAuth credentials to verify the Supabase-backed
+GitHub sign-in flow locally, then deploy the standalone Next.js app to the
+production VM only if production has a browser-reachable Supabase Auth endpoint.
+
+## Investigation / Decisions
+
+- The GitHub OAuth values were added to the repository root `.env`, but the
+  local self-hosted Supabase runtime reads provider credentials from the ignored
+  `infra/supabase/runtime/.env`.
+- The standalone Next.js app reads only public browser Supabase variables:
+  `NEXT_PUBLIC_SUPABASE_URL` and either `NEXT_PUBLIC_SUPABASE_ANON_KEY` or
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- OAuth client secrets must stay out of the Next.js app env and out of Git.
+- The current root `SUPABASE_URL` is local-only, so production verification must
+  confirm an HTTPS/public Supabase Auth URL before expecting public GitHub auth
+  to work.
+
+## Checklist
+
+- [x] Sync GitHub provider values into the ignored local Supabase runtime env.
+- [x] Enable GitHub provider passthrough in the ignored local Supabase Docker
+      Compose runtime.
+- [x] Restart local Supabase Auth and verify Auth settings expose GitHub.
+- [x] Run local build and Playwright/E2E checks.
+- [x] Browser-test that the app can launch the GitHub OAuth redirect.
+- [x] Inspect production reachability and live-site auth state for a public
+      Supabase Auth endpoint.
+- [ ] Deploy/restart the production app if the production auth configuration is
+      valid.
+- [ ] Verify the live production auth dialog after deployment.
+
+## Review
+
+In progress:
+
+- Copied the root `.env` GitHub OAuth provider values into the ignored
+  `infra/supabase/runtime/.env` file without printing secrets.
+- Enabled the ignored local Supabase runtime's
+  `GOTRUE_EXTERNAL_GITHUB_*` Docker Compose passthrough entries.
+- Recreated the local Supabase Auth container and verified
+  `auth/v1/settings` reports `external.github: true`.
+- Local verification passed:
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
+  - `npm --prefix TEST/binance-chart-test run build`
+- Browser verification on `http://127.0.0.1:3101` confirmed the signup dialog
+  has one enabled `Continue with GitHub` button, no disconnected-account
+  message, and clicking the button reaches GitHub login with an OAuth return
+  target of `/login/oauth/authorize` and redirect URI
+  `http://localhost:8000/auth/v1/callback`.
+- Production deployment is blocked in this run:
+  - SSH required both the local key passphrase and VM password; after using
+    both, the VM was reachable.
+  - `/etc/procharts/app.env` is missing on the VM.
+  - Docker is not installed on the VM, so there is no production self-hosted
+    Supabase runtime on that server.
+  - Only the Next.js app is listening locally on `127.0.0.1:3000`; no
+    Supabase/Kong/Auth listener was found on `8000`, `8443`, `54320`, `5432`,
+    or `6543`.
+  - The public site `https://procharts.thefiscalwire.com` still shows the
+    disconnected-account message in the signup dialog, which means the deployed
+    browser app is not currently receiving usable public Supabase config.
+  - The root `SUPABASE_URL` value available locally is still local-only, so it
+    cannot be safely used for public visitors' browsers.
+
+# Production Docker Supabase Install
+
+## Goal
+
+Install Docker on the production VM, run the project Supabase runtime there,
+and expose Supabase Auth to public browsers through the existing
+`https://procharts.thefiscalwire.com` domain so GitHub auth can work in
+production.
+
+## Investigation / Decisions
+
+- The production VM is Ubuntu 24.04 LTS on amd64 with about 5.6 GB free disk
+  and 5.6 GiB RAM.
+- The VM currently has Node, npm, pm2, git, curl, and cloudflared, but no
+  Docker or Docker Compose.
+- The existing Cloudflare tunnel is active but has no local ingress config file;
+  it appears token/remote-managed and currently publishes the Next.js app on
+  `127.0.0.1:3000`.
+- Use Docker Engine from Docker's official Ubuntu apt repository and Compose
+  v2 plugin, following Docker's current Ubuntu install path.
+- Avoid needing a second Cloudflare hostname by using the existing app domain as
+  the public Supabase URL and adding Next.js rewrites for Supabase paths such
+  as `/auth/v1/*` to proxy to local Supabase Kong on `127.0.0.1:8000`.
+- Configure production Supabase with:
+  - `SITE_URL=https://procharts.thefiscalwire.com`
+  - `API_EXTERNAL_URL=https://procharts.thefiscalwire.com`
+  - `SUPABASE_PUBLIC_URL=https://procharts.thefiscalwire.com`
+- The GitHub OAuth app must allow the production callback URL
+  `https://procharts.thefiscalwire.com/auth/v1/callback`. If the current GitHub
+  OAuth app is still configured only for `http://localhost:8000/auth/v1/callback`,
+  the production redirect will fail with a callback/redirect mismatch until the
+  GitHub OAuth app is updated or a separate production OAuth app is created.
+
+## Checklist
+
+- [x] Add same-domain Supabase proxy rewrites to the Next.js app.
+- [x] Update architecture notes for the production same-domain Supabase proxy.
+- [x] Install Docker Engine and Docker Compose plugin on the VM.
+- [x] Install and configure the Supabase runtime on the VM.
+- [x] Enable GitHub provider passthrough in the VM Supabase Auth container.
+- [x] Start Supabase and apply project migrations on the VM.
+- [x] Create `/etc/procharts/app.env` with public Supabase browser config.
+- [ ] Rebuild/restart the production Next.js app.
+- [ ] Verify live production auth reaches GitHub OAuth.
+
+## Review
+
+In progress:
+
+- Added Next.js same-domain Supabase proxy rewrites so
+  `https://procharts.thefiscalwire.com/auth/v1/*` and related Supabase paths
+  can proxy to local Supabase Kong at `http://127.0.0.1:8000`.
+- Updated `ARCHITECTURE.md` to document the production same-domain Supabase
+  gateway and GitHub callback requirement.
+- Installed Docker Engine `29.5.3` and Docker Compose `v5.1.4` on the Ubuntu
+  24.04 production VM.
+- Extended the VM root filesystem from 15 GB to 30 GB using existing free LVM
+  space after the first Supabase image pull ran out of disk.
+- Installed the generated Supabase Docker runtime on the VM with production
+  public URLs set to `https://procharts.thefiscalwire.com`.
+- Enabled GitHub provider passthrough in the generated VM Supabase Auth
+  container config and confirmed the local Auth settings endpoint reports
+  GitHub enabled.
+- Started the Supabase stack on the VM with Kong and pooler ports bound to
+  localhost. Core containers are running and healthy, including DB, Auth, Kong,
+  REST, Realtime, Meta, Storage, Studio, and Imgproxy.
+- Applied project migrations and verified `public.chart_layouts` and
+  `public.user_profiles` exist.
+- Created `/etc/procharts/app.env` with only public browser app config:
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
+  `PROCHARTS_SUPABASE_PROXY_TARGET`.
+
 # Google Analytics Tag Integration
 
 ## Goal
@@ -5447,6 +5587,122 @@ glyph.
 - Git scope note: unrelated local Supabase OAuth `ARCHITECTURE.md`/`todo.md`
   edits were already present in the worktree and are not part of this icon
   change.
+
+# Local Supabase OAuth Verification
+
+## Goal
+
+Verify that local Supabase OAuth configuration is wired correctly for the
+standalone Next.js chart app after adding Google OAuth credentials.
+
+## Investigation / Decisions
+
+- The standalone chart app must read Supabase public browser config from
+  `TEST/binance-chart-test/.env.local`.
+- The repo's local Docker Supabase runtime reads provider credentials from the
+  ignored `infra/supabase/runtime/.env`, not from the repository root `.env`.
+- Google OAuth must be passed through to the local Supabase Auth container by
+  enabling the matching `GOTRUE_EXTERNAL_GOOGLE_*` lines in
+  `infra/supabase/runtime/docker-compose.yml`.
+- Keep secrets in ignored local env files and avoid committing provider
+  credentials or browser public keys.
+
+## Checklist
+
+- [x] Check whether app-local Supabase env vars exist.
+- [x] Check whether local Supabase runtime has Google provider env vars.
+- [x] Enable the Google provider passthrough for the local auth container.
+- [x] Start local Supabase and verify Auth settings expose Google.
+- [x] Start the Next.js chart app and verify the auth dialog no longer reports
+      disconnected Supabase config.
+- [x] Test with Playwright/browser and inspect console diagnostics.
+- [x] Review git status and keep tracked changes limited to documentation.
+
+## Review
+
+- Created the ignored `TEST/binance-chart-test/.env.local` from the local
+  Supabase runtime URL and anonymous key so the standalone app can create its
+  Supabase browser client.
+- Copied the Google OAuth provider values from the unused root `.env` location
+  into the ignored `infra/supabase/runtime/.env` file, then removed the unused
+  root Google provider entries.
+- Enabled the local Supabase Auth container's
+  `GOTRUE_EXTERNAL_GOOGLE_*` passthrough entries in the generated ignored
+  Docker Compose runtime file.
+- Moved only this local Supabase pooler's host session port to `54320` because
+  another Docker project already owns host port `5432`; internal Supabase DB
+  connections still use container port `5432`.
+- Verified `http://localhost:8000/auth/v1/settings` reports
+  `external.google: true`.
+- Browser/Playwright verification passed for the app-local config: the auth
+  dialog no longer reports disconnected Supabase config, Google/GitHub provider
+  buttons are enabled, the chart renders, and console diagnostics reported 0
+  warnings/errors on the app page.
+- Clicking `Continue with Google` successfully started the OAuth redirect, but
+  Google returned `Error 400: redirect_uri_mismatch`. The remaining external
+  Google Cloud Console fix is to add the exact authorized redirect URI
+  `http://localhost:8000/auth/v1/callback` for the OAuth client.
+- After the Google Cloud Console redirect URI was added, a follow-up
+  Browser/Playwright retest reached `Sign in - Google Accounts` for the same
+  client ID and redirect URI instead of returning `redirect_uri_mismatch`.
+- Local validation passed:
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
+  - `git diff --check`
+- Final `git status --short` still shows tracked app edits in
+  `TEST/binance-chart-test/app/page.tsx` and
+  `TEST/binance-chart-test/app/globals.css`; those were left untouched by this
+  OAuth verification pass.
+
+# VM Supabase App Environment
+
+## Goal
+
+Configure the public VM deployment so the standalone Next.js app receives only
+the public Supabase browser environment needed for account/OAuth UI, without
+copying local secret-heavy `.env` files to the server.
+
+## Investigation / Decisions
+
+- The public deployment serves `TEST/binance-chart-test` through the
+  `scripts/deploy-vm.sh` PM2 path, not Docker Compose.
+- Next.js inlines `NEXT_PUBLIC_*` values at build time, so the VM deployment
+  needs the public Supabase URL/key loaded before `npm run build`.
+- Keep deployment secrets out of Git and out of the repository checkout by
+  using a persistent VM-local env file.
+- Use only `NEXT_PUBLIC_SUPABASE_URL` and
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for
+  the app process; Supabase server secrets remain outside the Next.js app.
+- The current local Supabase URL is `http://localhost:8000`, which is valid for
+  local browser testing only. It must not be used for the public VM app because
+  visitors' browsers would resolve `localhost` to their own machines.
+- The VM currently has the Next.js PM2 app and Cloudflare Tunnel running, but no
+  Docker/Supabase service or public Supabase endpoint was found there.
+
+## Checklist
+
+- [x] Add a VM env-file hook to the deploy script.
+- [ ] Create/update the VM-local app env file with public Supabase browser env.
+- [ ] Rebuild/restart the VM app through the deploy script.
+- [ ] Verify the live public app no longer shows disconnected auth.
+- [ ] Update architecture notes and review changes.
+
+## Review
+
+Partial progress:
+
+- Updated `scripts/deploy-vm.sh` so the VM deployment can source
+  `/etc/procharts/app.env` before `npm run build` and before PM2 starts the
+  app.
+- Updated `ARCHITECTURE.md` to document that the VM app env file is app-only
+  and must not contain Supabase server secrets or OAuth client secrets.
+- Verified SSH access to the VM through the configured jump host and confirmed
+  `procharts-app` is running from the GitHub Actions worktree.
+- Confirmed `/etc/procharts/app.env` does not exist yet on the VM.
+- Confirmed the VM has no Supabase/Docker service listening; only the Next app
+  on `127.0.0.1:3000` is exposed through Cloudflare Tunnel.
+- Blocked before writing production app env because the only available
+  Supabase URL is local-only: `http://localhost:8000`.
 
 # Dockerized Supabase Microservice Architecture
 

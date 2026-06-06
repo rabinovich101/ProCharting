@@ -61,6 +61,13 @@ runner, checkout the repository on the VM, and execute `scripts/deploy-vm.sh`.
 The deploy script runs `npm ci` and `npm run build` inside
 `TEST/binance-chart-test`, then restarts the `procharts-app` pm2 process with
 `npm start -- -H 127.0.0.1 -p 3000`.
+On the VM, `scripts/deploy-vm.sh` optionally sources
+`/etc/procharts/app.env` before the build and PM2 restart. That file is
+server-local and gitignored by location; it is reserved for app process
+configuration such as `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. It must
+not contain Supabase server secrets such as service-role keys, JWT secrets,
+Postgres passwords, or OAuth client secrets.
 
 The repository also has a root Docker packaging boundary for the standalone
 Next.js chart app. `Dockerfile` builds `TEST/binance-chart-test` with the app's
@@ -123,11 +130,29 @@ present. When those public env vars are absent, the app remains safely
 signed-out and the auth dialogs report that accounts are not connected on that
 deployment.
 
+For the public VM deployment, the app domain also acts as the browser-facing
+Supabase gateway. `TEST/binance-chart-test/next.config.ts` rewrites
+`/auth/v1/*`, `/rest/v1/*`, `/storage/v1/*`, `/functions/v1/*`, and
+`/realtime/v1/*` to the local Supabase Kong service at
+`PROCHARTS_SUPABASE_PROXY_TARGET`, defaulting to `http://127.0.0.1:8000`.
+This lets Cloudflare Tunnel continue publishing a single
+`https://procharts.thefiscalwire.com` origin while Supabase Auth callbacks use
+the same public domain. Production Supabase must therefore set its public auth
+URL values to that HTTPS app origin, and GitHub OAuth must allow
+`https://procharts.thefiscalwire.com/auth/v1/callback`.
+
 The auth dialogs support email/password plus Supabase OAuth entry points for
 Google and GitHub. Social signup and login share Supabase's
 `signInWithOAuth` provider flow, so Google/GitHub buttons appear in both dialog
 modes and redirect through the configured Supabase Auth provider when the
 deployment has the public Supabase env vars and provider credentials.
+For the local Docker Supabase runtime, the browser app reads
+`NEXT_PUBLIC_SUPABASE_URL` plus `NEXT_PUBLIC_SUPABASE_ANON_KEY` or
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from the standalone app's ignored
+`.env.local`, while Google/GitHub provider credentials stay in the ignored
+`infra/supabase/runtime/.env` file and are passed into the Supabase Auth
+container through the matching `GOTRUE_EXTERNAL_*` Docker Compose environment
+entries.
 Provider brand icons for those auth buttons are static public app assets under
 `TEST/binance-chart-test/public/auth`, served by Next.js as `/auth/*.svg`.
 They are presentation-only assets and do not change the Supabase auth boundary

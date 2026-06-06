@@ -7,6 +7,7 @@ APP_NAME="${PROCHARTS_APP_NAME:-procharts-app}"
 LEGACY_APP_NAME="procharts-demo"
 HOST="${PROCHARTS_HOST:-127.0.0.1}"
 PORT="${PROCHARTS_PORT:-3000}"
+ENV_FILE="${PROCHARTS_ENV_FILE:-/etc/procharts/app.env}"
 
 cd "$ROOT_DIR"
 
@@ -30,6 +31,13 @@ cd "$ROOT_DIR/$APP_DIR"
 if [[ ! -f package-lock.json ]]; then
   echo "Expected npm lockfile at $ROOT_DIR/$APP_DIR/package-lock.json" >&2
   exit 1
+fi
+
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
 fi
 
 npm ci
