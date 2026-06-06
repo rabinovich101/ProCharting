@@ -29,13 +29,13 @@ production VM only if production has a browser-reachable Supabase Auth endpoint.
 - [x] Browser-test that the app can launch the GitHub OAuth redirect.
 - [x] Inspect production reachability and live-site auth state for a public
       Supabase Auth endpoint.
-- [ ] Deploy/restart the production app if the production auth configuration is
+- [x] Deploy/restart the production app if the production auth configuration is
       valid.
-- [ ] Verify the live production auth dialog after deployment.
+- [x] Verify the live production auth dialog after deployment.
 
 ## Review
 
-In progress:
+Completed:
 
 - Copied the root `.env` GitHub OAuth provider values into the ignored
   `infra/supabase/runtime/.env` file without printing secrets.
@@ -51,7 +51,7 @@ In progress:
   message, and clicking the button reaches GitHub login with an OAuth return
   target of `/login/oauth/authorize` and redirect URI
   `http://localhost:8000/auth/v1/callback`.
-- Production deployment is blocked in this run:
+- The original production deployment was blocked in the first run:
   - SSH required both the local key passphrase and VM password; after using
     both, the VM was reachable.
   - `/etc/procharts/app.env` is missing on the VM.
@@ -65,6 +65,14 @@ In progress:
     browser app is not currently receiving usable public Supabase config.
   - The root `SUPABASE_URL` value available locally is still local-only, so it
     cannot be safely used for public visitors' browsers.
+- Installed and configured the production Docker Supabase runtime on the VM,
+  added the public Supabase browser env file, fixed runner read permissions for
+  `/etc/procharts/app.env`, and reran the VM deploy workflow successfully.
+- Live browser verification on `https://procharts.thefiscalwire.com` confirmed
+  the signup dialog no longer shows the disconnected-account message, the
+  `Continue with GitHub` button is enabled, and the click redirects to GitHub
+  with production callback URI
+  `https://procharts.thefiscalwire.com/auth/v1/callback`.
 
 # Production Docker Supabase Install
 
@@ -108,12 +116,12 @@ production.
 - [x] Enable GitHub provider passthrough in the VM Supabase Auth container.
 - [x] Start Supabase and apply project migrations on the VM.
 - [x] Create `/etc/procharts/app.env` with public Supabase browser config.
-- [ ] Rebuild/restart the production Next.js app.
-- [ ] Verify live production auth reaches GitHub OAuth.
+- [x] Rebuild/restart the production Next.js app.
+- [x] Verify live production auth reaches GitHub OAuth.
 
 ## Review
 
-In progress:
+Completed:
 
 - Added Next.js same-domain Supabase proxy rewrites so
   `https://procharts.thefiscalwire.com/auth/v1/*` and related Supabase paths
@@ -137,6 +145,19 @@ In progress:
 - Created `/etc/procharts/app.env` with only public browser app config:
   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
   `PROCHARTS_SUPABASE_PROXY_TARGET`.
+- Stored the generated production Supabase runtime outside the GitHub Actions
+  runner checkout at `/home/ooo/procharts-supabase/runtime` so
+  `actions/checkout` cleanup does not touch Docker-owned volume files.
+- Set `/etc/procharts/app.env` to `root:ooo` with mode `0640`, allowing the
+  self-hosted runner user to source public app config while keeping the file
+  private from other users.
+- Reran GitHub Actions deploy run `27067153932`; checkout and deploy both
+  passed after the runtime move and env-file permission fix.
+- Live Playwright verification passed on
+  `https://procharts.thefiscalwire.com`: the sign-up dialog has no disconnected
+  account warning, the GitHub OAuth button is enabled, the click reaches
+  `github.com/login`, and the nested OAuth request uses
+  `https://procharts.thefiscalwire.com/auth/v1/callback`.
 
 # Google Analytics Tag Integration
 
