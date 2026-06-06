@@ -1,3 +1,68 @@
+# Second Designer QA Audit
+
+## Goal
+
+Act as a second experienced UI/UX designer and test the recent Sentry-style
+chart shell and production auth-modal work across desktop, mobile, and small
+mobile states. Fix any clear visual, responsive, or interaction issue that is
+directly related to those recent results.
+
+## Investigation / Decisions
+
+- The latest pushed work is clean on `main` and targets the standalone Next.js
+  app in `TEST/binance-chart-test`.
+- Product Design saved context is not configured, so this audit uses only the
+  current app, current code, and screenshots captured during this run.
+- The relevant surfaces are the signed-out chart shell, signup modal, login
+  modal, downloaded Google/GitHub provider icons, and responsive behavior.
+- Save audit evidence locally under `TEST/binance-chart-test/design-audit` so
+  the screenshots and notes stay with the QA harness.
+
+## Checklist
+
+- [x] Create local design-audit output folder and capture current evidence.
+- [x] Run automated build and e2e tests.
+- [x] Inspect desktop signed-out chart shell and auth modals.
+- [x] Inspect mobile and small-mobile signed-out chart shell and auth modals.
+- [x] Check provider icon loading, overflow, console logs, focus/interaction
+      basics, and layout fit.
+- [x] Fix any direct design/regression issue found in the QA pass.
+- [x] Save audit notes and screenshot references locally.
+- [x] Update `todo.md` review with findings and verification results.
+- [ ] Commit, push, and leave the worktree clean if files changed.
+
+## Review
+
+Completed the second-designer QA audit for the recent Sentry-style chart shell
+and production auth modal work.
+
+- Captured desktop, mobile, and small-mobile screenshots under
+  `TEST/binance-chart-test/design-audit/second-designer-qa-2026-06-06/screenshots`.
+- Saved the written audit report at
+  `TEST/binance-chart-test/design-audit/second-designer-qa-2026-06-06/report.md`.
+- Confirmed desktop chart, symbol search, indicators, signup, and login states
+  visually match the intended dense developer-tool trading terminal direction.
+- Confirmed Google/GitHub provider icons load from the project assets and the
+  auth buttons look production-ready.
+- Found and fixed one real responsive issue: at `320x568`, the signup modal
+  was taller than the viewport and clipped the lower status/footer area. The
+  auth modal now has max-height handling, compact small-screen spacing,
+  recoverable body scrolling, styled scrollbars, and non-wrapping footer
+  buttons.
+- Production browser verification confirmed the fixed small-mobile signup modal
+  fits within `320x568`, provider icons load, no horizontal overflow appears,
+  and browser console warning/error logs were empty.
+
+Verification results:
+
+- `npm run build` passed after the compact-modal fix.
+- `npm run test:e2e` passed after the compact-modal fix: 3 Playwright tests.
+- Production browser spot check passed for desktop signup and `320x568`
+  small-mobile signup.
+- Existing warnings remain: Next reports multiple lockfiles and the missing
+  Next ESLint plugin during build/test startup, and Playwright startup still
+  prints the existing `NO_COLOR`/`FORCE_COLOR` warning.
+
 # Production Auth Modal Design Pass
 
 ## Goal
