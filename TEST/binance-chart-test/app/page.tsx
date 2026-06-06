@@ -1311,6 +1311,10 @@ const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
 ];
 
 const INDICATOR_SOURCE_OPTIONS: IndicatorSource[] = ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4'];
+const CHART_AXIS_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif';
+const CHART_MONO_FONT_FAMILY =
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+const getCanvasFont = (fontSize: number, fontFamily = CHART_AXIS_FONT_FAMILY) => `${fontSize}px ${fontFamily}`;
 
 const PALETTES: Record<ThemeName, Palette> = {
   dark: {
@@ -3995,9 +3999,9 @@ export default function Home() {
 
     const compactChart = rect.width < 520;
     const narrowChart = rect.width < 620;
-    const axisFontSize = compactChart ? 12 : 13;
-    const indicatorPaneFontSize = compactChart ? 10.4 : 11.2;
-    const rightAxisWidth = compactChart ? 72 : 92;
+    const axisFontSize = compactChart ? 13 : 14;
+    const indicatorPaneFontSize = compactChart ? 12 : 13;
+    const rightAxisWidth = compactChart ? 82 : 102;
     const bottomAxisHeight = compactChart ? 31 : 38;
     const topPlotInset = 0;
     const oscillatorCount = visibleOscillatorIndicators.length;
@@ -4153,7 +4157,7 @@ export default function Home() {
     ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
     ctx.clip();
 
-    ctx.font = `${axisFontSize}px var(--font-geist-sans), ui-sans-serif, sans-serif`;
+    ctx.font = getCanvasFont(axisFontSize);
     ctx.lineWidth = 1;
 
     if (chartSettings.showGridLines) {
@@ -4334,7 +4338,7 @@ export default function Home() {
       });
 
       ctx.fillStyle = palette.text;
-      ctx.font = `${indicatorPaneFontSize}px var(--font-geist-sans), ui-sans-serif, sans-serif`;
+      ctx.font = getCanvasFont(indicatorPaneFontSize);
       ctx.textAlign = 'left';
       ctx.fillText(
         `Vol ${formatCompact(activeLegendCandle.volume)}`,
@@ -4445,7 +4449,7 @@ export default function Home() {
       ctx.stroke();
 
       ctx.fillStyle = palette.text;
-      ctx.font = `${indicatorPaneFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
+      ctx.font = getCanvasFont(indicatorPaneFontSize, CHART_MONO_FONT_FAMILY);
       ctx.textAlign = 'left';
       const headerY = pane.top + indicatorPaneFontSize + 5;
       const headerMaxX = rect.width - rightAxisWidth - 8;
@@ -4503,20 +4507,20 @@ export default function Home() {
 
       ctx.fillStyle = currentPriceColor;
       ctx.fillRect(chartArea.left + chartArea.width + 1, markerY, rightAxisWidth - 6, markerHeight);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
+      ctx.fillStyle = theme === 'dark' ? '#150f23' : '#ffffff';
+      ctx.font = getCanvasFont(axisFontSize);
       ctx.textAlign = 'left';
       ctx.fillText(formatPrice(latestCandle!.close), chartArea.left + chartArea.width + 7, markerY + 18);
 
       if (countdown) {
         ctx.globalAlpha = 0.84;
-        ctx.font = `${Math.max(10, axisFontSize - 1)}px var(--font-geist-mono), ui-monospace, monospace`;
+        ctx.font = getCanvasFont(Math.max(12, axisFontSize - 1));
         ctx.fillText(countdown, chartArea.left + chartArea.width + 7, markerY + 33);
         ctx.globalAlpha = 1;
       }
     }
 
-    ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
+    ctx.font = getCanvasFont(axisFontSize);
     ctx.textAlign = 'right';
     ctx.fillStyle = palette.text;
     for (const price of priceTickInfo.ticks) {
@@ -4581,7 +4585,7 @@ export default function Home() {
         ctx.fillStyle = palette.axisBg;
         ctx.fillRect(chartArea.left + chartArea.width + 1, crosshairPosition.y - 11, rightAxisWidth - 6, 22);
         ctx.fillStyle = palette.textBright;
-        ctx.font = `${axisFontSize}px var(--font-geist-mono), ui-monospace, monospace`;
+        ctx.font = getCanvasFont(axisFontSize);
         ctx.textAlign = 'left';
         ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, crosshairPosition.y + 5);
       }

@@ -126,6 +126,74 @@ Verification results:
   Next ESLint plugin, and Playwright startup still prints the existing
   `NO_COLOR`/`FORCE_COLOR` warning.
 
+# Chart Axis Font Fix
+
+## Goal
+
+Apply the TradingView-informed font fix so ProCharting desktop price-axis,
+current-price, and time-axis labels visibly render larger and no longer fall
+back to browser-default `10px` canvas text.
+
+## Investigation / Decisions
+
+- The benchmark showed TradingView desktop chart axis labels visually map to
+  about `12-13px`, while ProCharting's current rendered price axis measured
+  closer to `6px` glyph height because canvas rejected `var(...)` font strings.
+- Keep the fix scoped to `TEST/binance-chart-test/app/page.tsx`.
+- Use explicit canvas-safe font stacks instead of CSS custom properties in
+  `ctx.font`.
+- Set ProCharting's practical target slightly above TradingView for readability:
+  desktop axis/current-price text `14px`, compact axis text `13px`, desktop
+  indicator pane text `13px`, compact indicator pane text `12px`.
+
+## Checklist
+
+- [x] Replace invalid canvas `var(...)` font strings with explicit font stacks.
+- [x] Increase price/time/current-price label sizes and adjust right axis width.
+- [x] Build the standalone app.
+- [x] Verify with browser/Playwright at desktop that rendered price/time labels
+      are larger and canvas font parsing no longer falls back.
+- [x] Update this review with exact verification results.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Implemented the chart axis font fix in `TEST/binance-chart-test/app/page.tsx`.
+
+- Replaced canvas font strings that used CSS custom properties with explicit
+  canvas-safe font stacks.
+- Increased desktop price/time/current-price labels from `13px` to `14px`.
+- Increased compact axis labels from `12px` to `13px`.
+- Increased indicator pane text from `11.2px` desktop / `10.4px` compact to
+  `13px` desktop / `12px` compact.
+- Widened the right price axis from `92px` desktop / `72px` compact to
+  `102px` desktop / `82px` compact so the larger prices do not feel cramped.
+- Changed the dark-theme current-price badge text to dark ink on the lime
+  badge for stronger contrast.
+- Added verification artifacts under
+  `TEST/binance-chart-test/design-audit/chart-axis-font-fix-2026-06-06/`.
+- No `ARCHITECTURE.md` update was needed because this is a rendering constant
+  and canvas-font compatibility fix, not an architecture change.
+
+Verification results:
+
+- `npm run build` passed in `TEST/binance-chart-test`.
+- `npm run test:e2e` passed: 3 Playwright tests.
+- In-app browser verification at `1440x900` confirmed the rendered chart canvas
+  is `1440x861`, price-axis labels and time-axis labels are visible, and there
+  were no local `127.0.0.1` warning/error logs.
+- Browser screenshot measurement after the fix showed price tick labels at
+  `8-11px` visible glyph height with `10px` median, compared with about `6px`
+  before. Time labels measured `10px` visible glyph height.
+- Headless Playwright canvas parsing confirmed the old string
+  `13px var(--font-geist-mono), ui-monospace, monospace` falls back to
+  `10px sans-serif`, while the new desktop axis string remains accepted as
+  `14px -apple-system, "system-ui", "Trebuchet MS", Roboto, Ubuntu,
+  sans-serif`.
+- Existing non-blocking warnings remain: Next reports multiple lockfiles and the
+  missing Next ESLint plugin, and Playwright startup still prints the existing
+  `NO_COLOR`/`FORCE_COLOR` warning.
+
 # TradingView Desktop Axis Font Benchmark
 
 ## Goal
