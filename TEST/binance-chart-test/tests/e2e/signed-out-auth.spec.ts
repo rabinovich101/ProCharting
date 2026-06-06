@@ -94,6 +94,14 @@ test.describe('signed-out chart access', () => {
     await expect(signupDialog.getByText('Create your account')).toBeVisible();
     await expect(signupDialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
     await expect(signupDialog.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
+    await expect(signupDialog.locator('.auth-provider-button.google .auth-provider-icon')).toHaveAttribute(
+      'src',
+      '/auth/google.svg'
+    );
+    await expect(signupDialog.locator('.auth-provider-button.github .auth-provider-icon')).toHaveAttribute(
+      'src',
+      '/auth/github.svg'
+    );
     await expect(signupDialog.getByText('Accounts are not connected on this deployment yet.')).toBeVisible();
 
     await signupDialog.getByRole('button', { name: 'Continue with Google' }).click();

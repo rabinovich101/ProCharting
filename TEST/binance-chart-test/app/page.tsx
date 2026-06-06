@@ -710,9 +710,9 @@ const DEFAULT_AUTH_FORM_STATE: AuthFormState = {
   email: '',
   password: '',
 };
-const AUTH_OAUTH_PROVIDERS: Array<{ provider: AuthOAuthProvider; label: string; mark: string }> = [
-  { provider: 'google', label: 'Continue with Google', mark: 'G' },
-  { provider: 'github', label: 'Continue with GitHub', mark: 'GH' },
+const AUTH_OAUTH_PROVIDERS: Array<{ provider: AuthOAuthProvider; label: string; iconSrc: string }> = [
+  { provider: 'google', label: 'Continue with Google', iconSrc: '/auth/google.svg' },
+  { provider: 'github', label: 'Continue with GitHub', iconSrc: '/auth/github.svg' },
 ];
 const FEATURE_DIALOGS: Record<'alert' | 'replay', { title: string; eyebrow: string; body: string }> = {
   alert: {
@@ -5808,8 +5808,16 @@ export default function Home() {
                 onMouseDown={(event) => event.stopPropagation()}
                 onSubmit={handleAuthSubmit}
               >
-                <div className="header-modal-title">
-                  <strong>{authMode === 'signup' ? 'Create your account' : 'Log in'}</strong>
+                <div className="header-modal-title auth-dialog-title">
+                  <div className="auth-dialog-title-copy">
+                    <span>{authMode === 'signup' ? 'Start trading workspace' : 'Return to workspace'}</span>
+                    <strong>{authMode === 'signup' ? 'Create your account' : 'Log in'}</strong>
+                    <small>
+                      {authMode === 'signup'
+                        ? 'Save layouts, templates, alerts, and publishing tools.'
+                        : 'Open your saved layouts and account-only chart tools.'}
+                    </small>
+                  </div>
                   <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
                     ×
                   </button>
@@ -5830,7 +5838,7 @@ export default function Home() {
                         onClick={() => void handleOAuthSignIn(option.provider)}
                       >
                         <span className="auth-provider-mark" aria-hidden="true">
-                          {option.mark}
+                          <img className="auth-provider-icon" src={option.iconSrc} alt="" />
                         </span>
                         <span>{option.label}</span>
                       </button>
@@ -5846,6 +5854,7 @@ export default function Home() {
                       <span>Name</span>
                       <input
                         autoComplete="name"
+                        placeholder="Oleg Rabinovich"
                         value={authForm.displayName}
                         onChange={(event) => setAuthForm((current) => ({ ...current, displayName: event.target.value }))}
                       />
@@ -5856,6 +5865,7 @@ export default function Home() {
                     <input
                       autoComplete="email"
                       inputMode="email"
+                      placeholder="you@example.com"
                       required
                       type="email"
                       value={authForm.email}
@@ -5867,6 +5877,7 @@ export default function Home() {
                     <input
                       autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
                       minLength={6}
+                      placeholder="At least 6 characters"
                       required
                       type="password"
                       value={authForm.password}

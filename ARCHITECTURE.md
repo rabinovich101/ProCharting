@@ -123,6 +123,10 @@ Google and GitHub. Social signup and login share Supabase's
 `signInWithOAuth` provider flow, so Google/GitHub buttons appear in both dialog
 modes and redirect through the configured Supabase Auth provider when the
 deployment has the public Supabase env vars and provider credentials.
+Provider brand icons for those auth buttons are static public app assets under
+`TEST/binance-chart-test/public/auth`, served by Next.js as `/auth/*.svg`.
+They are presentation-only assets and do not change the Supabase auth boundary
+or provider configuration.
 
 Signed-out users are allowed to use the public chart exploration surface:
 loading charts, changing/searching pairs, changing timeframe, switching chart

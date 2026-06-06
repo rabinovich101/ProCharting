@@ -775,6 +775,10 @@ summary {
   width: min(420px, calc(100vw - 28px));
 }
 
+.auth-dialog {
+  width: min(452px, calc(100vw - 28px));
+}
+
 .settings-dialog {
   display: flex;
   flex-direction: column;
@@ -1084,33 +1088,73 @@ summary {
 
 .auth-dialog-body {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  padding: 18px;
+}
+
+.auth-dialog-title {
+  align-items: flex-start;
+  min-height: 112px;
+  padding: 16px 16px 14px 18px;
+}
+
+.auth-dialog-title-copy {
+  display: grid;
+  gap: 5px;
+  padding-right: 14px;
+}
+
+.auth-dialog-title-copy > span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.auth-dialog-title-copy strong {
+  font-size: 26px;
+  line-height: 1.08;
+}
+
+.auth-dialog-title-copy small {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .auth-provider-list {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .auth-provider-button {
   align-items: center;
-  background: var(--surface-0);
-  border: 1px solid var(--border-strong);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  color: var(--text-strong);
+  color: #1f1633;
   display: grid;
-  font-weight: 680;
-  gap: 10px;
-  grid-template-columns: 28px minmax(0, 1fr);
-  min-height: 38px;
-  padding: 0 11px 0 5px;
+  font-weight: 720;
+  gap: 12px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-height: 44px;
+  padding: 0 14px 0 7px;
   text-align: left;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 .auth-provider-button:hover,
 .auth-provider-button:focus-visible {
-  background: var(--surface-3);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: #ffffff;
+  border-color: color-mix(in srgb, var(--accent) 72%, #e5e7eb);
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    0 10px 24px rgba(0, 0, 0, 0.18);
+  transform: translateY(-1px);
 }
 
 .auth-provider-button:disabled {
@@ -1120,20 +1164,25 @@ summary {
 
 .auth-provider-mark {
   align-items: center;
-  background: var(--accent);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 50%;
-  color: var(--accent-contrast);
   display: inline-flex;
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 850;
-  height: 28px;
+  height: 30px;
   justify-content: center;
-  width: 28px;
+  width: 30px;
 }
 
-.auth-provider-button.github .auth-provider-mark {
-  font-size: 10px;
+.auth-provider-icon {
+  display: block;
+  height: 18px;
+  object-fit: contain;
+  width: 18px;
+}
+
+.auth-provider-button.google .auth-provider-icon {
+  height: 19px;
+  width: 19px;
 }
 
 .auth-dialog-divider {
@@ -1163,11 +1212,40 @@ summary {
   line-height: 1.45;
 }
 
+.auth-dialog .header-panel-field {
+  gap: 6px;
+}
+
+.auth-dialog .header-panel-field span {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.auth-dialog .header-panel-field input {
+  min-height: 40px;
+  padding: 0 11px;
+}
+
+.auth-dialog .header-panel-field input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 58%, transparent);
+}
+
 .auth-dialog-status {
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 9px 10px;
+}
+
+.auth-dialog-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+  padding: 12px 18px 18px;
+}
+
+.auth-dialog-footer button {
+  min-height: 40px;
 }
 
 .auth-dialog-footer .settings-ok:disabled {

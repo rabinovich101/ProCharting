@@ -1,3 +1,69 @@
+# Production Auth Modal Design Pass
+
+## Goal
+
+Make the Sign up and Log in modal look more like a production website and use
+real downloaded provider icons while preserving the existing Supabase auth
+behavior.
+
+## Investigation / Decisions
+
+- The auth dialog is rendered in `TEST/binance-chart-test/app/page.tsx` and is
+  already wired to Supabase email/password plus Google/GitHub OAuth.
+- The current provider buttons use text marks (`G` and `GH`) instead of actual
+  brand icons, which makes the dialog feel unfinished.
+- Keep the implementation focused on markup/CSS/assets: do not change auth
+  state, OAuth providers, form submission, signed-out gating, market data, or
+  chart interactions.
+- Store static provider icons under the standalone app's `public/auth` folder
+  so Next.js can serve them directly as `/auth/*.svg`.
+- Update `ARCHITECTURE.md` only for the static auth asset boundary because this
+  pass adds project-owned public UI assets.
+
+## Checklist
+
+- [x] Download real Google and GitHub auth icons into the app public assets.
+- [x] Replace text provider marks with downloaded icon images.
+- [x] Polish the signup/login modal layout, inputs, provider buttons, and footer.
+- [x] Keep existing auth behavior and Playwright assertions stable.
+- [x] Update `ARCHITECTURE.md` for the public auth icon asset boundary.
+- [x] Run focused build/test checks.
+- [x] Verify the modal in browser/devtools on desktop and mobile.
+- [x] Update the review section with results and remaining notes.
+- [ ] Commit, push, and leave the worktree clean.
+
+## Review
+
+Polished the Sign up and Log in modal into a more production-ready auth card
+while keeping the existing Supabase auth behavior unchanged.
+
+- Downloaded real provider icon SVG assets into
+  `TEST/binance-chart-test/public/auth/google.svg` and
+  `TEST/binance-chart-test/public/auth/github.svg`.
+- Replaced the old text marks (`G` and `GH`) with downloaded image icons served
+  from `/auth/google.svg` and `/auth/github.svg`.
+- Refined the auth modal header, provider buttons, form fields, placeholders,
+  status panel, and footer buttons so the dialog feels closer to a production
+  login/signup surface.
+- Added Playwright assertions that the provider icon images are rendered from
+  the project assets.
+- Updated `ARCHITECTURE.md` to document the public auth icon asset boundary.
+
+Verification results:
+
+- `npm run build` passed in `TEST/binance-chart-test`.
+- `npm run test:e2e` passed: 3 Playwright tests.
+- Browser/devtools desktop verification passed at `1280x720`: signup dialog
+  rendered at `452x626`, Google/GitHub icons loaded from `/auth/*.svg`, no
+  horizontal overflow, and console warning/error logs were empty.
+- Browser/devtools mobile verification passed at `390x844`: signup dialog fit
+  inside the viewport, provider icon images loaded, no horizontal overflow, and
+  console warning/error logs were empty.
+- `git diff --check` passed.
+- Existing warnings remain: Next reports multiple lockfiles and the missing
+  Next ESLint plugin during build/test startup, and Playwright startup still
+  prints the existing `NO_COLOR`/`FORCE_COLOR` warning.
+
 # Sentry-Inspired Visual Design Pass
 
 ## Goal
