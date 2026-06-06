@@ -57,6 +57,21 @@ The deploy script runs `npm ci` and `npm run build` inside
 `TEST/binance-chart-test`, then restarts the `procharts-app` pm2 process with
 `npm start -- -H 127.0.0.1 -p 3000`.
 
+### 1.2 Repository Licensing
+
+ProCharting is proprietary software and is not open-source or free-to-use. The
+root repository license is the source-of-truth all-rights-reserved notice.
+The root GitHub install facade and each distributable `@procharting/*`
+workspace package use `SEE LICENSE IN LICENSE` package metadata and carry a
+package-local `LICENSE` file so packed artifacts retain the proprietary terms.
+Private harness packages, such as the standalone Next.js QA app and benchmarks,
+use `UNLICENSED` metadata to avoid implying public reuse rights.
+
+Installation instructions describe package mechanics only. Production use,
+commercial use, redistribution, SaaS use, hosted use, or embedding ProCharting
+inside another product or service requires prior written permission and a valid
+paid license from Oleg Rabinovich.
+
 ### 2. Verification Tooling
 
 The root TypeScript config is a solution-style project that references the package

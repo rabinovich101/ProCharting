@@ -4,7 +4,7 @@
   "private": true,
   "description": "High-performance financial charting library with WebGPU, WebGL2, and Canvas rendering",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "packageManager": "pnpm@10.17.0",
   "repository": {
     "type": "git",

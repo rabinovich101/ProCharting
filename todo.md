@@ -1,3 +1,84 @@
+# Proprietary Repository Licensing
+
+## Goal
+
+Replace the repository's previous permissive licensing with clear proprietary
+licensing so ProCharting is not presented as free-to-use software.
+
+## Findings / Decisions
+
+- The root `LICENSE` file previously granted broad permissive rights, including free use,
+  copying, modification, publishing, distribution, sublicensing, and sale.
+- The root `package.json`, `packages/core/package.json`, and
+  `packages/prices/package.json` previously advertised permissive licensing.
+- Several internal workspace packages do not declare a license field, which can
+  leave package metadata ambiguous if they are packed or published later.
+- The root README previously had a `## License` section that named the old
+  permissive license only.
+- The repository is a package-oriented monorepo with a root GitHub install
+  facade and publishable `@procharting/*` package boundaries, so licensing must
+  be reflected in the root and package manifests.
+- Use a conservative proprietary, all-rights-reserved license notice: no use,
+  copy, modification, distribution, sublicensing, hosting, production, or
+  commercial use without prior written permission from the copyright holder.
+- Use npm's custom-license metadata form, `SEE LICENSE IN LICENSE`, for
+  distributable packages that include a license file.
+- Mark private, non-distributable harness packages as `UNLICENSED` so package
+  metadata does not imply public reuse rights.
+
+## Checklist
+
+- [x] Replace the root permissive `LICENSE` with proprietary license text.
+- [x] Update root and workspace package license metadata.
+- [x] Add package-level license files where publishable packages need their own
+      top-level `LICENSE`.
+- [x] Update README and CONTRIBUTING wording to remove open-source/free-use
+      implications.
+- [x] Update `ARCHITECTURE.md` with the repository/package licensing contract.
+- [x] Run focused validation for license strings and JSON/package metadata.
+- [x] Verify the documentation surface with Browser/Playwright/devtools.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Implemented proprietary repository licensing for ProCharting.
+
+- Replaced the root permissive license grant with a proprietary all-rights-reserved
+  license notice.
+- Updated the root package facade and all distributable `@procharting/*`
+  workspace package manifests to `SEE LICENSE IN LICENSE`.
+- Added package-local `LICENSE` files to `packages/core`, `packages/data`,
+  `packages/prices`, `packages/types`, `packages/utils`, `packages/webgl`, and
+  `packages/webgpu` so packed workspace artifacts carry the proprietary terms.
+- Marked private harness packages as `UNLICENSED`: the standalone Binance chart
+  test app and both benchmark packages.
+- Updated the README with an early licensing notice and a proprietary License
+  section.
+- Updated `packages/prices/README.md`, `CONTRIBUTING.md`, and
+  `ARCHITECTURE.md` so docs match the new repository/package licensing
+  contract.
+
+Verification results:
+
+- License metadata validation passed for all touched package manifests and the
+  test app package lock root entry.
+- `npm pack --dry-run --json --ignore-scripts` passed for all distributable
+  workspace packages and confirmed each pack includes `LICENSE`.
+- Literal text search found no first-party permissive-license grant strings
+  outside third-party dependency lockfile data.
+- `git diff --check` passed.
+- `npm --prefix TEST/binance-chart-test install --package-lock-only
+  --ignore-scripts` completed with the lockfile still aligned. npm reported
+  existing audit issues in the test app dependency tree: 1 moderate, 1 high,
+  and 1 critical vulnerability.
+- In-app Browser direct `file://` and localhost README navigation was blocked
+  by the browser client, so the documentation surface was verified with
+  Playwright Chromium instead.
+- Playwright Chromium loaded `http://127.0.0.1:4177/README.md`, confirmed the
+  proprietary notice and License section text were present, saved a screenshot
+  to `/tmp/procharting-license-readme.png`, and captured no console warnings,
+  console errors, or page errors.
+
 # Mobile TradingView Touch Gestures
 
 ## Goal
@@ -2817,7 +2898,7 @@ package-readiness fix.
 What works:
 
 - `packages/prices/package.json` has a valid package name, version,
-  description, MIT license, keywords, `files` allowlist, `main`, `module`,
+  description, proprietary license metadata, keywords, `files` allowlist, `main`, `module`,
   `types`, and conditional `exports`.
 - The package builds ESM, CommonJS, and TypeScript declarations. CommonJS works
   through the nested `dist/cjs/package.json` with `type: commonjs`.
@@ -2901,7 +2982,7 @@ Completed the re-verification pass against the current source and built package.
 What works:
 
 - `@procharting/prices` has a valid package boundary with `main`, `module`,
-  `types`, conditional `exports`, MIT license, keywords, and a `files`
+  `types`, conditional `exports`, proprietary license metadata, keywords, and a `files`
   allowlist.
 - `createPriceClient` supports the requested custom-provider usage and the
   documented default-provider usage.
@@ -2982,7 +3063,7 @@ Overall verdict:
 
 What works:
 
-- `package.json` has a valid package name, version, description, MIT license,
+- `package.json` has a valid package name, version, description, proprietary license metadata,
   keywords, `files`, `main`, `module`, `types`, and conditional `exports`.
 - ESM import and CommonJS `require` both work from a clean consumer project.
 - The public API supports the requested custom-provider shape with

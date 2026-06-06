@@ -9,6 +9,14 @@ The chart package is currently developed as a pnpm monorepo. The public npm
 scope is not published yet, so the supported ways to try it today are cloning
 the repository, linking it locally, or installing the GitHub facade package.
 
+## Licensing Notice
+
+ProCharting is proprietary software and is not free to use. Cloning this
+repository, installing it from GitHub, linking it locally, or viewing the source
+does not grant usage rights. Production use, commercial use, redistribution,
+SaaS use, hosted use, and use inside another product or service require prior
+written permission and a valid paid license from Oleg Rabinovich.
+
 ## Features
 
 - TypeScript chart API centered on `createChart`.
@@ -321,4 +329,5 @@ ARCHITECTURE.md
 
 ## License
 
-MIT
+Proprietary. See [LICENSE](LICENSE). ProCharting is not open-source software
+and is not free to use without a written paid license from Oleg Rabinovich.

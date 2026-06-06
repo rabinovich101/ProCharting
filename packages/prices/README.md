@@ -133,3 +133,8 @@ const client = createPriceClient({
 
 For production-grade real-time or intraday data, use the custom provider with an
 official market data API such as Twelve Data or Alpha Vantage.
+
+## License
+
+Proprietary. This package is part of ProCharting and is not free to use. See
+[LICENSE](LICENSE).

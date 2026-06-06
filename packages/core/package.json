@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "Core chart API and renderer orchestration for ProCharting",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "sideEffects": false,
   "main": "./dist/index.js",
   "module": "./dist/index.js",

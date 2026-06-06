@@ -1,6 +1,9 @@
 # Contributing to ProCharting
 
-Thank you for your interest in contributing to ProCharting! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to ProCharting. ProCharting is
+proprietary software, not an open-source project. Contributions are accepted
+only by prior agreement with Oleg Rabinovich, and submitting code does not grant
+public reuse rights to the repository or its packages.
 
 ## Development Setup
 
@@ -59,8 +62,8 @@ Thank you for your interest in contributing to ProCharting! This document provid
 
 ## Pull Request Process
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+1. Confirm the contribution is approved under a written agreement
+2. Create an agreed branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
 4. Run tests (`pnpm test`)
 5. Run type checking (`pnpm typecheck`)

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "Provider-based market price client for ProCharting",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "sideEffects": false,
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",

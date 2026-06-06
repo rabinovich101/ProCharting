@@ -2,6 +2,7 @@
   "name": "@procharting/types",
   "version": "0.0.1",
   "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
