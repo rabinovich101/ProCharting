@@ -145,6 +145,11 @@ This lets Cloudflare Tunnel continue publishing a single
 the same public domain. Production Supabase must therefore set its public auth
 URL values to that HTTPS app origin, and Google/GitHub OAuth must allow
 `https://procharts.thefiscalwire.com/auth/v1/callback`.
+If `/auth/v1/settings` reports `external.github: true` and `/auth/v1/authorize`
+redirects to GitHub with that callback URL, GitHub's
+`redirect_uri is not associated with this application` page is owned by the
+GitHub OAuth App callback setting, not by the Next.js auth dialog or the
+Supabase runtime.
 The generated production Supabase runtime lives outside the GitHub Actions
 runner checkout at `/home/ooo/procharts-supabase/runtime`. Keeping Docker-owned
 volumes out of the repository worktree prevents `actions/checkout` cleanup from

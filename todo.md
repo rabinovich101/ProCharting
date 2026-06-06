@@ -1,3 +1,59 @@
+# GitHub OAuth Redirect URI Incident
+
+## Goal
+
+Fix the production GitHub login failure that shows GitHub's
+`The redirect_uri is not associated with this application` message.
+
+## Investigation / Decisions
+
+- The Next.js auth dialog already calls Supabase
+  `signInWithOAuth({ provider: 'github' })` and sets
+  `redirectTo: window.location.origin`, so the browser app is not inventing a
+  GitHub callback URL directly.
+- The production architecture intentionally proxies Supabase Auth through
+  `https://procharts.thefiscalwire.com`; therefore GitHub must accept the exact
+  callback URL `https://procharts.thefiscalwire.com/auth/v1/callback`.
+- Secrets in `.env` and VM runtime files must only be used locally/over SSH and
+  must not be printed, committed, or copied into public app env files.
+- Production Supabase Auth currently has GitHub enabled, the Auth container has
+  the `GOTRUE_EXTERNAL_GITHUB_*` passthrough values, and `/auth/v1/authorize`
+  redirects to GitHub with the production callback URL.
+- GitHub currently serves its normal sign-in page for both the production and
+  local Supabase callback URLs configured for the current GitHub client ID, so
+  the reported mismatch is not reproducible against the live production flow.
+
+## Checklist
+
+- [x] Inspect the local auth code path and production architecture notes.
+- [x] Check the local `.env` inventory without exposing secret values.
+- [x] Verify the live production GitHub OAuth redirect URL and provider status.
+- [x] Fix any production Supabase runtime mismatch found on the VM.
+- [x] Update docs/architecture only if the current architecture or operational
+      knowledge changes.
+- [x] Test the live login flow with Playwright or the browser tools.
+- [x] Commit and push the GitHub OAuth incident changes; leave unrelated
+      existing worktree changes untouched.
+
+## Review
+
+- No production Supabase runtime fix was needed: the VM runtime reports GitHub
+  enabled, Auth/Kong are healthy, and the Auth container has the expected
+  GitHub provider env passthrough.
+- Live authorize verification shows GitHub receives
+  `https://procharts.thefiscalwire.com/auth/v1/callback`.
+- Live Playwright verification reached GitHub's normal sign-in page from the
+  production sign-up dialog with no redirect URI error.
+- Updated `ARCHITECTURE.md` and `infra/supabase/README.md` with the GitHub
+  callback troubleshooting boundary.
+- Validation passed:
+  - VM runtime OAuth diagnostic over SSH.
+  - Live Playwright browser test against `https://procharts.thefiscalwire.com`.
+  - Direct GitHub callback comparison for production and local callback URLs.
+  - `git diff --check`.
+  - `sh -n infra/supabase/scripts/supabase.sh`.
+  - `npm --prefix TEST/binance-chart-test run build`.
+
 # Production Google OAuth Runner Fix
 
 ## Goal

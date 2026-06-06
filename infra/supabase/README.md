@@ -99,6 +99,24 @@ The matching Docker Compose passthrough must include
 `GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI`. The Google Cloud OAuth client must allow
 `https://procharts.thefiscalwire.com/auth/v1/callback`.
 
+For GitHub OAuth, the runtime uses the same public callback boundary. Set the
+ignored runtime `.env` values:
+
+```sh
+GITHUB_ENABLED=true
+GITHUB_CLIENT_ID=<github-oauth-client-id>
+GITHUB_SECRET=<github-oauth-client-secret>
+```
+
+The matching Docker Compose passthrough must include
+`GOTRUE_EXTERNAL_GITHUB_ENABLED`, `GOTRUE_EXTERNAL_GITHUB_CLIENT_ID`,
+`GOTRUE_EXTERNAL_GITHUB_SECRET`, and
+`GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI`. The GitHub OAuth App must allow
+`https://procharts.thefiscalwire.com/auth/v1/callback`; if GitHub shows
+`The redirect_uri is not associated with this application` while Supabase
+reports `external.github: true`, update the GitHub OAuth App callback URL or
+use the GitHub client ID/secret from the app that already allows that callback.
+
 ## Chart State Schema
 
 `migrations/001_chart_layouts.sql` creates `public.chart_layouts`:
