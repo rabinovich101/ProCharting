@@ -89,6 +89,7 @@ type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
 type AuthMode = 'login' | 'signup';
+type AuthOAuthProvider = 'google' | 'github';
 type IndicatorFormula =
   | 'volume'
   | 'sma'
@@ -709,6 +710,10 @@ const DEFAULT_AUTH_FORM_STATE: AuthFormState = {
   email: '',
   password: '',
 };
+const AUTH_OAUTH_PROVIDERS: Array<{ provider: AuthOAuthProvider; label: string; mark: string }> = [
+  { provider: 'google', label: 'Continue with Google', mark: 'G' },
+  { provider: 'github', label: 'Continue with GitHub', mark: 'GH' },
+];
 const FEATURE_DIALOGS: Record<'alert' | 'replay', { title: string; eyebrow: string; body: string }> = {
   alert: {
     title: 'Never miss a trade again',
@@ -4540,6 +4545,32 @@ export default function Home() {
       setAuthLoading(false);
     }
   };
+  const handleOAuthSignIn = async (provider: AuthOAuthProvider) => {
+    if (!supabase) {
+      setAuthMessage('Accounts are not connected on this deployment yet.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthMessage('');
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        setAuthMessage(error.message);
+      }
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Authentication failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
   const handleSignOut = async () => {
     closeHeaderOverlays();
 
@@ -5789,6 +5820,27 @@ export default function Home() {
                       {authMode === 'signup' ? 'Sign up' : 'Log in'} to use {authActionLabel}.
                     </span>
                   )}
+                  <div className="auth-provider-list" aria-label="Social sign in options">
+                    {AUTH_OAUTH_PROVIDERS.map((option) => (
+                      <button
+                        key={option.provider}
+                        type="button"
+                        className={`auth-provider-button ${option.provider}`}
+                        disabled={authLoading}
+                        onClick={() => void handleOAuthSignIn(option.provider)}
+                      >
+                        <span className="auth-provider-mark" aria-hidden="true">
+                          {option.mark}
+                        </span>
+                        <span>{option.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <span className="auth-dialog-divider" aria-hidden="true">
+                    <span />
+                    <small>Email</small>
+                    <span />
+                  </span>
                   {authMode === 'signup' && (
                     <label className="header-panel-field">
                       <span>Name</span>

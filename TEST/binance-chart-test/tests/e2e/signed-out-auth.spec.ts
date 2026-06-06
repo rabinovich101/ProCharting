@@ -92,6 +92,14 @@ test.describe('signed-out chart access', () => {
     const signupDialog = page.getByRole('dialog', { name: 'Sign up' });
     await expect(signupDialog).toBeVisible();
     await expect(signupDialog.getByText('Create your account')).toBeVisible();
+    await expect(signupDialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+    await expect(signupDialog.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
+    await expect(signupDialog.getByText('Accounts are not connected on this deployment yet.')).toBeVisible();
+
+    await signupDialog.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(signupDialog.getByText('Accounts are not connected on this deployment yet.')).toBeVisible();
+
+    await signupDialog.getByRole('button', { name: 'Continue with GitHub' }).click();
     await expect(signupDialog.getByText('Accounts are not connected on this deployment yet.')).toBeVisible();
 
     await signupDialog.getByLabel('Name').fill('Chart Tester');
@@ -103,6 +111,8 @@ test.describe('signed-out chart access', () => {
     await signupDialog.getByRole('button', { name: 'Log in instead' }).click();
     const loginDialog = page.getByRole('dialog', { name: 'Log in' });
     await expect(loginDialog).toBeVisible();
+    await expect(loginDialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+    await expect(loginDialog.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
     await expect(loginDialog.getByRole('button', { name: 'Create account' })).toBeVisible();
     await loginDialog.getByRole('button', { name: 'Close menu' }).click();
     await expect(header.getByRole('button', { name: 'Sign up' })).toBeVisible();

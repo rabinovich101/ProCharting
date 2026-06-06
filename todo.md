@@ -1,3 +1,66 @@
+# Google And GitHub Auth Options
+
+## Goal
+
+Add Google and GitHub options to the existing Sign up and Log in dialog.
+
+## Findings / Decisions
+
+- The app already uses Supabase Auth for email/password signup and login.
+- Supabase JavaScript uses `supabase.auth.signInWithOAuth()` for social
+  providers; Google uses provider `google`, and GitHub uses provider `github`.
+- Social login and social signup are the same OAuth entry path in Supabase, so
+  both the signup and login dialogs should show `Continue with Google` and
+  `Continue with GitHub`.
+- Keep the existing safe disconnected behavior: when Supabase public env vars
+  are absent, clicking Google or GitHub should keep the user signed out and
+  show the existing disconnected-account message.
+- Keep the dialog compact and consistent with the existing terminal header
+  style; no new routes or layout refactor are needed.
+
+## Checklist
+
+- [x] Add Google and GitHub OAuth provider actions to the auth dialog.
+- [x] Add accessible provider buttons and compact styling.
+- [x] Extend Playwright coverage for provider buttons in signup and login modes.
+- [x] Update `ARCHITECTURE.md` for the OAuth provider auth boundary.
+- [x] Run e2e tests, build, and diff checks.
+- [x] Verify with Browser/Playwright/devtools.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Added Google and GitHub OAuth options to the existing auth dialog.
+
+- Added `Continue with Google` and `Continue with GitHub` buttons to both
+  signup and login modes.
+- Added a shared OAuth handler that calls Supabase Auth
+  `signInWithOAuth({ provider: 'google' })` or
+  `signInWithOAuth({ provider: 'github' })` when Supabase public env vars are
+  configured.
+- Kept the safe disconnected behavior: with no Supabase public env vars, Google
+  and GitHub clicks leave the app signed out and show the existing
+  disconnected-account message.
+- Added compact provider-button styling in the auth modal.
+- Extended Playwright tests to assert Google/GitHub buttons appear in signup
+  and login modes and keep the disconnected-state message stable.
+- Updated `ARCHITECTURE.md` for the Google/GitHub OAuth auth boundary.
+
+Verification results:
+
+- `npm run test:e2e` passed: 3 Playwright tests.
+- `npm run build` passed when run after the Playwright server stopped.
+- `git diff --check` passed.
+- Browser/Playwright/devtools loaded the local app, opened Sign up, confirmed
+  Google/GitHub buttons are visible, confirmed the disconnected-account message,
+  and reported no console warnings or errors.
+- The first build attempt was run concurrently with the Playwright dev server
+  and failed with a transient Next `/_document` page-module error from shared
+  `.next` state; rerunning build by itself passed.
+- Existing warnings remain: multiple lockfiles, the Next ESLint plugin is not
+  detected, npm audit reports 3 vulnerabilities, and Node prints a
+  `NO_COLOR`/`FORCE_COLOR` warning during Playwright server startup.
+
 # Signed-Out Auth Playwright Coverage
 
 ## Goal

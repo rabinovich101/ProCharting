@@ -103,6 +103,12 @@ present. When those public env vars are absent, the app remains safely
 signed-out and the auth dialogs report that accounts are not connected on that
 deployment.
 
+The auth dialogs support email/password plus Supabase OAuth entry points for
+Google and GitHub. Social signup and login share Supabase's
+`signInWithOAuth` provider flow, so Google/GitHub buttons appear in both dialog
+modes and redirect through the configured Supabase Auth provider when the
+deployment has the public Supabase env vars and provider credentials.
+
 Signed-out users are allowed to use the public chart exploration surface:
 loading charts, changing/searching pairs, changing timeframe, switching chart
 type, using indicators, panning/zooming, fullscreen, and resetting view.
