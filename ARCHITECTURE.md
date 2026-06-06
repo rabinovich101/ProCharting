@@ -57,7 +57,33 @@ The deploy script runs `npm ci` and `npm run build` inside
 `TEST/binance-chart-test`, then restarts the `procharts-app` pm2 process with
 `npm start -- -H 127.0.0.1 -p 3000`.
 
-### 1.2 Repository Licensing
+### 1.2 Supabase Microservice Boundary
+
+ProCharting now has a Docker-only Supabase infrastructure boundary under
+`infra/supabase`. This is intentionally separate from the chart runtime so the
+standalone Next.js app can keep its existing behavior until save/load calls are
+explicitly migrated.
+
+The Supabase runtime is generated into `infra/supabase/runtime`, which is
+gitignored because it contains upstream Docker Compose files and generated local
+secrets. The project-owned control surface is
+`infra/supabase/scripts/supabase.sh`; it fetches the official Supabase
+self-hosted Docker bundle, generates local secrets, and delegates operation to
+the generated runtime's `run.sh`.
+
+Project schema lives outside the generated runtime in
+`infra/supabase/migrations`. The first migration creates
+`public.chart_layouts` for authenticated user-owned chart state. Layout
+snapshots are stored as `jsonb` so the existing chart layout shape can evolve
+without prematurely normalizing every UI setting. Candles and live feed data
+remain outside this table and continue to come from the market-data flow.
+
+The `chart_layouts` table references `auth.users(id)`, enables Row Level
+Security, and adds owner-scoped select, insert, update, and delete policies.
+The table also supports one `is_autosave` row per user for future current-state
+autosave while still allowing named saved layouts.
+
+### 1.3 Repository Licensing
 
 ProCharting is proprietary software and is not open-source or free-to-use. The
 root repository license is the source-of-truth all-rights-reserved notice.

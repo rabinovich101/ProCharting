@@ -4383,6 +4383,70 @@ React chart-pane state writes from ordinary hover movement.
   rendered, screenshot captured, and console diagnostics reported 0 warnings and
   0 errors.
 
+# Dockerized Supabase Microservice Architecture
+
+## Goal
+
+Create a Docker-only Supabase architecture for per-user chart state without
+changing the current chart runtime behavior. The existing localStorage save/load
+flow must continue to work until the app is intentionally wired to Supabase in a
+separate step.
+
+## Investigation / Decisions
+
+- The runnable product app is still `TEST/binance-chart-test`, served as a
+  standalone Next.js app under pm2 in the existing VM deployment.
+- The chart layout snapshot already has a small JSON shape:
+  layout grid, active pane, style, theme, sync settings, chart settings,
+  indicators, symbols, intervals, manual price ranges, and view ranges.
+- Official Supabase self-hosting uses Docker Compose and stores generated
+  secrets in a local `.env`. The Docker bundle should stay isolated from the
+  application source and generated secrets must not be committed.
+- Use `infra/supabase/runtime` as an ignored runtime directory populated from
+  the official Supabase `docker/` folder. Keep project-owned schema migrations
+  in `infra/supabase/migrations`.
+- Store chart layouts in a `public.chart_layouts` table with a `jsonb` snapshot
+  and Supabase Auth-scoped Row Level Security policies.
+
+## Checklist
+
+- [x] Add a Supabase infra directory with runtime/secrets ignored.
+- [x] Add a Docker-only installer that fetches the official Supabase Compose bundle.
+- [x] Add chart-layout database migration with per-user RLS.
+- [x] Add operational documentation for install/start/migrate/status.
+- [x] Update `ARCHITECTURE.md` for the new microservice boundary.
+- [x] Run local validation without changing app behavior.
+- [x] Review changes and keep the worktree clean.
+
+## Review
+
+- Added `infra/supabase` as the Docker-only microservice boundary. Generated
+  upstream runtime files and local secrets live in ignored
+  `infra/supabase/runtime`.
+- Added `infra/supabase/scripts/supabase.sh` to install, start, stop, inspect,
+  and migrate the self-hosted Supabase stack without changing the chart app.
+- Added `infra/supabase/migrations/001_chart_layouts.sql` with
+  `public.chart_layouts`, JSONB snapshots, one autosave row per user, and
+  owner-scoped Row Level Security policies tied to Supabase Auth.
+- Added `infra/supabase/README.md` with install/start/migrate/status workflow.
+- Updated `ARCHITECTURE.md` to document the Supabase microservice boundary and
+  the chart-state persistence model.
+- Installed the ignored local Supabase runtime and generated local secrets. The
+  stack was not started, so no Docker services were left running.
+- Local validation passed:
+  - `sh -n infra/supabase/scripts/supabase.sh`
+  - `sh infra/supabase/scripts/supabase.sh install`
+  - `docker compose config --quiet` in `infra/supabase/runtime`
+  - `npm run --silent typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm run --silent typecheck`
+  - `git diff --check`
+- Playwright smoke verification passed on
+  `http://host.docker.internal:3001`: page title `ProCharting Market Desk`,
+  command bar, live feed, chart pane, legend, and active indicators rendered.
+  Screenshot captured at
+  `/tmp/.playwright-mcp/procharting-supabase-architecture-smoke.png`.
+
 # MACD Oscillator Pane Values
 
 ## Goal
