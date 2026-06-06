@@ -52,6 +52,53 @@ After `start`, access self-hosted Supabase through the local gateway at
 sh infra/supabase/scripts/supabase.sh secrets
 ```
 
+## OAuth Provider Status
+
+Check the non-secret Auth settings payload, including enabled social providers,
+with:
+
+```sh
+sh infra/supabase/scripts/supabase.sh oauth-status
+```
+
+For the production VM runtime, run the helper from the VM checkout with the
+production runtime selected:
+
+```sh
+PROCHARTING_SUPABASE_RUNTIME_DIR=/home/ooo/procharts-supabase/runtime \
+  sh infra/supabase/scripts/supabase.sh oauth-status
+```
+
+If Google returns `Unsupported provider: provider is not enabled`, update the
+VM-local `/home/ooo/procharts-supabase/runtime/.env` with the production Google
+OAuth values:
+
+```sh
+GOOGLE_ENABLED=true
+GOOGLE_CLIENT_ID=<google-web-client-id>
+GOOGLE_SECRET=<google-client-secret>
+```
+
+If you have the downloaded Google client-secret JSON on the server, import it
+without printing the secret:
+
+```sh
+PROCHARTING_SUPABASE_RUNTIME_DIR=/home/ooo/procharts-supabase/runtime \
+  sh infra/supabase/scripts/supabase.sh import-google-oauth ./client_secret_*.json
+```
+
+Then recreate the Auth container from `/home/ooo/procharts-supabase/runtime`:
+
+```sh
+docker compose up -d --force-recreate --no-deps auth
+```
+
+The matching Docker Compose passthrough must include
+`GOTRUE_EXTERNAL_GOOGLE_ENABLED`, `GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID`,
+`GOTRUE_EXTERNAL_GOOGLE_SECRET`, and
+`GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI`. The Google Cloud OAuth client must allow
+`https://procharts.thefiscalwire.com/auth/v1/callback`.
+
 ## Chart State Schema
 
 `migrations/001_chart_layouts.sql` creates `public.chart_layouts`:

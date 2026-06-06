@@ -1,3 +1,78 @@
+# Production Google OAuth Provider Enablement
+
+## Goal
+
+Make Google OAuth work on the public self-hosted Supabase deployment behind
+`https://procharts.thefiscalwire.com`.
+
+## Investigation / Decisions
+
+- The production authorize URL currently returns:
+  `Unsupported provider: provider is not enabled`.
+- This proves the same-domain Supabase proxy and production Auth service are
+  reachable, but the Google provider is disabled or missing inside the
+  production Auth container.
+- The app's client-side OAuth call is already provider-generic and sends
+  `redirectTo: window.location.origin`, so the root cause is production
+  Supabase provider configuration, not the Next.js button handler.
+- The local ignored Supabase runtime has Google provider variables and Docker
+  Compose passthrough configured, but production uses a separate runtime at
+  `/home/ooo/procharts-supabase/runtime`.
+- The production Google OAuth client must include:
+  `https://procharts.thefiscalwire.com/auth/v1/callback` as an authorized
+  redirect URI.
+- The newly added Google client JSON is a Web OAuth client with a secret, but
+  its downloaded `redirect_uris` currently include only
+  `https://procharts.thefiscalwire.com/`. Google Cloud Console must also allow
+  the Supabase callback URL above.
+- This Mac session cannot resolve the configured `procharts-vm` SSH host, so
+  direct VM modification is blocked unless a reachable SSH target or a VM-side
+  shell is provided.
+
+## Checklist
+
+- [x] Reproduce the production Google authorize failure and capture the exact
+      Supabase Auth error.
+- [x] Inspect the app OAuth handler and same-domain Supabase proxy.
+- [x] Compare local and production Supabase runtime assumptions.
+- [x] Add a non-secret Supabase OAuth status helper for repeatable checks.
+- [x] Document the VM Google provider enablement and restart path.
+- [x] Keep Google client-secret JSON files out of Git.
+- [x] Add a safe Google OAuth JSON import helper for the Supabase runtime.
+- [x] Test local build/E2E after the repo changes.
+- [x] Verify with Browser/Playwright/devtools.
+- [x] Review git status and keep changes limited to auth operations/docs.
+
+## Review
+
+- Confirmed production still returns HTTP 400 from
+  `https://procharts.thefiscalwire.com/auth/v1/authorize?provider=google...`
+  with `Unsupported provider: provider is not enabled`.
+- Confirmed the production app renders the signup dialog and Google button, but
+  OAuth does not leave the app while the server-side provider remains disabled.
+- Added `client_secret*.json` to `.gitignore` so downloaded Google OAuth client
+  secrets do not appear in normal git status or get committed accidentally.
+- Added `sh infra/supabase/scripts/supabase.sh import-google-oauth <json>` to
+  import a downloaded Google OAuth client JSON into the ignored Supabase runtime
+  `.env` without printing the secret.
+- Ran the importer locally against the newly added JSON. It updated the ignored
+  local runtime env and confirmed the client secret is configured without
+  printing it.
+- The downloaded JSON currently lists only `https://procharts.thefiscalwire.com/`
+  as a redirect URI. Google Cloud Console still needs
+  `https://procharts.thefiscalwire.com/auth/v1/callback` added before the
+  production OAuth flow can succeed after enabling the provider.
+- This Mac session cannot resolve `procharts-vm`, so the remaining production
+  action is to run the importer on the VM against
+  `/home/ooo/procharts-supabase/runtime`, recreate the Auth container, and then
+  verify `oauth-status` reports `external.google: true`.
+- Validation passed:
+  - `sh -n infra/supabase/scripts/supabase.sh`
+  - `sh infra/supabase/scripts/supabase.sh oauth-status`
+  - `git diff --check`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
+
 # GitHub OAuth Production Deployment
 
 ## Goal

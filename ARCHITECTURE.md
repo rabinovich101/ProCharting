@@ -146,6 +146,15 @@ The generated production Supabase runtime lives outside the GitHub Actions
 runner checkout at `/home/ooo/procharts-supabase/runtime`. Keeping Docker-owned
 volumes out of the repository worktree prevents `actions/checkout` cleanup from
 touching root-owned runtime files during VM deploys.
+Social provider enablement for that production runtime is operational state in
+`/home/ooo/procharts-supabase/runtime/.env` plus the generated runtime's Auth
+container environment passthrough. A production
+`Unsupported provider: provider is not enabled` response from
+`/auth/v1/authorize` means the same-domain Supabase proxy is reachable, but the
+requested provider is disabled or missing inside the Auth container. The
+repository helper `infra/supabase/scripts/supabase.sh oauth-status` checks the
+non-secret `/auth/v1/settings` payload so VM changes can verify that Google or
+GitHub is enabled before browser OAuth testing.
 
 The auth dialogs support email/password plus Supabase OAuth entry points for
 Google and GitHub. Social signup and login share Supabase's

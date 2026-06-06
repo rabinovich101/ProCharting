@@ -28,6 +28,7 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+client_secret*.json
 
 # Temporary files
 *.tmp

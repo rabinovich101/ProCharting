@@ -25,13 +25,149 @@ ensure_runtime() {
 set_env_value() {
   key="$1"
   value="$2"
+  tmp_file=$(mktemp)
 
-  if grep -q "^$key=" .env; then
-    sed -i.bak "s|^$key=.*$|$key=$value|" .env
-    rm -f .env.bak
+  if [ -f .env ]; then
+    awk -v key="$key" -v value="$value" '
+      BEGIN { updated = 0 }
+      index($0, key "=") == 1 {
+        print key "=" value
+        updated = 1
+        next
+      }
+      { print }
+      END {
+        if (updated == 0) {
+          print ""
+          print key "=" value
+        }
+      }
+    ' .env > "$tmp_file"
   else
-    printf '\n%s=%s\n' "$key" "$value" >> .env
+    printf '%s=%s\n' "$key" "$value" > "$tmp_file"
   fi
+
+  mv "$tmp_file" .env
+}
+
+read_env_value() {
+  key="$1"
+  file="$2"
+
+  [ -f "$file" ] || return 1
+
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*#" { next }
+    index($0, key "=") == 1 {
+      sub(/^[^=]*=/, "")
+      print
+      exit
+    }
+  ' "$file"
+}
+
+oauth_status() {
+  base_url="${1:-}"
+  anon_key="${2:-}"
+
+  if [ -z "$base_url" ] || [ -z "$anon_key" ]; then
+    ensure_runtime
+    env_file="$RUNTIME_DIR/.env"
+
+    if [ -z "$base_url" ]; then
+      base_url="$(read_env_value SUPABASE_PUBLIC_URL "$env_file")"
+      [ -n "$base_url" ] || base_url="$(read_env_value API_EXTERNAL_URL "$env_file")"
+    fi
+
+    if [ -z "$anon_key" ]; then
+      anon_key="$(read_env_value ANON_KEY "$env_file")"
+      [ -n "$anon_key" ] || anon_key="$(read_env_value SUPABASE_PUBLISHABLE_KEY "$env_file")"
+    fi
+  fi
+
+  [ -n "$base_url" ] || die "Missing Supabase URL. Pass it as: sh infra/supabase/scripts/supabase.sh oauth-status <url> <anon-key>"
+  [ -n "$anon_key" ] || die "Missing Supabase anon/publishable key. Pass it as the second oauth-status argument."
+
+  require_cmd curl
+
+  settings_url="${base_url%/}/auth/v1/settings"
+  echo "Checking Supabase Auth settings at $settings_url"
+  curl -fsS \
+    -H "apikey: $anon_key" \
+    -H "Authorization: Bearer $anon_key" \
+    "$settings_url"
+  printf '\n'
+}
+
+import_google_oauth() {
+  json_file="${1:-}"
+  [ -n "$json_file" ] || die "Missing Google OAuth client JSON path."
+
+  case "$json_file" in
+    /*) google_json="$json_file" ;;
+    *) google_json="$(pwd)/$json_file" ;;
+  esac
+
+  [ -f "$google_json" ] || die "Google OAuth client JSON not found: $json_file"
+
+  ensure_runtime
+  require_cmd node
+
+  env_file="$RUNTIME_DIR/.env"
+  base_url="$(read_env_value API_EXTERNAL_URL "$env_file")"
+  [ -n "$base_url" ] || base_url="$(read_env_value SUPABASE_PUBLIC_URL "$env_file")"
+  [ -n "$base_url" ] || die "Missing API_EXTERNAL_URL or SUPABASE_PUBLIC_URL in $env_file."
+  expected_callback="${base_url%/}/auth/v1/callback"
+
+  google_data="$(
+    node - "$google_json" "$expected_callback" <<'NODE'
+const fs = require('fs');
+
+const [jsonPath, expectedCallback] = process.argv.slice(2);
+const payload = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+const client = payload.web || payload.installed;
+
+if (!client) {
+  throw new Error('Expected a Google OAuth JSON file with a "web" or "installed" client.');
+}
+
+if (!client.client_id || !client.client_secret) {
+  throw new Error('Google OAuth JSON is missing client_id or client_secret.');
+}
+
+const redirectUris = Array.isArray(client.redirect_uris) ? client.redirect_uris : [];
+
+console.log(`CLIENT_ID=${client.client_id}`);
+console.log(`CLIENT_SECRET=${client.client_secret}`);
+console.log(`HAS_EXPECTED_REDIRECT=${redirectUris.includes(expectedCallback) ? 'true' : 'false'}`);
+NODE
+  )"
+
+  client_id="$(printf '%s\n' "$google_data" | awk -F= '/^CLIENT_ID=/ { sub(/^[^=]*=/, ""); print; exit }')"
+  client_secret="$(printf '%s\n' "$google_data" | awk -F= '/^CLIENT_SECRET=/ { sub(/^[^=]*=/, ""); print; exit }')"
+  has_expected_redirect="$(printf '%s\n' "$google_data" | awk -F= '/^HAS_EXPECTED_REDIRECT=/ { sub(/^[^=]*=/, ""); print; exit }')"
+
+  [ -n "$client_id" ] || die "Google OAuth JSON did not provide a client ID."
+  [ -n "$client_secret" ] || die "Google OAuth JSON did not provide a client secret."
+
+  (
+    cd "$RUNTIME_DIR"
+    set_env_value GOOGLE_ENABLED true
+    set_env_value GOOGLE_CLIENT_ID "$client_id"
+    set_env_value GOOGLE_SECRET "$client_secret"
+  )
+
+  echo "Imported Google OAuth client into $env_file."
+  echo "Client ID: $client_id"
+  echo "Client secret: configured (not printed)."
+
+  if [ "$has_expected_redirect" != "true" ]; then
+    echo "WARNING: The Google OAuth JSON does not list $expected_callback in redirect_uris." >&2
+    echo "Add that URI in Google Cloud Console before testing production Google sign-in." >&2
+  fi
+
+  echo "Recreate the Auth container for the change to take effect:"
+  echo "  cd $RUNTIME_DIR && docker compose up -d --force-recreate --no-deps auth"
 }
 
 fetch_official_docker_bundle() {
@@ -156,6 +292,14 @@ case "${1:-help}" in
     shift
     run_runtime logs "$@"
     ;;
+  oauth-status)
+    shift
+    oauth_status "$@"
+    ;;
+  import-google-oauth)
+    shift
+    import_google_oauth "$@"
+    ;;
   config)
     shift
     run_runtime compose-config "$@"
@@ -179,6 +323,10 @@ Commands:
   restart            Restart the stack or selected services.
   status             Show service status.
   logs [service]     Follow logs.
+  oauth-status [url] [anon-key]
+                     Print non-secret Auth settings, including enabled providers.
+  import-google-oauth <client-secret.json>
+                     Import Google OAuth client ID/secret into runtime/.env.
   config             Print resolved Docker Compose config.
   secrets            Print local Supabase credentials from runtime/.env.
   migrate            Apply project-owned SQL migrations to the running database.
