@@ -1,3 +1,87 @@
+# Supabase Signup/Login Database Schema
+
+## Goal
+
+Plan and create the database schema needed for public signup/login support
+without building the UI or auth flow in this task.
+
+## Findings / Decisions
+
+- The project already has a Supabase infrastructure boundary under
+  `infra/supabase`, with project-owned SQL migrations in
+  `infra/supabase/migrations`.
+- The existing `public.chart_layouts` table references `auth.users(id)`, so the
+  architecture already expects Supabase Auth to own credentials, sessions,
+  email verification, password reset, and identity-provider login records.
+- A Supabase MCP server was requested, but the available MCP catalog and
+  installable plugin list do not expose a Supabase MCP server in this Codex
+  session. The schema source of truth remains the checked-in Supabase migration
+  workflow.
+- Do not duplicate passwords, emails, sessions, or refresh tokens in `public`
+  tables. Those belong to Supabase Auth's `auth` schema.
+- Add one app-owned profile table keyed to `auth.users(id)` so every signed-up
+  user can have a public application profile row.
+- Create the profile row automatically with an `auth.users` insert trigger so
+  normal signup creates the application row without requiring the client to race
+  a second insert.
+- Keep profile data minimal for now: `display_name`, `avatar_url`, and
+  timestamps. More account/business fields can be added later when the product
+  requirements are explicit.
+- Protect profile rows with Row Level Security so authenticated users can read
+  and update only their own profile.
+
+## Checklist
+
+- [x] Investigate the existing stack, Supabase boundary, and migration pattern.
+- [x] Check whether a Supabase MCP server is available to install in this
+      session.
+- [x] Plan the signup/login schema around Supabase Auth instead of a custom
+      password table.
+- [x] Add a Supabase migration for app-owned user profiles.
+- [x] Update architecture documentation for the auth/profile schema.
+- [x] Review and validate the SQL migration.
+- [x] Verify with Camoufox or Playwright/devtools where applicable.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Created the signup/login database schema foundation for Supabase Auth.
+
+- Added `infra/supabase/migrations/002_user_profiles.sql`.
+- Supabase Auth remains the source of truth for signup, login, passwords,
+  sessions, password reset, email verification, and identity-provider records.
+- Added `public.user_profiles`, keyed one-to-one to `auth.users(id)`, with
+  minimal app-owned profile fields: `display_name`, `avatar_url`, `created_at`,
+  and `updated_at`.
+- Added an `auth.users` insert trigger so every new signed-up user gets a
+  profile row automatically.
+- Backfilled profile rows for any existing `auth.users` records when the
+  migration is applied.
+- Enabled Row Level Security and owner-only select, insert, and update policies
+  for authenticated users.
+- Updated `ARCHITECTURE.md` and `infra/supabase/README.md` with the new auth
+  profile schema contract.
+
+Verification results:
+
+- Supabase MCP server was not available in this Codex session's MCP catalog or
+  installable plugin list, so validation used the checked-in Supabase migration
+  path.
+- Applied migrations `001_chart_layouts.sql` and `002_user_profiles.sql` to a
+  temporary Postgres 17 container with a Supabase-shaped `auth` schema stub.
+- Inserted a test `auth.users` row and confirmed the signup trigger created the
+  matching `public.user_profiles` row.
+- Updated the test profile and confirmed the `updated_at` trigger executed.
+- Confirmed the three profile RLS policies exist:
+  `user_profiles_select_own`, `user_profiles_insert_own`, and
+  `user_profiles_update_own`.
+- Reapplied `002_user_profiles.sql` and confirmed it is idempotent.
+- Playwright loaded the local Supabase README through the host alias after
+  Camoufox blocked private localhost URLs, verified the new Signup/Login Schema
+  section was visible, and saved a screenshot at
+  `/tmp/.playwright-mcp/procharting-supabase-readme.png`.
+- `git diff --check` passed.
+
 # Proprietary Repository Licensing
 
 ## Goal

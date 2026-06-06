@@ -78,6 +78,18 @@ snapshots are stored as `jsonb` so the existing chart layout shape can evolve
 without prematurely normalizing every UI setting. Candles and live feed data
 remain outside this table and continue to come from the market-data flow.
 
+Supabase Auth owns signup, login, credentials, identity-provider records,
+sessions, password reset, and email verification in the `auth` schema. The
+project-owned public auth surface is `public.user_profiles`, created by the
+second migration. Each profile row is keyed to `auth.users(id)`, is created
+automatically by an `auth.users` insert trigger, and stores only minimal
+application profile data: display name, avatar URL, and timestamps.
+
+The `user_profiles` table enables Row Level Security and allows authenticated
+users to select, insert, and update only their own profile row. User deletion
+continues to be driven by Supabase Auth; public profile rows cascade when the
+owning `auth.users` row is deleted.
+
 The `chart_layouts` table references `auth.users(id)`, enables Row Level
 Security, and adds owner-scoped select, insert, update, and delete policies.
 The table also supports one `is_autosave` row per user for future current-state

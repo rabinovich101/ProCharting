@@ -64,3 +64,17 @@ sh infra/supabase/scripts/supabase.sh secrets
 
 Candles and live feed data should stay out of this table. They are market data
 and should continue to reload from the price-data flow.
+
+## Signup/Login Schema
+
+Supabase Auth owns signup, login, credentials, sessions, password reset, email
+verification, and identity-provider records in the `auth` schema.
+
+`migrations/002_user_profiles.sql` creates `public.user_profiles`:
+
+- `user_id` is the primary key and references `auth.users(id)`;
+- an `auth.users` insert trigger creates a profile row automatically after
+  signup;
+- `display_name` and `avatar_url` hold minimal app-owned profile data;
+- Row Level Security restricts profile select/insert/update to the
+  authenticated owner.
