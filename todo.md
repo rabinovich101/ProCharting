@@ -37,7 +37,7 @@ blocked by the jump host.
 - [x] Verify the public Google authorize endpoint no longer returns provider
       disabled.
 - [x] Harden the normal VM deploy script so PM2 apps outlive Actions cleanup.
-- [ ] Remove the temporary workflow and leave the repo clean.
+- [x] Remove the temporary workflow and leave the repo clean.
 
 ## Review
 
@@ -61,6 +61,16 @@ blocked by the jump host.
   authorize URL returns HTTP 302 to `accounts.google.com`.
 - Added a deploy-script guard to clear GitHub Actions process tracking before
   PM2 starts the production app.
+- Normal VM deploy run `27069613372` passed after the PM2 guard, and its log no
+  longer shows GitHub Actions terminating the PM2 app process during cleanup.
+- Live production checks after the normal deploy passed:
+  `https://procharts.thefiscalwire.com/` returns HTTP 200 and the Google
+  authorize URL returns HTTP 302 to Google with the production callback URI.
+- Playwright production UI verification passed: clicking `Sign up` and then
+  `Continue with Google` navigates to `accounts.google.com` with
+  `redirect_uri=https://procharts.thefiscalwire.com/auth/v1/callback`.
+- Removed `.github/workflows/enable-google-oauth-runtime.yml` after the
+  one-time VM runtime fix completed.
 
 # Production Google OAuth Provider Enablement
 
