@@ -7,9 +7,23 @@ import {
   useState,
   type CanvasHTMLAttributes,
   type CSSProperties,
+  type FormEvent,
   type ReactNode,
   type Ref,
 } from 'react';
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const createSupabaseBrowserClient = (): SupabaseClient | null => {
+  if (typeof window === 'undefined' || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    return null;
+  }
+
+  return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+};
 
 interface Candle {
   time: number;
@@ -74,6 +88,7 @@ type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
+type AuthMode = 'login' | 'signup';
 type IndicatorFormula =
   | 'volume'
   | 'sma'
@@ -325,6 +340,12 @@ interface QuickAction {
   id: QuickActionId;
   label: string;
   description: string;
+}
+
+interface AuthFormState {
+  displayName: string;
+  email: string;
+  password: string;
 }
 
 type SymbolSearchCategory = 'all' | 'favorites' | 'spot' | 'layer1' | 'defi' | 'meme';
@@ -642,6 +663,52 @@ const QUICK_ACTIONS: QuickAction[] = [
   { id: 'fullscreen', label: 'Fullscreen mode', description: 'Toggle fullscreen chart' },
   { id: 'reset', label: 'Reset chart view', description: 'Restore automatic view' },
 ];
+const ACCOUNT_ONLY_HEADER_PANELS = new Set<HeaderPanelKey>([
+  'templates',
+  'templateSave',
+  'templateOpen',
+  'layout',
+  'manageLayouts',
+  'quickSearch',
+  'settings',
+  'snapshot',
+  'alert',
+  'replay',
+  'save',
+  'trade',
+  'publish',
+]);
+const ACCOUNT_ONLY_QUICK_ACTIONS = new Set<QuickActionId>([
+  'templates',
+  'layout',
+  'settings',
+  'snapshot',
+  'alert',
+  'replay',
+  'save',
+  'trade',
+  'publish',
+]);
+const AUTH_ACTION_LABELS: Partial<Record<HeaderPanelKey | QuickActionId, string>> = {
+  templates: 'indicator templates',
+  templateSave: 'indicator templates',
+  templateOpen: 'indicator templates',
+  layout: 'multi-chart layouts',
+  manageLayouts: 'saved layouts',
+  quickSearch: 'quick search',
+  settings: 'chart settings',
+  snapshot: 'snapshots',
+  alert: 'alerts',
+  replay: 'bar replay',
+  save: 'saved layouts',
+  trade: 'broker trading',
+  publish: 'publishing',
+};
+const DEFAULT_AUTH_FORM_STATE: AuthFormState = {
+  displayName: '',
+  email: '',
+  password: '',
+};
 const FEATURE_DIALOGS: Record<'alert' | 'replay', { title: string; eyebrow: string; body: string }> = {
   alert: {
     title: 'Never miss a trade again',
@@ -2515,6 +2582,7 @@ function ChartPane({
 }
 
 export default function Home() {
+  const supabaseRef = useRef<SupabaseClient | null>(null);
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
@@ -2557,7 +2625,20 @@ export default function Home() {
   const [snapshotStatus, setSnapshotStatus] = useState('');
   const [selectedBroker, setSelectedBroker] = useState('Paper Trading');
   const [chartSettings, setChartSettings] = useState<ChartSettingsState>(DEFAULT_CHART_SETTINGS);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const [authForm, setAuthForm] = useState<AuthFormState>(DEFAULT_AUTH_FORM_STATE);
+  const [authActionLabel, setAuthActionLabel] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
 
+  if (supabaseRef.current === null) {
+    supabaseRef.current = createSupabaseBrowserClient();
+  }
+
+  const supabase = supabaseRef.current;
+  const isAuthenticated = authUser !== null;
+  const authUserLabel = authUser?.email ?? 'Account';
   const palette = PALETTES[theme];
   const selectedLayout = getLayoutOptionById(selectedLayoutId);
   const selectedLayoutCells = selectedLayout.cells;
@@ -2652,6 +2733,34 @@ export default function Home() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    let isActive = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (isActive) {
+        setAuthUser(data.session?.user ?? null);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+      if (session?.user) {
+        setAuthMode(null);
+        setAuthActionLabel('');
+        setAuthMessage('');
+      }
+    });
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     if (headerPanel !== 'symbolSearch') return;
@@ -2905,8 +3014,11 @@ export default function Home() {
       if (event.key === 'Escape') {
         setOpenMenu(null);
         setHeaderPanel(null);
+        setAuthMode(null);
         setQuickSearchQuery('');
         setSnapshotStatus('');
+        setAuthActionLabel('');
+        setAuthMessage('');
       }
     };
 
@@ -4342,13 +4454,107 @@ export default function Home() {
   const closeHeaderOverlays = () => {
     setOpenMenu(null);
     setHeaderPanel(null);
+    setAuthMode(null);
     setQuickSearchQuery('');
     setSymbolSearchQuery(activeSymbol);
     setSnapshotStatus('');
     setLayoutSaveStatus('');
     setLayoutSaveTargetId(null);
+    setAuthActionLabel('');
+    setAuthMessage('');
     setSettingsTarget(null);
     setMoreTarget(null);
+  };
+  const openAuthPanel = (mode: AuthMode, actionLabel = '') => {
+    setOpenMenu(null);
+    setHeaderPanel(null);
+    setQuickSearchQuery('');
+    setSnapshotStatus('');
+    setLayoutSaveStatus('');
+    setLayoutSaveTargetId(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
+    setAuthMode(mode);
+    setAuthActionLabel(actionLabel);
+    setAuthMessage(
+      supabase ? '' : 'Accounts are not connected on this deployment yet.'
+    );
+  };
+  const requireAuthenticatedAction = (actionId: HeaderPanelKey | QuickActionId) => {
+    if (isAuthenticated) return true;
+
+    openAuthPanel('signup', AUTH_ACTION_LABELS[actionId] ?? 'account tools');
+    return false;
+  };
+  const switchAuthMode = (mode: AuthMode) => {
+    setAuthMode(mode);
+    setAuthMessage(supabase ? '' : 'Accounts are not connected on this deployment yet.');
+  };
+  const handleAuthSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!authMode) return;
+
+    if (!supabase) {
+      setAuthMessage('Accounts are not connected on this deployment yet.');
+      return;
+    }
+
+    const email = authForm.email.trim();
+    const password = authForm.password;
+    if (!email || password.length < 6) {
+      setAuthMessage('Enter an email and a password with at least 6 characters.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthMessage('');
+
+    try {
+      const result =
+        authMode === 'signup'
+          ? await supabase.auth.signUp({
+              email,
+              password,
+              options: {
+                data: {
+                  display_name: authForm.displayName.trim() || undefined,
+                },
+              },
+            })
+          : await supabase.auth.signInWithPassword({ email, password });
+
+      if (result.error) {
+        setAuthMessage(result.error.message);
+        return;
+      }
+
+      if (authMode === 'signup' && !result.data.session) {
+        setAuthMessage('Check your email to confirm your account.');
+        return;
+      }
+
+      closeHeaderOverlays();
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Authentication failed.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+  const handleSignOut = async () => {
+    closeHeaderOverlays();
+
+    if (!supabase) {
+      setAuthUser(null);
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      await supabase.auth.signOut();
+      setAuthUser(null);
+    } finally {
+      setAuthLoading(false);
+    }
   };
   const openSymbolSearch = () => {
     setOpenMenu(null);
@@ -4401,6 +4607,8 @@ export default function Home() {
     );
   };
   const toggleHeaderPanel = (panel: HeaderPanelKey) => {
+    if (ACCOUNT_ONLY_HEADER_PANELS.has(panel) && !requireAuthenticatedAction(panel)) return;
+
     setOpenMenu(null);
     setSettingsTarget(null);
     setMoreTarget(null);
@@ -4408,6 +4616,8 @@ export default function Home() {
     setHeaderPanel((current) => (current === panel ? null : panel));
   };
   const openQuickSearch = () => {
+    if (!requireAuthenticatedAction('quickSearch')) return;
+
     setSettingsTarget(null);
     setMoreTarget(null);
     setOpenMenu(null);
@@ -4443,6 +4653,8 @@ export default function Home() {
     };
   };
   const openSaveLayoutDialog = (nameOverride?: string, targetLayoutId = activeSavedLayoutId) => {
+    if (!requireAuthenticatedAction('save')) return;
+
     setOpenMenu(null);
     setSettingsTarget(null);
     setMoreTarget(null);
@@ -4455,6 +4667,8 @@ export default function Home() {
     setHeaderPanel('save');
   };
   const confirmChartLayoutSave = () => {
+    if (!requireAuthenticatedAction('save')) return;
+
     const trimmedName = layoutName.trim();
     const name = trimmedName.length > 0 ? trimmedName : `Chart layout ${savedChartLayouts.length + 1}`;
     const existingLayout = layoutSaveTargetId
@@ -4469,6 +4683,8 @@ export default function Home() {
     closeHeaderOverlays();
   };
   const copyCurrentChartLayout = () => {
+    if (!requireAuthenticatedAction('manageLayouts')) return;
+
     const sourceName = activeSavedLayout?.name ?? (layoutName.trim() || `Chart layout ${savedChartLayouts.length + 1}`);
     const nextLayout = buildSavedChartLayout(`${sourceName} copy`);
 
@@ -4478,6 +4694,8 @@ export default function Home() {
     setLayoutSaveStatus('Saved copy');
   };
   const applySavedChartLayout = (layout: SavedChartLayout) => {
+    if (!requireAuthenticatedAction('manageLayouts')) return;
+
     const layoutOption = getLayoutOptionById(layout.selectedLayoutId);
     const paneSnapshots = layout.panes.length > 0 ? layout.panes : [createSavedPaneSnapshot(createChartPaneState())];
     const restoreNonce = Date.now();
@@ -4505,6 +4723,8 @@ export default function Home() {
     closeHeaderOverlays();
   };
   const removeSavedChartLayout = (layoutId: string) => {
+    if (!requireAuthenticatedAction('manageLayouts')) return;
+
     persistSavedChartLayouts(savedChartLayouts.filter((layout) => layout.id !== layoutId));
     setActiveSavedLayoutId((current) => (current === layoutId ? null : current));
   };
@@ -4521,7 +4741,7 @@ export default function Home() {
     return `${layoutOption.count} ${layoutOption.count === 1 ? 'chart' : 'charts'} - ${savedAt}`;
   };
   useEffect(() => {
-    if (!layoutAutosave || !activeSavedLayoutId) return;
+    if (!isAuthenticated || !layoutAutosave || !activeSavedLayoutId) return;
 
     const handle = window.setTimeout(() => {
       setSavedChartLayouts((current) => {
@@ -4547,6 +4767,7 @@ export default function Home() {
     chartPanes,
     chartSettings,
     chartStyle,
+    isAuthenticated,
     layoutAutosave,
     layoutSync,
     paneCount,
@@ -4558,6 +4779,8 @@ export default function Home() {
     window.localStorage.setItem(INDICATOR_TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
   };
   const saveIndicatorTemplate = () => {
+    if (!requireAuthenticatedAction('templates')) return;
+
     const trimmedName = templateName.trim();
     const name = trimmedName.length > 0 ? trimmedName : `Template ${indicatorTemplates.length + 1}`;
     const nextTemplate: IndicatorTemplate = {
@@ -4578,6 +4801,8 @@ export default function Home() {
     closeHeaderOverlays();
   };
   const applyIndicatorTemplate = (template: IndicatorTemplate) => {
+    if (!requireAuthenticatedAction('templates')) return;
+
     setActiveIndicators(
       template.indicators.map((indicator, index) => ({
         ...indicator,
@@ -4588,6 +4813,8 @@ export default function Home() {
     closeHeaderOverlays();
   };
   const removeIndicatorTemplate = (templateId: string) => {
+    if (!requireAuthenticatedAction('templates')) return;
+
     persistIndicatorTemplates(indicatorTemplates.filter((template) => template.id !== templateId));
   };
   const updateLayoutSync = (key: LayoutSyncKey, checked: boolean) => {
@@ -4614,6 +4841,8 @@ export default function Home() {
     void document.documentElement.requestFullscreen?.();
   };
   const downloadChartSnapshot = () => {
+    if (!requireAuthenticatedAction('snapshot')) return;
+
     closeHeaderOverlays();
 
     const canvas = canvasRefs.current[activePaneIndex];
@@ -4625,6 +4854,8 @@ export default function Home() {
     link.click();
   };
   const copySnapshotLink = async () => {
+    if (!requireAuthenticatedAction('snapshot')) return;
+
     try {
       await navigator.clipboard.writeText(window.location.href);
       setSnapshotStatus('Link copied');
@@ -4633,6 +4864,8 @@ export default function Home() {
     }
   };
   const copySnapshotImage = () => {
+    if (!requireAuthenticatedAction('snapshot')) return;
+
     const canvas = canvasRefs.current[activePaneIndex];
     if (!canvas) return;
 
@@ -4651,6 +4884,8 @@ export default function Home() {
     }, 'image/png');
   };
   const openSnapshotInNewTab = () => {
+    if (!requireAuthenticatedAction('snapshot')) return;
+
     const canvas = canvasRefs.current[activePaneIndex];
     if (!canvas) return;
 
@@ -4659,6 +4894,8 @@ export default function Home() {
   };
   const executeQuickAction = (actionId: QuickActionId) => {
     setQuickSearchQuery('');
+
+    if (ACCOUNT_ONLY_QUICK_ACTIONS.has(actionId) && !requireAuthenticatedAction(actionId)) return;
 
     if (actionId === 'symbol') {
       openSymbolSearch();
@@ -5086,98 +5323,103 @@ export default function Home() {
             onAddIndicator={addIndicator}
           />
 
-          <div className="header-tool-wrapper desktop-header-command">
-            <button
-              type="button"
-              className="tool-toggle icon-tool"
-              aria-label="Indicator templates"
-              title="Indicator templates"
-              data-active={headerPanel === 'templates' || headerPanel === 'templateSave' || headerPanel === 'templateOpen'}
-              onClick={() => toggleHeaderPanel('templates')}
-            >
-              <HeaderIcon name="templates" />
-            </button>
-            {headerPanel === 'templates' && (
-              <div className="header-panel templates-panel" role="menu" aria-label="Indicator templates">
-                <strong>Indicator templates</strong>
-                <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('templateSave')}>
-                  Save indicator template...
+          {isAuthenticated && (
+            <>
+              <div className="header-tool-wrapper desktop-header-command">
+                <button
+                  type="button"
+                  className="tool-toggle icon-tool"
+                  aria-label="Indicator templates"
+                  title="Indicator templates"
+                  data-active={headerPanel === 'templates' || headerPanel === 'templateSave' || headerPanel === 'templateOpen'}
+                  onClick={() => toggleHeaderPanel('templates')}
+                >
+                  <HeaderIcon name="templates" />
                 </button>
-                <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('templateOpen')}>
-                  Open template...
-                </button>
-              </div>
-            )}
-            {headerPanel === 'templateOpen' && (
-              <div className="header-panel templates-panel" role="menu" aria-label="Open indicator template">
-                <strong>Open template...</strong>
-                {indicatorTemplates.length === 0 ? (
-                  <span className="header-panel-empty">No saved templates</span>
-                ) : (
-                  indicatorTemplates.map((template) => (
-                    <div key={template.id} className="template-menu-row">
-                      <button type="button" role="menuitem" onClick={() => applyIndicatorTemplate(template)}>
-                        <strong>{template.name}</strong>
-                        <small>{new Date(template.createdAt).toLocaleDateString()}</small>
-                      </button>
-                      <button
-                        type="button"
-                        className="template-remove"
-                        aria-label={`Remove ${template.name}`}
-                        onClick={() => removeIndicatorTemplate(template.id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))
+                {headerPanel === 'templates' && (
+                  <div className="header-panel templates-panel" role="menu" aria-label="Indicator templates">
+                    <strong>Indicator templates</strong>
+                    <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('templateSave')}>
+                      Save indicator template...
+                    </button>
+                    <button type="button" className="header-menu-row" role="menuitem" onClick={() => setHeaderPanel('templateOpen')}>
+                      Open template...
+                    </button>
+                  </div>
+                )}
+                {headerPanel === 'templateOpen' && (
+                  <div className="header-panel templates-panel" role="menu" aria-label="Open indicator template">
+                    <strong>Open template...</strong>
+                    {indicatorTemplates.length === 0 ? (
+                      <span className="header-panel-empty">No saved templates</span>
+                    ) : (
+                      indicatorTemplates.map((template) => (
+                        <div key={template.id} className="template-menu-row">
+                          <button type="button" role="menuitem" onClick={() => applyIndicatorTemplate(template)}>
+                            <strong>{template.name}</strong>
+                            <small>{new Date(template.createdAt).toLocaleDateString()}</small>
+                          </button>
+                          <button
+                            type="button"
+                            className="template-remove"
+                            aria-label={`Remove ${template.name}`}
+                            onClick={() => removeIndicatorTemplate(template.id)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-          <button
-            type="button"
-            className="tool-toggle tv-command-with-text desktop-header-command"
-            aria-label="Create alert"
-            title="Create alert"
-            data-active={headerPanel === 'alert'}
-            onClick={() => toggleHeaderPanel('alert')}
-          >
-            <HeaderIcon name="alert" />
-            <span>Alert</span>
-          </button>
-          <button
-            type="button"
-            className="tool-toggle tv-command-with-text desktop-header-command"
-            aria-label="Bar replay"
-            title="Bar replay"
-            data-active={headerPanel === 'replay'}
-            onClick={() => toggleHeaderPanel('replay')}
-          >
-            <HeaderIcon name="replay" />
-            <span>Replay</span>
-          </button>
-          <button
-            type="button"
-            className="tool-toggle icon-tool desktop-header-command"
-            aria-label="Undo"
-            title="Undo"
-            disabled
-          >
-            <HeaderIcon name="undo" />
-          </button>
-          <button
-            type="button"
-            className="tool-toggle icon-tool desktop-header-command"
-            aria-label="Redo"
-            title="Redo"
-            disabled
-          >
-            <HeaderIcon name="redo" />
-          </button>
+              <button
+                type="button"
+                className="tool-toggle tv-command-with-text desktop-header-command"
+                aria-label="Create alert"
+                title="Create alert"
+                data-active={headerPanel === 'alert'}
+                onClick={() => toggleHeaderPanel('alert')}
+              >
+                <HeaderIcon name="alert" />
+                <span>Alert</span>
+              </button>
+              <button
+                type="button"
+                className="tool-toggle tv-command-with-text desktop-header-command"
+                aria-label="Bar replay"
+                title="Bar replay"
+                data-active={headerPanel === 'replay'}
+                onClick={() => toggleHeaderPanel('replay')}
+              >
+                <HeaderIcon name="replay" />
+                <span>Replay</span>
+              </button>
+              <button
+                type="button"
+                className="tool-toggle icon-tool desktop-header-command"
+                aria-label="Undo"
+                title="Undo"
+                disabled
+              >
+                <HeaderIcon name="undo" />
+              </button>
+              <button
+                type="button"
+                className="tool-toggle icon-tool desktop-header-command"
+                aria-label="Redo"
+                title="Redo"
+                disabled
+              >
+                <HeaderIcon name="redo" />
+              </button>
+            </>
+          )}
 
           <span className="header-spacer" aria-hidden="true" />
 
-          <div className="header-right-cluster" aria-label="TradingView desktop header controls">
+          {isAuthenticated ? (
+            <div className="header-right-cluster" aria-label="TradingView desktop header controls">
             <div className="header-tool-wrapper">
               <button
                 type="button"
@@ -5414,7 +5656,36 @@ export default function Home() {
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              className="tool-toggle tv-account-button"
+              aria-label={`Signed in as ${authUserLabel}. Sign out`}
+              title="Sign out"
+              onClick={() => void handleSignOut()}
+            >
+              <span>{authUserLabel}</span>
+            </button>
           </div>
+          ) : (
+            <div className="header-right-cluster signed-out-auth-cluster" aria-label="Account actions">
+              <button
+                type="button"
+                className="tool-toggle auth-entry-button"
+                aria-label="Log in"
+                onClick={() => openAuthPanel('login')}
+              >
+                <span>Log in</span>
+              </button>
+              <button
+                type="button"
+                className="tool-toggle auth-entry-button primary"
+                aria-label="Sign up"
+                onClick={() => openAuthPanel('signup')}
+              >
+                <span>Sign up</span>
+              </button>
+            </div>
+          )}
           {headerPanel === 'templateSave' && (
             <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
               <div
@@ -5494,6 +5765,73 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+          {authMode && (
+            <div className="header-modal-backdrop" onMouseDown={closeHeaderOverlays}>
+              <form
+                className="header-modal auth-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-label={authMode === 'signup' ? 'Sign up' : 'Log in'}
+                onMouseDown={(event) => event.stopPropagation()}
+                onSubmit={handleAuthSubmit}
+              >
+                <div className="header-modal-title">
+                  <strong>{authMode === 'signup' ? 'Create your account' : 'Log in'}</strong>
+                  <button type="button" aria-label="Close menu" onClick={closeHeaderOverlays}>
+                    ×
+                  </button>
+                </div>
+                <div className="auth-dialog-body">
+                  {authActionLabel && (
+                    <span className="auth-dialog-copy">
+                      {authMode === 'signup' ? 'Sign up' : 'Log in'} to use {authActionLabel}.
+                    </span>
+                  )}
+                  {authMode === 'signup' && (
+                    <label className="header-panel-field">
+                      <span>Name</span>
+                      <input
+                        autoComplete="name"
+                        value={authForm.displayName}
+                        onChange={(event) => setAuthForm((current) => ({ ...current, displayName: event.target.value }))}
+                      />
+                    </label>
+                  )}
+                  <label className="header-panel-field">
+                    <span>Email</span>
+                    <input
+                      autoComplete="email"
+                      inputMode="email"
+                      required
+                      type="email"
+                      value={authForm.email}
+                      onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))}
+                    />
+                  </label>
+                  <label className="header-panel-field">
+                    <span>Password</span>
+                    <input
+                      autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                      minLength={6}
+                      required
+                      type="password"
+                      value={authForm.password}
+                      onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))}
+                    />
+                  </label>
+                  {authMessage && <span className="auth-dialog-status">{authMessage}</span>}
+                </div>
+                <div className="settings-footer auth-dialog-footer">
+                  <button type="button" onClick={() => switchAuthMode(authMode === 'signup' ? 'login' : 'signup')}>
+                    {authMode === 'signup' ? 'Log in instead' : 'Create account'}
+                  </button>
+                  <button type="submit" className="settings-ok" disabled={authLoading}>
+                    {authLoading ? 'Working...' : authMode === 'signup' ? 'Sign up' : 'Log in'}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
           {featureDialog && (

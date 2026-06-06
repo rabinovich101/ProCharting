@@ -1,3 +1,99 @@
+# Signed-Out Chart Access And Auth Buttons
+
+## Goal
+
+Add Sign up and Log in buttons on the right side of the chart header. When no
+user is logged in, visitors must still be able to view charts, open symbol
+search, change pairs, change timeframe, switch chart type, and use all
+indicators. Account-dependent actions on the right side should ask the visitor
+to sign up or log in instead of silently working as saved/account features.
+
+## Findings / Decisions
+
+- The runnable product surface is the standalone Next.js app at
+  `TEST/binance-chart-test`.
+- The chart UI is currently a single large `app/page.tsx` surface with local
+  state for symbols, chart style, indicators, layouts, settings, snapshots,
+  trade, publish, and feature prompts.
+- The repo already has Supabase Auth schema groundwork, so the Next app can use
+  Supabase Auth as the session source instead of inventing a custom account
+  model.
+- Add the Supabase browser client dependency and keep the runtime optional:
+  create the client only when `NEXT_PUBLIC_SUPABASE_URL` and either
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are
+  present.
+- When those env vars are absent, keep the app safely signed out and show auth
+  dialogs that report accounts are not connected on that deployment.
+- Public signed-out actions remain available: chart viewing and interaction,
+  symbol search, pair changes, timeframe changes, chart type, indicators, and
+  fullscreen/reset view.
+- Account-dependent actions are gated while signed out: indicator templates,
+  layout setup/saved layouts, chart settings, snapshot, alerts, replay, save,
+  trade, and publish.
+- The right-side header should show compact Log in and Sign up buttons while
+  signed out. Those buttons open clear auth dialogs instead of removing the
+  chart from view.
+
+## Checklist
+
+- [x] Add signed-out auth panel state and helper actions to the chart app.
+- [x] Render Log in and Sign up buttons in the right header area.
+- [x] Gate account-dependent header and quick-search actions behind the auth
+      prompt while preserving public chart, symbol, chart type, and indicators.
+- [x] Add responsive styles for the auth buttons and auth dialogs.
+- [x] Update `ARCHITECTURE.md` with the signed-out access model.
+- [x] Run focused type/build checks.
+- [x] Verify with Playwright/devtools that public chart controls still work and
+      gated actions show auth prompts.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Implemented signed-out chart access with Supabase-backed auth entry points.
+
+- Added `@supabase/supabase-js` to the standalone Next app.
+- Added an optional browser Supabase client that uses
+  `NEXT_PUBLIC_SUPABASE_URL` and either `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+  or `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- Added Log in and Sign up buttons on the right side of the header while no
+  user session exists.
+- Added signup/login dialogs. With Supabase env vars configured, they call
+  Supabase Auth email/password signup and login. Without env vars, they keep
+  the app signed out and report that accounts are not connected on the
+  deployment.
+- Kept public signed-out chart controls available: chart viewing, symbol
+  search, pair changes, timeframe changes, chart type changes, indicators,
+  fullscreen, and reset view.
+- Gated account-dependent actions while signed out: indicator templates,
+  layout setup and saved layouts, chart settings, snapshots, alerts, bar
+  replay, save, trade, and publish.
+- Updated the mobile header layout so the auth buttons wrap into a second row
+  without overflowing.
+- Updated `ARCHITECTURE.md` with the signed-out access model and Supabase env
+  contract.
+
+Verification results:
+
+- `npm run build` passed in `TEST/binance-chart-test`.
+- `git diff --check` passed.
+- Browser/Playwright loaded `http://127.0.0.1:3000` and confirmed signed-out
+  users see Symbol, Timeframe, Chart type, Indicators, Log in, and Sign up,
+  while Save/Trade/Publish are not visible.
+- Browser/Playwright changed the public symbol from `BTCUSDT` to `SOLUSDT`.
+- Browser/Playwright changed chart type to Line and verified the Line option
+  was checked.
+- Browser/Playwright opened the Indicators picker and confirmed public
+  indicator choices are visible.
+- Browser/Playwright opened Sign up and Log in dialogs and confirmed the
+  signed-out header restores after closing them.
+- Browser devtools logs showed no warnings or errors during the checked page
+  interactions.
+- Browser/Playwright mobile viewport check at 390x844 confirmed the auth row
+  stays inside the topbar and there is no horizontal overflow.
+- `npm install` and `npm run build` still report existing project warnings:
+  multiple lockfiles are present, the Next ESLint plugin is not detected, and
+  npm audit reports 3 vulnerabilities in the test app dependency tree.
+
 # Supabase Signup/Login Database Schema
 
 ## Goal

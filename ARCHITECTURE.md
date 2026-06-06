@@ -95,6 +95,21 @@ Security, and adds owner-scoped select, insert, update, and delete policies.
 The table also supports one `is_autosave` row per user for future current-state
 autosave while still allowing named saved layouts.
 
+The standalone `TEST/binance-chart-test` app now has a narrow browser auth
+entry boundary for this Supabase-owned identity model. The header creates a
+Supabase browser client only when `NEXT_PUBLIC_SUPABASE_URL` and either
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` are
+present. When those public env vars are absent, the app remains safely
+signed-out and the auth dialogs report that accounts are not connected on that
+deployment.
+
+Signed-out users are allowed to use the public chart exploration surface:
+loading charts, changing/searching pairs, changing timeframe, switching chart
+type, using indicators, panning/zooming, fullscreen, and resetting view.
+Account-dependent productivity and sharing actions remain gated behind a
+Supabase session: indicator templates, layout setup and saved layouts, chart
+settings, snapshots, alerts, bar replay, save, broker trading, and publishing.
+
 ### 1.3 Repository Licensing
 
 ProCharting is proprietary software and is not open-source or free-to-use. The

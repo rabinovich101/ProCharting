@@ -314,6 +314,43 @@ summary {
   min-width: 76px;
 }
 
+.signed-out-auth-cluster {
+  gap: 6px;
+}
+
+.auth-entry-button {
+  border-color: var(--border-strong);
+  border-radius: 999px;
+  min-width: 68px;
+}
+
+.auth-entry-button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  min-width: 74px;
+}
+
+.auth-entry-button.primary:hover,
+.auth-entry-button.primary:focus-visible {
+  background: color-mix(in srgb, var(--accent) 86%, #ffffff);
+  border-color: color-mix(in srgb, var(--accent) 86%, #ffffff);
+  color: #ffffff;
+}
+
+.tv-account-button {
+  border-color: var(--border-subtle);
+  border-radius: 999px;
+  margin-left: 6px;
+  max-width: 164px;
+  min-width: 82px;
+}
+
+.tv-account-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .toolbar-trigger:hover,
 .toolbar-trigger:focus-visible,
 .tool-toggle:hover,
@@ -705,7 +742,8 @@ summary {
 
 .template-save-dialog,
 .layout-save-dialog,
-.feature-dialog {
+.feature-dialog,
+.auth-dialog {
   width: min(420px, calc(100vw - 28px));
 }
 
@@ -1009,8 +1047,33 @@ summary {
 
 .template-save-body,
 .feature-dialog-body,
-.broker-dialog-body {
+.broker-dialog-body,
+.auth-dialog-body {
   padding: 16px;
+}
+
+.auth-dialog-body {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-dialog-copy,
+.auth-dialog-status {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.auth-dialog-status {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 9px 10px;
+}
+
+.auth-dialog-footer .settings-ok:disabled {
+  cursor: default;
+  opacity: 0.68;
 }
 
 .layout-save-body {
@@ -2054,8 +2117,12 @@ summary {
 @media (max-width: 900px) {
   .desktop-header-command,
   .header-spacer,
-  .header-right-cluster {
+  .header-right-cluster:not(.signed-out-auth-cluster) {
     display: none;
+  }
+
+  .signed-out-auth-cluster {
+    display: flex;
   }
 
   .align-right .toolbar-menu {
@@ -2084,7 +2151,21 @@ summary {
       minmax(42px, 0.56fr)
       38px
       minmax(46px, 0.68fr);
+    height: auto;
     width: 100%;
+  }
+
+  .signed-out-auth-cluster {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .signed-out-auth-cluster .auth-entry-button {
+    flex: 1 1 0;
+    min-height: 30px;
+    min-width: 0;
   }
 
   .command-divider {
@@ -2318,6 +2399,10 @@ summary {
   .indicator-settings-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: calc(100vw - 22px);
+  }
+
+  .auth-dialog-body {
+    padding: 12px;
   }
 }
 
