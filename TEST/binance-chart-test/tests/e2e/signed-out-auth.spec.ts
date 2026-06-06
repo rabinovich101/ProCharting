@@ -64,6 +64,14 @@ const installMarketMocks = async (page: Page) => {
       status: 200,
     });
   });
+
+  await page.route('https://www.googletagmanager.com/gtag/js**', async (route) => {
+    await route.fulfill({
+      body: '',
+      contentType: 'application/javascript',
+      status: 200,
+    });
+  });
 };
 
 const openApp = async (page: Page) => {
@@ -74,6 +82,46 @@ const openApp = async (page: Page) => {
 };
 
 test.describe('signed-out chart access', () => {
+  test('renders the Google Analytics page tag', async ({ page }) => {
+    await openApp(page);
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          Boolean(
+            document.querySelector('script[src="https://www.googletagmanager.com/gtag/js?id=G-HW6ZYLMS7C"]') &&
+              document.querySelector('script#google-analytics')
+          )
+        )
+      )
+      .toBe(true);
+
+    const analyticsState = await page.evaluate(() => {
+      const gtagScript = document.querySelector<HTMLScriptElement>(
+        'script[src="https://www.googletagmanager.com/gtag/js?id=G-HW6ZYLMS7C"]'
+      );
+      const initScript = document.querySelector<HTMLScriptElement>('script#google-analytics');
+      const analyticsWindow = window as Window & {
+        dataLayer?: unknown[];
+        gtag?: unknown;
+      };
+
+      return {
+        gtagScriptStrategy: gtagScript?.dataset.nscript,
+        initScriptStrategy: initScript?.dataset.nscript,
+        initScriptText: initScript?.textContent ?? '',
+        dataLayerEvents: analyticsWindow.dataLayer?.length ?? 0,
+        hasGtagFunction: typeof analyticsWindow.gtag === 'function',
+      };
+    });
+
+    expect(analyticsState.gtagScriptStrategy).toBe('afterInteractive');
+    expect(analyticsState.initScriptStrategy).toBe('afterInteractive');
+    expect(analyticsState.initScriptText).toContain("gtag('config', 'G-HW6ZYLMS7C')");
+    expect(analyticsState.dataLayerEvents).toBeGreaterThanOrEqual(2);
+    expect(analyticsState.hasGtagFunction).toBe(true);
+  });
+
   test('shows signup/login entry points and keeps account tools gated', async ({ page }) => {
     await openApp(page);
 

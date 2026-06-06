@@ -43,6 +43,11 @@ UI used for local QA and for the public VM deployment. The old
 Vite package demo has been removed so it cannot be mistaken for the product
 app.
 
+The standalone app's root Next.js layout owns the browser analytics boundary.
+It loads Google Analytics through Next's `Script` lifecycle with measurement ID
+`G-HW6ZYLMS7C`, so site-wide page loads initialize `gtag` from the app shell
+without coupling analytics to chart rendering or market-data code.
+
 ### 1.1 VM Deployment
 
 The public app deployment for `procharts.thefiscalwire.com` serves the

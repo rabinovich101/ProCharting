@@ -1,3 +1,56 @@
+# Google Analytics Tag Integration
+
+## Goal
+
+Add the provided Google Analytics measurement tag to the standalone
+`TEST/binance-chart-test` Next.js app so page loads initialize
+`G-HW6ZYLMS7C`.
+
+## Investigation / Decisions
+
+- The active browser product surface is the standalone Next.js app at
+  `TEST/binance-chart-test`.
+- The global document shell is `TEST/binance-chart-test/app/layout.tsx`, which
+  is the smallest and correct place for a site-wide analytics tag.
+- Use Next.js `Script` in the root layout instead of raw inline `<script>` tags
+  so the external `gtag.js` script is loaded through Next's script lifecycle.
+- Keep the measurement ID as a small local constant because the user supplied a
+  concrete production tag and no environment split was requested.
+- Add focused Playwright coverage that verifies the Google tag script and
+  initialization script are present on the rendered page.
+- Update `ARCHITECTURE.md` because the app now has a browser analytics boundary.
+
+## Checklist
+
+- [x] Add the Google Analytics tag to the root Next.js layout.
+- [x] Add E2E coverage for the rendered analytics scripts.
+- [x] Update architecture notes for the analytics boundary.
+- [x] Run build, E2E, and browser/devtools verification.
+- [x] Review git status and commit/push only the relevant changes.
+
+## Review
+
+- Added Google Analytics measurement ID `G-HW6ZYLMS7C` to
+  `TEST/binance-chart-test/app/layout.tsx` through Next.js `Script` components
+  in the root layout.
+- Added signed-out Playwright coverage in
+  `TEST/binance-chart-test/tests/e2e/signed-out-auth.spec.ts` to verify the
+  rendered Google tag script, initialization script, `dataLayer`, and `gtag`
+  function.
+- Updated `ARCHITECTURE.md` to document the standalone app's browser analytics
+  boundary.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
+  - `git diff --check`
+  - Browser/devtools-style check on `http://127.0.0.1:3101` confirmed the
+    analytics scripts render, `window.dataLayer.length === 2`, `window.gtag` is
+    a function, no horizontal overflow appears, and captured console
+    warning/error diagnostics were empty.
+- Production `next start` from the app directory still hit the existing
+  `routesManifest.dataRoutes is not iterable` runtime error, so the live
+  browser check used the app's dev server instead.
+
 # Header Button Vertical Spacing Polish
 
 ## Goal
