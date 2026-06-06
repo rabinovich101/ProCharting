@@ -30,7 +30,7 @@ behavior.
 - [x] Run focused build/test checks.
 - [x] Verify the modal in browser/devtools on desktop and mobile.
 - [x] Update the review section with results and remaining notes.
-- [ ] Commit, push, and leave the worktree clean.
+- [x] Commit, push, and leave the worktree clean.
 
 ## Review
 
