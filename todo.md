@@ -30,7 +30,7 @@ loading, auth behavior, chart interactions, or tests.
 - [x] Run focused build/test checks.
 - [x] Verify the UI in browser/Playwright/devtools on desktop and mobile.
 - [x] Update the review section with results and remaining notes.
-- [ ] Commit, push, and leave the worktree clean.
+- [x] Commit, push, and leave the worktree clean.
 
 ## Review
 
