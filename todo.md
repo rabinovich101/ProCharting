@@ -1,3 +1,65 @@
+# Signed-Out Auth Playwright Coverage
+
+## Goal
+
+Add automated tests that prove the signed-out signup/login UI and the public
+chart controls keep working.
+
+## Findings / Decisions
+
+- `TEST/binance-chart-test` does not currently have a test runner.
+- Use Playwright e2e tests because the behavior is cross-component browser UI:
+  header rendering, modal interactions, symbol search, chart type menu,
+  indicator picker, and responsive layout.
+- Keep tests deterministic by mocking `/api/binance` candle responses and the
+  browser WebSocket used for Binance live updates.
+- Force Supabase public env vars empty in the test server so the signed-out
+  disconnected-account state is stable.
+- Add a package script so the test is repeatable with one command.
+
+## Checklist
+
+- [x] Add Playwright test dependency, config, and npm script.
+- [x] Add deterministic market-data and WebSocket test fixtures.
+- [x] Test signed-out Log in / Sign up buttons and signup dialog behavior.
+- [x] Test public signed-out symbol search, chart type, and indicators.
+- [x] Test mobile signed-out header layout has no horizontal overflow.
+- [x] Update architecture/test notes and this review section.
+- [x] Run build, Playwright tests, and diff checks.
+- [x] Verify with Browser/Playwright/devtools after the test work.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Added automated Playwright e2e coverage for the signed-out auth and public
+chart-access flow.
+
+- Added `@playwright/test` and `npm run test:e2e` to the standalone Next app.
+- Added `playwright.config.ts` with a deterministic web server on
+  `127.0.0.1:3100`.
+- Forced Supabase public env vars empty in the Playwright server config so the
+  disconnected-account signup/login state is stable.
+- Added market-data and WebSocket mocks so the tests do not depend on live
+  Binance HTTP or WebSocket services.
+- Added tests for signed-out Log in / Sign up buttons, signup form fields,
+  disconnected-account submit behavior, login-mode switching, hidden
+  account-only header actions, public symbol search, chart type changes,
+  indicator picker/add flow, and mobile header overflow.
+- Ignored generated Playwright `test-results` and `playwright-report` output.
+- Updated `ARCHITECTURE.md` with the e2e harness contract.
+
+Verification results:
+
+- `npm run test:e2e` passed: 3 Playwright tests.
+- `npm run build` passed in `TEST/binance-chart-test`.
+- `git diff --check` passed.
+- Browser/Playwright/devtools loaded `http://127.0.0.1:3000`, confirmed Log in
+  and Sign up are visible, confirmed no horizontal overflow, and reported no
+  console warnings or errors.
+- Existing warnings remain: multiple lockfiles, the Next ESLint plugin is not
+  detected, npm audit reports 3 vulnerabilities, and Node prints a
+  `NO_COLOR`/`FORCE_COLOR` warning during Playwright server startup.
+
 # Signed-Out Chart Access And Auth Buttons
 
 ## Goal

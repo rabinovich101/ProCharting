@@ -173,6 +173,14 @@ renderer to the render loop until their async `initialize(canvas)` call
 completes, so explicit GPU renderers cannot be called while their
 device/context fields are still unset.
 
+The standalone `TEST/binance-chart-test` app owns its own Playwright e2e
+harness under `tests/e2e`. The harness runs the Next dev server on
+`127.0.0.1:3100`, forces Supabase public env vars empty for deterministic
+signed-out auth coverage, mocks `/api/binance` candle responses, and replaces
+the browser Binance WebSocket with a local no-op socket before the app boots.
+This keeps signup/login entry tests and public chart-control tests independent
+from live Binance and external Supabase projects.
+
 As of May 31, 2026, the automatic renderer path selects Canvas2D because it is
 the complete package-rendering path used by the runnable chart app. The WebGPU
 and WebGL packages remain available behind explicit renderer selection while
