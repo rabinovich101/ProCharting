@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #070a10;
-  --foreground: #e7edf7;
+  --background: #150f23;
+  --foreground: #fffaff;
 }
 
 @theme inline {
@@ -20,9 +20,10 @@ html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: "Rubik", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   margin: 0;
   min-height: 100%;
+  text-rendering: geometricPrecision;
 }
 
 button,
@@ -38,18 +39,24 @@ summary {
 }
 
 .chart-terminal {
-  --surface-0: #070a10;
-  --surface-1: #0d121b;
-  --surface-2: #121925;
-  --surface-3: #182334;
-  --border-subtle: rgba(132, 146, 170, 0.18);
-  --border-strong: rgba(132, 146, 170, 0.28);
-  --text-strong: #e7edf7;
-  --text-muted: #8f9bad;
-  --accent: #2f81f7;
-  --positive: #16b99a;
-  --negative: #f05662;
-  background: var(--surface-0);
+  --surface-0: #150f23;
+  --surface-1: #1f1633;
+  --surface-2: #271d3e;
+  --surface-3: #362d59;
+  --surface-light: #ffffff;
+  --border-subtle: rgba(207, 207, 219, 0.16);
+  --border-strong: rgba(121, 98, 140, 0.48);
+  --text-strong: #fffaff;
+  --text-muted: #bdb8c0;
+  --accent: #c2ef4e;
+  --accent-contrast: #150f23;
+  --accent-soft: rgba(194, 239, 78, 0.14);
+  --accent-pink: #fa7faa;
+  --focus-ring: #9dc1f5;
+  --positive: #c2ef4e;
+  --negative: #fa7faa;
+  background:
+    linear-gradient(180deg, #150f23 0%, #1f1633 48%, #150f23 100%);
   color: var(--text-strong);
   display: flex;
   flex-direction: column;
@@ -58,23 +65,29 @@ summary {
 }
 
 .chart-terminal[data-theme="light"] {
-  --surface-0: #e8eef6;
-  --surface-1: #f7f9fc;
-  --surface-2: #eef3f8;
-  --surface-3: #dde6f0;
-  --border-subtle: rgba(70, 85, 105, 0.2);
-  --border-strong: rgba(70, 85, 105, 0.32);
-  --text-strong: #142033;
-  --text-muted: #65758a;
-  --accent: #0b72d9;
-  --positive: #049981;
-  --negative: #dc3f4b;
+  --surface-0: #f8f5fb;
+  --surface-1: #ffffff;
+  --surface-2: #f0eef6;
+  --surface-3: #e8e1f0;
+  --surface-light: #ffffff;
+  --border-subtle: rgba(31, 22, 51, 0.13);
+  --border-strong: rgba(66, 32, 130, 0.26);
+  --text-strong: #1f1633;
+  --text-muted: #746783;
+  --accent: #422082;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(66, 32, 130, 0.1);
+  --accent-pink: #c84274;
+  --focus-ring: #6a5fc1;
+  --positive: #16846d;
+  --negative: #c84274;
 }
 
 .chart-topbar {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 96%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 96%, #000000);
   border-bottom: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent);
   display: flex;
   min-height: 38px;
   padding: 0 8px;
@@ -104,9 +117,9 @@ summary {
 }
 
 .feed-dot {
-  background: #d7a43c;
+  background: #fae07a;
   border-radius: 50%;
-  box-shadow: 0 0 0 3px color-mix(in srgb, #d7a43c 16%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #fae07a 16%, transparent);
   flex: 0 0 auto;
   height: 8px;
   margin: 0 10px 0 8px;
@@ -145,11 +158,11 @@ summary {
   align-items: center;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text-muted);
   display: inline-flex;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 700;
   gap: 7px;
   justify-content: center;
   min-height: 38px;
@@ -196,6 +209,7 @@ summary {
 
 .symbol-data-switch {
   align-items: center;
+  background: var(--surface-2);
   border: 1px solid var(--border-subtle);
   border-radius: 50%;
   color: var(--text-muted);
@@ -237,9 +251,11 @@ summary {
 
 .symbol-badge {
   align-items: center;
-  background: linear-gradient(145deg, #f7931a, #d76d00);
-  border-radius: 50%;
-  color: #ffffff;
+  background: linear-gradient(145deg, var(--accent), #e2ff96);
+  border: 1px solid color-mix(in srgb, var(--accent) 72%, #ffffff);
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent-contrast);
   display: inline-flex;
   flex: 0 0 auto;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
@@ -298,17 +314,19 @@ summary {
 }
 
 .tv-trade-button {
-  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border-strong));
+  border-radius: 8px;
+  color: var(--text-strong);
   font-weight: 650;
   margin-left: 5px;
   min-width: 61px;
 }
 
 .tv-publish-button {
-  background: var(--text-strong);
-  border-color: var(--text-strong);
-  border-radius: 999px;
-  color: var(--surface-0);
+  background: var(--accent);
+  border-color: var(--accent);
+  border-radius: 8px;
+  color: var(--accent-contrast);
   font-weight: 720;
   margin-left: 6px;
   min-width: 76px;
@@ -320,27 +338,28 @@ summary {
 
 .auth-entry-button {
   border-color: var(--border-strong);
-  border-radius: 999px;
+  border-radius: 8px;
   min-width: 68px;
 }
 
 .auth-entry-button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-contrast);
   min-width: 74px;
 }
 
 .auth-entry-button.primary:hover,
 .auth-entry-button.primary:focus-visible {
-  background: color-mix(in srgb, var(--accent) 86%, #ffffff);
-  border-color: color-mix(in srgb, var(--accent) 86%, #ffffff);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--accent) 84%, #ffffff);
+  border-color: color-mix(in srgb, var(--accent) 84%, #ffffff);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent-contrast);
 }
 
 .tv-account-button {
   border-color: var(--border-subtle);
-  border-radius: 999px;
+  border-radius: 8px;
   margin-left: 6px;
   max-width: 164px;
   min-width: 82px;
@@ -360,6 +379,7 @@ summary {
 .toolbar-dropdown[data-open="true"] .toolbar-trigger {
   background: var(--surface-3);
   border-color: var(--border-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
   color: var(--text-strong);
 }
 
@@ -374,16 +394,19 @@ summary {
 
 .tv-publish-button:hover,
 .tv-publish-button:focus-visible {
-  background: color-mix(in srgb, var(--text-strong) 88%, var(--surface-2));
-  border-color: color-mix(in srgb, var(--text-strong) 88%, var(--surface-2));
-  color: var(--surface-0);
+  background: color-mix(in srgb, var(--accent) 84%, #ffffff);
+  border-color: color-mix(in srgb, var(--accent) 84%, #ffffff);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent-contrast);
 }
 
 .header-panel {
-  background: var(--surface-1);
+  background: color-mix(in srgb, var(--surface-1) 96%, #000000);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+  border-radius: 8px;
+  box-shadow:
+    0 20px 52px rgba(0, 0, 0, 0.42),
+    0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
   color: var(--text-strong);
   display: grid;
   gap: 6px;
@@ -400,12 +423,12 @@ summary {
 }
 
 .layout-panel {
-  background: #ffffff;
-  border: 1px solid #e0e3eb;
+  background: var(--surface-light);
+  border: 1px solid #cfcfdb;
   border-right: 0;
   border-radius: 0;
-  box-shadow: 0 8px 28px rgba(19, 23, 34, 0.18);
-  color: #131722;
+  box-shadow: -18px 0 52px rgba(31, 22, 51, 0.22);
+  color: #1f1633;
   gap: 0;
   max-height: calc(100vh - 38px);
   overflow: auto;
@@ -454,7 +477,7 @@ summary {
 .quick-search-input input {
   background: var(--surface-0);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text-strong);
   min-height: 32px;
   outline: 0;
@@ -465,6 +488,7 @@ summary {
 .symbol-search-input input:focus,
 .quick-search-input input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .header-menu-row,
@@ -480,7 +504,7 @@ summary {
 .broker-grid button {
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 8px;
   color: var(--text-strong);
 }
 
@@ -527,6 +551,7 @@ summary {
 .broker-grid button:focus-visible,
 .broker-grid button[data-active="true"] {
   background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .template-menu-row {
@@ -566,7 +591,7 @@ summary {
 
 .layout-option-row {
   align-items: center;
-  border-bottom: 1px solid #f0f3fa;
+  border-bottom: 1px solid #e5e7eb;
   display: grid;
   gap: 8px;
   grid-template-columns: 22px minmax(0, 1fr);
@@ -574,7 +599,7 @@ summary {
 }
 
 .layout-option-count {
-  color: #787b86;
+  color: #79628c;
   font-size: 13px;
   line-height: 1;
 }
@@ -592,7 +617,7 @@ summary {
   background: transparent;
   border: 0;
   border-radius: 5px;
-  color: #131722;
+  color: #1f1633;
   display: inline-flex;
   height: 30px;
   justify-content: center;
@@ -602,12 +627,12 @@ summary {
 
 .layout-option-button:hover,
 .layout-option-button:focus-visible {
-  background: #f0f3fa;
+  background: #f0f0f0;
 }
 
 .layout-option-button[data-active="true"] {
-  background: #2a2e39;
-  color: #ffffff;
+  background: #1f1633;
+  color: #c2ef4e;
 }
 
 .layout-option-icon {
@@ -633,7 +658,7 @@ summary {
 
 .layout-sync-row {
   align-items: center;
-  color: #131722;
+  color: #1f1633;
   display: flex;
   font-size: 14px;
   justify-content: space-between;
@@ -648,7 +673,7 @@ summary {
 
 .layout-sync-info {
   align-items: center;
-  background: #b2b5be;
+  background: #79628c;
   border-radius: 50%;
   color: #ffffff;
   display: inline-flex;
@@ -667,7 +692,7 @@ summary {
 }
 
 .layout-sync-switch {
-  background: #a3a6ad;
+  background: #cfcfdb;
   border-radius: 999px;
   display: inline-flex;
   height: 22px;
@@ -687,7 +712,7 @@ summary {
 }
 
 .layout-sync-input:checked + .layout-sync-switch {
-  background: #2a2e39;
+  background: #422082;
 }
 
 .layout-sync-input:checked + .layout-sync-switch::before {
@@ -711,7 +736,8 @@ summary {
 
 .header-modal-backdrop {
   align-items: flex-start;
-  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+  background: rgba(21, 15, 35, 0.62);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -721,10 +747,12 @@ summary {
 }
 
 .header-modal {
-  background: var(--surface-1);
+  background: color-mix(in srgb, var(--surface-1) 97%, #000000);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+  box-shadow:
+    0 26px 80px rgba(0, 0, 0, 0.54),
+    0 0 0 1px color-mix(in srgb, var(--accent) 9%, transparent);
   color: var(--text-strong);
   overflow: hidden;
 }
@@ -765,6 +793,7 @@ summary {
 .header-modal-title {
   align-items: center;
   border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-2) 54%, transparent);
   display: flex;
   justify-content: space-between;
   min-height: 48px;
@@ -774,7 +803,7 @@ summary {
 .header-modal-title button {
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 8px;
   color: var(--text-muted);
   font-size: 18px;
   height: 30px;
@@ -846,8 +875,9 @@ summary {
 }
 
 .symbol-search-tabs button[data-active="true"] {
-  background: var(--text-strong);
-  color: var(--surface-0);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent-contrast);
 }
 
 .symbol-search-results {
@@ -892,7 +922,7 @@ summary {
 }
 
 .symbol-result-main strong {
-  color: color-mix(in srgb, var(--accent) 82%, var(--text-strong));
+  color: color-mix(in srgb, var(--accent) 86%, var(--text-strong));
   font-size: 14px;
   line-height: 1.1;
 }
@@ -931,9 +961,9 @@ summary {
 
 .exchange-mark {
   align-items: center;
-  background: #f3ba2f;
+  background: #c2ef4e;
   border-radius: 50%;
-  color: #121925;
+  color: #150f23;
   display: inline-flex;
   flex: 0 0 auto;
   font-size: 10px;
@@ -1013,7 +1043,7 @@ summary {
 .settings-segmented {
   background: var(--surface-0);
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border-radius: 8px;
   display: inline-flex;
   overflow: hidden;
 }
@@ -1042,7 +1072,7 @@ summary {
 .settings-footer .settings-ok {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-contrast);
 }
 
 .template-save-body,
@@ -1066,7 +1096,7 @@ summary {
   align-items: center;
   background: var(--surface-0);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--text-strong);
   display: grid;
   font-weight: 680;
@@ -1080,6 +1110,7 @@ summary {
 .auth-provider-button:hover,
 .auth-provider-button:focus-visible {
   background: var(--surface-3);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .auth-provider-button:disabled {
@@ -1089,9 +1120,9 @@ summary {
 
 .auth-provider-mark {
   align-items: center;
-  background: var(--text-strong);
+  background: var(--accent);
   border-radius: 50%;
-  color: var(--surface-0);
+  color: var(--accent-contrast);
   display: inline-flex;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 11px;
@@ -1135,7 +1166,7 @@ summary {
 .auth-dialog-status {
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 9px 10px;
 }
 
@@ -1158,7 +1189,7 @@ summary {
 .layout-save-summary span {
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
-  border-radius: 7px;
+  border-radius: 8px;
   display: grid;
   gap: 3px;
   min-height: 64px;
@@ -1210,7 +1241,7 @@ summary {
 .feature-dialog-actions .settings-ok {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-contrast);
 }
 
 .broker-dialog-body {
@@ -1274,10 +1305,12 @@ summary {
 }
 
 .toolbar-menu {
-  background: var(--surface-1);
+  background: color-mix(in srgb, var(--surface-1) 97%, #000000);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+  border-radius: 8px;
+  box-shadow:
+    0 18px 52px rgba(0, 0, 0, 0.42),
+    0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
   display: grid;
   gap: 2px;
   left: 0;
@@ -1303,7 +1336,7 @@ summary {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 8px;
   color: var(--text-strong);
   display: flex;
   gap: 9px;
@@ -1320,7 +1353,8 @@ summary {
 }
 
 .toolbar-menu-item[data-active="true"] {
-  background: var(--surface-3);
+  background: var(--accent-soft);
+  color: var(--text-strong);
 }
 
 .menu-check {
@@ -1341,8 +1375,8 @@ summary {
 }
 
 .toolbar-menu-item[data-active="true"] .menu-check::after {
-  border-bottom: 2px solid #ffffff;
-  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid var(--accent-contrast);
+  border-right: 2px solid var(--accent-contrast);
   content: "";
   height: 6px;
   position: absolute;
@@ -1371,7 +1405,7 @@ summary {
   align-items: center;
   background: var(--accent);
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--accent-contrast);
   display: inline-flex;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 11px;
@@ -1467,6 +1501,7 @@ summary {
 .indicator-picker-header {
   align-items: center;
   border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-2) 42%, transparent);
   display: flex;
   justify-content: space-between;
   min-height: 58px;
@@ -1483,7 +1518,7 @@ summary {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 8px;
   color: var(--text-muted);
   display: inline-flex;
   height: 32px;
@@ -1537,7 +1572,7 @@ summary {
 .indicator-search input {
   background: var(--surface-0);
   border: 1px solid var(--border-subtle);
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--text-strong);
   flex: 1;
   height: 38px;
@@ -1632,7 +1667,8 @@ summary {
 .indicator-category-button:hover,
 .indicator-category-button:focus-visible,
 .indicator-category-button[data-active="true"] {
-  background: var(--surface-2);
+  background: var(--accent-soft);
+  color: var(--text-strong);
 }
 
 .indicator-results {
@@ -1660,8 +1696,9 @@ summary {
 }
 
 .indicator-tabs span[data-active="true"] {
-  background: var(--text-strong);
-  color: var(--surface-0);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent-contrast);
 }
 
 .indicator-results-label {
@@ -1682,10 +1719,12 @@ summary {
 
 .instrument-legend-overlay {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 90%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
-  border-radius: 6px;
-  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.22);
+  border-radius: 8px;
+  box-shadow:
+    0 6px 22px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent);
   color: var(--text-strong);
   display: flex;
   flex-wrap: wrap;
@@ -1763,10 +1802,10 @@ summary {
 
 .indicator-legend-main {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 91%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
-  border-radius: 6px;
-  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
   display: flex;
   gap: 7px;
   max-width: 100%;
@@ -1790,7 +1829,7 @@ summary {
 .indicator-legend-row:focus-within .indicator-legend-main,
 .indicator-legend-row[data-settings-open="true"] .indicator-legend-main,
 .indicator-legend-row[data-more-open="true"] .indicator-legend-main {
-  border-color: var(--border-strong);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-strong));
   gap: 10px;
   min-height: 34px;
   padding: 5px 7px 5px 9px;
@@ -1848,7 +1887,7 @@ summary {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text-muted);
   display: inline-flex;
   height: 28px;
@@ -1985,10 +2024,10 @@ summary {
 
 .indicator-settings-panel,
 .indicator-more-panel {
-  background: var(--surface-1);
+  background: color-mix(in srgb, var(--surface-1) 97%, #000000);
   border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.34);
   color: var(--text-strong);
   margin-top: 4px;
   padding: 10px;
@@ -2018,7 +2057,7 @@ summary {
 .indicator-settings-panel select {
   background: var(--surface-0);
   border: 1px solid var(--border-subtle);
-  border-radius: 5px;
+  border-radius: 8px;
   color: var(--text-strong);
   height: 34px;
   min-width: 0;
@@ -2043,7 +2082,7 @@ summary {
 .indicator-more-panel button {
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 8px;
   color: var(--text-strong);
   font-size: 13px;
   min-height: 32px;
@@ -2064,7 +2103,8 @@ summary {
 }
 
 .chart-stage {
-  background: var(--surface-0);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 70%, var(--surface-0)), var(--surface-0));
   flex: 1;
   min-height: 0;
   overscroll-behavior: contain;
@@ -2072,7 +2112,7 @@ summary {
 }
 
 .chart-layout-grid {
-  background: var(--border-strong);
+  background: color-mix(in srgb, var(--border-strong) 82%, var(--accent) 8%);
   display: grid;
   gap: 2px;
   inset: 0;
@@ -2105,7 +2145,9 @@ summary {
 
 .chart-layout-cell[data-active="true"]::after {
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-0) 72%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--surface-0) 72%, transparent),
+    inset 0 0 28px color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .chart-stage[data-layout-count="1"] .chart-layout-cell[data-active="true"]::after {
@@ -2129,7 +2171,8 @@ summary {
 
 .chart-overlay {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-0) 58%, transparent);
+  backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--surface-0) 68%, transparent);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -2139,9 +2182,10 @@ summary {
 .loading-panel,
 .state-panel {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2150,7 +2194,7 @@ summary {
 }
 
 .loading-line {
-  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
   border-radius: 999px;
   height: 9px;
   overflow: hidden;
@@ -2176,8 +2220,8 @@ summary {
 .state-panel button {
   background: var(--accent);
   border: 0;
-  border-radius: 7px;
-  color: #ffffff;
+  border-radius: 8px;
+  color: var(--accent-contrast);
   min-height: 34px;
   padding: 0 14px;
 }

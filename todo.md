@@ -1,3 +1,69 @@
+# Sentry-Inspired Visual Design Pass
+
+## Goal
+
+Apply the visual direction from `npx getdesign@latest add sentry` to the
+standalone chart app without changing functionality, state management, data
+loading, auth behavior, chart interactions, or tests.
+
+## Investigation / Decisions
+
+- The runnable UI surface is the standalone Next.js app at
+  `TEST/binance-chart-test`.
+- The generated Sentry reference was installed only in a scratch directory:
+  `/tmp/procharting-getdesign-sentry/DESIGN.md`.
+- The design reference emphasizes a violet midnight canvas, white-on-dark
+  developer-tool surfaces, lime and pink accents, compact rounded controls,
+  and clean hairline borders.
+- The current app already has a dense trading-terminal shell, so the safest
+  implementation path is CSS-only: adjust theme tokens, surfaces, controls,
+  menus, modals, overlays, and status accents while preserving the existing
+  React markup and event handlers.
+- No personal business approval is needed because this is a requested visual
+  styling pass and the design source was provided by the user.
+
+## Checklist
+
+- [x] Capture the generated Sentry design reference outside the repo.
+- [x] Update the app CSS with Sentry-inspired tokens and visual treatments.
+- [x] Keep functionality untouched by avoiding page logic changes.
+- [x] Run focused build/test checks.
+- [x] Verify the UI in browser/Playwright/devtools on desktop and mobile.
+- [x] Update the review section with results and remaining notes.
+- [ ] Commit, push, and leave the worktree clean.
+
+## Review
+
+Applied the Sentry-inspired visual direction to the standalone chart app while
+leaving behavior unchanged.
+
+- Updated `TEST/binance-chart-test/app/globals.css` with Sentry-style violet
+  midnight surfaces, lime primary actions, pink negative/status accents,
+  compact 8px controls, elevated menus/modals, and refined chart overlays.
+- Updated only the chart palette constants in
+  `TEST/binance-chart-test/app/page.tsx` so the canvas colors match the new
+  shell design. No React state, event handlers, data loading, auth calls, or
+  chart interaction logic changed.
+- Kept `ARCHITECTURE.md` unchanged because this was a visual-only styling pass
+  and did not change runtime boundaries, data flow, auth architecture, or test
+  harness architecture.
+
+Verification results:
+
+- `npm run build` passed in `TEST/binance-chart-test`.
+- `npm run test:e2e` passed: 3 Playwright tests.
+- Browser/devtools verification passed on desktop `1280x720`: Sentry tokens
+  rendered (`--surface-0: #150f23`, `--accent: #c2ef4e`,
+  `--negative: #fa7faa`), one chart canvas rendered, 14 buttons were present,
+  no horizontal overflow, and console warning/error logs were empty.
+- Browser/devtools verification passed on mobile `390x844`: signed-out auth
+  buttons stayed contained, the loaded chart and overlays rendered, no
+  horizontal overflow, and console warning/error logs were empty.
+- `git diff --check` passed.
+- Existing warnings remain: Next reports multiple lockfiles and the missing
+  Next ESLint plugin during build/test startup, and Playwright startup still
+  prints the existing `NO_COLOR`/`FORCE_COLOR` warning.
+
 # Docker-Only README And Iframe Docs
 
 ## Goal
