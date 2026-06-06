@@ -30,7 +30,14 @@ blocked by the jump host.
 
 ## Review
 
-In progress.
+- First runner attempt reached the VM and confirmed production `.env` has
+  `GOOGLE_ENABLED`, `GOOGLE_CLIENT_ID`, and `GOOGLE_SECRET` set without
+  printing secrets.
+- The attempt found the production `docker-compose.yml` still had
+  `GOTRUE_EXTERNAL_GOOGLE_*` lines commented out, so Auth started without
+  Google env values and `external.google` stayed false.
+- Updated the temporary workflow to uncomment existing Google passthrough lines
+  as well as insert them if they are absent.
 
 # Production Google OAuth Provider Enablement
 
