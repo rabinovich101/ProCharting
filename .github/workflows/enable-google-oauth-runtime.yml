@@ -25,11 +25,13 @@ jobs:
           runtime_dir="/home/ooo/procharts-supabase/runtime"
           google_json="/home/ooo/client_secret_798085098917-rufl7av9jf0v2g3u9pfc9de5h6bn85a4.apps.googleusercontent.com.json"
           helper="$GITHUB_WORKSPACE/infra/supabase/scripts/supabase.sh"
+          anon_key="$(awk -F= '/^ANON_KEY=/ { sub(/^[^=]*=/, ""); print; exit }' "$runtime_dir/.env")"
 
           test -f "$runtime_dir/.env"
           test -f "$runtime_dir/docker-compose.yml"
           test -f "$google_json"
           test -f "$helper"
+          test -n "$anon_key"
 
           echo "Runtime: $runtime_dir"
           echo "Google JSON: present"
@@ -43,6 +45,15 @@ jobs:
               else print $1 "=" ($2 == "" ? "empty" : "set")
             }
           ' "$runtime_dir/.env"
+
+          echo "App env status:"
+          awk -F= '
+            /^[[:space:]]*#/ { next }
+            /^(NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_ANON_KEY|NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY|PROCHARTS_SUPABASE_PROXY_TARGET)=/ {
+              if ($1 ~ /KEY/) print $1 "=set (hidden)"
+              else print $1 "=" $2
+            }
+          ' /etc/procharts/app.env || true
 
           PROCHARTING_SUPABASE_RUNTIME_DIR="$runtime_dir" \
             sh "$helper" import-google-oauth "$google_json"
@@ -81,6 +92,19 @@ jobs:
             fi
           '
 
+          echo "Direct Kong Auth settings:"
+          curl -fsS \
+            -H "apikey: $anon_key" \
+            -H "Authorization: Bearer $anon_key" \
+            http://127.0.0.1:8000/auth/v1/settings | tee /tmp/procharts-kong-oauth-settings.json
+          grep -q '"google":true' /tmp/procharts-kong-oauth-settings.json
+
+          echo "Local Next rewrite settings response:"
+          curl -i -sS \
+            -H "apikey: $anon_key" \
+            -H "Authorization: Bearer $anon_key" \
+            http://127.0.0.1:3000/auth/v1/settings | tee /tmp/procharts-next-settings-response.txt || true
+
           for attempt in {1..20}; do
             if PROCHARTING_SUPABASE_RUNTIME_DIR="$runtime_dir" \
               sh "$helper" oauth-status > /tmp/procharts-oauth-settings.json; then
@@ -91,6 +115,8 @@ jobs:
               cat /tmp/procharts-oauth-settings.json || true
               echo "Auth status did not recover. Diagnostics:"
               docker compose ps auth kong
+              echo "PM2 app logs:"
+              pm2 logs procharts-app --lines 120 --nostream || true
               echo "Local gateway settings response:"
               curl -i -sS http://127.0.0.1:8000/auth/v1/settings || true
               echo "Auth logs:"
