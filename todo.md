@@ -29,7 +29,7 @@ directly related to those recent results.
 - [x] Fix any direct design/regression issue found in the QA pass.
 - [x] Save audit notes and screenshot references locally.
 - [x] Update `todo.md` review with findings and verification results.
-- [ ] Commit, push, and leave the worktree clean if files changed.
+- [x] Commit, push, and leave the worktree clean if files changed.
 
 ## Review
 
