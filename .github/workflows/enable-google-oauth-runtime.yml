@@ -68,6 +68,9 @@ jobs:
 
           docker compose up -d --force-recreate --no-deps auth
 
+          echo "Compose status after auth recreate:"
+          docker compose ps auth kong
+
           echo "Auth container Google env status:"
           docker compose exec -T auth sh -lc '
             env | grep -E "^GOTRUE_EXTERNAL_GOOGLE_(ENABLED|CLIENT_ID|REDIRECT_URI)=" || true
@@ -86,6 +89,14 @@ jobs:
 
             if [ "$attempt" -eq 20 ]; then
               cat /tmp/procharts-oauth-settings.json || true
+              echo "Auth status did not recover. Diagnostics:"
+              docker compose ps auth kong
+              echo "Local gateway settings response:"
+              curl -i -sS http://127.0.0.1:8000/auth/v1/settings || true
+              echo "Auth logs:"
+              docker compose logs --tail=160 auth || true
+              echo "Kong logs:"
+              docker compose logs --tail=120 kong || true
               exit 1
             fi
 
