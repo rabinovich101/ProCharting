@@ -1,3 +1,54 @@
+# TradingView Desktop Axis Font Benchmark
+
+## Goal
+
+Check the live TradingView desktop chart font sizing for price labels and
+date/time labels, then compare it to ProCharting's current canvas chart fonts.
+
+## Investigation / Decisions
+
+- Focus only on fonts for this follow-up: price scale, time/date scale,
+  current-price label, and nearby chart legend/axis text.
+- Use a live `www.tradingview.com` chart as the practical desktop benchmark.
+- Compare against ProCharting's current canvas constants in
+  `TEST/binance-chart-test/app/page.tsx`: desktop `axisFontSize = 13` and
+  `indicatorPaneFontSize = 11.2`.
+
+## Checklist
+
+- [x] Open TradingView on desktop viewports and capture the relevant chart text.
+- [x] Inspect available computed styles and, where chart text is canvas/SVG,
+      estimate rendered label size from screenshots.
+- [x] Compare TradingView against ProCharting's current axis/date fonts.
+- [x] Save a short benchmark note and update this review.
+- [x] Commit, push, and leave the worktree clean if files changed.
+
+## Review
+
+Completed the TradingView desktop font benchmark.
+
+- Checked `https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT` at
+  `1440x900`.
+- Saved benchmark notes at
+  `TEST/binance-chart-test/design-audit/tradingview-font-benchmark-2026-06-06/report.md`.
+- Saved TradingView screenshots and price/time axis crops under
+  `TEST/binance-chart-test/design-audit/tradingview-font-benchmark-2026-06-06/screenshots`.
+- TradingView's surrounding chart DOM text uses `14px` for toolbar/control text
+  and `13px` for chart legend/OHLC/volume text.
+- TradingView's canvas-rendered price/time axis labels measure about `8-9px`
+  visible glyph height in the screenshot, which maps practically to about a
+  `12-13px` canvas font.
+- ProCharting's current desktop price axis measures mostly about `6px` visible
+  glyph height and its time axis about `7px`, so the user's desktop readability
+  concern is valid.
+- Root cause found: Chrome rejects the current canvas font string
+  `13px var(--font-geist-mono), ui-monospace, monospace` and keeps the canvas
+  font at `10px sans-serif`. The fix should use an explicit canvas-safe font
+  stack instead of CSS custom properties.
+- Recommended practical target for ProCharting desktop: valid canvas
+  `axisFontSize = 14` and `indicatorPaneFontSize = 13`; compact/mobile should
+  use at least `13` and `12` respectively.
+
 # Responsive Typography Accessibility Audit
 
 ## Goal
