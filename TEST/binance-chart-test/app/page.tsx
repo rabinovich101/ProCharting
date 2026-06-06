@@ -71,6 +71,7 @@ type FeedStatus = 'connecting' | 'live' | 'offline';
 type MenuKey = 'timeframe' | 'chartStyle' | 'indicators';
 type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
+type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
 type IndicatorFormula =
@@ -99,6 +100,20 @@ interface ChartDragState {
   startViewRange: ViewRange;
   startPriceRange: PriceRange | null;
   anchorPrice: number;
+}
+
+interface ChartTouchPoint {
+  x: number;
+  y: number;
+}
+
+interface ChartTouchGestureState {
+  mode: ChartTouchGestureMode;
+  paneIndex: number;
+  startX: number;
+  startViewRange: ViewRange;
+  startDistance: number;
+  startMidX: number;
 }
 
 interface ChartCanvasArea {
@@ -1089,6 +1104,14 @@ const createDragState = (paneIndex = 0): ChartDragState => ({
   startViewRange: createDefaultViewRange(),
   startPriceRange: null,
   anchorPrice: 0,
+});
+const createTouchGestureState = (paneIndex = 0): ChartTouchGestureState => ({
+  mode: 'none',
+  paneIndex,
+  startX: 0,
+  startViewRange: createDefaultViewRange(),
+  startDistance: 0,
+  startMidX: 0,
 });
 const createPaneHoverState = (): PaneHoverState => ({
   mousePos: null,
@@ -2502,6 +2525,7 @@ export default function Home() {
   const paneStatesRef = useRef<ChartPaneState[]>([]);
   const chartBoundsRefs = useRef<ChartInteractionBounds[]>([createDefaultChartBounds()]);
   const dragStateRef = useRef<ChartDragState>(createDragState());
+  const touchGestureRef = useRef<ChartTouchGestureState>(createTouchGestureState());
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
   const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
   const legendRenderFrameRef = useRef<number | undefined>(undefined);
@@ -3212,6 +3236,63 @@ export default function Home() {
     };
   };
 
+  const updatePaneHoverAtPoint = (
+    paneIndex: number,
+    x: number,
+    y: number,
+    area: ChartPointerArea,
+    canvas: HTMLCanvasElement | null
+  ) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane) return;
+
+    const snappedCrosshair = getSnappedCrosshairPosition(paneIndex, x);
+    const currentPriceRange = getCurrentPriceRange(paneIndex);
+    const nextMousePos = {
+      x: snappedCrosshair.x,
+      y,
+      dataY: currentPriceRange ? getPriceAtY(paneIndex, y, currentPriceRange) : 0,
+      logicalIndex: snappedCrosshair.logicalIndex,
+    };
+    const currentLegendIndex = getHoverLegendIndex(paneIndex, pane, getCurrentHoverMousePosition(paneIndex));
+    const nextLegendIndex = getHoverLegendIndex(paneIndex, pane, nextMousePos);
+
+    paneHoverStatesRef.current[paneIndex] = {
+      mousePos: nextMousePos,
+      pointerArea: area,
+      pointerX: x,
+      pointerY: y,
+    };
+
+    if (canvas) {
+      canvas.dataset.pointerArea = area;
+      canvas.style.cursor = getCanvasCursorForState(pane.dragMode, area);
+    }
+
+    if (currentLegendIndex !== nextLegendIndex) {
+      requestLegendRender();
+    }
+  };
+
+  const getCanvasTouchPoints = (event: React.TouchEvent<HTMLCanvasElement>): ChartTouchPoint[] => {
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    return Array.from(event.touches, (touch) => ({
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
+    }));
+  };
+
+  const getTouchMidpoint = (first: ChartTouchPoint, second: ChartTouchPoint): ChartTouchPoint => ({
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  });
+
+  const getTouchDistance = (first: ChartTouchPoint, second: ChartTouchPoint) =>
+    Math.hypot(first.x - second.x, first.y - second.y);
+
+  const isChartNavigationArea = (area: ChartPointerArea) => area === 'plot' || area === 'time-scale';
+
   const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
     const pane = paneStatesRef.current[paneIndex];
     setActivePaneIndex(paneIndex);
@@ -3367,29 +3448,7 @@ export default function Home() {
       }
     }
 
-    const snappedCrosshair = getSnappedCrosshairPosition(paneIndex, x);
-    const currentPriceRange = getCurrentPriceRange(paneIndex);
-    const nextMousePos = {
-      x: snappedCrosshair.x,
-      y,
-      dataY: currentPriceRange ? getPriceAtY(paneIndex, y, currentPriceRange) : 0,
-      logicalIndex: snappedCrosshair.logicalIndex,
-    };
-    const currentLegendIndex = getHoverLegendIndex(paneIndex, pane, getCurrentHoverMousePosition(paneIndex));
-    const nextLegendIndex = getHoverLegendIndex(paneIndex, pane, nextMousePos);
-
-    paneHoverStatesRef.current[paneIndex] = {
-      mousePos: nextMousePos,
-      pointerArea: area,
-      pointerX: x,
-      pointerY: y,
-    };
-    event.currentTarget.dataset.pointerArea = area;
-    event.currentTarget.style.cursor = getCanvasCursorForState(pane.dragMode, area);
-
-    if (currentLegendIndex !== nextLegendIndex) {
-      requestLegendRender();
-    }
+    updatePaneHoverAtPoint(paneIndex, x, y, area, event.currentTarget);
   };
 
   const handleMouseLeave = (paneIndex: number, event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -3397,6 +3456,162 @@ export default function Home() {
     event.currentTarget.dataset.pointerArea = 'outside';
     event.currentTarget.style.cursor = getCanvasCursorForState(dragStateRef.current.mode, 'outside');
     handleMouseUp();
+  };
+
+  const beginTouchPan = (paneIndex: number, point: ChartTouchPoint, pane: ChartPaneState) => {
+    touchGestureRef.current = {
+      mode: 'pan',
+      paneIndex,
+      startX: point.x,
+      startViewRange: pane.viewRange,
+      startDistance: 0,
+      startMidX: point.x,
+    };
+    updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, dragMode: 'chart-pan' }));
+  };
+
+  const beginTouchPinch = (
+    paneIndex: number,
+    firstPoint: ChartTouchPoint,
+    secondPoint: ChartTouchPoint,
+    pane: ChartPaneState
+  ) => {
+    const midpoint = getTouchMidpoint(firstPoint, secondPoint);
+
+    touchGestureRef.current = {
+      mode: 'pinch',
+      paneIndex,
+      startX: midpoint.x,
+      startViewRange: pane.viewRange,
+      startDistance: Math.max(1, getTouchDistance(firstPoint, secondPoint)),
+      startMidX: midpoint.x,
+    };
+    updatePaneState(paneIndex, (currentPane) => ({ ...currentPane, dragMode: 'chart-pan' }));
+  };
+
+  const endTouchGesture = (paneIndex: number) => {
+    touchGestureRef.current = createTouchGestureState(paneIndex);
+    updatePaneState(paneIndex, (pane) => ({ ...pane, dragMode: 'none' }));
+  };
+
+  const handleTouchStart = (paneIndex: number, event: React.TouchEvent<HTMLCanvasElement>) => {
+    const pane = paneStatesRef.current[paneIndex];
+    setActivePaneIndex(paneIndex);
+    if (!pane?.candles.length) return;
+
+    const points = getCanvasTouchPoints(event);
+    const firstPoint = points[0];
+    if (!firstPoint) return;
+
+    if (points.length >= 2 && points[1]) {
+      const midpoint = getTouchMidpoint(firstPoint, points[1]);
+      if (!isChartNavigationArea(getPointerArea(paneIndex, midpoint.x, midpoint.y))) return;
+
+      beginTouchPinch(paneIndex, firstPoint, points[1], pane);
+      updatePaneHoverAtPoint(paneIndex, midpoint.x, midpoint.y, 'plot', event.currentTarget);
+      return;
+    }
+
+    const area = getPointerArea(paneIndex, firstPoint.x, firstPoint.y);
+    if (!isChartNavigationArea(area)) return;
+
+    beginTouchPan(paneIndex, firstPoint, pane);
+    updatePaneHoverAtPoint(paneIndex, firstPoint.x, firstPoint.y, area, event.currentTarget);
+  };
+
+  const handleTouchMove = (paneIndex: number, event: React.TouchEvent<HTMLCanvasElement>) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane?.candles.length) return;
+
+    const points = getCanvasTouchPoints(event);
+    const firstPoint = points[0];
+    if (!firstPoint) return;
+
+    const gesture = touchGestureRef.current;
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+
+    if (points.length >= 2 && points[1]) {
+      const midpoint = getTouchMidpoint(firstPoint, points[1]);
+      const area = getPointerArea(paneIndex, midpoint.x, midpoint.y);
+      if (!isChartNavigationArea(area) && gesture.mode !== 'pinch') return;
+
+      if (gesture.mode !== 'pinch' || gesture.paneIndex !== paneIndex) {
+        beginTouchPinch(paneIndex, firstPoint, points[1], pane);
+        return;
+      }
+
+      const chartWidth = chartArea.width || getEstimatedChartWidth(paneIndex);
+      const distance = Math.max(1, getTouchDistance(firstPoint, points[1]));
+      const distanceScale = clamp(gesture.startDistance / distance, 0.18, 5);
+      const newCandlesPerView = Math.round(
+        clamp(
+          gesture.startViewRange.candlesPerView * distanceScale,
+          MIN_VISIBLE_BARS,
+          Math.min(MAX_VISIBLE_BARS, pane.candles.length + MAX_FUTURE_BARS)
+        )
+      );
+      const startRatio = clamp((gesture.startMidX - chartArea.left) / Math.max(1, chartWidth), 0, 1);
+      const currentRatio = clamp((midpoint.x - chartArea.left) / Math.max(1, chartWidth), 0, 1);
+      const anchorIndex = gesture.startViewRange.startIndex + startRatio * gesture.startViewRange.candlesPerView;
+      const newStartIndex = anchorIndex - newCandlesPerView * currentRatio;
+
+      updatePaneState(paneIndex, (currentPane) => ({
+        ...currentPane,
+        viewRange: normalizeViewRange(newStartIndex, newCandlesPerView, currentPane.candles.length),
+      }));
+      updatePaneHoverAtPoint(paneIndex, midpoint.x, midpoint.y, area === 'outside' ? 'plot' : area, event.currentTarget);
+      return;
+    }
+
+    if (gesture.mode === 'pinch' && gesture.paneIndex === paneIndex) {
+      beginTouchPan(paneIndex, firstPoint, pane);
+      return;
+    }
+
+    const area = getPointerArea(paneIndex, firstPoint.x, firstPoint.y);
+    if (!isChartNavigationArea(area) && gesture.mode !== 'pan') return;
+
+    if (gesture.mode !== 'pan' || gesture.paneIndex !== paneIndex) {
+      beginTouchPan(paneIndex, firstPoint, pane);
+      return;
+    }
+
+    const candleWidth = chartArea.width / Math.max(1, gesture.startViewRange.candlesPerView);
+    const candlesDelta = (firstPoint.x - gesture.startX) / Math.max(1, candleWidth);
+    const maxStartIndex = getMaxStartIndex(pane.candles.length, gesture.startViewRange.candlesPerView);
+    const newStartIndex = clamp(gesture.startViewRange.startIndex - candlesDelta, 0, maxStartIndex);
+
+    updatePaneState(paneIndex, (currentPane) => ({
+      ...currentPane,
+      viewRange: {
+        ...gesture.startViewRange,
+        startIndex: newStartIndex,
+        endIndex: newStartIndex + gesture.startViewRange.candlesPerView,
+      },
+    }));
+    updatePaneHoverAtPoint(paneIndex, firstPoint.x, firstPoint.y, area, event.currentTarget);
+  };
+
+  const handleTouchEnd = (paneIndex: number, event: React.TouchEvent<HTMLCanvasElement>) => {
+    const pane = paneStatesRef.current[paneIndex];
+    const points = getCanvasTouchPoints(event);
+    const firstPoint = points[0];
+
+    if (pane?.candles.length && firstPoint) {
+      beginTouchPan(paneIndex, firstPoint, pane);
+      return;
+    }
+
+    endTouchGesture(paneIndex);
+    event.currentTarget.dataset.pointerArea = 'outside';
+    event.currentTarget.style.cursor = getCanvasCursorForState('none', 'outside');
+  };
+
+  const handleTouchCancel = (paneIndex: number, event: React.TouchEvent<HTMLCanvasElement>) => {
+    endTouchGesture(paneIndex);
+    resetPaneHoverState(paneIndex);
+    event.currentTarget.dataset.pointerArea = 'outside';
+    event.currentTarget.style.cursor = getCanvasCursorForState('none', 'outside');
   };
 
   const drawLinePath = (
@@ -5732,6 +5947,10 @@ export default function Home() {
                   onMouseDown: (event) => handleMouseDown(paneIndex, event),
                   onMouseUp: handleMouseUp,
                   onMouseLeave: (event) => handleMouseLeave(paneIndex, event),
+                  onTouchStart: (event) => handleTouchStart(paneIndex, event),
+                  onTouchMove: (event) => handleTouchMove(paneIndex, event),
+                  onTouchEnd: (event) => handleTouchEnd(paneIndex, event),
+                  onTouchCancel: (event) => handleTouchCancel(paneIndex, event),
                   onWheel: (event) => handleWheel(paneIndex, event),
                 }}
               >

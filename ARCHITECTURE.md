@@ -340,6 +340,12 @@ The chart app supports:
   Wheel and drag gestures may leave the logical range on fractional slots, so
   timeline tick generation converts slot positions into interpolated candle
   timestamps instead of indexing the candle array directly.
+- TradingView-style mobile touch navigation: the chart canvas owns touch
+  gestures with `touch-action: none`. One-finger touches on the plot or bottom
+  time scale pan the existing logical `viewRange` horizontally, while
+  two-finger pinches update `candlesPerView` around the pinch midpoint so
+  candles get visually larger or smaller without handing the gesture to page
+  scroll or browser zoom.
 - Pane-aware crosshair geometry: `drawChart` records the main price pane,
   volume band, oscillator panes, and bottom time scale in each pane's
   interaction bounds. Pointer hit testing treats visible lower panes as chart

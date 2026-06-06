@@ -1,3 +1,85 @@
+# Mobile TradingView Touch Gestures
+
+## Goal
+
+Make the phone chart feel like TradingView Supercharts: one finger drags the
+chart horizontally, two fingers pinch around their midpoint to make candles
+bigger or smaller, and mobile browser page scrolling/zooming must not steal
+chart gestures.
+
+## Findings / Decisions
+
+- The live product surface remains `TEST/binance-chart-test/app/page.tsx`, the
+  standalone Next.js chart app.
+- TradingView mobile Supercharts renders the chart as canvas regions with a
+  main plot, right price scale, and bottom time scale in a scroll-locked
+  viewport. The matching local contract is to keep gestures owned by the canvas
+  and update the existing `viewRange` model.
+- The current app has mouse drag and wheel zoom, but the canvas only binds
+  mouse handlers. Touches do not start a drag state, and there is no pinch
+  distance tracking to update `candlesPerView`.
+- Keep the implementation small and local: add touch gesture state alongside
+  the existing drag ref, reuse `normalizeViewRange`, reuse the same candle-slot
+  math as wheel zoom and mouse pan, and leave desktop mouse behavior unchanged.
+- Treat one-finger plot/time-scale touch as horizontal pan only. Treat
+  two-finger touch on the chart surface as pinch zoom around the midpoint, with
+  changing finger distance mapped to candle count. Ignore price-scale touch
+  scaling for this request unless a future mobile price-scale control is
+  explicitly needed.
+
+## Checklist
+
+- [x] Add mobile touch gesture state and helpers to the chart app.
+- [x] Implement one-finger touch pan using the existing `viewRange` math.
+- [x] Implement two-finger pinch zoom to change candle spacing around the pinch
+      midpoint.
+- [x] Bind touch handlers to the chart canvas without changing desktop mouse
+      handlers.
+- [x] Update `ARCHITECTURE.md` for the mobile gesture model.
+- [x] Run focused type/lint/diff checks.
+- [x] Verify on a phone viewport with Browser/Playwright/devtools gestures.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Implemented TradingView-style mobile touch navigation in the standalone Binance
+chart app.
+
+- `TEST/binance-chart-test/app/page.tsx` now tracks a small touch gesture state
+  beside the existing mouse drag state.
+- One-finger touches on the chart plot or bottom time scale pan the existing
+  logical `viewRange` horizontally.
+- Two-finger pinches change `candlesPerView` around the pinch midpoint, so
+  spreading fingers makes candles larger and bringing fingers together makes
+  candles smaller.
+- The canvas still uses `touch-action: none` and `overscroll-behavior: contain`
+  to keep mobile browser scrolling/zooming from stealing chart gestures.
+- Mouse drag, wheel zoom, price-axis scaling, snapped crosshair, and indicator
+  legend behavior remain on the existing paths.
+- `ARCHITECTURE.md` documents the mobile touch gesture model.
+
+Verification results:
+
+- TradingView mobile reference loaded in a 390x844 viewport; it uses canvas
+  chart regions with locked page overflow and separate plot/right-axis/time-axis
+  regions.
+- `pnpm run typecheck:test` passed.
+- `pnpm exec eslint TEST/binance-chart-test/app/page.tsx --ext .tsx` passed.
+- `git diff --check` passed.
+- `npm --prefix TEST/binance-chart-test run build` passed with the existing
+  multiple-lockfile and missing Next ESLint-plugin warnings.
+- Browser/devtools mobile check at 390x844 verified canvas size `390x793`,
+  `touch-action: none`, `overscroll-behavior: contain`, and no horizontal
+  overflow.
+- Playwright MCP gesture simulation verified one-finger pan moved
+  `data-view-start` from `960.00` to `980.45`, pinch-out reduced
+  candles-per-view from `45` to `18`, and pinch-in increased candles-per-view
+  from `18` to `54`.
+- Playwright canvas pixel sampling found 9/9 nonblank sampled points on the
+  mobile canvas.
+- Scoped Playwright console capture returned no page errors; only React
+  dev-mode info/Fast Refresh logs were present.
+
 # Candle-Snapped Crosshair Magnet Mode
 
 ## Goal
