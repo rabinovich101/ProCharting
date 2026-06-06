@@ -1,331 +1,140 @@
 # ProCharting
 
-High-performance financial charting primitives for browser applications.
-ProCharting provides a TypeScript chart API, renderer selection across WebGPU,
-WebGL2, and Canvas 2D, and a separate price-data client package for normalized
-market candles.
+High-performance financial charting for browser applications. ProCharting
+provides a live market-chart application with candlesticks, indicators,
+crosshair inspection, zooming, panning, saved-layout account boundaries, and
+renderer support across WebGPU, WebGL2, and Canvas 2D paths.
 
-The chart package is currently developed as a pnpm monorepo. The public npm
-scope is not published yet, so the supported ways to try it today are cloning
-the repository, linking it locally, or installing the GitHub facade package.
+The public hosted app is available at:
+
+https://procharts.thefiscalwire.com
+
+This repository documents Docker-based evaluation and self-hosting only.
 
 ## Licensing Notice
 
 ProCharting is proprietary software and is not free to use. Cloning this
-repository, installing it from GitHub, linking it locally, or viewing the source
-does not grant usage rights. Production use, commercial use, redistribution,
-SaaS use, hosted use, and use inside another product or service require prior
-written permission and a valid paid license from Oleg Rabinovich.
+repository, building the Docker image, viewing the source, hosting the app,
+embedding it, or using it inside another product or service does not grant
+usage rights. Production use, commercial use, redistribution, SaaS use, hosted
+use, and iframe embedding require prior written permission and a valid paid
+license from Oleg Rabinovich.
 
 ## Features
 
-- TypeScript chart API centered on `createChart`.
-- Candlestick, line, bar, and volume series types.
-- Renderer factory with WebGPU, WebGL2, and Canvas 2D fallback paths.
+- Live market chart app served by Docker or the hosted deployment.
+- Candlestick, line, bar, and volume chart modes.
+- Renderer selection across WebGPU, WebGL2, and Canvas 2D fallback paths.
 - Mouse wheel zoom, drag pan, Y-axis scaling, crosshair events, and resize
   handling.
-- Real-time series helpers: `appendData` and `updateLast`.
-- Optional `@procharting/prices` package for normalized OHLC price data.
+- Indicator and layout UI for chart exploration.
+- Optional Supabase-backed account boundary when public Supabase environment
+  variables are provided.
 
-## Installation From GitHub Clone
+## Run With Docker
 
-Use pnpm for repository development because this project uses pnpm workspaces.
+Requirements:
 
-```bash
-git clone https://github.com/rabinovich101/ProCharting.git
-cd ProCharting
-corepack enable pnpm
-pnpm install
-pnpm build
-```
+- Docker Engine or Docker Desktop with Docker Compose v2.
 
-Run the live chart app:
+Start the chart app:
 
 ```bash
-npm --prefix TEST/binance-chart-test install
-npm --prefix TEST/binance-chart-test run dev
+docker compose up --build
 ```
 
-Then open the local Next.js URL printed by the command. The deployed app is
-served at https://procharts.thefiscalwire.com.
+Open:
 
-## How To Use In Another Project
+```text
+http://localhost:3000
+```
 
-### Option 1: Local Link
-
-Use this while actively editing ProCharting and testing it in another local app.
+Stop the app:
 
 ```bash
-cd ProCharting
-pnpm install
-pnpm build
-npm link
+docker compose down
 ```
 
-Then in your application:
+The Docker image builds the standalone Next.js chart app in
+`TEST/binance-chart-test` and serves it on container port `3000`. The root
+`docker-compose.yml` maps that service to host port `3000`.
+
+### Optional Supabase Environment
+
+The app works in a public signed-out mode when Supabase public environment
+variables are absent. To connect the account UI to a Supabase project, provide
+the public URL and key before starting Docker:
 
 ```bash
-npm link procharting
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co" \
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="your-public-key" \
+docker compose up --build
 ```
 
-Application code can import the root GitHub facade:
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` is also supported for deployments that still use
+the older public anon-key name.
 
-```ts
-import { createChart } from 'procharting';
+## Embed With An Iframe
+
+Use the hosted app URL when you have a license for hosted embedding:
+
+```html
+<iframe
+  src="https://procharts.thefiscalwire.com"
+  title="ProCharting market chart"
+  loading="lazy"
+  allowfullscreen
+  style="width: 100%; height: min(80vh, 760px); min-height: 520px; border: 0; display: block;"
+></iframe>
 ```
 
-### Option 2: Install Directly From GitHub
+For a self-hosted Docker deployment, replace `src` with the HTTPS URL that
+points to your Docker-served ProCharting app:
 
-Use this when you want to consume the current GitHub repository without waiting
-for npm publication.
-
-```bash
-pnpm add github:rabinovich101/ProCharting
+```html
+<iframe
+  src="https://charts.your-domain.example"
+  title="ProCharting market chart"
+  loading="lazy"
+  allowfullscreen
+  style="width: 100%; height: min(80vh, 760px); min-height: 520px; border: 0; display: block;"
+></iframe>
 ```
 
-Then import the chart API from the installed facade package:
+Recommended embedding notes:
 
-```ts
-import { createChart } from 'procharting';
-```
+- Serve production embeds over HTTPS.
+- Give the iframe a stable height; the chart is an interactive application, not
+  a small inline widget.
+- Use a descriptive `title` for accessibility.
+- If you add a restrictive `sandbox` attribute, test all interactions you need
+  because authentication, popups, downloads, and fullscreen can be affected.
+- Keep the iframe URL on an allowed licensed domain.
 
-The direct GitHub package runs the repository build during installation so the
-compiled chart entry points are available to your app. The `@procharting/*`
-workspace packages remain unpublished on npm until the npm scope is available.
+## Repository Layout
 
-## Basic Usage
-
-Plain browser or Vite application:
-
-```ts
-import { createChart, type CandlestickData } from 'procharting';
-
-const data: CandlestickData[] = [
-  {
-    time: 1735689600,
-    open: 100,
-    high: 110,
-    low: 95,
-    close: 105,
-    volume: 1200000,
-  },
-];
-
-const chart = createChart('#chart', {
-  renderer: 'auto',
-  theme: 'dark',
-  width: 900,
-  height: 500,
-  interactions: {
-    enableZoom: true,
-    enablePan: true,
-    enableCrosshair: true,
-    enableYAxisScale: true,
-  },
-});
-
-const candles = chart.addSeries({
-  type: 'candlestick',
-  data,
-  upColor: '#26a69a',
-  downColor: '#ef5350',
-});
-
-candles.appendData({
-  time: 1735776000,
-  open: 105,
-  high: 112,
-  low: 101,
-  close: 109,
-  volume: 980000,
-});
-```
-
-React or Next.js client component:
-
-```tsx
-'use client';
-
-import { useEffect, useRef } from 'react';
-import { createChart, type CandlestickData, type Chart } from 'procharting';
-
-const data: CandlestickData[] = [
-  { time: 1735689600, open: 100, high: 110, low: 95, close: 105, volume: 1200000 },
-];
-
-export function ChartExample() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const chartRef = useRef<Chart | null>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const chart = createChart(containerRef.current, {
-      renderer: 'auto',
-      theme: 'dark',
-      height: 500,
-    });
-
-    chart.addSeries({ type: 'candlestick', data });
-    chartRef.current = chart;
-
-    return () => {
-      chart.destroy();
-      chartRef.current = null;
-    };
-  }, []);
-
-  return <div ref={containerRef} style={{ width: '100%', height: 500 }} />;
-}
-```
-
-## Props / API
-
-`createChart(container, options)` accepts an HTMLElement or CSS selector and a
-`ChartOptions` object.
-
-| Option | Type | Required | Default | Description |
-| --- | --- | --- | --- | --- |
-| `renderer` | `'auto' | 'webgpu' | 'webgl2' | 'canvas2d'` | No | `'auto'` | Selects the renderer or lets ProCharting choose the best supported renderer. |
-| `width` | `number` | No | Container width | Initial canvas width. |
-| `height` | `number` | No | Container height | Initial canvas height. |
-| `pixelRatio` | `number` | No | `window.devicePixelRatio` | Pixel ratio for high-DPI rendering. |
-| `theme` | `'light' | 'dark' | ChartTheme` | No | Renderer default | Built-in theme name or custom theme object. |
-| `interactions` | `InteractionOptions` | No | Enabled defaults | Controls zoom, pan, crosshair, and Y-axis scaling. |
-| `performance` | `PerformanceOptions` | No | None | Optional worker, GPU preference, FPS, and memory hints. |
-
-Main `Chart` methods:
-
-| Method | Description |
-| --- | --- |
-| `addSeries(options)` | Adds candlestick, line, bar, or volume data. |
-| `removeSeries(series)` | Removes a series returned by `addSeries`. |
-| `resize(width, height)` | Resizes the chart canvas. |
-| `setVisibleRange(from, to)` | Sets the visible X/time range. |
-| `setYAxisRange(min, max)` | Sets the visible Y/price range. |
-| `zoomIn(factor)` / `zoomOut(factor)` | Programmatic zoom controls. |
-| `pan(offset)` | Programmatic horizontal pan. |
-| `resetView()` | Resets the visible chart range. |
-| `on(event, handler)` / `off(event, handler)` | Subscribes to chart events. |
-| `destroy()` | Cleans up canvas, listeners, and renderer resources. |
-
-## Data Format
-
-Candlestick data uses Unix time in seconds.
-
-```ts
-type CandlestickData = {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-};
-```
-
-Use `volume: 0` when your source does not provide volume data.
-
-Line data:
-
-```ts
-type LineData = {
-  time: number;
-  value: number;
-};
-```
-
-Volume data:
-
-```ts
-type VolumeData = {
-  time: number;
-  value: number;
-  color?: string;
-};
-```
-
-## Price Data
-
-The price client can be imported from the GitHub facade subpath:
-
-```ts
-import { createPriceClient } from 'procharting/prices';
-
-const client = createPriceClient({
-  symbol: 'AAPL',
-  provider: 'default',
-});
-
-const candles = await client.getPrices({ interval: '1d', limit: 30 });
-```
-
-The default provider uses no-key Stooq historical CSV data for daily, weekly,
-and monthly candles. Use a custom provider for production market data,
-authenticated APIs, or real-time feeds.
-
-## Development
-
-```bash
-pnpm install
-pnpm dev
-pnpm build
-pnpm test
-pnpm typecheck
-pnpm lint
-```
-
-`pnpm lint` currently reports legacy lint debt outside the package-readiness
-changes. The build, tests, and typecheck are the primary verification commands.
-
-## Build
-
-Build all workspace packages:
-
-```bash
-pnpm build
-```
-
-Build only the chart package:
-
-```bash
-pnpm --filter @procharting/core build
-```
-
-Create a local tarball for the GitHub facade:
-
-```bash
-pnpm pack --pack-destination /tmp/procharting-pack
-```
-
-## Folder Structure
-
-```bash
-packages/
-  core/      # createChart API and renderer orchestration
-  prices/    # optional normalized price-data client
-  types/     # shared TypeScript interfaces
-  utils/     # shared utilities
-  webgl/     # WebGL2 renderer
-  webgpu/    # WebGPU renderer
-examples/
-  basic/     # Vite browser example using createChart
-TEST/
-  binance-chart-test/ # standalone Next.js live-chart QA app
-README.md
-ARCHITECTURE.md
+```text
+Dockerfile                 # Docker build for the chart app
+docker-compose.yml         # Local Docker run configuration
+TEST/binance-chart-test/   # Standalone Next.js chart app
+packages/core/             # createChart API and renderer orchestration
+packages/prices/           # Optional normalized price-data client
+packages/types/            # Shared TypeScript interfaces
+packages/utils/            # Shared utilities
+packages/webgl/            # WebGL2 renderer
+packages/webgpu/           # WebGPU renderer
+infra/supabase/            # Docker-only Supabase helper boundary
+ARCHITECTURE.md            # Architecture notes
 ```
 
 ## Troubleshooting
 
 | Problem | Fix |
 | --- | --- |
-| `Cannot find module 'procharting'` | Run `pnpm build` before linking, or reinstall from GitHub after the latest commit is pushed. |
-| `Cannot find module '@procharting/*'` | Use the root `procharting` GitHub facade, not a `packages/core` GitHub subdirectory install. |
-| `workspace:* dependency not found` | Do not install `#path:/packages/core` directly; install the repository root with `pnpm add github:rabinovich101/ProCharting`. |
-| CSS is not loading | The core package does not ship a required stylesheet. Ensure the chart container has explicit width and height. |
-| Build failed because `pnpm` is missing | Run `corepack enable pnpm`, then rerun `pnpm install` and `pnpm build`. |
-| TypeScript cannot find DOM types | Browser chart consumers need DOM libs enabled in `tsconfig.json`. |
+| Docker Compose is not available | Install Docker Desktop or Docker Engine with the Compose v2 plugin, then rerun `docker compose up --build`. |
+| Host port `3000` is already in use | Change the host-side port in `docker-compose.yml`, for example `3001:3000`, then open `http://localhost:3001`. |
+| Account buttons show that accounts are not connected | Provide `NEXT_PUBLIC_SUPABASE_URL` and either `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`. |
+| Iframe is too short or clipped | Increase the iframe height or use a responsive wrapper with a minimum height of at least `520px`. |
 
 ## License
 

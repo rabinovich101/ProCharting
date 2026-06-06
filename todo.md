@@ -1,3 +1,80 @@
+# Docker-Only README And Iframe Docs
+
+## Goal
+
+Update the GitHub repository README so public setup instructions use Docker
+only, remove clone/link/GitHub package install methods from the public install
+path, and document how to embed the hosted chart app with an iframe.
+
+## Investigation / Decisions
+
+- The current root README still describes pnpm clone setup, local npm linking,
+  and direct GitHub package installation.
+- The runnable product app is `TEST/binance-chart-test`, a standalone Next.js
+  app. The repository has a Docker-only Supabase helper, but no checked-in
+  Dockerfile or compose file for the chart app itself.
+- To keep the README honest, add a minimal root Docker build for the Next app
+  and a root `docker-compose.yml` that exposes the app on port 3000.
+- Keep package/API details in the README, but remove the public installation
+  paths that encourage non-Docker use.
+- The iframe instructions should cover both the public hosted app and a
+  Docker-served/self-hosted URL, with responsive sizing and a license reminder.
+
+## Checklist
+
+- [x] Add a minimal Docker runtime for `TEST/binance-chart-test`.
+- [x] Rewrite the root README to keep only Docker-based install/run steps.
+- [x] Add iframe/embed instructions to the root README.
+- [x] Update `ARCHITECTURE.md` for the app Docker packaging boundary.
+- [x] Run build/check commands for the changed Docker/docs surface.
+- [x] Verify the app with Playwright/browser after the changes.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Updated the repository-facing Docker and iframe documentation.
+
+- Added a root `Dockerfile` that builds `TEST/binance-chart-test` and runs the
+  production Next.js app on container port `3000`.
+- Added a root `docker-compose.yml` that builds `procharting:local`, maps
+  `3000:3000`, disables Next telemetry, and passes through optional public
+  Supabase browser environment variables.
+- Added `.dockerignore` so Docker builds do not send local dependencies,
+  generated app output, logs, local env files, or generated Supabase runtime
+  files into the image context.
+- Rewrote `README.md` so the public setup path is Docker-only and the previous
+  clone, link, package-manager, and direct GitHub dependency instructions are
+  gone.
+- Added README iframe examples for the hosted app and self-hosted Docker
+  deployment, plus practical embed sizing, HTTPS, accessibility, sandbox, and
+  license notes.
+- Updated `ARCHITECTURE.md` to document the app-only Docker packaging boundary
+  and iframe documentation contract.
+
+Verification results:
+
+- `rg` found no old root README install strings for pnpm, npm link, direct
+  GitHub dependencies, clone setup, or local dev setup.
+- `docker compose config` passed.
+- `docker compose build` passed and produced `procharting:local`.
+- `docker compose up -d` started the app, `docker compose ps` showed the
+  service up on `0.0.0.0:3000->3000`, and `curl -I http://127.0.0.1:3000`
+  returned `HTTP/1.1 200 OK`.
+- Browser/Playwright/devtools verification passed against the Docker-served
+  app: page title `ProCharting Market Desk`, one chart canvas, 14 buttons,
+  market/live text rendered, and browser console warning/error logs were empty.
+- Header checks for `http://127.0.0.1:3000` and
+  `https://procharts.thefiscalwire.com` returned `200` HTML responses and did
+  not return `X-Frame-Options`, `Content-Security-Policy`, or `frame-ancestors`
+  frame-blocking headers.
+- The in-app browser blocked a `data:` iframe-wrapper smoke page by policy, so
+  no browser-policy workaround was attempted. Direct Docker app rendering and
+  frame-blocking header checks were used for iframe readiness.
+- `git diff --check` passed.
+- Existing build warnings remain: the container build reports 3 npm audit
+  vulnerabilities from the app dependency tree and a nonfatal Next build
+  message that ESLint is not installed for build-time linting.
+
 # Google And GitHub Auth Options
 
 ## Goal

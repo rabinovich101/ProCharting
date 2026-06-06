@@ -57,6 +57,21 @@ The deploy script runs `npm ci` and `npm run build` inside
 `TEST/binance-chart-test`, then restarts the `procharts-app` pm2 process with
 `npm start -- -H 127.0.0.1 -p 3000`.
 
+The repository also has a root Docker packaging boundary for the standalone
+Next.js chart app. `Dockerfile` builds `TEST/binance-chart-test` with the app's
+existing package scripts and runs the production Next server on container port
+`3000`; `docker-compose.yml` maps that service to host port `3000` for local
+evaluation or self-hosted deployment. The container boundary is app-only: it
+does not replace the internal `packages/*` library boundaries or the VM-local
+pm2 deployment. Compose passes through only public Supabase browser
+configuration variables so the app keeps the existing signed-out behavior when
+account infrastructure is not connected.
+
+The public README now documents Docker as the only setup path for repository
+evaluation and self-hosting. Iframe embedding targets either the hosted
+`https://procharts.thefiscalwire.com` app or an HTTPS URL in front of the
+Docker-served app, and remains governed by the proprietary license.
+
 ### 1.2 Supabase Microservice Boundary
 
 ProCharting now has a Docker-only Supabase infrastructure boundary under
