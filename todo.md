@@ -1,3 +1,48 @@
+# Signup Name Placeholder Cleanup
+
+## Goal
+
+Remove the user's personal name from the Sign up dialog Name field and replace
+it with a different generic example name.
+
+## Investigation / Decisions
+
+- The relevant UI is the existing auth dialog in
+  `TEST/binance-chart-test/app/page.tsx`.
+- The current signup Name placeholder is `Oleg Rabinovich`; replace only that
+  placeholder with `Jordan Lee`.
+- This is a copy-only UI change and does not alter auth state, Supabase
+  behavior, password validation, layout persistence, or architecture.
+- `ARCHITECTURE.md` does not need an update because no architecture boundary
+  changed.
+
+## Checklist
+
+- [x] Replace the signup Name placeholder with a different generic name.
+- [x] Add/adjust Playwright coverage so the personal placeholder stays removed.
+- [x] Run build, E2E, and browser verification.
+- [x] Commit, push, and leave the worktree clean.
+
+## Review
+
+Replaced the signup Name placeholder with the generic example `Jordan Lee` and
+added Playwright coverage for the new placeholder.
+
+- Updated `TEST/binance-chart-test/app/page.tsx` so the Sign up dialog Name
+  field no longer uses the user's personal name.
+- Updated `TEST/binance-chart-test/tests/e2e/signed-out-auth.spec.ts` to assert
+  the Name field placeholder is `Jordan Lee`.
+- No `ARCHITECTURE.md` update was needed because this is a copy-only UI change.
+
+Verification results:
+
+- `git diff --check` passed.
+- `npm run build` passed in `TEST/binance-chart-test`.
+- `npm run test:e2e` passed: 3 Playwright tests.
+- Production `next start` browser verification confirmed the placeholder is
+  `Jordan Lee`, the old placeholder is absent, the signup dialog has no
+  horizontal overflow, and captured console warning/error logs were empty.
+
 # Auth Password Security Upgrade
 
 ## Goal

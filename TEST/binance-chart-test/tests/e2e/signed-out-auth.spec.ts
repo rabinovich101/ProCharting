@@ -96,6 +96,7 @@ test.describe('signed-out chart access', () => {
     await expect(signupDialog.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible();
     await expect(signupDialog.getByText('Secure password standard')).toBeVisible();
     await expect(signupDialog.getByRole('button', { name: 'Generate secure password' })).toBeVisible();
+    await expect(signupDialog.getByLabel('Name')).toHaveAttribute('placeholder', 'Jordan Lee');
     const signupPasswordInput = signupDialog.locator('#auth-password-input');
     await expect(signupDialog.locator('.auth-provider-button.google .auth-provider-icon')).toHaveAttribute(
       'src',

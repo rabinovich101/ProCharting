@@ -6092,7 +6092,7 @@ export default function Home() {
                       <span>Name</span>
                       <input
                         autoComplete="name"
-                        placeholder="Oleg Rabinovich"
+                        placeholder="Jordan Lee"
                         value={authForm.displayName}
                         onChange={(event) => setAuthForm((current) => ({ ...current, displayName: event.target.value }))}
                       />
