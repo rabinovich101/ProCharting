@@ -1,0 +1,91 @@
+name: Enable Google OAuth Runtime
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: procharts-google-oauth-runtime
+  cancel-in-progress: false
+
+jobs:
+  enable-google-oauth:
+    name: Enable Google OAuth In Production Supabase
+    runs-on: [self-hosted, procharts-vm]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import Google OAuth and verify Auth settings
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          runtime_dir="/home/ooo/procharts-supabase/runtime"
+          google_json="/home/ooo/client_secret_798085098917-rufl7av9jf0v2g3u9pfc9de5h6bn85a4.apps.googleusercontent.com.json"
+          helper="$GITHUB_WORKSPACE/infra/supabase/scripts/supabase.sh"
+
+          test -f "$runtime_dir/.env"
+          test -f "$runtime_dir/docker-compose.yml"
+          test -f "$google_json"
+          test -f "$helper"
+
+          echo "Runtime: $runtime_dir"
+          echo "Google JSON: present"
+
+          echo "Runtime env status:"
+          awk -F= '
+            /^[[:space:]]*#/ { next }
+            /^(SUPABASE_PUBLIC_URL|API_EXTERNAL_URL|SITE_URL|GOOGLE_ENABLED|GOOGLE_CLIENT_ID|GOOGLE_SECRET|GITHUB_ENABLED)=/ {
+              if ($1 ~ /SECRET/) print $1 "=set (hidden)"
+              else if ($1 ~ /CLIENT_ID/) print $1 "=" $2
+              else print $1 "=" ($2 == "" ? "empty" : "set")
+            }
+          ' "$runtime_dir/.env"
+
+          PROCHARTING_SUPABASE_RUNTIME_DIR="$runtime_dir" \
+            sh "$helper" import-google-oauth "$google_json"
+
+          cd "$runtime_dir"
+
+          if ! grep -q "GOTRUE_EXTERNAL_GOOGLE_ENABLED" docker-compose.yml; then
+            backup="docker-compose.yml.before-google-oauth-$(date +%Y%m%d%H%M%S)"
+            cp docker-compose.yml "$backup"
+            echo "Adding Google Auth passthrough to docker-compose.yml (backup: $backup)"
+            perl -0pi -e 's/(      GOTRUE_EXTERNAL_GITHUB_ENABLED: \$\{GITHUB_ENABLED\}\n)/      GOTRUE_EXTERNAL_GOOGLE_ENABLED: \$\{GOOGLE_ENABLED\}\n      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: \$\{GOOGLE_CLIENT_ID\}\n      GOTRUE_EXTERNAL_GOOGLE_SECRET: \$\{GOOGLE_SECRET\}\n      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: \$\{API_EXTERNAL_URL\}\/auth\/v1\/callback\n\1/' docker-compose.yml
+          else
+            echo "Google Auth passthrough already exists in docker-compose.yml"
+          fi
+
+          echo "Compose OAuth passthrough lines:"
+          grep -n "GOTRUE_EXTERNAL_GOOGLE\|GOTRUE_EXTERNAL_GITHUB" docker-compose.yml
+
+          docker compose up -d --force-recreate --no-deps auth
+
+          echo "Auth container Google env status:"
+          docker compose exec -T auth sh -lc '
+            env | grep -E "^GOTRUE_EXTERNAL_GOOGLE_(ENABLED|CLIENT_ID|REDIRECT_URI)=" || true
+            if [ -n "$GOTRUE_EXTERNAL_GOOGLE_SECRET" ]; then
+              echo "GOTRUE_EXTERNAL_GOOGLE_SECRET=set (hidden)"
+            else
+              echo "GOTRUE_EXTERNAL_GOOGLE_SECRET=missing"
+            fi
+          '
+
+          PROCHARTING_SUPABASE_RUNTIME_DIR="$runtime_dir" \
+            sh "$helper" oauth-status | tee /tmp/procharts-oauth-settings.json
+
+          grep -q '"google":true' /tmp/procharts-oauth-settings.json
+
+          curl -sS -o /tmp/procharts-google-authorize-body.txt \
+            -D /tmp/procharts-google-authorize-headers.txt \
+            "https://procharts.thefiscalwire.com/auth/v1/authorize?provider=google&redirect_to=https%3A%2F%2Fprocharts.thefiscalwire.com"
+
+          echo "Authorize response headers:"
+          sed -n '1,20p' /tmp/procharts-google-authorize-headers.txt
+
+          if grep -q "Unsupported provider" /tmp/procharts-google-authorize-body.txt; then
+            cat /tmp/procharts-google-authorize-body.txt
+            exit 1
+          fi

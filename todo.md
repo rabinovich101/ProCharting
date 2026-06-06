@@ -1,3 +1,37 @@
+# Production Google OAuth Runner Fix
+
+## Goal
+
+Use the VM-local GitHub self-hosted runner to finish enabling Google OAuth in
+the production Supabase runtime because direct SSH from this Codex session is
+blocked by the jump host.
+
+## Investigation / Decisions
+
+- The production runtime `.env` import succeeded on the VM, but
+  `/auth/v1/settings` still reports `external.google: false`.
+- The local runtime has `GOTRUE_EXTERNAL_GOOGLE_*` Docker Compose passthrough
+  lines. Production likely lacks those lines in the generated runtime
+  `docker-compose.yml`, so the Auth container cannot see the imported Google
+  env values.
+- Use a temporary `workflow_dispatch` job on the existing self-hosted runner to
+  inspect the production runtime without printing secrets, patch Compose
+  idempotently, recreate only the `auth` container, and verify status.
+- Remove the temporary workflow after the VM fix is complete.
+
+## Checklist
+
+- [ ] Add temporary self-hosted runner workflow for the production OAuth fix.
+- [ ] Run the workflow and inspect its non-secret output.
+- [ ] Verify production `oauth-status` reports `google: true`.
+- [ ] Verify the public Google authorize endpoint no longer returns provider
+      disabled.
+- [ ] Remove the temporary workflow and leave the repo clean.
+
+## Review
+
+In progress.
+
 # Production Google OAuth Provider Enablement
 
 ## Goal
