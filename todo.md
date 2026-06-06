@@ -20,19 +20,23 @@ blocked by the jump host.
 - The remaining public failure is the Next.js same-domain rewrite layer:
   production PM2 logs show `Cannot find module 'next/dist/compiled/http-proxy'`
   and `/auth/v1/*` requests through Next return HTTP 500.
-- Use the temporary `workflow_dispatch` job on the existing self-hosted runner
-  to clean-redeploy the production Next app, then verify direct Kong, local
-  Next rewrites, and the public Google authorize redirect.
+- The clean-redeploy runner job restored the missing Next proxy dependency and
+  verified direct Kong, local Next rewrites, and the public Google authorize
+  redirect.
+- GitHub Actions cleanup tried to terminate the PM2-managed process started by
+  the workflow, so the normal VM deploy script should clear the runner process
+  tracking environment before starting PM2.
 - Remove the temporary workflow after the VM fix is complete.
 
 ## Checklist
 
 - [x] Add temporary self-hosted runner workflow for the production OAuth fix.
-- [ ] Run the workflow and inspect its non-secret output.
+- [x] Run the workflow and inspect its non-secret output.
 - [x] Verify direct Supabase/Kong Auth settings report `google: true`.
-- [ ] Verify production same-domain `oauth-status` reports `google: true`.
-- [ ] Verify the public Google authorize endpoint no longer returns provider
+- [x] Verify production same-domain `oauth-status` reports `google: true`.
+- [x] Verify the public Google authorize endpoint no longer returns provider
       disabled.
+- [x] Harden the normal VM deploy script so PM2 apps outlive Actions cleanup.
 - [ ] Remove the temporary workflow and leave the repo clean.
 
 ## Review
@@ -51,6 +55,12 @@ blocked by the jump host.
 - Updated the temporary workflow to remove the VM app's stale `node_modules`
   and `.next`, run the normal VM deploy script, assert the Next proxy module
   exists, and retest the local/public auth paths.
+- Runner run `27069488587` passed. It clean-redeployed the app, confirmed the
+  local Next rewrite returns `google: true`, confirmed public
+  `/auth/v1/settings` returns `google: true`, and confirmed the public Google
+  authorize URL returns HTTP 302 to `accounts.google.com`.
+- Added a deploy-script guard to clear GitHub Actions process tracking before
+  PM2 starts the production app.
 
 # Production Google OAuth Provider Enablement
 

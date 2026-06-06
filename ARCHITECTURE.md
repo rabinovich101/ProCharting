@@ -70,6 +70,9 @@ not contain Supabase server secrets such as service-role keys, JWT secrets,
 Postgres passwords, or OAuth client secrets.
 The file is owned by `root:ooo` with mode `0640` so the self-hosted Actions
 runner user can source it during deploy while other local users cannot read it.
+The deploy script clears GitHub Actions' process-tracking environment before
+starting PM2 so runner cleanup does not terminate the production app it just
+launched.
 
 The repository also has a root Docker packaging boundary for the standalone
 Next.js chart app. `Dockerfile` builds `TEST/binance-chart-test` with the app's
@@ -140,7 +143,7 @@ Supabase gateway. `TEST/binance-chart-test/next.config.ts` rewrites
 This lets Cloudflare Tunnel continue publishing a single
 `https://procharts.thefiscalwire.com` origin while Supabase Auth callbacks use
 the same public domain. Production Supabase must therefore set its public auth
-URL values to that HTTPS app origin, and GitHub OAuth must allow
+URL values to that HTTPS app origin, and Google/GitHub OAuth must allow
 `https://procharts.thefiscalwire.com/auth/v1/callback`.
 The generated production Supabase runtime lives outside the GitHub Actions
 runner checkout at `/home/ooo/procharts-supabase/runtime`. Keeping Docker-owned

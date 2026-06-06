@@ -43,6 +43,10 @@ fi
 npm ci
 npm run build
 
+# GitHub Actions marks spawned processes for cleanup; PM2 apps must outlive the
+# deploy job that starts them.
+unset RUNNER_TRACKING_ID
+
 for process_name in "$APP_NAME" "$LEGACY_APP_NAME"; do
   if pm2 describe "$process_name" >/dev/null 2>&1; then
     pm2 delete "$process_name"
