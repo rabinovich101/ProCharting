@@ -1943,7 +1943,7 @@ summary {
   font-size: 14px;
   font-weight: 730;
   gap: 8px 13px;
-  left: 18px;
+  left: 58px;
   line-height: 1.35;
   max-width: min(850px, calc(100vw - 132px));
   min-height: 40px;
@@ -2002,7 +2002,7 @@ summary {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  left: 18px;
+  left: 58px;
   max-width: min(760px, calc(100vw - 132px));
   pointer-events: auto;
   position: absolute;
@@ -2867,7 +2867,7 @@ summary {
   .instrument-legend-overlay {
     font-size: 12px;
     gap: 5px 8px;
-    left: 8px;
+    left: 52px;
     max-width: calc(100vw - 88px);
     min-height: 34px;
     padding: 5px 7px;
@@ -2879,7 +2879,7 @@ summary {
   }
 
   .indicator-legend-overlay {
-    left: 8px;
+    left: 52px;
     max-width: calc(100vw - 88px);
     top: 108px;
   }

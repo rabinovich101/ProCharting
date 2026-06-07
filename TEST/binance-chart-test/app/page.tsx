@@ -137,6 +137,8 @@ type MenuKey = 'timeframe' | 'chartStyle' | 'indicators';
 type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
+type DrawingToolId = 'trend-line' | 'horizontal-ray';
+type DrawingDragMode = 'none' | 'body' | 'start' | 'end';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
 type IndicatorMaType = 'EMA' | 'SMA';
@@ -198,6 +200,44 @@ interface ChartInteractionBounds {
   chartArea: ChartCanvasArea;
   crosshairAreas: ChartCanvasArea[];
   timeScaleArea: ChartCanvasArea;
+}
+
+interface ChartDrawingAnchor {
+  logicalIndex: number;
+  price: number;
+}
+
+interface ChartDrawing {
+  id: string;
+  kind: DrawingToolId;
+  paneIndex: number;
+  anchors: ChartDrawingAnchor[];
+  locked: boolean;
+  color: string;
+  lineWidth: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface PendingDrawing {
+  tool: DrawingToolId;
+  paneIndex: number;
+  anchor: ChartDrawingAnchor;
+  preview: ChartDrawingAnchor;
+}
+
+interface DrawingDragState {
+  mode: DrawingDragMode;
+  paneIndex: number;
+  drawingId: string | null;
+  startX: number;
+  startY: number;
+  startAnchors: ChartDrawingAnchor[];
+}
+
+interface DrawingHitResult {
+  drawing: ChartDrawing;
+  target: Exclude<DrawingDragMode, 'none'>;
 }
 
 interface OscillatorPaneArea extends ChartCanvasArea {
@@ -383,6 +423,7 @@ interface SavedChartLayout {
   layoutSync: Record<LayoutSyncKey, boolean>;
   chartSettings: ChartSettingsState;
   indicators: ActiveIndicator[];
+  drawings?: ChartDrawing[];
   panes: SavedChartPaneSnapshot[];
 }
 
@@ -473,6 +514,13 @@ const DEFAULT_CHART_SETTINGS: ChartSettingsState = {
   showVolumePane: true,
   showCrosshair: true,
 };
+const DRAWING_DEFAULT_COLOR = '#2962ff';
+const DRAWING_HANDLE_RADIUS = 4.5;
+const DRAWING_HIT_TOLERANCE = 8;
+const DRAWING_TOOL_OPTIONS: Array<{ id: DrawingToolId; label: string; description: string }> = [
+  { id: 'trend-line', label: 'Trend line', description: 'Draw a two-point diagonal line' },
+  { id: 'horizontal-ray', label: 'Horizontal ray', description: 'Draw a right-extending price level' },
+];
 
 const layoutCell = (column: number, row: number, columnSpan = 1, rowSpan = 1): LayoutCellSpec => ({
   column: `${column} / span ${columnSpan}`,
@@ -1601,6 +1649,83 @@ const createTouchGestureState = (paneIndex = 0): ChartTouchGestureState => ({
   startDistance: 0,
   startMidX: 0,
 });
+const createDrawingDragState = (paneIndex = 0): DrawingDragState => ({
+  mode: 'none',
+  paneIndex,
+  drawingId: null,
+  startX: 0,
+  startY: 0,
+  startAnchors: [],
+});
+const createDrawingId = (kind: DrawingToolId) =>
+  `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const cloneDrawingAnchors = (anchors: ChartDrawingAnchor[]) =>
+  anchors.map((anchor) => ({ logicalIndex: anchor.logicalIndex, price: anchor.price }));
+const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
+  ...drawing,
+  anchors: cloneDrawingAnchors(drawing.anchors),
+});
+const isDrawingToolId = (value: unknown): value is DrawingToolId =>
+  value === 'trend-line' || value === 'horizontal-ray';
+const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawing[] => {
+  if (!Array.isArray(drawings)) return [];
+
+  return drawings
+    .filter((drawing): drawing is Partial<ChartDrawing> & { anchors: ChartDrawingAnchor[] } => {
+      if (!drawing || typeof drawing !== 'object') return false;
+
+      const candidate = drawing as Partial<ChartDrawing>;
+      if (!isDrawingToolId(candidate.kind)) return false;
+      if (!Array.isArray(candidate.anchors)) return false;
+      if (typeof candidate.paneIndex !== 'number' || candidate.paneIndex < 0 || candidate.paneIndex >= paneCount) {
+        return false;
+      }
+
+      const requiredAnchors = candidate.kind === 'trend-line' ? 2 : 1;
+      return candidate.anchors.length >= requiredAnchors;
+    })
+    .map((drawing, index) => {
+      const requiredAnchors = drawing.kind === 'trend-line' ? 2 : 1;
+      const anchors = drawing.anchors
+        .slice(0, requiredAnchors)
+        .filter(
+          (anchor) =>
+            Number.isFinite(anchor.logicalIndex) &&
+            Number.isFinite(anchor.price)
+        )
+        .map((anchor) => ({ logicalIndex: anchor.logicalIndex, price: anchor.price }));
+
+      if (anchors.length < requiredAnchors) return null;
+
+      const timestamp = Number.isFinite(drawing.createdAt) ? drawing.createdAt! : Date.now();
+      return {
+        id: typeof drawing.id === 'string' && drawing.id.length > 0 ? drawing.id : `${drawing.kind}-${timestamp}-${index}`,
+        kind: drawing.kind,
+        paneIndex: drawing.paneIndex,
+        anchors,
+        locked: drawing.locked === true,
+        color: typeof drawing.color === 'string' ? drawing.color : DRAWING_DEFAULT_COLOR,
+        lineWidth: Number.isFinite(drawing.lineWidth) ? clamp(drawing.lineWidth!, 1, 6) : 2,
+        createdAt: timestamp,
+        updatedAt: Number.isFinite(drawing.updatedAt) ? drawing.updatedAt! : timestamp,
+      };
+    })
+    .filter((drawing): drawing is ChartDrawing => drawing !== null);
+};
+const getDistanceToSegment = (
+  x: number,
+  y: number,
+  start: { x: number; y: number },
+  end: { x: number; y: number }
+) => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(x - start.x, y - start.y);
+
+  const t = clamp(((x - start.x) * dx + (y - start.y) * dy) / lengthSquared, 0, 1);
+  return Math.hypot(x - (start.x + t * dx), y - (start.y + t * dy));
+};
 const createPaneHoverState = (): PaneHoverState => ({
   mousePos: null,
   pointerArea: 'outside',
@@ -3064,6 +3189,9 @@ export default function Home() {
   const chartBoundsRefs = useRef<ChartInteractionBounds[]>([createDefaultChartBounds()]);
   const dragStateRef = useRef<ChartDragState>(createDragState());
   const touchGestureRef = useRef<ChartTouchGestureState>(createTouchGestureState());
+  const drawingDragRef = useRef<DrawingDragState>(createDrawingDragState());
+  const drawingsRef = useRef<ChartDrawing[]>([]);
+  const selectedDrawingIdRef = useRef<string | null>(null);
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
   const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
   const legendRenderFrameRef = useRef<number | undefined>(undefined);
@@ -3076,6 +3204,10 @@ export default function Home() {
   const [activePaneIndex, setActivePaneIndex] = useState(0);
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
   const [theme, setTheme] = useState<ThemeName>('dark');
+  const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
+  const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
+  const [pendingDrawing, setPendingDrawing] = useState<PendingDrawing | null>(null);
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(DEFAULT_ACTIVE_INDICATORS);
   const [settingsTarget, setSettingsTarget] = useState<IndicatorLegendTarget | null>(null);
   const [moreTarget, setMoreTarget] = useState<IndicatorLegendTarget | null>(null);
@@ -3166,6 +3298,8 @@ export default function Home() {
     return nextCache.map((cache) => cache.seriesById);
   }, [activeIndicators, chartPanes]);
   paneStatesRef.current = chartPanes;
+  drawingsRef.current = drawings;
+  selectedDrawingIdRef.current = selectedDrawingId;
   const filteredSymbolOptions = useMemo(() => {
     return SYMBOL_SEARCH_OPTIONS.filter((option) =>
       matchesSymbolSearch(option, symbolSearchCategory, symbolSearchQuery)
@@ -3534,6 +3668,24 @@ export default function Home() {
         setSnapshotStatus('');
         setAuthActionLabel('');
         setAuthMessage('');
+        setActiveDrawingTool(null);
+        setPendingDrawing(null);
+        setSelectedDrawingId(null);
+        drawingDragRef.current = createDrawingDragState(activePaneIndex);
+      }
+
+      if (
+        (event.key === 'Delete' || event.key === 'Backspace') &&
+        selectedDrawingIdRef.current &&
+        !(event.target instanceof HTMLInputElement) &&
+        !(event.target instanceof HTMLTextAreaElement)
+      ) {
+        const drawingId = selectedDrawingIdRef.current;
+        setDrawings((current) => current.filter((drawing) => drawing.id !== drawingId));
+        setSelectedDrawingId(null);
+        setPendingDrawing(null);
+        drawingDragRef.current = createDrawingDragState(activePaneIndex);
+        event.preventDefault();
       }
     };
 
@@ -3879,6 +4031,76 @@ export default function Home() {
     };
   };
 
+  const getDrawingAnchorAtPoint = (paneIndex: number, x: number, y: number): ChartDrawingAnchor | null => {
+    const pane = paneStatesRef.current[paneIndex];
+    const currentPriceRange = getCurrentPriceRange(paneIndex);
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    if (!pane || !currentPriceRange || chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    return {
+      logicalIndex:
+        pane.viewRange.startIndex +
+        clamp((x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) * pane.viewRange.candlesPerView,
+      price: getPriceAtY(paneIndex, y, currentPriceRange),
+    };
+  };
+
+  const getDrawingPointForAnchor = (paneIndex: number, anchor: ChartDrawingAnchor) => {
+    const pane = paneStatesRef.current[paneIndex];
+    const currentPriceRange = getCurrentPriceRange(paneIndex);
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    if (!pane || !currentPriceRange || chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    const priceRange = currentPriceRange.maxPrice - currentPriceRange.minPrice || 1;
+    return {
+      x: chartArea.left + ((anchor.logicalIndex - pane.viewRange.startIndex) / Math.max(1, pane.viewRange.candlesPerView)) * chartArea.width,
+      y: chartArea.top + ((currentPriceRange.maxPrice - anchor.price) / priceRange) * chartArea.height,
+    };
+  };
+
+  const getDrawingHitResult = (paneIndex: number, x: number, y: number): DrawingHitResult | null => {
+    const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    if (chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    const drawingsForPane = drawingsRef.current
+      .filter((drawing) => drawing.paneIndex === paneIndex)
+      .slice()
+      .reverse();
+
+    for (const drawing of drawingsForPane) {
+      const start = getDrawingPointForAnchor(paneIndex, drawing.anchors[0]!);
+      if (!start) continue;
+
+      if (Math.hypot(x - start.x, y - start.y) <= DRAWING_HIT_TOLERANCE) {
+        return { drawing, target: 'start' };
+      }
+
+      if (drawing.kind === 'trend-line') {
+        const endAnchor = drawing.anchors[1];
+        if (!endAnchor) continue;
+
+        const end = getDrawingPointForAnchor(paneIndex, endAnchor);
+        if (!end) continue;
+
+        if (Math.hypot(x - end.x, y - end.y) <= DRAWING_HIT_TOLERANCE) {
+          return { drawing, target: 'end' };
+        }
+
+        if (getDistanceToSegment(x, y, start, end) <= DRAWING_HIT_TOLERANCE) {
+          return { drawing, target: 'body' };
+        }
+      } else if (
+        x >= start.x - DRAWING_HIT_TOLERANCE &&
+        x <= chartArea.left + chartArea.width + DRAWING_HIT_TOLERANCE &&
+        Math.abs(y - start.y) <= DRAWING_HIT_TOLERANCE
+      ) {
+        return { drawing, target: 'body' };
+      }
+    }
+
+    return null;
+  };
+
   const updatePaneHoverAtPoint = (
     paneIndex: number,
     x: number,
@@ -3935,6 +4157,60 @@ export default function Home() {
     Math.hypot(first.x - second.x, first.y - second.y);
 
   const isChartNavigationArea = (area: ChartPointerArea) => area === 'plot' || area === 'time-scale';
+  const selectDrawingTool = (tool: DrawingToolId) => {
+    setOpenMenu(null);
+    setHeaderPanel(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
+    setPendingDrawing(null);
+    drawingDragRef.current = createDrawingDragState(activePaneIndex);
+    setSelectedDrawingId(null);
+    setActiveDrawingTool((current) => (current === tool ? null : tool));
+  };
+  const createChartDrawing = (
+    paneIndex: number,
+    kind: DrawingToolId,
+    anchors: ChartDrawingAnchor[]
+  ): ChartDrawing => {
+    const now = Date.now();
+
+    return {
+      id: createDrawingId(kind),
+      kind,
+      paneIndex,
+      anchors: cloneDrawingAnchors(anchors),
+      locked: false,
+      color: DRAWING_DEFAULT_COLOR,
+      lineWidth: 2,
+      createdAt: now,
+      updatedAt: now,
+    };
+  };
+  const addCompletedDrawing = (drawing: ChartDrawing) => {
+    setDrawings((current) => [...current, drawing]);
+    setSelectedDrawingId(drawing.id);
+    setPendingDrawing(null);
+    setActiveDrawingTool(null);
+  };
+  const toggleSelectedDrawingLock = () => {
+    if (!selectedDrawingId) return;
+
+    setDrawings((current) =>
+      current.map((drawing) =>
+        drawing.id === selectedDrawingId
+          ? { ...drawing, locked: !drawing.locked, updatedAt: Date.now() }
+          : drawing
+      )
+    );
+  };
+  const removeSelectedDrawing = () => {
+    if (!selectedDrawingId) return;
+
+    setDrawings((current) => current.filter((drawing) => drawing.id !== selectedDrawingId));
+    setSelectedDrawingId(null);
+    setPendingDrawing(null);
+    drawingDragRef.current = createDrawingDragState(activePaneIndex);
+  };
 
   const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
     const pane = paneStatesRef.current[paneIndex];
@@ -4005,6 +4281,54 @@ export default function Home() {
 
     if (area === 'outside') return;
 
+    if (area === 'plot' && activeDrawingTool) {
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      if (!anchor) return;
+
+      if (
+        activeDrawingTool === 'trend-line' &&
+        pendingDrawing?.tool === 'trend-line' &&
+        pendingDrawing.paneIndex === paneIndex
+      ) {
+        addCompletedDrawing(createChartDrawing(paneIndex, 'trend-line', [pendingDrawing.anchor, anchor]));
+      } else if (activeDrawingTool === 'trend-line') {
+        setPendingDrawing({ tool: 'trend-line', paneIndex, anchor, preview: anchor });
+        setSelectedDrawingId(null);
+      } else {
+        addCompletedDrawing(createChartDrawing(paneIndex, 'horizontal-ray', [anchor]));
+      }
+
+      event.preventDefault();
+      return;
+    }
+
+    if (area === 'plot') {
+      const drawingHit = getDrawingHitResult(paneIndex, x, y);
+      if (drawingHit) {
+        setSelectedDrawingId(drawingHit.drawing.id);
+        setActiveDrawingTool(null);
+        setPendingDrawing(null);
+
+        if (!drawingHit.drawing.locked) {
+          drawingDragRef.current = {
+            mode: drawingHit.target,
+            paneIndex,
+            drawingId: drawingHit.drawing.id,
+            startX: event.clientX,
+            startY: event.clientY,
+            startAnchors: cloneDrawingAnchors(drawingHit.drawing.anchors),
+          };
+        } else {
+          drawingDragRef.current = createDrawingDragState(paneIndex);
+        }
+
+        event.preventDefault();
+        return;
+      }
+
+      setSelectedDrawingId(null);
+    }
+
     const currentPriceRange = getCurrentPriceRange(paneIndex);
     const mode: ChartDragMode = area === 'price-scale' ? 'price-scale' : 'chart-pan';
 
@@ -4027,6 +4351,10 @@ export default function Home() {
   };
 
   const handleMouseUp = () => {
+    if (drawingDragRef.current.mode !== 'none') {
+      drawingDragRef.current = createDrawingDragState(drawingDragRef.current.paneIndex);
+    }
+
     if (dragStateRef.current.mode === 'none') return;
 
     const paneIndex = dragStateRef.current.paneIndex;
@@ -4045,6 +4373,57 @@ export default function Home() {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const area = getPointerArea(paneIndex, x, y);
+
+    if (
+      activeDrawingTool === 'trend-line' &&
+      pendingDrawing?.tool === 'trend-line' &&
+      pendingDrawing.paneIndex === paneIndex &&
+      area === 'plot'
+    ) {
+      const preview = getDrawingAnchorAtPoint(paneIndex, x, y);
+      if (preview) {
+        setPendingDrawing((current) => (current ? { ...current, preview } : current));
+      }
+    }
+
+    const drawingDrag = drawingDragRef.current;
+    if (drawingDrag.mode !== 'none' && drawingDrag.paneIndex === paneIndex && drawingDrag.drawingId) {
+      const currentPriceRange = getCurrentPriceRange(paneIndex);
+      const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+      const currentAnchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+
+      if (currentPriceRange && chartArea.width > 0 && chartArea.height > 0 && currentAnchor) {
+        const deltaX = event.clientX - drawingDrag.startX;
+        const deltaY = event.clientY - drawingDrag.startY;
+        const logicalDelta = (deltaX / Math.max(1, chartArea.width)) * pane.viewRange.candlesPerView;
+        const priceDelta =
+          -(deltaY / Math.max(1, chartArea.height)) * (currentPriceRange.maxPrice - currentPriceRange.minPrice);
+
+        setDrawings((current) =>
+          current.map((drawing) => {
+            if (drawing.id !== drawingDrag.drawingId || drawing.locked) return drawing;
+
+            let nextAnchors = cloneDrawingAnchors(drawingDrag.startAnchors);
+            if (drawingDrag.mode === 'body') {
+              nextAnchors = nextAnchors.map((anchor) => ({
+                logicalIndex:
+                  drawing.kind === 'horizontal-ray' ? anchor.logicalIndex : anchor.logicalIndex + logicalDelta,
+                price: anchor.price + priceDelta,
+              }));
+            } else {
+              const anchorIndex = drawingDrag.mode === 'end' ? 1 : 0;
+              nextAnchors[anchorIndex] = currentAnchor;
+            }
+
+            return { ...drawing, anchors: nextAnchors, updatedAt: Date.now() };
+          })
+        );
+      }
+
+      updatePaneHoverAtPoint(paneIndex, x, y, area, event.currentTarget);
+      event.preventDefault();
+      return;
+    }
 
     const dragState = dragStateRef.current;
     if (dragState.mode !== 'none' && dragState.paneIndex === paneIndex && pane.candles.length) {
@@ -4402,6 +4781,7 @@ export default function Home() {
         x: xForIndex(tick.index),
       }))
       .filter((tick) => tick.x >= chartArea.left && tick.x <= chartArea.left + chartArea.width);
+    const drawingPriceLabels: Array<{ y: number; price: number; color: string; selected: boolean }> = [];
 
     ctx.save();
     ctx.beginPath();
@@ -4547,7 +4927,90 @@ export default function Home() {
       ctx.stroke();
       ctx.setLineDash([]);
     }
+
+    const pointForDrawingAnchor = (anchor: ChartDrawingAnchor) => ({
+      x: chartArea.left + ((anchor.logicalIndex - viewRange.startIndex) / Math.max(1, viewRange.candlesPerView)) * chartArea.width,
+      y: priceToY(anchor.price),
+    });
+    const drawDrawingHandle = (point: { x: number; y: number }, selected: boolean) => {
+      if (!selected) return;
+
+      ctx.fillStyle = theme === 'dark' ? '#150f23' : '#ffffff';
+      ctx.strokeStyle = DRAWING_DEFAULT_COLOR;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, DRAWING_HANDLE_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    };
+    const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
+      const start = drawing.anchors[0] ? pointForDrawingAnchor(drawing.anchors[0]) : null;
+      if (!start) return;
+
+      ctx.strokeStyle = drawing.color;
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      ctx.setLineDash(drawing.locked ? [5, 4] : []);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+
+      if (drawing.kind === 'trend-line') {
+        const end = drawing.anchors[1] ? pointForDrawingAnchor(drawing.anchors[1]) : null;
+        if (!end) return;
+
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        drawDrawingHandle(start, selected);
+        drawDrawingHandle(end, selected);
+        return;
+      }
+
+      ctx.lineTo(chartArea.left + chartArea.width, start.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      drawDrawingHandle(start, selected);
+      drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
+    };
+
+    drawings
+      .filter((drawing) => drawing.paneIndex === paneIndex)
+      .forEach((drawing) => drawDrawing(drawing, drawing.id === selectedDrawingId));
+
+    if (pendingDrawing?.tool === 'trend-line' && pendingDrawing.paneIndex === paneIndex) {
+      drawDrawing(
+        {
+          id: 'pending-trend-line',
+          kind: 'trend-line',
+          paneIndex,
+          anchors: [pendingDrawing.anchor, pendingDrawing.preview],
+          locked: false,
+          color: DRAWING_DEFAULT_COLOR,
+          lineWidth: 2,
+          createdAt: 0,
+          updatedAt: 0,
+        },
+        true
+      );
+    }
     ctx.restore();
+
+    drawingPriceLabels.forEach((label) => {
+      if (label.y < chartArea.top || label.y > chartArea.top + chartArea.height) return;
+
+      const labelText = formatPrice(label.price);
+      const labelWidth = Math.min(rightAxisWidth - 8, Math.max(58, ctx.measureText(labelText).width + 14));
+      const labelHeight = 22;
+      const labelY = clamp(label.y - labelHeight / 2, chartArea.top, chartArea.top + chartArea.height - labelHeight);
+
+      ctx.fillStyle = label.color;
+      ctx.globalAlpha = label.selected ? 1 : 0.86;
+      ctx.fillRect(chartArea.left + chartArea.width + 1, labelY, labelWidth, labelHeight);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = getCanvasFont(axisFontSize);
+      ctx.textAlign = 'left';
+      ctx.fillText(labelText, chartArea.left + chartArea.width + 7, labelY + 15);
+    });
 
     if (showVolume && volumeArea.height > 0) {
       const maxVolume = Math.max(...visibleIndexedCandles.map(({ candle }) => candle.volume), 1);
@@ -4826,6 +5289,9 @@ export default function Home() {
   }, [
     chartPanes,
     chartStyle,
+    drawings,
+    pendingDrawing,
+    selectedDrawingId,
     activeIndicators,
     paneIndicatorSeries,
     showVolume,
@@ -4834,8 +5300,12 @@ export default function Home() {
     paneCount,
   ]);
 
-  const getCanvasCursor = (paneIndex: number, pane: ChartPaneState) =>
-    getCanvasCursorForState(pane.dragMode, getPaneHoverState(paneIndex).pointerArea);
+  const getCanvasCursor = (paneIndex: number, pane: ChartPaneState) => {
+    if (activeDrawingTool) return 'crosshair';
+    if (drawingDragRef.current.mode !== 'none' && drawingDragRef.current.paneIndex === paneIndex) return 'grabbing';
+
+    return getCanvasCursorForState(pane.dragMode, getPaneHoverState(paneIndex).pointerArea);
+  };
   const getPaneLegendSnapshot = (paneIndex: number) => {
     const pane = chartPanes[paneIndex];
     if (!pane || pane.candles.length === 0) {
@@ -5112,6 +5582,8 @@ export default function Home() {
       ...indicator,
       settings: { ...indicator.settings },
     }));
+  const copyDrawingsForSnapshot = (sourceDrawings: ChartDrawing[]) =>
+    sourceDrawings.map((drawing) => cloneDrawing(drawing));
   const buildSavedChartLayout = (name: string, existingLayout?: SavedChartLayout): SavedChartLayout => {
     const now = Date.now();
     const visiblePaneSnapshots = chartPanes.slice(0, paneCount).map(createSavedPaneSnapshot);
@@ -5128,6 +5600,7 @@ export default function Home() {
       layoutSync: { ...layoutSync },
       chartSettings: { ...chartSettings },
       indicators: copyIndicatorsForSnapshot(activeIndicators),
+      drawings: copyDrawingsForSnapshot(drawings.filter((drawing) => drawing.paneIndex < paneCount)),
       panes: visiblePaneSnapshots.length > 0 ? visiblePaneSnapshots : [createSavedPaneSnapshot(activePane)],
     };
   };
@@ -5195,6 +5668,15 @@ export default function Home() {
         id: `${indicator.definitionId}-${Date.now()}-${index}`,
       }))
     );
+    setDrawings(
+      sanitizeSavedDrawings(layout.drawings, layoutOption.cells.length).map((drawing, index) => ({
+        ...drawing,
+        id: `${drawing.kind}-${Date.now()}-${index}`,
+      }))
+    );
+    setSelectedDrawingId(null);
+    setPendingDrawing(null);
+    setActiveDrawingTool(null);
     setChartPanes(restoredPanes);
     setActivePaneIndex(clamp(layout.activePaneIndex, 0, Math.max(0, layoutOption.cells.length - 1)));
     setActiveSavedLayoutId(layout.id);
@@ -5927,6 +6409,71 @@ export default function Home() {
   const retryPane = (paneIndex: number) => {
     updatePaneState(paneIndex, (pane) => ({ ...pane, refreshNonce: pane.refreshNonce + 1 }));
   };
+  const getPaneDrawingCount = (paneIndex: number) =>
+    drawings.filter((drawing) => drawing.paneIndex === paneIndex).length;
+  const getSelectedDrawingForPane = (paneIndex: number) =>
+    drawings.find((drawing) => drawing.id === selectedDrawingId && drawing.paneIndex === paneIndex) ?? null;
+  const getSelectedDrawingStateLabel = (paneIndex: number) => {
+    const drawing = getSelectedDrawingForPane(paneIndex);
+    if (!drawing) return '';
+
+    return [
+      drawing.kind,
+      drawing.locked ? 'locked' : 'unlocked',
+      ...drawing.anchors.map((anchor) => `${anchor.logicalIndex.toFixed(2)},${anchor.price.toFixed(2)}`),
+    ].join('|');
+  };
+  const getSelectedDrawingToolbarStyle = (paneIndex: number): CSSProperties | null => {
+    const drawing = getSelectedDrawingForPane(paneIndex);
+    const canvas = canvasRefs.current[paneIndex];
+    const rect = canvas?.getBoundingClientRect();
+    if (!drawing || !rect) return null;
+
+    const start = getDrawingPointForAnchor(paneIndex, drawing.anchors[0]!);
+    if (!start) return null;
+
+    const bounds = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
+    const end =
+      drawing.kind === 'trend-line' && drawing.anchors[1]
+        ? getDrawingPointForAnchor(paneIndex, drawing.anchors[1])
+        : { x: bounds.chartArea.left + bounds.chartArea.width, y: start.y };
+    if (!end) return null;
+
+    const toolbarWidth = 126;
+    const left = clamp((Math.min(start.x, end.x) + Math.max(start.x, end.x)) / 2 - toolbarWidth / 2, 10, rect.width - toolbarWidth - 10);
+    const top = clamp(Math.min(start.y, end.y) - 43, 8, Math.max(8, rect.height - 42));
+
+    return { left, top };
+  };
+  const renderSelectedDrawingToolbar = (paneIndex: number) => {
+    const drawing = getSelectedDrawingForPane(paneIndex);
+    const style = getSelectedDrawingToolbarStyle(paneIndex);
+    if (!drawing || !style) return null;
+
+    return (
+      <div
+        className="drawing-floating-toolbar"
+        role="toolbar"
+        aria-label="Selected drawing actions"
+        data-locked={drawing.locked}
+        style={style}
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label={drawing.locked ? 'Unlock drawing' : 'Lock drawing'}
+          title={drawing.locked ? 'Unlock' : 'Lock'}
+          onClick={toggleSelectedDrawingLock}
+        >
+          <span className={`drawing-toolbar-glyph ${drawing.locked ? 'unlock' : 'lock'}`} aria-hidden="true" />
+        </button>
+        <button type="button" aria-label="Delete drawing" title="Delete" onClick={removeSelectedDrawing}>
+          <span className="drawing-toolbar-glyph delete" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  };
   const renderPaneOverlays = (paneIndex: number, attachLegendRef: boolean) => {
     const pane = chartPanes[paneIndex];
     if (!pane) return null;
@@ -5935,6 +6482,7 @@ export default function Home() {
       <>
         {renderInstrumentLegend(paneIndex)}
         {renderIndicatorLegend(paneIndex, attachLegendRef)}
+        {renderSelectedDrawingToolbar(paneIndex)}
 
         {pane.loading && (
           <div className="chart-overlay">
@@ -7051,6 +7599,20 @@ export default function Home() {
         data-layout-id={selectedLayout.id}
         data-legend-version={legendRenderVersion}
       >
+        <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools">
+          {DRAWING_TOOL_OPTIONS.map((tool) => (
+            <button
+              key={tool.id}
+              type="button"
+              aria-label={`${tool.label} drawing tool`}
+              title={tool.label}
+              data-active={activeDrawingTool === tool.id}
+              onClick={() => selectDrawingTool(tool.id)}
+            >
+              <span className={`drawing-tool-icon ${tool.id}`} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
         <div
           className="chart-layout-grid"
           style={{
@@ -7075,11 +7637,16 @@ export default function Home() {
                 canvasProps={{
                   'aria-label': `${formatSymbol(pane.symbol)} ${pane.timeframe} chart pane ${paneIndex + 1}`,
                   'data-active-pane': activePaneIndex === paneIndex ? 'true' : 'false',
+                  'data-active-drawing-tool': activeDrawingTool ?? '',
                   'data-drag-mode': pane.dragMode,
+                  'data-drawing-drag-mode':
+                    drawingDragRef.current.paneIndex === paneIndex ? drawingDragRef.current.mode : 'none',
+                  'data-drawings-count': getPaneDrawingCount(paneIndex),
                   'data-manual-price-scale': pane.manualPriceRange ? 'true' : 'false',
                   'data-pointer-area': hoverState.pointerArea,
                   'data-price-max': pane.manualPriceRange ? pane.manualPriceRange.maxPrice.toFixed(2) : '',
                   'data-price-min': pane.manualPriceRange ? pane.manualPriceRange.minPrice.toFixed(2) : '',
+                  'data-selected-drawing': getSelectedDrawingStateLabel(paneIndex),
                   'data-view-end': pane.viewRange.endIndex.toFixed(2),
                   'data-view-start': pane.viewRange.startIndex.toFixed(2),
                   style: { cursor: getCanvasCursor(paneIndex, pane) },

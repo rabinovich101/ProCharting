@@ -6959,13 +6959,45 @@ lock/unlock and delete controls, and locked-object protection.
 - [x] Implement placement, selection, drag/resize, lock/unlock, delete, Escape,
       and Delete/Backspace behavior.
 - [x] Persist drawings through saved chart layouts and restore them safely.
-- [ ] Add focused Playwright coverage for drawing, locking, deleting, and canvas
+- [x] Add focused Playwright coverage for drawing, locking, deleting, and canvas
       rendering.
-- [ ] Update `ARCHITECTURE.md` with the drawing overlay boundary.
-- [ ] Run type/build/e2e validation and Playwright/browser verification.
-- [ ] Clean temporary recording/Playwright artifacts, review git status, commit,
+- [x] Update `ARCHITECTURE.md` with the drawing overlay boundary.
+- [x] Run type/build/e2e validation and Playwright/browser verification.
+- [x] Clean temporary recording/Playwright artifacts, review git status, commit,
       push, and leave unrelated pre-existing changes untouched.
 
 ## Review
 
-- Pending.
+- Added the first drawing-tool rail in `TEST/binance-chart-test/app/page.tsx`
+  with Trend line and Horizontal ray tools from the recorded TradingView flow.
+- Drawings are stored as pane-scoped logical-index/price anchors, render in the
+  main canvas pass, and remain attached correctly while panning and zooming.
+- Added selected drawing handles, a floating lock/delete toolbar, Escape cancel,
+  Delete/Backspace removal, unlocked drag/resize, and locked-object protection.
+- Horizontal rays render a right-axis price label and extend from the origin
+  handle to the right edge of the chart.
+- Saved chart layouts now include drawing objects and defensively sanitize them
+  on restore.
+- Updated CSS for the compact drawing rail and selected-object toolbar, with
+  top-left chart legends offset so the rail does not cover OHLC/indicator text.
+- Added focused Playwright coverage for drawing, locking, locked drag
+  protection, toolbar delete, keyboard delete, and canvas rendering state.
+- Updated `ARCHITECTURE.md` with the drawing overlay boundary and saved-layout
+  drawing snapshot behavior.
+- TradingView references used:
+  - Charting Library Drawings List: Trend Line, Ray, Horizontal Line, and
+    Horizontal Ray are grouped under Trend Line Tools; drawing actions include
+    lock and remove.
+  - TradingView Trendline docs: trend lines are two-point drawings with
+    editable style/coordinate behavior.
+  - TradingView Horizontal Ray docs: horizontal rays extend left-to-right from
+    an origin and can expose price labels.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Manual local Playwright browser pass at `http://127.0.0.1:3100` drawing and
+    locking a horizontal ray, checking selected drawing state, nonblank canvas
+    pixels, and screenshot layering.
+- Temporary recording frames, manual screenshots, Playwright test results, and
+  Playwright report artifacts were removed after verification.
