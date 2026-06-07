@@ -549,10 +549,11 @@ The chart app supports:
   tools. Drawing anchors are stored as logical bar index plus price, rendered in
   the main price-pane canvas pass, and selected drawings show a DOM floating
   toolbar with style affordances, lock/unlock, delete, and more controls. The
-  selected-object toolbar is positioned near the top of the plot pane and does
-  not follow the selected drawing as it is dragged or resized. Locked drawings
-  stay visually solid and remain selectable/deletable, but do not respond to
-  drag/resize gestures. Signed-out users do not render the rail, drawing pixels,
+  selected-object toolbar is positioned near the top of the plot pane by
+  default, can be moved by dragging its far-left handle, and does not follow the
+  selected drawing as it is dragged or resized. Locked drawings stay visually
+  solid and remain selectable/deletable, but do not respond to drag/resize
+  gestures. Signed-out users do not render the rail, drawing pixels,
   selected-object toolbar, or drawing hit-testing. Drawings are scoped to pane
   index and do not alter candle, indicator, or renderer package contracts.
 - Active indicators are stored as registry-backed instances with mutable
@@ -660,11 +661,12 @@ under `procharting.chartLayouts`. Each saved layout stores the selected split
 grid, active pane index, layout sync toggles, chart style, theme, chart settings,
 active indicator instances, authenticated drawing objects, and per-pane symbol,
 interval, manual price range, and logical view range. Candles, live feed status,
-pointer/crosshair state, drawing menu/cursor mode, pending drawing state, and
-drag state are intentionally excluded so restoring a layout recreates fresh pane
-sessions and reloads market data through the existing Binance REST and websocket
-pipeline. This keeps the client-side store small while preserving a plain JSON
-snapshot shape that can move to a server-backed chart-layout table later.
+pointer/crosshair state, drawing menu/cursor mode, drawing-toolbar position,
+pending drawing state, and drag state are intentionally excluded so restoring a
+layout recreates fresh pane sessions and reloads market data through the
+existing Binance REST and websocket pipeline. This keeps the client-side store
+small while preserving a plain JSON snapshot shape that can move to a
+server-backed chart-layout table later.
 
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent

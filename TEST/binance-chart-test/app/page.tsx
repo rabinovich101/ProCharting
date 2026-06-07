@@ -8,6 +8,7 @@ import {
   type CanvasHTMLAttributes,
   type CSSProperties,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
 } from 'react';
@@ -240,6 +241,20 @@ interface DrawingDragState {
 interface DrawingHitResult {
   drawing: ChartDrawing;
   target: Exclude<DrawingDragMode, 'none'>;
+}
+
+interface DrawingToolbarPosition {
+  paneIndex: number;
+  left: number;
+  top: number;
+}
+
+interface DrawingToolbarDragState extends DrawingToolbarPosition {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  toolbarWidth: number;
+  toolbarHeight: number;
 }
 
 interface DrawingMenuToolEntry {
@@ -537,6 +552,8 @@ const DEFAULT_CHART_SETTINGS: ChartSettingsState = {
 const DRAWING_DEFAULT_COLOR = '#2962ff';
 const DRAWING_HANDLE_RADIUS = 4.5;
 const DRAWING_HIT_TOLERANCE = 8;
+const DRAWING_FLOATING_TOOLBAR_HEIGHT = 38;
+const DRAWING_FLOATING_TOOLBAR_MARGIN = 8;
 const CURSOR_TOOL_LABELS: Record<CursorToolId, string> = {
   cross: 'Cross',
   dot: 'Dot',
@@ -3239,6 +3256,7 @@ export default function Home() {
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
   const drawingToolsRef = useRef<HTMLDivElement>(null);
+  const selectedDrawingToolbarRef = useRef<HTMLDivElement>(null);
   const symbolSearchInputRef = useRef<HTMLInputElement>(null);
   const indicatorLegendRef = useRef<HTMLDivElement>(null);
   const activeStreamsRef = useRef<Set<string>>(new Set());
@@ -3247,6 +3265,7 @@ export default function Home() {
   const dragStateRef = useRef<ChartDragState>(createDragState());
   const touchGestureRef = useRef<ChartTouchGestureState>(createTouchGestureState());
   const drawingDragRef = useRef<DrawingDragState>(createDrawingDragState());
+  const drawingToolbarDragRef = useRef<DrawingToolbarDragState | null>(null);
   const drawingsRef = useRef<ChartDrawing[]>([]);
   const selectedDrawingIdRef = useRef<string | null>(null);
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
@@ -3267,6 +3286,7 @@ export default function Home() {
   const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
+  const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [pendingDrawing, setPendingDrawing] = useState<PendingDrawing | null>(null);
@@ -4282,6 +4302,8 @@ export default function Home() {
 
     wasAuthenticatedRef.current = false;
     clearDrawingInteractionState(activePaneIndex);
+    drawingToolbarDragRef.current = null;
+    setDrawingToolbarPosition(null);
     setDrawings([]);
   }, [activePaneIndex, isAuthenticated]);
 
@@ -5627,6 +5649,8 @@ export default function Home() {
   const handleSignOut = async () => {
     closeHeaderOverlays();
     clearDrawingInteractionState(activePaneIndex);
+    drawingToolbarDragRef.current = null;
+    setDrawingToolbarPosition(null);
     setDrawings([]);
 
     if (!supabase) {
@@ -6568,25 +6592,134 @@ export default function Home() {
       ...drawing.anchors.map((anchor) => `${anchor.logicalIndex.toFixed(2)},${anchor.price.toFixed(2)}`),
     ].join('|');
   };
-  const getSelectedDrawingToolbarStyle = (paneIndex: number): CSSProperties | null => {
-    const drawing = getSelectedDrawingForPane(paneIndex);
+  const getDrawingToolbarMetrics = (paneIndex: number) => {
     const canvas = canvasRefs.current[paneIndex];
     const rect = canvas?.getBoundingClientRect();
-    if (!drawing || !rect) return null;
+    if (!rect) return null;
+
+    const toolbarWidth = Math.min(354, Math.max(180, rect.width - 20));
+    const toolbarHeight =
+      selectedDrawingToolbarRef.current?.getBoundingClientRect().height || DRAWING_FLOATING_TOOLBAR_HEIGHT;
+    const margin = DRAWING_FLOATING_TOOLBAR_MARGIN;
+
+    return {
+      canvasRect: rect,
+      toolbarWidth,
+      toolbarHeight,
+      minLeft: margin,
+      minTop: margin,
+      maxLeft: Math.max(margin, rect.width - toolbarWidth - margin),
+      maxTop: Math.max(margin, rect.height - toolbarHeight - margin),
+    };
+  };
+  const clampDrawingToolbarPosition = (
+    paneIndex: number,
+    left: number,
+    top: number,
+    toolbarWidth?: number,
+    toolbarHeight?: number
+  ): DrawingToolbarPosition | null => {
+    const metrics = getDrawingToolbarMetrics(paneIndex);
+    if (!metrics) return null;
+
+    const maxLeft = Math.max(
+      metrics.minLeft,
+      metrics.canvasRect.width - (toolbarWidth ?? metrics.toolbarWidth) - DRAWING_FLOATING_TOOLBAR_MARGIN
+    );
+    const maxTop = Math.max(
+      metrics.minTop,
+      metrics.canvasRect.height - (toolbarHeight ?? metrics.toolbarHeight) - DRAWING_FLOATING_TOOLBAR_MARGIN
+    );
+
+    return {
+      paneIndex,
+      left: clamp(left, metrics.minLeft, maxLeft),
+      top: clamp(top, metrics.minTop, maxTop),
+    };
+  };
+  const getSelectedDrawingToolbarStyle = (paneIndex: number): CSSProperties | null => {
+    const drawing = getSelectedDrawingForPane(paneIndex);
+    const metrics = getDrawingToolbarMetrics(paneIndex);
+    if (!drawing || !metrics) return null;
+
+    if (drawingToolbarPosition?.paneIndex === paneIndex) {
+      const position = clampDrawingToolbarPosition(
+        paneIndex,
+        drawingToolbarPosition.left,
+        drawingToolbarPosition.top
+      );
+      if (position) {
+        return { left: position.left, top: position.top, width: metrics.toolbarWidth };
+      }
+    }
 
     const bounds = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     const chartArea = bounds.chartArea;
 
-    const toolbarWidth = Math.min(354, Math.max(180, rect.width - 20));
-    const toolbarCenterX = chartArea.width > 0 ? chartArea.left + chartArea.width / 2 : rect.width / 2;
+    const toolbarCenterX =
+      chartArea.width > 0 ? chartArea.left + chartArea.width / 2 : metrics.canvasRect.width / 2;
     const left = clamp(
-      toolbarCenterX - toolbarWidth / 2,
-      10,
-      Math.max(10, rect.width - toolbarWidth - 10)
+      toolbarCenterX - metrics.toolbarWidth / 2,
+      metrics.minLeft,
+      metrics.maxLeft
     );
-    const top = clamp(chartArea.height > 0 ? chartArea.top + 14 : 8, 8, Math.max(8, rect.height - 42));
+    const top = clamp(
+      chartArea.height > 0 ? chartArea.top + 14 : metrics.minTop,
+      metrics.minTop,
+      metrics.maxTop
+    );
 
-    return { left, top, width: toolbarWidth };
+    return { left, top, width: metrics.toolbarWidth };
+  };
+  const handleDrawingToolbarDragStart = (paneIndex: number, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!isAuthenticated) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    const toolbarRect = selectedDrawingToolbarRef.current?.getBoundingClientRect();
+    const style = getSelectedDrawingToolbarStyle(paneIndex);
+    if (!toolbarRect || !style || typeof style.left !== 'number' || typeof style.top !== 'number') return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    drawingToolbarDragRef.current = {
+      paneIndex,
+      pointerId: event.pointerId,
+      left: style.left,
+      top: style.top,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      toolbarWidth: toolbarRect.width,
+      toolbarHeight: toolbarRect.height,
+    };
+  };
+  const handleDrawingToolbarDragMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = drawingToolbarDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const position = clampDrawingToolbarPosition(
+      drag.paneIndex,
+      drag.left + event.clientX - drag.startClientX,
+      drag.top + event.clientY - drag.startClientY,
+      drag.toolbarWidth,
+      drag.toolbarHeight
+    );
+    if (position) {
+      setDrawingToolbarPosition(position);
+    }
+  };
+  const handleDrawingToolbarDragEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = drawingToolbarDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    drawingToolbarDragRef.current = null;
   };
   const renderDrawingMenuEntry = (entry: DrawingMenuEntry) => {
     if (entry.type === 'section') {
@@ -6681,15 +6814,26 @@ export default function Home() {
     return (
       <div
         className="drawing-floating-toolbar"
+        ref={selectedDrawingToolbarRef}
         role="toolbar"
         aria-label="Selected drawing actions"
         data-locked={drawing.locked}
+        data-user-positioned={drawingToolbarPosition?.paneIndex === paneIndex}
         style={style}
         onMouseDown={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <button type="button" aria-label="Drawing templates" title="Templates">
-          <span className="drawing-toolbar-glyph templates" aria-hidden="true" />
+        <button
+          type="button"
+          className="drawing-toolbar-drag-handle"
+          aria-label="Move drawing toolbar"
+          title="Move toolbar"
+          onPointerDown={(event) => handleDrawingToolbarDragStart(paneIndex, event)}
+          onPointerMove={handleDrawingToolbarDragMove}
+          onPointerUp={handleDrawingToolbarDragEnd}
+          onPointerCancel={handleDrawingToolbarDragEnd}
+        >
+          <span className="drawing-toolbar-glyph drag-handle" aria-hidden="true" />
         </button>
         <span className="drawing-toolbar-divider" aria-hidden="true" />
         <button type="button" aria-label="Drawing line color" title="Line color">

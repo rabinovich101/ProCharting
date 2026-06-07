@@ -7153,3 +7153,66 @@ object-toolbar behavior instead of following the drawing geometry.
 - Temporary screenshot, Playwright traces, reports, and test results were
   removed. The three pre-existing deleted TradingView grid JSON files remain
   untouched.
+
+# Draggable TradingView Drawing Toolbar
+
+## Goal
+
+Make the far-left button in the selected drawing toolbar act as a drag handle
+so logged-in users can move the color/width/lock/delete toolbar and place it
+where they want on the chart.
+
+## Investigation / Decisions
+
+- The far-left toolbar button currently renders as a passive templates-style
+  glyph in `renderSelectedDrawingToolbar`.
+- The toolbar position is computed in `getSelectedDrawingToolbarStyle`, now
+  fixed near the top of the pane. To make it user-placeable, add a manual
+  toolbar position override that is clamped to the canvas bounds.
+- Dragging the toolbar must not start chart panning or drawing movement, so the
+  handle should stop pointer propagation and use pointer capture while moving.
+- The manual toolbar position is UI-only state. It should survive selecting or
+  moving drawings during the session, but it does not need to be saved in chart
+  layouts.
+- No `.env` files will be touched. The existing unrelated deleted TradingView
+  grid JSON files remain untouched.
+
+## Checklist
+
+- [x] Inspect selected drawing toolbar rendering, positioning, and styles.
+- [x] Write this correction plan in `todo.md`.
+- [x] Add toolbar drag state and a clamped manual position override.
+- [x] Convert the far-left toolbar button into a draggable move handle.
+- [x] Update `ARCHITECTURE.md` to document the user-positioned toolbar state.
+- [x] Run typecheck, build, signed-out e2e, and a logged-in Playwright manual
+      toolbar-drag check.
+- [x] Clean temporary screenshots/reports, review git status, commit, push, and
+      leave unrelated pre-existing changes untouched.
+
+## Review
+
+- Replaced the passive far-left selected drawing toolbar button with a
+  six-dot drag handle that uses pointer capture, stops chart/drawing pointer
+  propagation, and clamps manual toolbar placement inside the pane canvas.
+- Kept the selected-object toolbar independent from drawing geometry: default
+  placement remains near the top of the pane, user placement persists while
+  selecting or moving drawings, and sign-out clears drawing toolbar state with
+  the rest of the authenticated drawing state.
+- Updated `ARCHITECTURE.md` to document the user-positioned toolbar and to
+  explicitly exclude drawing-toolbar position from saved chart layouts.
+- Rewatched the supplied TradingView recording frames and matched the far-left
+  toolbar affordance to the six-dot drag grip shown in the crop.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright manual check: dragged the handle by 220px x 120px,
+    confirmed drawing anchors did not change during toolbar drag, moved the
+    selected line endpoint, and confirmed the toolbar stayed at the same
+    user-positioned coordinates.
+- Camoufox MCP could not open `http://127.0.0.1:3100` because private/local IP
+  browsing is blocked by its policy in this environment, so local UI verification
+  used Playwright directly.
+- Temporary screenshots, extracted video frames, Playwright reports, and test
+  results were removed. The three pre-existing deleted TradingView grid JSON
+  files remain untouched.
