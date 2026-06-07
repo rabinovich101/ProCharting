@@ -6284,3 +6284,65 @@ secrets to the browser bundle or Git.
   and no horizontal overflow on desktop or mobile viewport checks.
 - The only Playwright request failures were external analytics DNS lookups for
   Google Tag Manager and Cloudflare beacon in the test browser context.
+
+# Admin Login Entry Page
+
+## Goal
+
+Make `https://procharts.thefiscalwire.com/admin` show visible username and
+password entry fields, then let a valid admin session enter the existing
+`/admin/users` panel without exposing the admin password to browser code.
+
+## Investigation / Decisions
+
+- The current middleware protects every `/admin/*` request with HTTP Basic Auth,
+  so `/admin` cannot render a visible login screen.
+- Keep `/admin/users` protected, but allow `/admin` and `/admin/login` through
+  middleware so the form can render and submit.
+- Validate credentials in a server route against
+  `PROCHARTS_ADMIN_USERNAME`/`PROCHARTS_ADMIN_PASSWORD`; on success, set a
+  signed HTTP-only cookie scoped to `/admin`.
+- Prevent brute-force attempts with server-side login throttling keyed by client
+  IP and submitted username.
+- Keep the existing Basic Auth fallback for scripts and direct checks.
+- Add a logout route so the cookie can be cleared.
+
+## Checklist
+
+- [x] Add shared server/edge-safe admin session signing helpers.
+- [x] Add `/admin` login page with username/password fields.
+- [x] Add `/admin/login` and `/admin/logout` route handlers.
+- [x] Add server-side brute-force throttling for failed admin login attempts.
+- [x] Update middleware to accept signed admin session cookies and protect only
+      private admin paths.
+- [x] Add focused Playwright coverage for login, protected access, and logout.
+- [x] Update `ARCHITECTURE.md` for the new admin entry boundary.
+- [x] Run type/build/e2e checks and browser verification.
+- [ ] Stop any Playwright containers after verification.
+- [ ] Review, commit, push, and verify production deploy.
+
+## Review
+
+- Added `/admin` as a visible modal-style admin entry page with username and
+  password fields.
+- Added server route handlers for `/admin/login` and `/admin/logout`. Successful
+  login sets a signed HTTP-only admin session cookie scoped to `/admin`; logout
+  clears it.
+- Preserved HTTP Basic Auth as a fallback for scripts and direct API checks.
+- Added server-side failed-login throttling after repeated bad credentials for
+  the same client/username.
+- Fixed admin redirects to preserve the incoming host so the session cookie and
+  redirect target stay on the same origin in local dev and production.
+- Updated the private users panel with a sign-out button.
+- Updated Playwright admin coverage for visible login, browser redirect to the
+  login page, form login/logout, Basic Auth fallback, missing service-role
+  disabled state, and brute-force throttling.
+- Updated `ARCHITECTURE.md` with the new admin entry/session boundary.
+- Local validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
+  - `pnpm run typecheck`
+  - `git diff --check`
+- Browser smoke verification passed at `http://127.0.0.1:3100/admin`: the login
+  page rendered the username/password fields and had no horizontal overflow.

@@ -175,16 +175,20 @@ Google and GitHub. Social signup and login share Supabase's
 `signInWithOAuth` provider flow, so Google/GitHub buttons appear in both dialog
 modes and redirect through the configured Supabase Auth provider when the
 deployment has the public Supabase env vars and provider credentials.
-The standalone app also has a server-rendered owner admin boundary at
-`/admin/users`. That route lists Supabase Auth users through
+The standalone app also has a server-rendered owner admin boundary. `/admin`
+renders the visible username/password entry page. `/admin/login` validates
+credentials server-side against `PROCHARTS_ADMIN_USERNAME` and
+`PROCHARTS_ADMIN_PASSWORD`, rate-limits repeated failures by client/username,
+and sets a signed HTTP-only admin session cookie scoped to `/admin` on success.
+A narrow Next.js middleware protects private admin paths such as `/admin/users`
+by accepting either that signed session cookie or the existing HTTP Basic Auth
+fallback for scripts. `/admin/users` lists Supabase Auth users through
 `supabase.auth.admin.listUsers` with a server-only service-role key, then joins
 matching `public.user_profiles` and `public.chart_layouts` rows for profile and
-saved-layout activity. The route is disabled until the app runtime has
-`PROCHARTS_ADMIN_USERNAME`, `PROCHARTS_ADMIN_PASSWORD`,
-`SUPABASE_SERVICE_ROLE_KEY`, and either `SUPABASE_URL` or
-`NEXT_PUBLIC_SUPABASE_URL`. A narrow Next.js middleware applies HTTP Basic Auth
-only to `/admin/*`, and the privileged key remains server runtime state; it must
-not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
+saved-layout activity. The users route is disabled until the app runtime has
+`SUPABASE_SERVICE_ROLE_KEY` and either `SUPABASE_URL` or
+`NEXT_PUBLIC_SUPABASE_URL`. The privileged key remains server runtime state; it
+must not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
 On the production VM, `/etc/procharts/app.env` sets the admin route's
 server-only `SUPABASE_URL` to the local Supabase Kong gateway at
 `http://127.0.0.1:8000`, while browser auth keeps using the public same-domain

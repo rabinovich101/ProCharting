@@ -551,6 +551,9 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         <div className="admin-hero-meta" aria-label="Admin route details">
           <span>/admin/users</span>
           <strong>Service-role only</strong>
+          <form action="/admin/logout" method="post">
+            <button type="submit">Sign out</button>
+          </form>
         </div>
       </header>
 

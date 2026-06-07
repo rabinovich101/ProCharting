@@ -21,6 +21,8 @@ export default defineConfig({
       NEXT_TELEMETRY_DISABLED: '1',
       PROCHARTS_ADMIN_PASSWORD: 'test-password',
       PROCHARTS_ADMIN_USERNAME: 'test-admin',
+      SUPABASE_SERVICE_ROLE_KEY: '',
+      SUPABASE_URL: '',
     },
   },
   use: {

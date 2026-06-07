@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  ADMIN_SESSION_COOKIE,
+  getRequestOrigin,
+  getAdminRuntimeConfig,
+  sanitizeAdminNextPath,
+  verifyAdminSessionValue,
+} from "./lib/admin-session";
 
 interface BasicCredentials {
   username: string;
@@ -35,19 +42,44 @@ const createUnauthorizedResponse = () =>
     status: 401,
   });
 
-export function middleware(request: NextRequest) {
-  const adminUsername = process.env.PROCHARTS_ADMIN_USERNAME;
-  const adminPassword = process.env.PROCHARTS_ADMIN_PASSWORD;
+const createNoStoreResponse = () => {
+  const response = NextResponse.next();
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+};
 
-  if (!adminUsername || !adminPassword) {
+const isPublicAdminPath = (pathname: string): boolean =>
+  pathname === "/admin" || pathname === "/admin/login" || pathname === "/admin/logout";
+
+const createAdminLoginRedirect = (request: NextRequest) => {
+  const redirectUrl = new URL("/admin", getRequestOrigin(request.headers, request.url));
+  redirectUrl.searchParams.set("next", sanitizeAdminNextPath(`${request.nextUrl.pathname}${request.nextUrl.search}`));
+  return NextResponse.redirect(redirectUrl);
+};
+
+export async function middleware(request: NextRequest) {
+  if (isPublicAdminPath(request.nextUrl.pathname)) {
+    return createNoStoreResponse();
+  }
+
+  const adminConfig = getAdminRuntimeConfig();
+
+  if (!adminConfig) {
     return NextResponse.next();
   }
 
+  const sessionCookie = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
+  if (await verifyAdminSessionValue(sessionCookie, adminConfig)) {
+    return createNoStoreResponse();
+  }
+
   const credentials = decodeBasicCredentials(request.headers.get("authorization"));
-  if (credentials?.username === adminUsername && credentials.password === adminPassword) {
-    const response = NextResponse.next();
-    response.headers.set("Cache-Control", "no-store");
-    return response;
+  if (credentials?.username === adminConfig.username && credentials.password === adminConfig.password) {
+    return createNoStoreResponse();
+  }
+
+  if (request.headers.get("accept")?.includes("text/html")) {
+    return createAdminLoginRedirect(request);
   }
 
   return createUnauthorizedResponse();
