@@ -21,6 +21,7 @@ jobs:
         env:
           ADMIN_PASSWORD: ${{ secrets.PROCHARTS_ADMIN_RUNTIME_PASSWORD }}
           ADMIN_USERNAME: ${{ secrets.PROCHARTS_ADMIN_RUNTIME_USERNAME }}
+          SUDO_PASSWORD: ${{ secrets.PROCHARTS_VM_SUDO_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -32,10 +33,19 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${SUDO_PASSWORD:-}" ]; then
+            echo "VM sudo password is missing from GitHub Actions secrets." >&2
+            exit 1
+          fi
+
           if [ ! -r "$supabase_env" ]; then
             echo "Production Supabase runtime env is not readable: $supabase_env" >&2
             exit 1
           fi
+
+          sudo_with_password() {
+            printf '%s\n' "$SUDO_PASSWORD" | sudo -S -p '' "$@"
+          }
 
           service_role_key="$(
             awk -F= '$1 == "SERVICE_ROLE_KEY" { sub(/^[^=]*=/, ""); print; exit }' "$supabase_env"
@@ -47,8 +57,8 @@ jobs:
           fi
 
           tmp="$(mktemp)"
-          if sudo test -f "$app_env"; then
-            sudo cat "$app_env" > "$tmp"
+          if sudo_with_password test -f "$app_env"; then
+            sudo_with_password cat "$app_env" > "$tmp"
           fi
 
           upsert_env() {
@@ -77,12 +87,12 @@ jobs:
           upsert_env SUPABASE_SERVICE_ROLE_KEY "$service_role_key"
           upsert_env SUPABASE_URL "http://127.0.0.1:8000"
 
-          sudo install -d -m 0750 -o root -g ooo "$(dirname "$app_env")"
-          sudo install -m 0640 -o root -g ooo "$tmp" "$app_env"
+          sudo_with_password install -d -m 0750 -o root -g ooo "$(dirname "$app_env")"
+          sudo_with_password install -m 0640 -o root -g ooo "$tmp" "$app_env"
           rm -f "$tmp"
 
           for key in PROCHARTS_ADMIN_USERNAME PROCHARTS_ADMIN_PASSWORD SUPABASE_SERVICE_ROLE_KEY SUPABASE_URL; do
-            if sudo awk -F= -v key="$key" '
+            if sudo_with_password awk -F= -v key="$key" '
               BEGIN { found=0 }
               $0 !~ /^[[:space:]]*#/ && $0 !~ /^[[:space:]]*$/ {
                 k=$1
