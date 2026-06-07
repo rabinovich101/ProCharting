@@ -2925,6 +2925,152 @@ summary {
   padding-top: 7px;
 }
 
+.drawing-toolbar-more-popover {
+  background: #ffffff;
+  border: 1px solid #d1d4dc;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  color: #131722;
+  gap: 0;
+  left: auto;
+  max-height: none;
+  min-width: 216px;
+  overflow: visible;
+  padding: 6px 0;
+  right: 0;
+  top: calc(100% + 4px);
+}
+
+.drawing-more-menu-shell {
+  color: #131722;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.drawing-toolbar-more-popover .drawing-more-menu-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: #131722;
+  display: grid;
+  font-size: 14px;
+  font-weight: 400;
+  gap: 9px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 32px;
+  outline: 0;
+  padding: 0 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.drawing-toolbar-more-popover .drawing-more-menu-row:hover,
+.drawing-toolbar-more-popover .drawing-more-menu-row:focus-visible,
+.drawing-more-menu-branch:focus-within > .drawing-more-menu-row,
+.drawing-more-menu-branch:hover > .drawing-more-menu-row {
+  background: #f0f3fa;
+  color: #131722;
+}
+
+.drawing-toolbar-more-popover .drawing-more-menu-row[data-active="true"] {
+  background: transparent;
+  color: #131722;
+}
+
+.drawing-toolbar-more-popover .drawing-more-menu-row[data-active="true"]:hover,
+.drawing-toolbar-more-popover .drawing-more-menu-row[data-active="true"]:focus-visible {
+  background: #f0f3fa;
+  color: #131722;
+}
+
+.drawing-more-menu-icon {
+  align-items: center;
+  color: #131722;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.drawing-more-menu-chevron {
+  color: #131722;
+}
+
+.drawing-more-menu-row kbd {
+  color: #a3a6af;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.drawing-more-menu-separator {
+  border-top: 1px solid #eceff3;
+  display: block;
+  height: 0;
+  margin: 6px 0;
+}
+
+.drawing-more-menu-branch {
+  position: relative;
+}
+
+.drawing-more-submenu {
+  background: #ffffff;
+  border: 1px solid #d1d4dc;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  display: none;
+  left: calc(100% + 4px);
+  min-width: 210px;
+  padding: 6px 0;
+  position: absolute;
+  top: -6px;
+  z-index: 56;
+}
+
+.drawing-more-submenu.visibility {
+  min-width: 254px;
+}
+
+.drawing-more-menu-branch:focus-within > .drawing-more-submenu,
+.drawing-more-menu-branch:hover > .drawing-more-submenu {
+  display: block;
+}
+
+.drawing-more-timeframes {
+  display: grid;
+  gap: 2px 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 2px 8px 6px;
+}
+
+.drawing-toolbar-more-popover .drawing-more-timeframes label {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: #131722;
+  display: flex;
+  font-size: 12px;
+  gap: 5px;
+  justify-content: space-between;
+  min-height: 24px;
+  padding: 0 5px;
+}
+
+.drawing-toolbar-more-popover .drawing-more-timeframes label:hover {
+  background: #f0f3fa;
+}
+
+.drawing-toolbar-more-popover .drawing-more-timeframes input[type="checkbox"] {
+  accent-color: #2962ff;
+  min-height: auto;
+  width: auto;
+}
+
 .chart-layout-grid {
   background: color-mix(in srgb, var(--border-strong) 82%, var(--accent) 8%);
   display: grid;

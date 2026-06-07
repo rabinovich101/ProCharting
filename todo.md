@@ -7518,3 +7518,64 @@ the trendline drawing tool for logged-in users.
 - Removed generated `.next`, Playwright test output, and the temporary
   `/tmp/procharting-trendline-shortcut.png` screenshot. The unrelated
   pre-existing deleted TradingView grid JSON files were left untouched.
+
+# TradingView More Menu Match
+
+## Goal
+
+Make the selected trendline three-dots menu match the TradingView screenshot:
+a compact context menu with row icons, chevrons, shortcuts, sync choices, and a
+separate Hide action.
+
+## Investigation / Decisions
+
+- The current `More drawing actions` popover uses the generic toolbar settings
+  panel layout, which creates section labels, radio buttons, and a visible
+  timeframe checkbox grid. This does not match TradingView's dots context menu.
+- The screenshot shows a light, compact menu anchored under the toolbar's dots
+  button with groups: Visual order, Visibility on intervals, Clone/Copy, sync
+  choice, and Hide.
+- Preserve functionality by moving Visual order and Visibility controls into
+  hover/focus flyout submenus rather than removing them.
+- Make sync options mutually exclusive in the menu, matching TradingView's
+  `No sync`, `Sync in layout`, and `Sync globally` choices.
+- Keep this patch focused on the selected drawing More menu and leave unrelated
+  deleted TradingView grid JSON files untouched.
+
+## Checklist
+
+- [x] Rebuild the More popover markup as a TradingView-style context menu.
+- [x] Add flyouts for Visual order and Visibility on intervals.
+- [x] Style the More menu to match the screenshot's compact white context menu.
+- [x] Verify existing More actions still work with Playwright.
+- [x] Update `ARCHITECTURE.md` if behavior or structure changes.
+- [x] Run typecheck, build, signed-out e2e, and logged-in visual/behavior checks.
+- [x] Clean generated artifacts, commit, push, and leave unrelated deleted
+      TradingView JSON files untouched.
+
+## Review
+
+- Replaced the generic More popover with a compact TradingView-style white
+  context menu anchored under the dots button.
+- Added top-level rows matching the screenshot: Visual order, Visibility on
+  intervals, Clone, Copy, No sync, Sync in layout, Sync globally, and Hide/Show.
+- Moved Visual order and Visibility controls into hover/focus flyout submenus so
+  the top-level dots menu stays compact while preserving existing controls.
+- Changed sync menu choices to be mutually exclusive, matching TradingView's
+  No sync / Sync in layout / Sync globally behavior.
+- Hid generic toolbar status text inside the More context menu so it does not
+  create an extra footer row that is not present in TradingView.
+- Updated `ARCHITECTURE.md` to document the compact More menu, flyouts, and sync
+  scope behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright audit on `127.0.0.1:3100` confirming menu rows,
+    shortcuts, separators, flyouts, visual order, interval visibility, sync
+    choices, and Hide/Show behavior.
+  - Logged-in screenshot comparison against the provided TradingView reference
+    for the initial dots menu state.
+- Removed generated `.next`, Playwright test output, and temporary More-menu
+  screenshots. The unrelated pre-existing deleted TradingView grid JSON files
+  were left untouched.

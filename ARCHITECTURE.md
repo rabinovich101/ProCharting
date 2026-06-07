@@ -555,7 +555,10 @@ The chart app supports:
   alert state, lock/unlock, delete, and more actions. The abstract
   selected-toolbar glyphs use Lucide React icons so actions like lock, delete,
   alert, settings, and overflow read as familiar tool icons instead of bespoke
-  CSS drawings. The
+  CSS drawings. The More action opens a TradingView-style context menu with
+  grouped rows for visual order, interval visibility, clone/copy shortcuts,
+  mutually exclusive sync scope, and hide/show; visual order and interval
+  visibility use flyout submenus so the top-level dots menu stays compact. The
   selected-object toolbar is positioned near the top of the plot pane by
   default, can be moved by dragging its far-left handle, and does not follow the
   selected drawing as it is dragged or resized. Drawing objects store

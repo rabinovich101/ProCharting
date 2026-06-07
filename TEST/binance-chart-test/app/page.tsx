@@ -16,7 +16,13 @@ import { createClient, type Session, type SupabaseClient, type User } from '@sup
 import {
   Bell,
   Bookmark,
+  Check,
+  ChevronRight,
+  Copy,
+  Eye,
+  EyeOff,
   GripVertical,
+  Layers,
   Lock,
   MoreHorizontal,
   Settings,
@@ -7431,7 +7437,9 @@ export default function Home() {
 
       return (
         <div
-          className="drawing-toolbar-popover"
+          className={`drawing-toolbar-popover${
+            activeDrawingToolbarMenu === 'more' ? ' drawing-toolbar-more-popover' : ''
+          }`}
           role={activeDrawingToolbarMenu === 'more' || activeDrawingToolbarMenu === 'templates' ? 'menu' : 'group'}
           aria-label={`Drawing ${activeDrawingToolbarMenu} menu`}
           onMouseDown={(event) => event.stopPropagation()}
@@ -7880,84 +7888,140 @@ export default function Home() {
             </>
           )}
           {activeDrawingToolbarMenu === 'more' && (
-            <>
-              <strong>More actions</strong>
-              <span className="drawing-toolbar-section-label">Visual order</span>
-              <button type="button" role="menuitem" onClick={() => moveSelectedDrawingVisualOrder('front')}>
-                Bring to front
-              </button>
-              <button type="button" role="menuitem" onClick={() => moveSelectedDrawingVisualOrder('back')}>
-                Send to back
-              </button>
-              <span className="drawing-toolbar-section-label">Visibility on intervals</span>
-              {DRAWING_VISIBILITY_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={drawing.visibility === option.value}
-                  data-active={drawing.visibility === option.value}
-                  onClick={() => patchSelectedDrawing({ visibility: option.value })}
-                >
-                  <span>
-                    {option.label}
-                    <small>{option.description}</small>
-                  </span>
+            <div className="drawing-more-menu-shell">
+              <div className="drawing-more-menu-branch">
+                <button type="button" className="drawing-more-menu-row" role="menuitem" aria-haspopup="menu">
+                  <Layers className="drawing-more-menu-icon" size={19} strokeWidth={1.8} aria-hidden="true" />
+                  <span>Visual order</span>
+                  <ChevronRight className="drawing-more-menu-chevron" size={16} strokeWidth={1.8} aria-hidden="true" />
                 </button>
-              ))}
-              <div className="drawing-toolbar-timeframe-grid" role="group" aria-label="Timeframe visibility">
-                {TIMEFRAME_OPTIONS.map((option) => (
-                  <label key={option.value}>
-                    <span>{option.label}</span>
-                    <input
-                      type="checkbox"
-                      checked={drawing.timeframeVisibility[option.value] !== false}
-                      onChange={(event) =>
-                        patchSelectedDrawing({
-                          timeframeVisibility: {
-                            ...drawing.timeframeVisibility,
-                            [option.value]: event.target.checked,
-                          },
-                        })
-                      }
-                    />
-                  </label>
-                ))}
+                <div className="drawing-more-submenu" role="menu" aria-label="Visual order">
+                  <button type="button" className="drawing-more-menu-row" role="menuitem" onClick={() => moveSelectedDrawingVisualOrder('front')}>
+                    <span className="drawing-more-menu-icon" aria-hidden="true" />
+                    <span>Bring to front</span>
+                  </button>
+                  <button type="button" className="drawing-more-menu-row" role="menuitem" onClick={() => moveSelectedDrawingVisualOrder('back')}>
+                    <span className="drawing-more-menu-icon" aria-hidden="true" />
+                    <span>Send to back</span>
+                  </button>
+                </div>
               </div>
-              <span className="drawing-toolbar-section-label">Object actions</span>
-              <button type="button" role="menuitem" onClick={duplicateSelectedDrawing}>
-                Clone
+              <div className="drawing-more-menu-branch">
+                <button type="button" className="drawing-more-menu-row" role="menuitem" aria-haspopup="menu">
+                  <span className="drawing-more-menu-icon" aria-hidden="true" />
+                  <span>Visibility on intervals</span>
+                  <ChevronRight className="drawing-more-menu-chevron" size={16} strokeWidth={1.8} aria-hidden="true" />
+                </button>
+                <div className="drawing-more-submenu visibility" role="menu" aria-label="Visibility on intervals">
+                  {DRAWING_VISIBILITY_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className="drawing-more-menu-row"
+                      role="menuitemradio"
+                      aria-checked={drawing.visibility === option.value}
+                      data-active={drawing.visibility === option.value}
+                      onClick={() => patchSelectedDrawing({ visibility: option.value })}
+                    >
+                      <span className="drawing-more-menu-icon" aria-hidden="true">
+                        {drawing.visibility === option.value && <Check size={16} strokeWidth={1.8} />}
+                      </span>
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                  <span className="drawing-more-menu-separator" role="presentation" />
+                  <div className="drawing-more-timeframes" role="group" aria-label="Timeframe visibility">
+                    {TIMEFRAME_OPTIONS.map((option) => (
+                      <label key={option.value}>
+                        <span>{option.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={drawing.timeframeVisibility[option.value] !== false}
+                          onChange={(event) =>
+                            patchSelectedDrawing({
+                              timeframeVisibility: {
+                                ...drawing.timeframeVisibility,
+                                [option.value]: event.target.checked,
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <span className="drawing-more-menu-separator" role="presentation" />
+              <button type="button" className="drawing-more-menu-row" role="menuitem" onClick={duplicateSelectedDrawing}>
+                <Copy className="drawing-more-menu-icon" size={18} strokeWidth={1.8} aria-hidden="true" />
+                <span>Clone</span>
+                <kbd>⌘ + Drag</kbd>
               </button>
-              <button type="button" role="menuitem" onClick={() => void copySelectedDrawing()}>
-                Copy
+              <button type="button" className="drawing-more-menu-row" role="menuitem" onClick={() => void copySelectedDrawing()}>
+                <span className="drawing-more-menu-icon" aria-hidden="true" />
+                <span>Copy</span>
+                <kbd>⌘ + C</kbd>
+              </button>
+              <span className="drawing-more-menu-separator" role="presentation" />
+              <button
+                type="button"
+                className="drawing-more-menu-row"
+                role="menuitemradio"
+                aria-checked={!drawing.syncInLayout && !drawing.syncGlobally}
+                data-active={!drawing.syncInLayout && !drawing.syncGlobally}
+                onClick={() => patchSelectedDrawing({ syncInLayout: false, syncGlobally: false })}
+              >
+                <span className="drawing-more-menu-icon" aria-hidden="true">
+                  {!drawing.syncInLayout && !drawing.syncGlobally && <Check size={17} strokeWidth={1.8} />}
+                </span>
+                <span>No sync</span>
               </button>
               <button
                 type="button"
+                className="drawing-more-menu-row"
+                role="menuitemradio"
+                aria-checked={drawing.syncInLayout && !drawing.syncGlobally}
+                data-active={drawing.syncInLayout && !drawing.syncGlobally}
+                onClick={() => patchSelectedDrawing({ syncInLayout: true, syncGlobally: false })}
+              >
+                <span className="drawing-more-menu-icon" aria-hidden="true">
+                  {drawing.syncInLayout && !drawing.syncGlobally && <Check size={17} strokeWidth={1.8} />}
+                </span>
+                <span>Sync in layout</span>
+              </button>
+              <button
+                type="button"
+                className="drawing-more-menu-row"
+                role="menuitemradio"
+                aria-checked={drawing.syncGlobally}
+                data-active={drawing.syncGlobally}
+                onClick={() => patchSelectedDrawing({ syncInLayout: false, syncGlobally: true })}
+              >
+                <span className="drawing-more-menu-icon" aria-hidden="true">
+                  {drawing.syncGlobally && <Check size={17} strokeWidth={1.8} />}
+                </span>
+                <span>Sync globally</span>
+              </button>
+              <span className="drawing-more-menu-separator" role="presentation" />
+              <button
+                type="button"
+                className="drawing-more-menu-row"
                 role="menuitemcheckbox"
                 aria-checked={!drawing.visible}
                 onClick={() => patchSelectedDrawing({ visible: !drawing.visible })}
               >
-                {drawing.visible ? 'Hide' : 'Show'}
+                {drawing.visible ? (
+                  <EyeOff className="drawing-more-menu-icon" size={18} strokeWidth={1.8} aria-hidden="true" />
+                ) : (
+                  <Eye className="drawing-more-menu-icon" size={18} strokeWidth={1.8} aria-hidden="true" />
+                )}
+                <span>{drawing.visible ? 'Hide' : 'Show'}</span>
               </button>
-              <label>
-                <span>Sync in layout</span>
-                <input
-                  type="checkbox"
-                  checked={drawing.syncInLayout}
-                  onChange={(event) => patchSelectedDrawing({ syncInLayout: event.target.checked })}
-                />
-              </label>
-              <label>
-                <span>Sync globally</span>
-                <input
-                  type="checkbox"
-                  checked={drawing.syncGlobally}
-                  onChange={(event) => patchSelectedDrawing({ syncGlobally: event.target.checked })}
-                />
-              </label>
-            </>
+            </div>
           )}
-          {drawingToolbarStatus && <span className="drawing-toolbar-status">{drawingToolbarStatus}</span>}
+          {drawingToolbarStatus && activeDrawingToolbarMenu !== 'more' && (
+            <span className="drawing-toolbar-status">{drawingToolbarStatus}</span>
+          )}
         </div>
       );
     };
