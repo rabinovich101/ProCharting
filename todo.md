@@ -7363,3 +7363,51 @@ and Alert property controls that TradingView documents for trendlines.
 - Removed generated `.next`, Playwright test output, and temporary screenshots.
   The unrelated pre-existing deleted TradingView grid JSON files were left
   untouched.
+
+# Trendline Lock Delete Guard
+
+## Goal
+
+Make the selected trendline lock button match TradingView's unlocked/locked
+visual state and prevent deleting a locked trendline until it is unlocked again.
+
+## Investigation / Decisions
+
+- New trendlines already default to `locked: false`, and locked drawings already
+  refuse drag/resize gestures.
+- The toolbar glyph class is currently reversed: unlocked drawings render the
+  closed-lock glyph and locked drawings render the open-lock glyph.
+- The delete handlers do not check `drawing.locked`, so locked drawings can
+  still be deleted from the floating toolbar or keyboard.
+- Keep this patch narrow: swap the icon class mapping, disable the delete button
+  while locked, add locked guards to toolbar and keyboard delete, and update the
+  architecture note.
+
+## Checklist
+
+- [x] Update the lock toolbar glyph so default unlocked drawings show the open
+      lock and locked drawings show the closed lock.
+- [x] Prevent delete while the selected drawing is locked.
+- [x] Update `ARCHITECTURE.md` with the corrected locked-drawing semantics.
+- [x] Verify with TypeScript, build, signed-out e2e, and logged-in Playwright.
+- [x] Clean generated artifacts, commit, push, and leave unrelated deleted
+      TradingView JSON files untouched.
+
+## Review
+
+- Swapped the selected-toolbar lock glyph mapping so new/unlocked trendlines show
+  the open-lock icon and locked trendlines show the closed-lock icon.
+- Disabled the delete toolbar button while a drawing is locked and guarded both
+  toolbar delete and keyboard Delete/Backspace from removing locked drawings.
+- Updated `ARCHITECTURE.md` to document that locked drawings remain selectable
+  but cannot be dragged, resized, or deleted until unlocked again.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright audit on `127.0.0.1:3100` for default open-lock icon,
+    locked closed-lock icon, disabled delete, blocked keyboard delete, unlock,
+    and successful unlocked delete.
+- Removed generated `.next`, Playwright test output, and the temporary
+  `/tmp/procharting-lock-delete-guard.png` screenshot. The unrelated
+  pre-existing deleted TradingView grid JSON files were left untouched.

@@ -559,10 +559,10 @@ The chart app supports:
   flags in addition to anchors/color/width. Hidden or interval-filtered drawings
   do not render or participate in hit-testing, while the currently selected
   object can still keep its toolbar open for correction. Locked drawings stay
-  visually solid and remain
-  selectable/deletable, but do not respond to drag/resize gestures. Signed-out
-  users do not render the rail, drawing pixels, selected-object toolbar, or
-  drawing hit-testing. Drawings are scoped to pane index and do not alter candle,
+  visually solid and remain selectable, but do not respond to drag/resize
+  gestures and cannot be deleted until unlocked again. Signed-out users do not
+  render the rail, drawing pixels, selected-object toolbar, or drawing
+  hit-testing. Drawings are scoped to pane index and do not alter candle,
   indicator, or renderer package contracts.
 - Active indicators are stored as registry-backed instances with mutable
   settings. HTML legend/action rows mirror the canvas visual layout: price

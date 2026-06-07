@@ -2702,6 +2702,17 @@ summary {
   color: var(--text-strong);
 }
 
+.drawing-floating-toolbar button:disabled {
+  color: color-mix(in srgb, var(--text-muted) 45%, transparent);
+  cursor: not-allowed;
+}
+
+.drawing-floating-toolbar button:disabled:hover,
+.drawing-floating-toolbar button:disabled:focus-visible {
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 45%, transparent);
+}
+
 .drawing-toolbar-divider {
   background: var(--border-subtle);
   height: 22px;

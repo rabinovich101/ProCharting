@@ -3973,6 +3973,13 @@ export default function Home() {
         !(event.target instanceof HTMLTextAreaElement)
       ) {
         const drawingId = selectedDrawingIdRef.current;
+        const selectedDrawing = drawingsRef.current.find((drawing) => drawing.id === drawingId);
+        if (selectedDrawing?.locked) {
+          setDrawingToolbarStatus('Unlock drawing to delete it');
+          event.preventDefault();
+          return;
+        }
+
         setDrawings((current) => current.filter((drawing) => drawing.id !== drawingId));
         setSelectedDrawingId(null);
         setActiveDrawingToolbarMenu(null);
@@ -4637,6 +4644,12 @@ export default function Home() {
   };
   const removeSelectedDrawing = () => {
     if (!isAuthenticated || !selectedDrawingId) return;
+
+    const selectedDrawing = drawingsRef.current.find((drawing) => drawing.id === selectedDrawingId);
+    if (selectedDrawing?.locked) {
+      setDrawingToolbarStatus('Unlock drawing to delete it');
+      return;
+    }
 
     setDrawings((current) => current.filter((drawing) => drawing.id !== selectedDrawingId));
     setSelectedDrawingId(null);
@@ -8000,9 +8013,15 @@ export default function Home() {
           title={drawing.locked ? 'Unlock' : 'Lock'}
           onClick={toggleSelectedDrawingLock}
         >
-          <span className={`drawing-toolbar-glyph ${drawing.locked ? 'unlock' : 'lock'}`} aria-hidden="true" />
+          <span className={`drawing-toolbar-glyph ${drawing.locked ? 'lock' : 'unlock'}`} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="Delete drawing" title="Delete" onClick={removeSelectedDrawing}>
+        <button
+          type="button"
+          aria-label="Delete drawing"
+          title={drawing.locked ? 'Unlock to delete' : 'Delete'}
+          disabled={drawing.locked}
+          onClick={removeSelectedDrawing}
+        >
           <span className="drawing-toolbar-glyph delete" aria-hidden="true" />
         </button>
         <button
