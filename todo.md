@@ -6318,8 +6318,8 @@ password entry fields, then let a valid admin session enter the existing
 - [x] Add focused Playwright coverage for login, protected access, and logout.
 - [x] Update `ARCHITECTURE.md` for the new admin entry boundary.
 - [x] Run type/build/e2e checks and browser verification.
-- [ ] Stop any Playwright containers after verification.
-- [ ] Review, commit, push, and verify production deploy.
+- [x] Stop any Playwright containers after verification.
+- [x] Review, commit, push, and verify production deploy.
 
 ## Review
 
@@ -6346,3 +6346,18 @@ password entry fields, then let a valid admin session enter the existing
   - `git diff --check`
 - Browser smoke verification passed at `http://127.0.0.1:3100/admin`: the login
   page rendered the username/password fields and had no horizontal overflow.
+- Production deploy run `27086156613` passed after commit `ef25284`.
+- Production verification passed:
+  - `https://procharts.thefiscalwire.com/admin` returns HTTP 200 and renders the
+    username/password login form.
+  - Login with the generated admin credentials opens `/admin/users`.
+  - `/admin/users` renders the live users table and is not disabled.
+  - Logout returns to `/admin?loggedOut=1`.
+  - Direct unauthenticated non-browser access to `/admin/users` returns HTTP
+    401.
+- Production mobile/desktop checks had no horizontal overflow.
+- The only production Playwright request failures were external analytics DNS
+  lookups for Cloudflare beacon and Google Tag Manager in the headless test
+  context.
+- Stopped and auto-removed the two running Playwright tool containers:
+  `b7e5a1082406` and `1286ad29eeb0`.
