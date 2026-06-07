@@ -546,13 +546,16 @@ The chart app supports:
 - The chart stage also owns the authenticated TradingView-style drawing-tool
   rail. Logged-in users get the recorded Cursor group with Cross/Dot modes and
   the Trend Line Tools group with implemented Trendline and Horizontal ray
-  tools. Drawing anchors are stored as logical bar index plus price, rendered in
-  the main price-pane canvas pass, and selected drawings show a DOM floating
-  toolbar with working TradingView-like quick controls for templates, line color,
-  opacity, text, line width, line style, arrow ends, settings, local alert state,
-  lock/unlock, delete, and more actions. The abstract selected-toolbar glyphs
-  use Lucide React icons so actions like lock, delete, alert, settings, and
-  overflow read as familiar tool icons instead of bespoke CSS drawings. The
+  tools. Enabled line tools can also be activated from their advertised keyboard
+  shortcuts (`T` for Trendline and `J` for Horizontal ray) when focus is not in
+  an editable field. Drawing anchors are stored as logical bar index plus price,
+  rendered in the main price-pane canvas pass, and selected drawings show a DOM
+  floating toolbar with working TradingView-like quick controls for templates,
+  line color, opacity, text, line width, line style, arrow ends, settings, local
+  alert state, lock/unlock, delete, and more actions. The abstract
+  selected-toolbar glyphs use Lucide React icons so actions like lock, delete,
+  alert, settings, and overflow read as familiar tool icons instead of bespoke
+  CSS drawings. The
   selected-object toolbar is positioned near the top of the plot pane by
   default, can be moved by dragging its far-left handle, and does not follow the
   selected drawing as it is dragged or resized. Drawing objects store

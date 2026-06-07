@@ -706,6 +706,23 @@ const LINE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
   { type: 'tool', id: 'flat-top-bottom', label: 'Flat top/bottom', icon: 'flat-channel', disabled: true },
   { type: 'tool', id: 'disjoint-channel', label: 'Disjoint channel', icon: 'disjoint-channel', disabled: true },
 ];
+const DRAWING_TOOL_SHORTCUTS = LINE_TOOL_MENU_ENTRIES.reduce<Record<string, DrawingToolId>>((shortcuts, entry) => {
+  if (entry.type === 'tool' && !entry.disabled && entry.shortcut && entry.tool) {
+    shortcuts[entry.shortcut.toLowerCase()] = entry.tool;
+  }
+
+  return shortcuts;
+}, {});
+const isEditableKeyboardTarget = (target: EventTarget | null) => {
+  if (!(target instanceof HTMLElement)) return false;
+
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
+};
 
 const layoutCell = (column: number, row: number, columnSpan = 1, rowSpan = 1): LayoutCellSpec => ({
   column: `${column} / span ${columnSpan}`,
@@ -3472,6 +3489,7 @@ export default function Home() {
   const drawingToolbarDragRef = useRef<DrawingToolbarDragState | null>(null);
   const drawingsRef = useRef<ChartDrawing[]>([]);
   const selectedDrawingIdRef = useRef<string | null>(null);
+  const activePaneIndexRef = useRef(0);
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
   const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
   const legendRenderFrameRef = useRef<number | undefined>(undefined);
@@ -3590,6 +3608,7 @@ export default function Home() {
   paneStatesRef.current = chartPanes;
   drawingsRef.current = drawings;
   selectedDrawingIdRef.current = selectedDrawingId;
+  activePaneIndexRef.current = activePaneIndex;
   const filteredSymbolOptions = useMemo(() => {
     return SYMBOL_SEARCH_OPTIONS.filter((option) =>
       matchesSymbolSearch(option, symbolSearchCategory, symbolSearchQuery)
@@ -3959,6 +3978,8 @@ export default function Home() {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      const editableTarget = isEditableKeyboardTarget(event.target);
+
       if (event.key === 'Escape') {
         setOpenMenu(null);
         setHeaderPanel(null);
@@ -3976,12 +3997,36 @@ export default function Home() {
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
       }
 
+      const drawingShortcutTool = DRAWING_TOOL_SHORTCUTS[event.key.toLowerCase()];
+      if (
+        drawingShortcutTool &&
+        isAuthenticatedRef.current &&
+        !editableTarget &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey
+      ) {
+        setOpenMenu(null);
+        setHeaderPanel(null);
+        setSettingsTarget(null);
+        setMoreTarget(null);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
+        setActiveDrawingMenu(null);
+        setPendingDrawing(null);
+        drawingDragRef.current = createDrawingDragState(activePaneIndexRef.current);
+        setSelectedDrawingId(null);
+        setLastDrawingTool(drawingShortcutTool);
+        setActiveDrawingTool((current) => (current === drawingShortcutTool ? null : drawingShortcutTool));
+        event.preventDefault();
+        return;
+      }
+
       if (
         (event.key === 'Delete' || event.key === 'Backspace') &&
         isAuthenticatedRef.current &&
         selectedDrawingIdRef.current &&
-        !(event.target instanceof HTMLInputElement) &&
-        !(event.target instanceof HTMLTextAreaElement)
+        !editableTarget
       ) {
         const drawingId = selectedDrawingIdRef.current;
         const selectedDrawing = drawingsRef.current.find((drawing) => drawing.id === drawingId);

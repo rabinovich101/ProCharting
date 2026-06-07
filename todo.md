@@ -7463,3 +7463,58 @@ standard library icons.
 - Removed generated `.next`, Playwright test output, and the temporary
   `/tmp/procharting-lucide-toolbar.png` screenshot. The unrelated pre-existing
   deleted TradingView grid JSON files were left untouched.
+
+# Trendline Keyboard Shortcut
+
+## Goal
+
+Make the advertised Trendline keyboard shortcut work so pressing `T` activates
+the trendline drawing tool for logged-in users.
+
+## Investigation / Decisions
+
+- The Trendline menu entry displays shortcut `T`, and Horizontal ray displays
+  shortcut `J`, but the global `keydown` handler only handles Escape and
+  Delete/Backspace.
+- Shortcut handling should only run for authenticated users and should ignore
+  text inputs, textareas, selects, contenteditable fields, and modified
+  keypresses.
+- Reuse the enabled line-tool menu entries as the shortcut source of truth so
+  disabled tools such as Ray/Horizontal line remain inactive.
+- Keep the change focused on drawing shortcut activation and leave unrelated
+  deleted TradingView grid JSON files untouched.
+
+## Checklist
+
+- [x] Add a shortcut map for enabled drawing tools.
+- [x] Wire `keydown` so `T` toggles Trendline and `J` toggles Horizontal ray.
+- [x] Keep shortcuts disabled for signed-out users and while typing in fields.
+- [x] Update `ARCHITECTURE.md` with the shortcut behavior.
+- [x] Verify typecheck, build, signed-out e2e, and logged-in Playwright shortcut
+      behavior.
+- [x] Clean generated artifacts, commit, push, and leave unrelated deleted
+      TradingView JSON files untouched.
+
+## Review
+
+- Added a shortcut map from enabled line-tool menu entries so the displayed
+  `kbd` labels and actual keyboard behavior share one source of truth.
+- Wired the global keydown handler so authenticated users can press `T` to
+  toggle Trendline and `J` to toggle Horizontal ray, while disabled menu entries
+  remain inactive.
+- Added editable-target and modifier-key guards so shortcuts do not fire while
+  typing in inputs, textareas, selects, or contenteditable fields.
+- Added an active-pane ref so shortcut cleanup uses the current active pane even
+  though the global keydown listener is registered once.
+- Updated `ARCHITECTURE.md` to document the authenticated drawing shortcuts.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in/signed-out Playwright audit on `127.0.0.1:3100` confirming
+    signed-out `T` does nothing, logged-in `T` toggles Trendline, `T` is ignored
+    inside symbol search, drawing works after shortcut activation, and `J`
+    toggles Horizontal ray.
+- Removed generated `.next`, Playwright test output, and the temporary
+  `/tmp/procharting-trendline-shortcut.png` screenshot. The unrelated
+  pre-existing deleted TradingView grid JSON files were left untouched.
