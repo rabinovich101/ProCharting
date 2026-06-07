@@ -185,6 +185,10 @@ saved-layout activity. The route is disabled until the app runtime has
 `NEXT_PUBLIC_SUPABASE_URL`. A narrow Next.js middleware applies HTTP Basic Auth
 only to `/admin/*`, and the privileged key remains server runtime state; it must
 not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
+On the production VM, `/etc/procharts/app.env` sets the admin route's
+server-only `SUPABASE_URL` to the local Supabase Kong gateway at
+`http://127.0.0.1:8000`, while browser auth keeps using the public same-domain
+Supabase URL through `NEXT_PUBLIC_*` variables.
 For the local Docker Supabase runtime, the browser app reads
 `NEXT_PUBLIC_SUPABASE_URL` plus `NEXT_PUBLIC_SUPABASE_ANON_KEY` or
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from the standalone app's ignored
