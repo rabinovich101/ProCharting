@@ -1,3 +1,66 @@
+# Resend Registration Email Integration
+
+## Goal
+
+Configure Supabase Auth registration emails to send through Resend for the
+production `procharts.thefiscalwire.com` deployment, copy the local Resend API
+key into the server runtime without exposing it in Git, and verify signup by
+creating a test user.
+
+## Investigation / Decisions
+
+- The app-side signup flow already calls `supabase.auth.signUp` from
+  `TEST/binance-chart-test/app/page.tsx`; registration email delivery belongs
+  in the Supabase Auth mailer/runtime, not in the chart UI.
+- Self-hosted Supabase Auth already passes `SMTP_*` values from the runtime
+  `.env` into the Auth container as `GOTRUE_SMTP_*`.
+- Resend SMTP uses host `smtp.resend.com`, username `resend`, and the Resend
+  API key as the SMTP password.
+- Resend reports `thefiscalwire.com` as a verified domain, so the runtime can
+  send from a `@thefiscalwire.com` sender instead of a demo sender.
+- Secrets must stay in ignored local/server env files and must not be printed,
+  committed, or copied into public browser env vars.
+
+## Checklist
+
+- [x] Inspect the local signup/auth code path and Supabase SMTP boundary.
+- [x] Verify the local Resend key exists and identify a verified sender domain.
+- [x] Add a safe Supabase helper to import Resend SMTP settings into a runtime
+      `.env`.
+- [x] Document the Resend/Supabase Auth mailer boundary.
+- [x] Apply the Resend SMTP settings locally without committing secrets.
+- [x] SSH to `procharts.thefiscalwire.com`, copy the Resend SMTP settings into
+      the production Supabase runtime, and recreate Auth.
+- [x] Test production signup by creating a test user.
+- [x] Verify with Playwright or browser tooling.
+- [x] Run local validation and review the final diff.
+- [x] Commit, push, and leave the worktree clean except unrelated pre-existing
+      changes.
+
+## Review
+
+- Added `import-resend-smtp` to the Supabase helper script so ignored
+  Supabase runtimes can import Resend SMTP settings without printing the API
+  key.
+- Documented that registration, invite, recovery, and email-change messages
+  are sent by Supabase Auth through Resend SMTP, with the API key stored only
+  as runtime `SMTP_PASS`.
+- Imported the Resend SMTP settings locally and on the production VM runtime.
+- Production Auth initially returned `Error sending confirmation email`; Auth
+  logs showed Docker DNS inside the Auth container could not resolve
+  `smtp.resend.com` even though the VM host could resolve and reach Resend.
+- Added explicit external DNS resolvers to the production generated Auth
+  service, recreated Auth, and verified the container became healthy.
+- Production Playwright signup created
+  `procharts-resend-smoke-1780813435281@thefiscalwire.com` and the UI showed
+  `Check your email to confirm your account.`
+- Auth logs recorded the successful `/signup` request with HTTP 200.
+- Removed the smoke-test auth user after verification so production is clean.
+- Validation passed: local helper import, `sh -n`, `git diff --check`,
+  `npm --prefix TEST/binance-chart-test run build`, and production Playwright
+  signup. The production page still logs unrelated market-data resource
+  resolution errors during chart load.
+
 # GitHub OAuth Redirect URI Incident
 
 ## Goal

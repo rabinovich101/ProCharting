@@ -52,6 +52,45 @@ After `start`, access self-hosted Supabase through the local gateway at
 sh infra/supabase/scripts/supabase.sh secrets
 ```
 
+## Registration Email Delivery
+
+Supabase Auth sends signup confirmation, invite, recovery, and email-change
+messages through the SMTP settings in the ignored runtime `.env`. To send those
+messages through Resend, keep `RESEND_API_KEY` in a local/server-only env file
+and import the SMTP settings:
+
+```sh
+sh infra/supabase/scripts/supabase.sh import-resend-smtp
+```
+
+The helper reads `RESEND_API_KEY` from the repo root `.env` by default, or from
+the exported environment. It writes the runtime mailer settings without
+printing the API key:
+
+```sh
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=587
+SMTP_USER=resend
+SMTP_PASS=<resend-api-key>
+SMTP_ADMIN_EMAIL=noreply@thefiscalwire.com
+SMTP_SENDER_NAME=ProCharts
+```
+
+For the production VM runtime, run it from the VM checkout with the production
+runtime selected:
+
+```sh
+PROCHARTING_SUPABASE_RUNTIME_DIR=/home/ooo/procharts-supabase/runtime \
+  sh infra/supabase/scripts/supabase.sh import-resend-smtp
+```
+
+Then recreate Auth so it receives the new SMTP values:
+
+```sh
+cd /home/ooo/procharts-supabase/runtime
+docker compose up -d --force-recreate --no-deps auth
+```
+
 ## OAuth Provider Status
 
 Check the non-secret Auth settings payload, including enabled social providers,

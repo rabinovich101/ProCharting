@@ -116,6 +116,12 @@ project-owned public auth surface is `public.user_profiles`, created by the
 second migration. Each profile row is keyed to `auth.users(id)`, is created
 automatically by an `auth.users` insert trigger, and stores only minimal
 application profile data: display name, avatar URL, and timestamps.
+Registration, invite, password recovery, and email-change messages are sent by
+the Supabase Auth container through its `GOTRUE_SMTP_*` environment boundary.
+Production uses Resend SMTP (`smtp.resend.com`, user `resend`, API key as the
+SMTP password) with a verified `@thefiscalwire.com` sender. The Resend API key
+is operational runtime state in the ignored Supabase `.env` as `SMTP_PASS`; it
+is not exposed to the Next.js browser app or committed to the repository.
 
 The `user_profiles` table enables Row Level Security and allows authenticated
 users to select, insert, and update only their own profile row. User deletion

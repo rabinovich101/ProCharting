@@ -4,6 +4,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SUPABASE_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PROJECT_ROOT=$(CDPATH= cd -- "$SUPABASE_DIR/../.." && pwd)
 RUNTIME_DIR="${PROCHARTING_SUPABASE_RUNTIME_DIR:-$SUPABASE_DIR/runtime}"
 MIGRATIONS_DIR="$SUPABASE_DIR/migrations"
 UPSTREAM_REPO="${SUPABASE_DOCKER_REPO:-https://github.com/supabase/supabase.git}"
@@ -170,6 +171,78 @@ NODE
   echo "  cd $RUNTIME_DIR && docker compose up -d --force-recreate --no-deps auth"
 }
 
+import_resend_smtp() {
+  sender_email="${1:-${RESEND_FROM_EMAIL:-}}"
+  sender_name="${2:-${RESEND_FROM_NAME:-}}"
+  resend_key="${RESEND_API_KEY:-}"
+  root_env_file="${RESEND_ENV_FILE:-$PROJECT_ROOT/.env}"
+
+  ensure_runtime
+
+  env_file="$RUNTIME_DIR/.env"
+
+  if [ -z "$resend_key" ] && [ -f "$root_env_file" ]; then
+    resend_key="$(read_env_value RESEND_API_KEY "$root_env_file")"
+  fi
+
+  if [ -z "$sender_email" ] && [ -f "$root_env_file" ]; then
+    sender_email="$(read_env_value RESEND_FROM_EMAIL "$root_env_file")"
+  fi
+
+  if [ -z "$sender_email" ]; then
+    current_sender="$(read_env_value SMTP_ADMIN_EMAIL "$env_file" || true)"
+    case "$current_sender" in
+      ""|admin@example.com|example@example.com)
+        sender_email="noreply@thefiscalwire.com"
+        ;;
+      *)
+        sender_email="$current_sender"
+        ;;
+    esac
+  fi
+
+  if [ -z "$sender_name" ] && [ -f "$root_env_file" ]; then
+    sender_name="$(read_env_value RESEND_FROM_NAME "$root_env_file")"
+  fi
+
+  if [ -z "$sender_name" ]; then
+    current_sender_name="$(read_env_value SMTP_SENDER_NAME "$env_file" || true)"
+    case "$current_sender_name" in
+      ""|fake_sender)
+        sender_name="ProCharts"
+        ;;
+      *)
+        sender_name="$current_sender_name"
+        ;;
+    esac
+  fi
+
+  [ -n "$resend_key" ] || die "Missing RESEND_API_KEY. Export it or add it to $root_env_file."
+  [ -n "$sender_email" ] || die "Missing sender email."
+  [ -n "$sender_name" ] || die "Missing sender name."
+
+  (
+    cd "$RUNTIME_DIR"
+    set_env_value ENABLE_EMAIL_SIGNUP true
+    set_env_value ENABLE_EMAIL_AUTOCONFIRM false
+    set_env_value SMTP_ADMIN_EMAIL "$sender_email"
+    set_env_value SMTP_HOST smtp.resend.com
+    set_env_value SMTP_PORT 587
+    set_env_value SMTP_USER resend
+    set_env_value SMTP_PASS "$resend_key"
+    set_env_value SMTP_SENDER_NAME "$sender_name"
+  )
+
+  echo "Imported Resend SMTP settings into $env_file."
+  echo "SMTP host: smtp.resend.com"
+  echo "SMTP port: 587"
+  echo "SMTP user: resend"
+  echo "SMTP sender: $sender_name <$sender_email>"
+  echo "SMTP password: configured (not printed)."
+  echo "Recreate the Auth container for the change to take effect:"
+  echo "  cd $RUNTIME_DIR && docker compose up -d --force-recreate --no-deps auth"
+}
+
 fetch_official_docker_bundle() {
   tmp_dir=$(mktemp -d)
   repo_dir="$tmp_dir/supabase"
@@ -300,6 +373,10 @@ case "${1:-help}" in
     shift
     import_google_oauth "$@"
     ;;
+  import-resend-smtp)
+    shift
+    import_resend_smtp "$@"
+    ;;
   config)
     shift
     run_runtime compose-config "$@"
@@ -327,6 +404,8 @@ Commands:
                      Print non-secret Auth settings, including enabled providers.
   import-google-oauth <client-secret.json>
                      Import Google OAuth client ID/secret into runtime/.env.
+  import-resend-smtp [sender-email] [sender-name]
+                     Import Resend SMTP settings into runtime/.env.
   config             Print resolved Docker Compose config.
   secrets            Print local Supabase credentials from runtime/.env.
   migrate            Apply project-owned SQL migrations to the running database.
@@ -337,6 +416,10 @@ Environment:
   PROCHARTING_SITE_URL      Auth site URL. Default: http://localhost:3000.
   SUPABASE_PUBLIC_URL       Public Supabase URL. Default: http://localhost:8000.
   API_EXTERNAL_URL          Auth/API external URL. Default: http://localhost:8000.
+  RESEND_API_KEY            Resend API key used as the SMTP password.
+  RESEND_ENV_FILE           Env file to read RESEND_API_KEY from. Default: repo .env.
+  RESEND_FROM_EMAIL         Optional default SMTP sender email.
+  RESEND_FROM_NAME          Optional default SMTP sender name.
 EOF
     ;;
   *)
