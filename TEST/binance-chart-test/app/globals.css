@@ -2676,7 +2676,7 @@ summary {
   display: flex;
   gap: 2px;
   min-height: 38px;
-  overflow: hidden;
+  overflow: visible;
   padding: 3px;
   position: absolute;
   z-index: 38;
@@ -2695,6 +2695,11 @@ summary {
 
 .drawing-floating-toolbar .drawing-toolbar-drag-handle:active {
   cursor: grabbing;
+}
+
+.drawing-floating-toolbar button[data-active="true"] {
+  background: var(--surface-2);
+  color: var(--text-strong);
 }
 
 .drawing-toolbar-divider {
@@ -2720,6 +2725,22 @@ summary {
   width: 17px;
 }
 
+.drawing-line-sample[data-style="dashed"] {
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0 5px,
+    transparent 5px 8px
+  );
+}
+
+.drawing-line-sample[data-style="dotted"] {
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0 2px,
+    transparent 2px 5px
+  );
+}
+
 .drawing-toolbar-value {
   color: var(--text-strong);
   font-size: 13px;
@@ -2739,6 +2760,28 @@ summary {
   height: 2px;
   left: 5px;
   top: 3px;
+  width: 2px;
+}
+
+.drawing-toolbar-glyph.templates::before {
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  box-shadow:
+    8px 0 0 -1px currentColor,
+    0 8px 0 -1px currentColor,
+    8px 8px 0 -1px currentColor;
+  height: 5px;
+  left: 2px;
+  top: 2px;
+  width: 5px;
+}
+
+.drawing-toolbar-glyph.templates::after {
+  background: currentColor;
+  box-shadow: 0 0 0 1px currentColor;
+  height: 8px;
+  right: 0;
+  top: 9px;
   width: 2px;
 }
 
@@ -2849,6 +2892,152 @@ summary {
   left: 1px;
   top: 8px;
   width: 3px;
+}
+
+.drawing-toolbar-popover {
+  background: color-mix(in srgb, var(--surface-1) 98%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
+  color: var(--text-strong);
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  gap: 7px;
+  left: 0;
+  min-width: 226px;
+  padding: 9px;
+  position: absolute;
+  top: calc(100% + 7px);
+  z-index: 52;
+}
+
+.drawing-toolbar-popover strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.drawing-toolbar-popover button,
+.drawing-toolbar-popover label {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-strong);
+  display: flex;
+  font: inherit;
+  gap: 8px;
+  height: auto;
+  justify-content: space-between;
+  min-height: 30px;
+  outline: 0;
+  padding: 5px 7px;
+  text-align: left;
+  width: 100%;
+}
+
+.drawing-toolbar-popover button:hover,
+.drawing-toolbar-popover button:focus-visible {
+  background: var(--surface-2);
+}
+
+.drawing-toolbar-popover button[data-active="true"] {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+}
+
+.drawing-toolbar-popover input,
+.drawing-toolbar-popover select {
+  background: var(--surface-0);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-strong);
+  font: inherit;
+  min-height: 28px;
+  min-width: 0;
+  padding: 2px 6px;
+}
+
+.drawing-toolbar-popover input[type="checkbox"] {
+  min-height: auto;
+  width: auto;
+}
+
+.drawing-toolbar-popover input[type="color"] {
+  height: 28px;
+  padding: 2px;
+  width: 42px;
+}
+
+.drawing-toolbar-swatch-grid,
+.drawing-toolbar-choice-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.drawing-toolbar-popover .drawing-toolbar-color-option {
+  height: 30px;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0;
+}
+
+.drawing-toolbar-color-option span {
+  border: 1px solid color-mix(in srgb, #ffffff 74%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-strong) 18%, transparent);
+  height: 16px;
+  width: 16px;
+}
+
+.drawing-toolbar-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.drawing-toolbar-menu-list button {
+  justify-content: flex-start;
+}
+
+.drawing-toolbar-stacked-label {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.drawing-toolbar-coordinate-grid {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 54px minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.drawing-toolbar-coordinate-grid span,
+.drawing-toolbar-help,
+.drawing-toolbar-section-label,
+.drawing-toolbar-status {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.drawing-toolbar-section-label {
+  font-weight: 700;
+  letter-spacing: 0;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+.drawing-toolbar-popover small {
+  color: var(--text-muted);
+  display: block;
+  font-size: 10px;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+
+.drawing-toolbar-status {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 7px;
 }
 
 .chart-layout-grid {

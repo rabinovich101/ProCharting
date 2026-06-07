@@ -141,6 +141,9 @@ type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
 type CursorToolId = 'cross' | 'dot';
 type DrawingToolId = 'trend-line' | 'horizontal-ray';
 type DrawingMenuId = 'cursor' | 'line-tools';
+type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
+type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
+type DrawingToolbarMenuId = 'templates' | 'color' | 'text' | 'width' | 'style' | 'settings' | 'alert' | 'more';
 type DrawingDragMode = 'none' | 'body' | 'start' | 'end';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
@@ -216,8 +219,18 @@ interface ChartDrawing {
   paneIndex: number;
   anchors: ChartDrawingAnchor[];
   locked: boolean;
+  visible: boolean;
   color: string;
   lineWidth: number;
+  lineStyle: DrawingLineStyle;
+  text: string;
+  showText: boolean;
+  showMiddlePoint: boolean;
+  showPriceLabels: boolean;
+  alertEnabled: boolean;
+  visibility: DrawingVisibilityMode;
+  syncInLayout: boolean;
+  syncGlobally: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -255,6 +268,12 @@ interface DrawingToolbarDragState extends DrawingToolbarPosition {
   startClientY: number;
   toolbarWidth: number;
   toolbarHeight: number;
+}
+
+interface DrawingStylePreset {
+  color: string;
+  lineWidth: number;
+  lineStyle: DrawingLineStyle;
 }
 
 interface DrawingMenuToolEntry {
@@ -550,10 +569,28 @@ const DEFAULT_CHART_SETTINGS: ChartSettingsState = {
   showCrosshair: true,
 };
 const DRAWING_DEFAULT_COLOR = '#2962ff';
+const DRAWING_DEFAULT_LINE_STYLE: DrawingLineStyle = 'solid';
 const DRAWING_HANDLE_RADIUS = 4.5;
 const DRAWING_HIT_TOLERANCE = 8;
 const DRAWING_FLOATING_TOOLBAR_HEIGHT = 38;
 const DRAWING_FLOATING_TOOLBAR_MARGIN = 8;
+const DRAWING_COLOR_SWATCHES = ['#2962ff', '#089981', '#f23645', '#ff9800', '#9c27b0', '#ffffff', '#000000'];
+const DRAWING_LINE_WIDTH_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
+const DRAWING_LINE_STYLE_OPTIONS: Array<{ value: DrawingLineStyle; label: string }> = [
+  { value: 'solid', label: 'Solid' },
+  { value: 'dashed', label: 'Dashed' },
+  { value: 'dotted', label: 'Dotted' },
+];
+const DRAWING_VISIBILITY_OPTIONS: Array<{ value: DrawingVisibilityMode; label: string; description: string }> = [
+  { value: 'all', label: 'All intervals', description: 'Visible on every chart interval' },
+  { value: 'intraday', label: 'Intraday only', description: '1m through 4H intervals' },
+  { value: 'daily-plus', label: 'Daily and above', description: '1D, 1W, and 1M intervals' },
+];
+const DEFAULT_DRAWING_STYLE_PRESET: DrawingStylePreset = {
+  color: DRAWING_DEFAULT_COLOR,
+  lineWidth: 2,
+  lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+};
 const CURSOR_TOOL_LABELS: Record<CursorToolId, string> = {
   cross: 'Cross',
   dot: 'Dot',
@@ -1740,6 +1777,18 @@ const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   value === 'trend-line' || value === 'horizontal-ray';
+const isDrawingLineStyle = (value: unknown): value is DrawingLineStyle =>
+  value === 'solid' || value === 'dashed' || value === 'dotted';
+const isDrawingVisibilityMode = (value: unknown): value is DrawingVisibilityMode =>
+  value === 'all' || value === 'intraday' || value === 'daily-plus';
+const isDailyPlusTimeframe = (timeframe: string) => timeframe === '1d' || timeframe === '1w' || timeframe === '1M';
+const shouldRenderDrawingForTimeframe = (drawing: ChartDrawing, timeframe: string) => {
+  if (!drawing.visible) return false;
+  if (drawing.visibility === 'all') return true;
+
+  const dailyPlus = isDailyPlusTimeframe(timeframe);
+  return drawing.visibility === 'daily-plus' ? dailyPlus : !dailyPlus;
+};
 const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawing[] => {
   if (!Array.isArray(drawings)) return [];
 
@@ -1777,8 +1826,18 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         paneIndex: drawing.paneIndex,
         anchors,
         locked: drawing.locked === true,
+        visible: drawing.visible !== false,
         color: typeof drawing.color === 'string' ? drawing.color : DRAWING_DEFAULT_COLOR,
         lineWidth: Number.isFinite(drawing.lineWidth) ? clamp(drawing.lineWidth!, 1, 6) : 2,
+        lineStyle: isDrawingLineStyle(drawing.lineStyle) ? drawing.lineStyle : DRAWING_DEFAULT_LINE_STYLE,
+        text: typeof drawing.text === 'string' ? drawing.text.slice(0, 120) : '',
+        showText: drawing.showText === true,
+        showMiddlePoint: drawing.showMiddlePoint === true,
+        showPriceLabels: drawing.showPriceLabels === true,
+        alertEnabled: drawing.alertEnabled === true,
+        visibility: isDrawingVisibilityMode(drawing.visibility) ? drawing.visibility : 'all',
+        syncInLayout: drawing.syncInLayout === true,
+        syncGlobally: drawing.syncGlobally === true,
         createdAt: timestamp,
         updatedAt: Number.isFinite(drawing.updatedAt) ? drawing.updatedAt! : timestamp,
       };
@@ -3287,6 +3346,9 @@ export default function Home() {
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
+  const [activeDrawingToolbarMenu, setActiveDrawingToolbarMenu] = useState<DrawingToolbarMenuId | null>(null);
+  const [drawingStylePreset, setDrawingStylePreset] = useState<DrawingStylePreset>(DEFAULT_DRAWING_STYLE_PRESET);
+  const [drawingToolbarStatus, setDrawingToolbarStatus] = useState('');
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [pendingDrawing, setPendingDrawing] = useState<PendingDrawing | null>(null);
@@ -3744,6 +3806,11 @@ export default function Home() {
         setSettingsTarget(null);
         setMoreTarget(null);
       }
+
+      if (!selectedDrawingToolbarRef.current?.contains(target)) {
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
+      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3757,6 +3824,8 @@ export default function Home() {
         setAuthMessage('');
         setActiveDrawingTool(null);
         setActiveDrawingMenu(null);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
         setPendingDrawing(null);
         setSelectedDrawingId(null);
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
@@ -3772,6 +3841,8 @@ export default function Home() {
         const drawingId = selectedDrawingIdRef.current;
         setDrawings((current) => current.filter((drawing) => drawing.id !== drawingId));
         setSelectedDrawingId(null);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
         setPendingDrawing(null);
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
         event.preventDefault();
@@ -4151,8 +4222,14 @@ export default function Home() {
     const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     if (chartArea.width <= 0 || chartArea.height <= 0) return null;
 
+    const pane = paneStatesRef.current[paneIndex];
     const drawingsForPane = drawingsRef.current
-      .filter((drawing) => drawing.paneIndex === paneIndex)
+      .filter(
+        (drawing) =>
+          drawing.paneIndex === paneIndex &&
+          pane !== undefined &&
+          shouldRenderDrawingForTimeframe(drawing, pane.timeframe)
+      )
       .slice()
       .reverse();
 
@@ -4249,6 +4326,8 @@ export default function Home() {
   const clearDrawingInteractionState = (paneIndex = activePaneIndex) => {
     setActiveDrawingTool(null);
     setActiveDrawingMenu(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
     setPendingDrawing(null);
     setSelectedDrawingId(null);
     drawingDragRef.current = createDrawingDragState(paneIndex);
@@ -4263,6 +4342,8 @@ export default function Home() {
     setHeaderPanel(null);
     setSettingsTarget(null);
     setMoreTarget(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
     setActiveDrawingMenu((current) => (current === menu ? null : menu));
   };
   const selectCursorTool = (tool: CursorToolId) => {
@@ -4270,6 +4351,8 @@ export default function Home() {
 
     setCursorTool(tool);
     setActiveDrawingMenu(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
     setActiveDrawingTool(null);
     setPendingDrawing(null);
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
@@ -4284,6 +4367,8 @@ export default function Home() {
     setHeaderPanel(null);
     setSettingsTarget(null);
     setMoreTarget(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
     setActiveDrawingMenu(null);
     setPendingDrawing(null);
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
@@ -4320,8 +4405,18 @@ export default function Home() {
       paneIndex,
       anchors: cloneDrawingAnchors(anchors),
       locked: false,
+      visible: true,
       color: DRAWING_DEFAULT_COLOR,
       lineWidth: 2,
+      lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+      text: '',
+      showText: false,
+      showMiddlePoint: false,
+      showPriceLabels: false,
+      alertEnabled: false,
+      visibility: 'all',
+      syncInLayout: false,
+      syncGlobally: false,
       createdAt: now,
       updatedAt: now,
     };
@@ -4332,6 +4427,49 @@ export default function Home() {
     setPendingDrawing(null);
     setActiveDrawingTool(null);
     setActiveDrawingMenu(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
+  };
+  const updateSelectedDrawing = (updater: (drawing: ChartDrawing) => ChartDrawing) => {
+    if (!isAuthenticated || !selectedDrawingId) return;
+
+    setDrawings((current) =>
+      current.map((drawing) =>
+        drawing.id === selectedDrawingId ? updater({ ...drawing, anchors: cloneDrawingAnchors(drawing.anchors) }) : drawing
+      )
+    );
+  };
+  const patchSelectedDrawing = (updates: Partial<ChartDrawing>) => {
+    updateSelectedDrawing((drawing) => ({ ...drawing, ...updates, updatedAt: Date.now() }));
+  };
+  const updateSelectedDrawingAnchor = (anchorIndex: number, updates: Partial<ChartDrawingAnchor>) => {
+    updateSelectedDrawing((drawing) => {
+      if (!drawing.anchors[anchorIndex]) return drawing;
+
+      const anchors = cloneDrawingAnchors(drawing.anchors);
+      anchors[anchorIndex] = { ...anchors[anchorIndex]!, ...updates };
+      return { ...drawing, anchors, updatedAt: Date.now() };
+    });
+  };
+  const applyDrawingStylePreset = () => {
+    patchSelectedDrawing({
+      color: drawingStylePreset.color,
+      lineWidth: drawingStylePreset.lineWidth,
+      lineStyle: drawingStylePreset.lineStyle,
+    });
+    setDrawingToolbarStatus('Drawing template applied');
+  };
+  const saveDrawingStylePreset = (drawing: ChartDrawing) => {
+    setDrawingStylePreset({
+      color: drawing.color,
+      lineWidth: drawing.lineWidth,
+      lineStyle: drawing.lineStyle,
+    });
+    setDrawingToolbarStatus('Drawing template saved');
+  };
+  const resetSelectedDrawingStyle = () => {
+    patchSelectedDrawing(DEFAULT_DRAWING_STYLE_PRESET);
+    setDrawingToolbarStatus('Drawing style reset');
   };
   const toggleSelectedDrawingLock = () => {
     if (!isAuthenticated || !selectedDrawingId) return;
@@ -4349,8 +4487,71 @@ export default function Home() {
 
     setDrawings((current) => current.filter((drawing) => drawing.id !== selectedDrawingId));
     setSelectedDrawingId(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
     setPendingDrawing(null);
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
+  };
+  const duplicateSelectedDrawing = () => {
+    if (!isAuthenticated || !selectedDrawingId) return;
+
+    const sourceIndex = drawingsRef.current.findIndex((drawing) => drawing.id === selectedDrawingId);
+    const sourceDrawing = drawingsRef.current[sourceIndex];
+    if (!sourceDrawing) return;
+
+    const priceRange = getCurrentPriceRange(sourceDrawing.paneIndex);
+    const priceOffset = priceRange ? (priceRange.maxPrice - priceRange.minPrice) * 0.025 : 0;
+    const duplicate: ChartDrawing = {
+      ...sourceDrawing,
+      id: createDrawingId(sourceDrawing.kind),
+      anchors: sourceDrawing.anchors.map((anchor) => ({
+        logicalIndex: anchor.logicalIndex + 3,
+        price: anchor.price + priceOffset,
+      })),
+      locked: false,
+      visible: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    setDrawings((current) => {
+      const next = [...current];
+      const insertIndex = current.findIndex((drawing) => drawing.id === selectedDrawingId);
+      next.splice(insertIndex >= 0 ? insertIndex + 1 : current.length, 0, duplicate);
+      return next;
+    });
+    setSelectedDrawingId(duplicate.id);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('Drawing cloned');
+  };
+  const copySelectedDrawing = async () => {
+    if (!isAuthenticated || !selectedDrawingId) return;
+
+    const drawing = drawingsRef.current.find((currentDrawing) => currentDrawing.id === selectedDrawingId);
+    if (!drawing) return;
+
+    try {
+      await navigator.clipboard?.writeText(JSON.stringify(drawing, null, 2));
+      setDrawingToolbarStatus('Drawing copied');
+    } catch {
+      setDrawingToolbarStatus('Copy unavailable');
+    }
+  };
+  const moveSelectedDrawingVisualOrder = (direction: 'front' | 'back') => {
+    if (!isAuthenticated || !selectedDrawingId) return;
+
+    setDrawings((current) => {
+      const drawing = current.find((candidate) => candidate.id === selectedDrawingId);
+      if (!drawing) return current;
+
+      const remaining = current.filter((candidate) => candidate.id !== selectedDrawingId);
+      return direction === 'front' ? [...remaining, drawing] : [drawing, ...remaining];
+    });
+    setDrawingToolbarStatus(direction === 'front' ? 'Drawing brought to front' : 'Drawing sent to back');
+  };
+  const toggleDrawingToolbarMenu = (menu: DrawingToolbarMenuId) => {
+    setDrawingToolbarStatus('');
+    setActiveDrawingToolbarMenu((current) => (current === menu ? null : menu));
   };
 
   const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
@@ -4435,6 +4636,8 @@ export default function Home() {
       } else if (activeDrawingTool === 'trend-line') {
         setPendingDrawing({ tool: 'trend-line', paneIndex, anchor, preview: anchor });
         setSelectedDrawingId(null);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
       } else {
         addCompletedDrawing(createChartDrawing(paneIndex, 'horizontal-ray', [anchor]));
       }
@@ -4447,6 +4650,8 @@ export default function Home() {
       const drawingHit = getDrawingHitResult(paneIndex, x, y);
       if (drawingHit) {
         setSelectedDrawingId(drawingHit.drawing.id);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
         setActiveDrawingTool(null);
         setPendingDrawing(null);
 
@@ -4468,6 +4673,8 @@ export default function Home() {
       }
 
       setSelectedDrawingId(null);
+      setActiveDrawingToolbarMenu(null);
+      setDrawingToolbarStatus('');
     }
 
     const currentPriceRange = getCurrentPriceRange(paneIndex);
@@ -5078,6 +5285,15 @@ export default function Home() {
       x: chartArea.left + ((anchor.logicalIndex - viewRange.startIndex) / Math.max(1, viewRange.candlesPerView)) * chartArea.width,
       y: priceToY(anchor.price),
     });
+    const applyDrawingLineStyle = (drawing: ChartDrawing) => {
+      if (drawing.lineStyle === 'dashed') {
+        ctx.setLineDash([drawing.lineWidth * 4, drawing.lineWidth * 2.5]);
+      } else if (drawing.lineStyle === 'dotted') {
+        ctx.setLineDash([drawing.lineWidth, drawing.lineWidth * 2.4]);
+      } else {
+        ctx.setLineDash([]);
+      }
+    };
     const drawDrawingHandle = (point: { x: number; y: number }, selected: boolean) => {
       if (!selected) return;
 
@@ -5089,13 +5305,26 @@ export default function Home() {
       ctx.fill();
       ctx.stroke();
     };
+    const drawDrawingText = (drawing: ChartDrawing, start: { x: number; y: number }, end: { x: number; y: number }) => {
+      const text = drawing.showText ? drawing.text.trim() : '';
+      if (!text) return;
+
+      const textX = (start.x + end.x) / 2 + 8;
+      const textY = (start.y + end.y) / 2 - 8;
+      ctx.font = '600 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      const textWidth = Math.min(220, ctx.measureText(text).width + 12);
+      ctx.fillStyle = theme === 'dark' ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)';
+      ctx.fillRect(textX - 6, textY - 15, textWidth, 20);
+      ctx.fillStyle = drawing.color;
+      ctx.fillText(text, textX, textY);
+    };
     const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
       const start = drawing.anchors[0] ? pointForDrawingAnchor(drawing.anchors[0]) : null;
       if (!start) return;
 
       ctx.strokeStyle = drawing.color;
       ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
-      ctx.setLineDash([]);
+      applyDrawingLineStyle(drawing);
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
 
@@ -5108,17 +5337,31 @@ export default function Home() {
         ctx.setLineDash([]);
         drawDrawingHandle(start, selected);
         drawDrawingHandle(end, selected);
+        if (drawing.showMiddlePoint) {
+          drawDrawingHandle({ x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }, true);
+        }
+        if (drawing.showPriceLabels) {
+          drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
+          drawingPriceLabels.push({ y: end.y, price: drawing.anchors[1]!.price, color: drawing.color, selected });
+        }
+        drawDrawingText(drawing, start, end);
         return;
       }
 
-      ctx.lineTo(chartArea.left + chartArea.width, start.y);
+      const end = { x: chartArea.left + chartArea.width, y: start.y };
+      ctx.lineTo(end.x, end.y);
       ctx.stroke();
       ctx.setLineDash([]);
       drawDrawingHandle(start, selected);
-      drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
+      if (drawing.showPriceLabels || selected) {
+        drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
+      }
+      drawDrawingText(drawing, start, end);
     };
 
-    const visiblePaneDrawings = isAuthenticated ? drawings.filter((drawing) => drawing.paneIndex === paneIndex) : [];
+    const visiblePaneDrawings = isAuthenticated
+      ? drawings.filter((drawing) => drawing.paneIndex === paneIndex && shouldRenderDrawingForTimeframe(drawing, pane.timeframe))
+      : [];
 
     visiblePaneDrawings
       .forEach((drawing) => drawDrawing(drawing, drawing.id === selectedDrawingId));
@@ -5131,8 +5374,18 @@ export default function Home() {
           paneIndex,
           anchors: [pendingDrawing.anchor, pendingDrawing.preview],
           locked: false,
+          visible: true,
           color: DRAWING_DEFAULT_COLOR,
           lineWidth: 2,
+          lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+          text: '',
+          showText: false,
+          showMiddlePoint: false,
+          showPriceLabels: false,
+          alertEnabled: false,
+          visibility: 'all',
+          syncInLayout: false,
+          syncGlobally: false,
           createdAt: 0,
           updatedAt: 0,
         },
@@ -5511,6 +5764,8 @@ export default function Home() {
     setAuthPasswordVisible(false);
     setSettingsTarget(null);
     setMoreTarget(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
   };
   const openAuthPanel = (mode: AuthMode, actionLabel = '') => {
     setOpenMenu(null);
@@ -5841,6 +6096,8 @@ export default function Home() {
       }))
     );
     setSelectedDrawingId(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
     setPendingDrawing(null);
     setActiveDrawingTool(null);
     setChartPanes(restoredPanes);
@@ -6589,6 +6846,17 @@ export default function Home() {
     return [
       drawing.kind,
       drawing.locked ? 'locked' : 'unlocked',
+      drawing.visible ? 'visible' : 'hidden',
+      drawing.color,
+      `${drawing.lineWidth}px`,
+      drawing.lineStyle,
+      drawing.showText ? `text:${drawing.text}` : 'text-off',
+      drawing.showMiddlePoint ? 'middle-on' : 'middle-off',
+      drawing.showPriceLabels ? 'labels-on' : 'labels-off',
+      drawing.alertEnabled ? 'alert-on' : 'alert-off',
+      `visibility:${drawing.visibility}`,
+      drawing.syncInLayout ? 'sync-layout-on' : 'sync-layout-off',
+      drawing.syncGlobally ? 'sync-global-on' : 'sync-global-off',
       ...drawing.anchors.map((anchor) => `${anchor.logicalIndex.toFixed(2)},${anchor.price.toFixed(2)}`),
     ].join('|');
   };
@@ -6597,7 +6865,7 @@ export default function Home() {
     const rect = canvas?.getBoundingClientRect();
     if (!rect) return null;
 
-    const toolbarWidth = Math.min(354, Math.max(180, rect.width - 20));
+    const toolbarWidth = Math.min(430, Math.max(220, rect.width - 20));
     const toolbarHeight =
       selectedDrawingToolbarRef.current?.getBoundingClientRect().height || DRAWING_FLOATING_TOOLBAR_HEIGHT;
     const margin = DRAWING_FLOATING_TOOLBAR_MARGIN;
@@ -6810,6 +7078,296 @@ export default function Home() {
     const drawing = getSelectedDrawingForPane(paneIndex);
     const style = getSelectedDrawingToolbarStyle(paneIndex);
     if (!isAuthenticated || !drawing || !style) return null;
+    const pointOne = drawing.anchors[0];
+    const pointTwo = drawing.anchors[1];
+    const renderToolbarPanel = () => {
+      if (!activeDrawingToolbarMenu) return null;
+
+      return (
+        <div
+          className="drawing-toolbar-popover"
+          role={activeDrawingToolbarMenu === 'more' || activeDrawingToolbarMenu === 'templates' ? 'menu' : 'group'}
+          aria-label={`Drawing ${activeDrawingToolbarMenu} menu`}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {activeDrawingToolbarMenu === 'templates' && (
+            <>
+              <strong>Drawing template</strong>
+              <button type="button" role="menuitem" onClick={() => saveDrawingStylePreset(drawing)}>
+                Save current style
+              </button>
+              <button type="button" role="menuitem" onClick={applyDrawingStylePreset}>
+                Apply saved style
+              </button>
+              <button type="button" role="menuitem" onClick={resetSelectedDrawingStyle}>
+                Reset style
+              </button>
+            </>
+          )}
+          {activeDrawingToolbarMenu === 'color' && (
+            <>
+              <strong>Line color</strong>
+              <div className="drawing-toolbar-swatch-grid" aria-label="Preset line colors">
+                {DRAWING_COLOR_SWATCHES.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className="drawing-toolbar-color-option"
+                    aria-label={`Set drawing color ${color}`}
+                    data-active={drawing.color.toLowerCase() === color.toLowerCase()}
+                    onClick={() => patchSelectedDrawing({ color })}
+                  >
+                    <span style={{ backgroundColor: color }} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+              <label>
+                <span>Custom</span>
+                <input
+                  type="color"
+                  value={colorToInputValue(drawing.color, DRAWING_DEFAULT_COLOR)}
+                  onChange={(event) => patchSelectedDrawing({ color: event.target.value })}
+                />
+              </label>
+            </>
+          )}
+          {activeDrawingToolbarMenu === 'text' && (
+            <>
+              <strong>Text</strong>
+              <label>
+                <span>Show text</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.showText}
+                  onChange={(event) => patchSelectedDrawing({ showText: event.target.checked })}
+                />
+              </label>
+              <label className="drawing-toolbar-stacked-label">
+                <span>Text</span>
+                <input
+                  type="text"
+                  maxLength={120}
+                  value={drawing.text}
+                  placeholder="Trendline note"
+                  onChange={(event) =>
+                    patchSelectedDrawing({
+                      text: event.target.value,
+                      showText: event.target.value.trim().length > 0 ? true : drawing.showText,
+                    })
+                  }
+                />
+              </label>
+            </>
+          )}
+          {activeDrawingToolbarMenu === 'width' && (
+            <>
+              <strong>Line width</strong>
+              <div className="drawing-toolbar-choice-grid" role="radiogroup" aria-label="Line width">
+                {DRAWING_LINE_WIDTH_OPTIONS.map((lineWidth) => (
+                  <button
+                    key={lineWidth}
+                    type="button"
+                    role="radio"
+                    aria-checked={drawing.lineWidth === lineWidth}
+                    data-active={drawing.lineWidth === lineWidth}
+                    onClick={() => patchSelectedDrawing({ lineWidth })}
+                  >
+                    {lineWidth}px
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {activeDrawingToolbarMenu === 'style' && (
+            <>
+              <strong>Line style</strong>
+              <div className="drawing-toolbar-menu-list" role="radiogroup" aria-label="Line style">
+                {DRAWING_LINE_STYLE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={drawing.lineStyle === option.value}
+                    data-active={drawing.lineStyle === option.value}
+                    onClick={() => patchSelectedDrawing({ lineStyle: option.value })}
+                  >
+                    <span className="drawing-line-sample" data-style={option.value} aria-hidden="true" />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {activeDrawingToolbarMenu === 'settings' && (
+            <>
+              <strong>Trendline settings</strong>
+              <label>
+                <span>Line</span>
+                <select
+                  value={drawing.lineStyle}
+                  onChange={(event) => patchSelectedDrawing({ lineStyle: event.target.value as DrawingLineStyle })}
+                >
+                  {DRAWING_LINE_STYLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Width</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="6"
+                  value={drawing.lineWidth}
+                  onChange={(event) => patchSelectedDrawing({ lineWidth: clamp(Number(event.target.value), 1, 6) })}
+                />
+              </label>
+              <label>
+                <span>Middle point</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.showMiddlePoint}
+                  onChange={(event) => patchSelectedDrawing({ showMiddlePoint: event.target.checked })}
+                />
+              </label>
+              <label>
+                <span>Price labels</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.showPriceLabels}
+                  onChange={(event) => patchSelectedDrawing({ showPriceLabels: event.target.checked })}
+                />
+              </label>
+              {pointOne && (
+                <div className="drawing-toolbar-coordinate-grid">
+                  <span>Point 1</span>
+                  <input
+                    type="number"
+                    aria-label="Point 1 bar"
+                    value={Number(pointOne.logicalIndex.toFixed(2))}
+                    step="0.25"
+                    onChange={(event) =>
+                      updateSelectedDrawingAnchor(0, { logicalIndex: Number(event.target.value) })
+                    }
+                  />
+                  <input
+                    type="number"
+                    aria-label="Point 1 price"
+                    value={Number(pointOne.price.toFixed(2))}
+                    step="0.01"
+                    onChange={(event) => updateSelectedDrawingAnchor(0, { price: Number(event.target.value) })}
+                  />
+                </div>
+              )}
+              {drawing.kind === 'trend-line' && pointTwo && (
+                <div className="drawing-toolbar-coordinate-grid">
+                  <span>Point 2</span>
+                  <input
+                    type="number"
+                    aria-label="Point 2 bar"
+                    value={Number(pointTwo.logicalIndex.toFixed(2))}
+                    step="0.25"
+                    onChange={(event) =>
+                      updateSelectedDrawingAnchor(1, { logicalIndex: Number(event.target.value) })
+                    }
+                  />
+                  <input
+                    type="number"
+                    aria-label="Point 2 price"
+                    value={Number(pointTwo.price.toFixed(2))}
+                    step="0.01"
+                    onChange={(event) => updateSelectedDrawingAnchor(1, { price: Number(event.target.value) })}
+                  />
+                </div>
+              )}
+            </>
+          )}
+          {activeDrawingToolbarMenu === 'alert' && (
+            <>
+              <strong>Trendline alert</strong>
+              <span className="drawing-toolbar-help">Crossing trendline</span>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  patchSelectedDrawing({ alertEnabled: !drawing.alertEnabled });
+                  setDrawingToolbarStatus(drawing.alertEnabled ? 'Alert removed' : 'Alert created');
+                }}
+              >
+                {drawing.alertEnabled ? 'Remove alert' : 'Create alert'}
+              </button>
+            </>
+          )}
+          {activeDrawingToolbarMenu === 'more' && (
+            <>
+              <strong>More actions</strong>
+              <span className="drawing-toolbar-section-label">Visual order</span>
+              <button type="button" role="menuitem" onClick={() => moveSelectedDrawingVisualOrder('front')}>
+                Bring to front
+              </button>
+              <button type="button" role="menuitem" onClick={() => moveSelectedDrawingVisualOrder('back')}>
+                Send to back
+              </button>
+              <span className="drawing-toolbar-section-label">Visibility on intervals</span>
+              {DRAWING_VISIBILITY_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={drawing.visibility === option.value}
+                  data-active={drawing.visibility === option.value}
+                  onClick={() => patchSelectedDrawing({ visibility: option.value })}
+                >
+                  <span>
+                    {option.label}
+                    <small>{option.description}</small>
+                  </span>
+                </button>
+              ))}
+              <span className="drawing-toolbar-section-label">Object actions</span>
+              <button type="button" role="menuitem" onClick={duplicateSelectedDrawing}>
+                Clone
+              </button>
+              <button type="button" role="menuitem" onClick={() => void copySelectedDrawing()}>
+                Copy
+              </button>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={!drawing.visible}
+                onClick={() => patchSelectedDrawing({ visible: !drawing.visible })}
+              >
+                {drawing.visible ? 'Hide' : 'Show'}
+              </button>
+              <label>
+                <span>Sync in layout</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.syncInLayout}
+                  onChange={(event) => patchSelectedDrawing({ syncInLayout: event.target.checked })}
+                />
+              </label>
+              <label>
+                <span>Sync globally</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.syncGlobally}
+                  onChange={(event) => patchSelectedDrawing({ syncGlobally: event.target.checked })}
+                />
+              </label>
+            </>
+          )}
+          {drawingToolbarStatus && <span className="drawing-toolbar-status">{drawingToolbarStatus}</span>}
+        </div>
+      );
+    };
+    const lineSampleStyle = {
+      color: drawing.color,
+      backgroundColor: drawing.lineStyle === 'solid' ? drawing.color : undefined,
+    };
 
     return (
       <div
@@ -6835,24 +7393,77 @@ export default function Home() {
         >
           <span className="drawing-toolbar-glyph drag-handle" aria-hidden="true" />
         </button>
+        <button
+          type="button"
+          aria-label="Drawing templates"
+          title="Templates"
+          aria-expanded={activeDrawingToolbarMenu === 'templates'}
+          data-active={activeDrawingToolbarMenu === 'templates'}
+          onClick={() => toggleDrawingToolbarMenu('templates')}
+        >
+          <span className="drawing-toolbar-glyph templates" aria-hidden="true" />
+        </button>
         <span className="drawing-toolbar-divider" aria-hidden="true" />
-        <button type="button" aria-label="Drawing line color" title="Line color">
+        <button
+          type="button"
+          aria-label="Drawing line color"
+          title="Line color"
+          aria-expanded={activeDrawingToolbarMenu === 'color'}
+          data-active={activeDrawingToolbarMenu === 'color'}
+          onClick={() => toggleDrawingToolbarMenu('color')}
+        >
           <span className="drawing-color-swatch" style={{ backgroundColor: drawing.color }} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="Drawing text settings" title="Text">
+        <button
+          type="button"
+          aria-label="Drawing text settings"
+          title="Text"
+          aria-expanded={activeDrawingToolbarMenu === 'text'}
+          data-active={activeDrawingToolbarMenu === 'text'}
+          onClick={() => toggleDrawingToolbarMenu('text')}
+        >
           <span className="drawing-toolbar-glyph text" aria-hidden="true" />
         </button>
-        <button type="button" className="drawing-toolbar-wide-button" aria-label="Drawing line width" title="Line width">
-          <span className="drawing-line-sample" aria-hidden="true" />
+        <button
+          type="button"
+          className="drawing-toolbar-wide-button"
+          aria-label="Drawing line width"
+          title="Line width"
+          aria-expanded={activeDrawingToolbarMenu === 'width'}
+          data-active={activeDrawingToolbarMenu === 'width'}
+          onClick={() => toggleDrawingToolbarMenu('width')}
+        >
+          <span className="drawing-line-sample" data-style={drawing.lineStyle} style={lineSampleStyle} aria-hidden="true" />
           <span className="drawing-toolbar-value">{drawing.lineWidth}px</span>
         </button>
-        <button type="button" aria-label="Drawing line style" title="Line style">
-          <span className="drawing-line-sample" aria-hidden="true" />
+        <button
+          type="button"
+          aria-label="Drawing line style"
+          title="Line style"
+          aria-expanded={activeDrawingToolbarMenu === 'style'}
+          data-active={activeDrawingToolbarMenu === 'style'}
+          onClick={() => toggleDrawingToolbarMenu('style')}
+        >
+          <span className="drawing-line-sample" data-style={drawing.lineStyle} style={lineSampleStyle} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="Drawing settings" title="Settings">
+        <button
+          type="button"
+          aria-label="Drawing settings"
+          title="Settings"
+          aria-expanded={activeDrawingToolbarMenu === 'settings'}
+          data-active={activeDrawingToolbarMenu === 'settings'}
+          onClick={() => toggleDrawingToolbarMenu('settings')}
+        >
           <span className="drawing-toolbar-glyph settings" aria-hidden="true" />
         </button>
-        <button type="button" aria-label="Add alert to drawing" title="Add alert">
+        <button
+          type="button"
+          aria-label="Add alert to drawing"
+          title="Add alert"
+          aria-expanded={activeDrawingToolbarMenu === 'alert'}
+          data-active={activeDrawingToolbarMenu === 'alert' || drawing.alertEnabled}
+          onClick={() => toggleDrawingToolbarMenu('alert')}
+        >
           <span className="drawing-toolbar-glyph alert" aria-hidden="true" />
         </button>
         <button
@@ -6866,9 +7477,17 @@ export default function Home() {
         <button type="button" aria-label="Delete drawing" title="Delete" onClick={removeSelectedDrawing}>
           <span className="drawing-toolbar-glyph delete" aria-hidden="true" />
         </button>
-        <button type="button" aria-label="More drawing actions" title="More">
+        <button
+          type="button"
+          aria-label="More drawing actions"
+          title="More"
+          aria-expanded={activeDrawingToolbarMenu === 'more'}
+          data-active={activeDrawingToolbarMenu === 'more'}
+          onClick={() => toggleDrawingToolbarMenu('more')}
+        >
           <span className="drawing-toolbar-glyph more" aria-hidden="true" />
         </button>
+        {renderToolbarPanel()}
       </div>
     );
   };

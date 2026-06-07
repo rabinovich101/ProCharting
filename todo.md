@@ -7216,3 +7216,83 @@ where they want on the chart.
 - Temporary screenshots, extracted video frames, Playwright reports, and test
   results were removed. The three pre-existing deleted TradingView grid JSON
   files remain untouched.
+
+# TradingView Trendline Toolbar Menu Completion
+
+## Goal
+
+Finish the selected trendline floating toolbar so it behaves like TradingView's
+trendline menu instead of only looking similar: the quick buttons must open usable
+menus, apply drawing changes, and keep the toolbar draggable, stable, lockable,
+and deletable for logged-in users only.
+
+## Investigation / Decisions
+
+- Current toolbar rendering lives in `TEST/binance-chart-test/app/page.tsx` inside
+  the selected drawing overlay path. The far-left drag handle, lock, and delete
+  now work, but the color, text, line width, line style, settings, alert, and
+  overflow buttons are visual-only.
+- TradingView's trendline support documents style/text/coordinates/visibility
+  property dialogs and the alert action, and the supplied recording shows the
+  quick toolbar order: drag grip, templates/object control, line color, text,
+  width, line style, settings, alert, lock, delete, and overflow actions such as
+  Visual order, Visibility on intervals, Clone, Copy, Sync, and Hide.
+- Keep the implementation simple and directly tied to existing drawing data:
+  add drawing `lineStyle`, `text`, and `visible` fields; make line color, width,
+  style, text, settings, alert, and more panels work; implement Clone, Copy,
+  Hide/Show, Visual order front/back, Visibility intervals status, and local
+  alert status. Leave deep modal editors and server persistence out of this pass.
+- The toolbar and all drawing pixels remain authenticated-only. Signed-out users
+  should still see no drawing rail, no drawing pixels, no selected toolbar, and
+  no drawing hit-testing.
+- No `.env` files will be touched. The existing unrelated deleted TradingView
+  grid JSON files remain untouched.
+
+## Checklist
+
+- [x] Re-audit current selected drawing toolbar behavior against the TradingView
+      recording and support docs.
+- [x] Write this completion plan in `todo.md`.
+- [x] Add drawing style/text/visibility fields and sanitized layout restore
+      support.
+- [x] Implement toolbar popovers for color, text, width, style, settings, alert,
+      and overflow actions.
+- [x] Update canvas rendering and hit-testing for hidden/text/styled drawings.
+- [x] Update `ARCHITECTURE.md` with the completed drawing toolbar behavior.
+- [x] Run typecheck, build, signed-out e2e, and logged-in Playwright toolbar
+      behavior checks.
+- [x] Clean temporary artifacts, review status, commit, push, and leave unrelated
+      pre-existing changes untouched.
+
+## Review
+
+- Added real selected-drawing fields for visibility, interval visibility, line
+  style, text, middle point, price labels, local alert state, and local sync
+  flags, while preserving old saved drawings through sanitizer defaults.
+- Restored the second toolbar template button after the far-left drag grip and
+  made it useful with save/apply/reset local style template actions.
+- Implemented attached toolbar popovers for color swatches/custom color, text,
+  line width, line style, settings/coordinates, local alert creation/removal,
+  and overflow actions for visual order, interval visibility, hide/show, sync,
+  copy, and clone.
+- Updated rendering and hit-testing so hidden or interval-filtered drawings do
+  not draw or receive hits, dashed/dotted line styles render, text can display
+  on the line, middle point can show, and trendline endpoint price labels can
+  render on the price axis.
+- Fixed Clone so the duplicated drawing is inserted next to the original and the
+  new drawing remains selected with the floating toolbar visible.
+- Updated `ARCHITECTURE.md` to document the completed selected-object toolbar,
+  drawing state fields, and saved-layout snapshot behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright manual check with mocked market/Supabase data: covered
+    templates, color, text, width, style, settings, alert, and more menus;
+    verified drawing state updates, clone selection, copy status, hide/show,
+    interval visibility, local sync flags, toolbar drag by 180px x 96px, and
+    toolbar stability after moving the visible trendline.
+- TradingView support reference used for behavior scope:
+  `https://www.tradingview.com/support/solutions/43000518095-trend-line/`.
+- Camoufox MCP remains unable to browse localhost/private IPs in this
+  environment, so local UI verification used Playwright directly.
