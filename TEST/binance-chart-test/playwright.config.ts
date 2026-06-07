@@ -19,6 +19,8 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: '',
       NEXT_PUBLIC_SUPABASE_URL: '',
       NEXT_TELEMETRY_DISABLED: '1',
+      PROCHARTS_ADMIN_PASSWORD: 'test-password',
+      PROCHARTS_ADMIN_USERNAME: 'test-admin',
     },
   },
   use: {

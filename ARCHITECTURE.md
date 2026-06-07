@@ -175,6 +175,16 @@ Google and GitHub. Social signup and login share Supabase's
 `signInWithOAuth` provider flow, so Google/GitHub buttons appear in both dialog
 modes and redirect through the configured Supabase Auth provider when the
 deployment has the public Supabase env vars and provider credentials.
+The standalone app also has a server-rendered owner admin boundary at
+`/admin/users`. That route lists Supabase Auth users through
+`supabase.auth.admin.listUsers` with a server-only service-role key, then joins
+matching `public.user_profiles` and `public.chart_layouts` rows for profile and
+saved-layout activity. The route is disabled until the app runtime has
+`PROCHARTS_ADMIN_USERNAME`, `PROCHARTS_ADMIN_PASSWORD`,
+`SUPABASE_SERVICE_ROLE_KEY`, and either `SUPABASE_URL` or
+`NEXT_PUBLIC_SUPABASE_URL`. A narrow Next.js middleware applies HTTP Basic Auth
+only to `/admin/*`, and the privileged key remains server runtime state; it must
+not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
 For the local Docker Supabase runtime, the browser app reads
 `NEXT_PUBLIC_SUPABASE_URL` plus `NEXT_PUBLIC_SUPABASE_ANON_KEY` or
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from the standalone app's ignored

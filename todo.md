@@ -6169,3 +6169,60 @@ candle while the user is inspecting another candle.
   page title `ProCharting Market Desk`, chart and active indicator overlays
   rendered, screenshot captured, and console diagnostics reported 0 warnings and
   0 errors.
+
+# Admin Users Panel
+
+## Goal
+
+Build a secure admin panel for the standalone Next.js app so the owner can see
+Supabase Auth users, profile details, and account-related chart layout activity.
+
+## Investigation / Decisions
+
+- The user/account system is Supabase-owned. Auth users live under Supabase Auth,
+  public application profile rows live in `public.user_profiles`, and saved chart
+  layouts live in `public.chart_layouts`.
+- Listing all users requires a Supabase service-role key, so the admin panel must
+  be server-rendered and must never expose privileged keys to the browser bundle.
+- The app does not currently have an application-level admin role model, so the
+  simplest safe gate is HTTP Basic Auth controlled by server env vars.
+- The panel will live at `/admin/users`, will stay disabled until both Basic Auth
+  credentials and a service-role key are configured, and will show only
+  operational user/account details rather than secrets.
+
+## Checklist
+
+- [x] Add a server-only `/admin/users` page that uses Supabase Admin API and joins
+      profile/layout details for the current page of users.
+- [x] Add a narrowly scoped Basic Auth middleware guard for `/admin/*`.
+- [x] Add responsive admin-panel styling without touching unrelated chart UI.
+- [x] Add Playwright coverage for disabled and protected admin states.
+- [x] Update `ARCHITECTURE.md` with the new admin boundary and required env vars.
+- [x] Run type/build checks and browser/Playwright verification.
+- [x] Review final diff, commit, push, and leave the worktree clean except
+      unrelated pre-existing files.
+
+## Review
+
+- Added a server-rendered admin users panel at `/admin/users` for the standalone
+  Next.js app. It uses the Supabase Admin API with a server-only service-role
+  key, then joins `public.user_profiles` and `public.chart_layouts` for the
+  listed users.
+- Added a narrow Next.js middleware guard for `/admin/*` using
+  `PROCHARTS_ADMIN_USERNAME` and `PROCHARTS_ADMIN_PASSWORD`. The page stays
+  disabled unless Basic Auth credentials, `SUPABASE_SERVICE_ROLE_KEY`, and a
+  Supabase URL are configured.
+- Added dense responsive admin styling and Playwright coverage for the 401
+  guard, disabled state, and mobile/desktop horizontal overflow.
+- Updated `ARCHITECTURE.md` with the new privileged server boundary and the
+  required runtime env vars.
+- Local validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
+  - `pnpm run typecheck`
+  - `git diff --check`
+- Browser verification passed on `http://127.0.0.1:3100/admin/users` with
+  test-only Basic Auth credentials. The disabled state rendered correctly, had
+  no horizontal overflow, and the only console error in the MCP browser was the
+  external Google Analytics script failing DNS resolution in that tool context.
