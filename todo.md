@@ -1,3 +1,54 @@
+# Visual Indicator Move Up/Down Fix
+
+## Goal
+
+Fix indicator `Move up` and `Move down` actions so they visibly reorder the
+indicator rows/panes the user is interacting with.
+
+## Investigation / Decisions
+
+- After the lower-pane hover-control change, indicator rows are visually
+  grouped into price, volume, and oscillator overlays.
+- The existing move action still used the global `activeIndicators` array
+  neighbor. Moving MACD past Volume or SMA can update state but leave MACD in
+  the same visible lower-pane position, which feels broken.
+- The simplest correct behavior is to move an indicator relative to its current
+  visible legend group. For example, MACD in an oscillator pane should move
+  relative to RSI/Stochastic/other oscillator panes, while price overlays move
+  relative to other price overlay rows.
+- Move buttons should be disabled when there is no visible neighbor in that
+  group.
+
+## Checklist
+
+- [x] Reinspect the current move/reorder implementation.
+- [x] Scope move up/down to the current visual legend group.
+- [x] Disable move buttons when a visual move cannot change anything.
+- [x] Add E2E coverage for moving MACD above/below another oscillator pane.
+- [x] Update architecture notes if the behavior changes.
+- [x] Run build and focused Playwright verification.
+- [x] Review, commit, push, and leave the worktree clean except unrelated
+      generated files.
+
+## Review
+
+- `Move up` and `Move down` now swap an indicator with the previous/next
+  indicator in the same visible legend group instead of stepping through the
+  full `activeIndicators` array.
+- Move buttons are disabled at the visible group boundaries, so a lone volume
+  indicator or bottom-most oscillator no longer offers a no-op move.
+- The MACD E2E test now adds RSI and MACD, verifies MACD can move above RSI,
+  verifies it can move back down, and checks boundary disabled states.
+- `ARCHITECTURE.md` now documents that ordering actions are scoped to the
+  row's visible legend group.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts -g "MACD"`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `npm --prefix TEST/binance-chart-test run build`
+- One parallel build attempt failed with a transient Next `/_document` module
+  lookup while the Playwright web server was running; rerunning build by itself
+  passed.
+
 # Indicator Hover Controls And MACD Settings
 
 ## Goal

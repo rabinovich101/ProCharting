@@ -3355,16 +3355,20 @@ export default function Home() {
     setMoreTarget(null);
   };
 
-  const moveIndicator = (indicatorId: string, direction: -1 | 1) => {
+  const moveIndicator = (indicatorId: string, direction: -1 | 1, visualGroupIds?: string[]) => {
     setActiveIndicators((current) => {
+      const orderedGroupIds = (visualGroupIds && visualGroupIds.length > 0 ? visualGroupIds : current.map((indicator) => indicator.id))
+        .filter((id) => current.some((indicator) => indicator.id === id));
+      const groupIndex = orderedGroupIds.indexOf(indicatorId);
+      const targetId = orderedGroupIds[groupIndex + direction];
+      if (groupIndex < 0 || !targetId) return current;
+
       const index = current.findIndex((indicator) => indicator.id === indicatorId);
-      const nextIndex = index + direction;
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const targetIndex = current.findIndex((indicator) => indicator.id === targetId);
+      if (index < 0 || targetIndex < 0) return current;
 
       const next = [...current];
-      const [indicator] = next.splice(index, 1);
-      if (!indicator) return current;
-      next.splice(nextIndex, 0, indicator);
+      [next[index], next[targetIndex]] = [next[targetIndex]!, next[index]!];
       return next;
     });
     setMoreTarget(null);
@@ -5341,6 +5345,10 @@ export default function Home() {
     });
     const getSettingsPlacementForArea = (area: ChartCanvasArea) =>
       rect && area.top + 260 > rect.height ? 'above' : 'below';
+    const visibleOscillatorIndicatorOrder =
+      visualLayout?.oscillatorPaneAreas
+        .filter((area) => area.height > 0)
+        .map((area) => area.indicator.id) ?? [];
     const priceIndicators = activeIndicators.filter((indicator) => {
       const definition = getIndicatorDefinition(indicator.definitionId);
 
@@ -5350,8 +5358,14 @@ export default function Home() {
       if (definition.pane === 'oscillator') return !visibleOscillatorIndicatorIds.has(indicator.id);
       return false;
     });
+    const priceIndicatorIds = priceIndicators.map((indicator) => indicator.id);
+    const volumeIndicatorIds = visibleVolumeIndicatorId ? [visibleVolumeIndicatorId] : [];
 
-    const renderLegendRow = (indicator: ActiveIndicator, settingsPlacement: 'above' | 'below') => {
+    const renderLegendRow = (
+      indicator: ActiveIndicator,
+      settingsPlacement: 'above' | 'below',
+      visualGroupIds: string[]
+    ) => {
       const definition = getIndicatorDefinition(indicator.definitionId);
       const computed = activeIndicatorSeries[indicator.id];
       const indicatorValues = getIndicatorLegendValues({
@@ -5364,7 +5378,6 @@ export default function Home() {
         negativeColor: palette.red,
       });
       const settings = indicator.settings;
-      const indicatorIndex = activeIndicators.findIndex((item) => item.id === indicator.id);
       const canEditPeriod =
         definition.defaults.period !== undefined ||
         settings.period !== undefined ||
@@ -5379,6 +5392,9 @@ export default function Home() {
       const canEditMacd = definition.formula === 'macd';
       const canEditSignal = canEditMacd || definition.formula === 'stochastic';
       const signalPeriodMax = canEditMacd ? 50 : 200;
+      const visualGroupIndex = visualGroupIds.indexOf(indicator.id);
+      const canMoveUp = visualGroupIndex > 0;
+      const canMoveDown = visualGroupIndex >= 0 && visualGroupIndex < visualGroupIds.length - 1;
 
       return (
         <div
@@ -5613,16 +5629,16 @@ export default function Home() {
               <button
                 type="button"
                 role="menuitem"
-                disabled={indicatorIndex <= 0}
-                onClick={() => moveIndicator(indicator.id, -1)}
+                disabled={!canMoveUp}
+                onClick={() => moveIndicator(indicator.id, -1, visualGroupIds)}
               >
                 Move up
               </button>
               <button
                 type="button"
                 role="menuitem"
-                disabled={indicatorIndex === -1 || indicatorIndex === activeIndicators.length - 1}
-                onClick={() => moveIndicator(indicator.id, 1)}
+                disabled={!canMoveDown}
+                onClick={() => moveIndicator(indicator.id, 1, visualGroupIds)}
               >
                 Move down
               </button>
@@ -5644,7 +5660,7 @@ export default function Home() {
             data-visual-pane="price"
             aria-label={`Price indicators pane ${paneIndex + 1}`}
           >
-            {priceIndicators.map((indicator) => renderLegendRow(indicator, 'below'))}
+            {priceIndicators.map((indicator) => renderLegendRow(indicator, 'below', priceIndicatorIds))}
           </div>
         )}
         {visualLayout && visibleVolumeIndicatorId && visibleVolumeIndicator && (
@@ -5654,7 +5670,11 @@ export default function Home() {
             style={getLegendStyleForArea(visualLayout.volumeArea)}
             aria-label={`Volume indicators pane ${paneIndex + 1}`}
           >
-            {renderLegendRow(visibleVolumeIndicator, getSettingsPlacementForArea(visualLayout.volumeArea))}
+            {renderLegendRow(
+              visibleVolumeIndicator,
+              getSettingsPlacementForArea(visualLayout.volumeArea),
+              volumeIndicatorIds
+            )}
           </div>
         )}
         {visualLayout?.oscillatorPaneAreas
@@ -5667,7 +5687,7 @@ export default function Home() {
               style={getLegendStyleForArea(area)}
               aria-label={`${getIndicatorDefinition(area.indicator.definitionId).name} pane ${paneIndex + 1}`}
             >
-              {renderLegendRow(area.indicator, getSettingsPlacementForArea(area))}
+              {renderLegendRow(area.indicator, getSettingsPlacementForArea(area), visibleOscillatorIndicatorOrder)}
             </div>
           ))}
       </div>

@@ -502,6 +502,9 @@ The chart app supports:
   volume band, and oscillator controls sit over their lower panes. Rows stay
   compact by default and expand on desktop hover/focus/open states to expose
   controls for hide/show, settings, remove, duplicate, and ordering actions.
+  Ordering actions are scoped to the row's current visible legend group, so
+  lower-pane indicators move relative to other oscillator panes instead of
+  stepping invisibly through price/volume indicators.
   Settings such as length, source, standard deviation, MACD fast/slow/signal,
   MACD oscillator/signal MA type, signal color, and primary color update the
   active instance and redraw the chart. Indicator series are cached per pane by

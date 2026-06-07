@@ -228,11 +228,18 @@ test.describe('signed-out chart access', () => {
     await openApp(page);
 
     await page.getByRole('button', { name: 'Indicators, 2 active' }).click();
-    await page.locator('#indicators-menu').getByRole('menuitemcheckbox', { name: 'MACD Moving average convergence divergence MACD' }).click();
-    await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
+    const indicatorsMenu = page.locator('#indicators-menu');
+    await indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Relative Strength Index Momentum oscillator RSI' }).click();
+    await indicatorsMenu.getByRole('menuitemcheckbox', { name: 'MACD Moving average convergence divergence MACD' }).click();
+    await expect(page.getByRole('button', { name: 'Indicators, 4 active' })).toBeVisible();
     await page.keyboard.press('Escape');
 
-    const macdRow = page.locator('.indicator-legend-overlay[data-visual-pane="oscillator"] .indicator-legend-row', {
+    const oscillatorRows = page.locator('.indicator-legend-overlay[data-visual-pane="oscillator"] .indicator-legend-row');
+    await expect(oscillatorRows).toHaveCount(2);
+    await expect(oscillatorRows.nth(0)).toContainText('RSI');
+    await expect(oscillatorRows.nth(1)).toContainText('MACD');
+
+    let macdRow = oscillatorRows.filter({
       hasText: 'MACD',
     });
     await expect(macdRow).toBeVisible();
@@ -241,6 +248,24 @@ test.describe('signed-out chart access', () => {
     await expect(macdRow.getByRole('button', { name: 'Hide MACD' })).toBeVisible();
     await expect(macdRow.getByRole('button', { name: 'Remove MACD' })).toBeVisible();
 
+    await macdRow.getByRole('button', { name: 'More actions for MACD' }).click();
+    let macdActions = page.getByRole('menu', { name: 'MACD actions' });
+    await expect(macdActions.getByRole('menuitem', { name: 'Move down' })).toBeDisabled();
+    await macdActions.getByRole('menuitem', { name: 'Move up' }).click();
+    await expect(oscillatorRows.nth(0)).toContainText('MACD');
+    await expect(oscillatorRows.nth(1)).toContainText('RSI');
+
+    macdRow = oscillatorRows.filter({ hasText: 'MACD' });
+    await macdRow.hover();
+    await macdRow.getByRole('button', { name: 'More actions for MACD' }).click();
+    macdActions = page.getByRole('menu', { name: 'MACD actions' });
+    await expect(macdActions.getByRole('menuitem', { name: 'Move up' })).toBeDisabled();
+    await macdActions.getByRole('menuitem', { name: 'Move down' }).click();
+    await expect(oscillatorRows.nth(0)).toContainText('RSI');
+    await expect(oscillatorRows.nth(1)).toContainText('MACD');
+
+    macdRow = oscillatorRows.filter({ hasText: 'MACD' });
+    await macdRow.hover();
     await macdRow.getByRole('button', { name: 'Settings for MACD' }).click();
     const settings = page.getByRole('group', { name: 'MACD settings' });
     await expect(settings.getByLabel('Source')).toHaveValue('close');
