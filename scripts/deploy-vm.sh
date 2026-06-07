@@ -53,7 +53,14 @@ for process_name in "$APP_NAME" "$LEGACY_APP_NAME"; do
   fi
 done
 
-npm ci
+rm -rf node_modules
+npm ci --prefer-online
+
+if [[ ! -f node_modules/next/dist/server/web/sandbox/index.js ]]; then
+  echo "Next.js install is missing node_modules/next/dist/server/web/sandbox/index.js" >&2
+  exit 1
+fi
+
 npm run build
 
 # GitHub Actions marks spawned processes for cleanup; PM2 apps must outlive the

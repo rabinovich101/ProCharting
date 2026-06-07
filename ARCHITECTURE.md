@@ -76,6 +76,8 @@ override `/etc/procharts/app.env` in production.
 The deploy script stops the existing PM2 app before `npm ci` mutates
 `node_modules`; this creates a short deployment interruption but avoids serving
 requests from a process whose Next.js dependencies are being replaced.
+It removes the app `node_modules`, runs `npm ci --prefer-online`, and fails the
+deploy if the installed Next.js package is missing its server sandbox module.
 The deploy script clears GitHub Actions' process-tracking environment before
 starting PM2 so runner cleanup does not terminate the production app it just
 launched.
