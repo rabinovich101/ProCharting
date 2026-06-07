@@ -116,5 +116,6 @@ jobs:
           set -e
 
           if [[ "$local_result" != "0" || "$public_result" != "0" ]]; then
+            pm2 logs procharts-app --lines 80 --nostream || true
             exit 1
           fi
