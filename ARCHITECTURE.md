@@ -550,10 +550,13 @@ The chart app supports:
   the main price-pane canvas pass, and selected drawings show a DOM floating
   toolbar with working TradingView-like quick controls for templates, line color,
   opacity, text, line width, line style, arrow ends, settings, local alert state,
-  lock/unlock, delete, and more actions. The selected-object toolbar is
-  positioned near the top of the plot pane by default, can be moved by dragging
-  its far-left handle, and does not follow the selected drawing as it is dragged
-  or resized. Drawing objects store visibility, interval and per-timeframe
+  lock/unlock, delete, and more actions. The abstract selected-toolbar glyphs
+  use Lucide React icons so actions like lock, delete, alert, settings, and
+  overflow read as familiar tool icons instead of bespoke CSS drawings. The
+  selected-object toolbar is positioned near the top of the plot pane by
+  default, can be moved by dragging its far-left handle, and does not follow the
+  selected drawing as it is dragged or resized. Drawing objects store
+  visibility, interval and per-timeframe
   visibility, line style, opacity, arrow-end choices, formatted text,
   middle-point, price-label, stats-label, alert configuration, and local sync
   flags in addition to anchors/color/width. Hidden or interval-filtered drawings

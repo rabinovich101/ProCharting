@@ -7411,3 +7411,55 @@ visual state and prevent deleting a locked trendline until it is unlocked again.
 - Removed generated `.next`, Playwright test output, and the temporary
   `/tmp/procharting-lock-delete-guard.png` screenshot. The unrelated
   pre-existing deleted TradingView grid JSON files were left untouched.
+
+# Selected Trendline Toolbar Icon Clarity
+
+## Goal
+
+Replace the hard-to-read custom selected-trendline toolbar glyphs with clearer
+standard library icons.
+
+## Investigation / Decisions
+
+- The selected drawing toolbar currently uses hand-built CSS glyphs for drag,
+  templates, text, settings, alert, lock/unlock, delete, and more.
+- The project did not have an icon package installed, so `lucide-react` was
+  added for standard, recognizable React icons.
+- Keep color and line sample controls as-is because they communicate their
+  current values directly. Replace only the abstract toolbar glyphs.
+- Leave the drawing-tool rail icons for a separate pass; the immediate issue is
+  the selected trendline menu icons.
+- The unrelated deleted TradingView grid JSON files remain untouched.
+
+## Checklist
+
+- [x] Add the icon package dependency.
+- [x] Replace selected drawing toolbar CSS glyphs with Lucide icons.
+- [x] Remove now-unused selected-toolbar CSS glyph drawing rules.
+- [x] Update `ARCHITECTURE.md` with the icon-library decision.
+- [x] Verify typecheck, build, signed-out e2e, and logged-in toolbar visuals.
+- [x] Clean generated artifacts, commit, push, and leave unrelated deleted
+      TradingView JSON files untouched.
+
+## Review
+
+- Added `lucide-react` to the chart app dependencies.
+- Replaced the selected drawing toolbar's custom CSS glyphs with Lucide SVG
+  icons for move, templates, text, settings, alert, lock/unlock, delete, and
+  more actions.
+- Kept color swatch and line samples unchanged because they show live color,
+  width, and line-style state directly.
+- Removed the old selected-toolbar CSS glyph drawing rules and added a compact
+  `.drawing-toolbar-icon` alignment class.
+- Updated `ARCHITECTURE.md` to document the Lucide icon decision for the
+  selected drawing toolbar.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright audit on `127.0.0.1:3100` confirming eight SVG toolbar
+    icons render, toolbar menus still open, and lock/delete behavior still
+    works.
+- Removed generated `.next`, Playwright test output, and the temporary
+  `/tmp/procharting-lucide-toolbar.png` screenshot. The unrelated pre-existing
+  deleted TradingView grid JSON files were left untouched.

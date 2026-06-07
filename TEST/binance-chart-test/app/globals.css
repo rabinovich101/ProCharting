@@ -2470,8 +2470,7 @@ summary {
   font-size: 12px;
 }
 
-.drawing-tool-icon,
-.drawing-toolbar-glyph {
+.drawing-tool-icon {
   display: block;
   height: 18px;
   position: relative;
@@ -2479,9 +2478,7 @@ summary {
 }
 
 .drawing-tool-icon::before,
-.drawing-tool-icon::after,
-.drawing-toolbar-glyph::before,
-.drawing-toolbar-glyph::after {
+.drawing-tool-icon::after {
   content: "";
   position: absolute;
 }
@@ -2697,6 +2694,11 @@ summary {
   cursor: grabbing;
 }
 
+.drawing-toolbar-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
 .drawing-floating-toolbar button[data-active="true"] {
   background: var(--surface-2);
   color: var(--text-strong);
@@ -2757,152 +2759,6 @@ summary {
   font-size: 13px;
   line-height: 1;
   white-space: nowrap;
-}
-
-.drawing-toolbar-glyph.drag-handle::before {
-  background: currentColor;
-  border-radius: 50%;
-  box-shadow:
-    6px 0 0 currentColor,
-    0 6px 0 currentColor,
-    6px 6px 0 currentColor,
-    0 12px 0 currentColor,
-    6px 12px 0 currentColor;
-  height: 2px;
-  left: 5px;
-  top: 3px;
-  width: 2px;
-}
-
-.drawing-toolbar-glyph.templates::before {
-  border: 2px solid currentColor;
-  border-radius: 3px;
-  box-shadow:
-    8px 0 0 -1px currentColor,
-    0 8px 0 -1px currentColor,
-    8px 8px 0 -1px currentColor;
-  height: 5px;
-  left: 2px;
-  top: 2px;
-  width: 5px;
-}
-
-.drawing-toolbar-glyph.templates::after {
-  background: currentColor;
-  box-shadow: 0 0 0 1px currentColor;
-  height: 8px;
-  right: 0;
-  top: 9px;
-  width: 2px;
-}
-
-.drawing-toolbar-glyph.text::before {
-  background: currentColor;
-  height: 2px;
-  left: 3px;
-  top: 3px;
-  width: 12px;
-}
-
-.drawing-toolbar-glyph.text::after {
-  background: currentColor;
-  height: 13px;
-  left: 8px;
-  top: 3px;
-  width: 2px;
-}
-
-.drawing-toolbar-glyph.settings::before {
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  height: 10px;
-  left: 2px;
-  top: 2px;
-  width: 10px;
-}
-
-.drawing-toolbar-glyph.settings::after {
-  background: currentColor;
-  border-radius: 50%;
-  height: 4px;
-  left: 7px;
-  top: 7px;
-  width: 4px;
-}
-
-.drawing-toolbar-glyph.alert::before {
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  height: 12px;
-  left: 2px;
-  top: 2px;
-  width: 12px;
-}
-
-.drawing-toolbar-glyph.alert::after {
-  background: currentColor;
-  height: 6px;
-  left: 8px;
-  top: 4px;
-  transform-origin: bottom;
-  width: 2px;
-}
-
-.drawing-toolbar-glyph.lock::before,
-.drawing-toolbar-glyph.unlock::before {
-  border: 2px solid currentColor;
-  border-radius: 2px;
-  height: 8px;
-  left: 4px;
-  top: 8px;
-  width: 10px;
-}
-
-.drawing-toolbar-glyph.lock::after,
-.drawing-toolbar-glyph.unlock::after {
-  border: 2px solid currentColor;
-  border-bottom: 0;
-  border-radius: 7px 7px 0 0;
-  height: 7px;
-  left: 6px;
-  top: 1px;
-  width: 6px;
-}
-
-.drawing-toolbar-glyph.unlock::after {
-  left: 9px;
-  transform: rotate(22deg);
-}
-
-.drawing-toolbar-glyph.delete::before {
-  border: 2px solid currentColor;
-  border-top: 0;
-  border-radius: 0 0 2px 2px;
-  height: 10px;
-  left: 5px;
-  top: 7px;
-  width: 8px;
-}
-
-.drawing-toolbar-glyph.delete::after {
-  background: currentColor;
-  box-shadow: 3px -3px 0 -0.5px currentColor;
-  height: 2px;
-  left: 3px;
-  top: 4px;
-  width: 12px;
-}
-
-.drawing-toolbar-glyph.more::before {
-  background: currentColor;
-  border-radius: 50%;
-  box-shadow:
-    6px 0 0 currentColor,
-    12px 0 0 currentColor;
-  height: 3px;
-  left: 1px;
-  top: 8px;
-  width: 3px;
 }
 
 .drawing-toolbar-popover {

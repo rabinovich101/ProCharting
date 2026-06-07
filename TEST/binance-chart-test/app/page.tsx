@@ -13,6 +13,17 @@ import {
   type Ref,
 } from 'react';
 import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
+import {
+  Bell,
+  Bookmark,
+  GripVertical,
+  Lock,
+  MoreHorizontal,
+  Settings,
+  Trash2,
+  Type,
+  Unlock,
+} from 'lucide-react';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
@@ -7932,7 +7943,7 @@ export default function Home() {
           onPointerUp={handleDrawingToolbarDragEnd}
           onPointerCancel={handleDrawingToolbarDragEnd}
         >
-          <span className="drawing-toolbar-glyph drag-handle" aria-hidden="true" />
+          <GripVertical className="drawing-toolbar-icon" size={17} strokeWidth={2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -7942,7 +7953,7 @@ export default function Home() {
           data-active={activeDrawingToolbarMenu === 'templates'}
           onClick={() => toggleDrawingToolbarMenu('templates')}
         >
-          <span className="drawing-toolbar-glyph templates" aria-hidden="true" />
+          <Bookmark className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
         </button>
         <span className="drawing-toolbar-divider" aria-hidden="true" />
         <button
@@ -7963,7 +7974,7 @@ export default function Home() {
           data-active={activeDrawingToolbarMenu === 'text'}
           onClick={() => toggleDrawingToolbarMenu('text')}
         >
-          <span className="drawing-toolbar-glyph text" aria-hidden="true" />
+          <Type className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -7995,7 +8006,7 @@ export default function Home() {
           data-active={activeDrawingToolbarMenu === 'settings'}
           onClick={() => toggleDrawingToolbarMenu('settings')}
         >
-          <span className="drawing-toolbar-glyph settings" aria-hidden="true" />
+          <Settings className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -8005,7 +8016,7 @@ export default function Home() {
           data-active={activeDrawingToolbarMenu === 'alert' || drawing.alertEnabled}
           onClick={() => toggleDrawingToolbarMenu('alert')}
         >
-          <span className="drawing-toolbar-glyph alert" aria-hidden="true" />
+          <Bell className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -8013,7 +8024,11 @@ export default function Home() {
           title={drawing.locked ? 'Unlock' : 'Lock'}
           onClick={toggleSelectedDrawingLock}
         >
-          <span className={`drawing-toolbar-glyph ${drawing.locked ? 'lock' : 'unlock'}`} aria-hidden="true" />
+          {drawing.locked ? (
+            <Lock className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
+          ) : (
+            <Unlock className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
+          )}
         </button>
         <button
           type="button"
@@ -8022,7 +8037,7 @@ export default function Home() {
           disabled={drawing.locked}
           onClick={removeSelectedDrawing}
         >
-          <span className="drawing-toolbar-glyph delete" aria-hidden="true" />
+          <Trash2 className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -8032,7 +8047,7 @@ export default function Home() {
           data-active={activeDrawingToolbarMenu === 'more'}
           onClick={() => toggleDrawingToolbarMenu('more')}
         >
-          <span className="drawing-toolbar-glyph more" aria-hidden="true" />
+          <MoreHorizontal className="drawing-toolbar-icon" size={17} strokeWidth={2} aria-hidden="true" />
         </button>
         {renderToolbarPanel()}
       </div>
