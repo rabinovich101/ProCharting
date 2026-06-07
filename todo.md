@@ -1,3 +1,45 @@
+# README Contribution Addresses
+
+## Goal
+
+Add the project support/contribution crypto addresses requested by Oleg to the
+root `README.md` so readers know where they can send voluntary support.
+
+## Investigation / Decisions
+
+- The root `README.md` is the public repository entry point and currently has
+  no support or contribution payment section.
+- `CONTRIBUTING.md` explains contribution policy, but the user specifically
+  requested the README, so the address list belongs in `README.md`.
+- The repository is proprietary, so the README wording should make clear that
+  voluntary support does not change licensing or usage rights.
+- This is a documentation-only change and does not alter app architecture, so
+  `ARCHITECTURE.md` does not need an update.
+
+## Checklist
+
+- [x] Inspect the current README and contribution docs.
+- [x] Add a compact README support/contribution section with BTC, SOL, ETH, and
+      BNB addresses.
+- [x] Review the resulting docs diff for address accuracy and formatting.
+- [x] Run lightweight verification, including README text checks and browser or
+      Playwright-style documentation rendering where practical.
+- [x] Commit, push, and leave the worktree clean except unrelated pre-existing
+      files.
+
+## Review
+
+- Added `Support The Project` to the root `README.md` with the requested
+  Bitcoin, Solana, Ethereum, and BNB Smart Chain addresses.
+- Kept the section near the license area and included a licensing note that
+  voluntary support does not grant usage, redistribution, or embedding rights.
+- `ARCHITECTURE.md` was left unchanged because no runtime or architecture
+  behavior changed.
+- Verification passed:
+  - `git diff --check`
+  - README support-section address check with Node.js
+  - Playwright rendering check for the README support table
+
 # Visual Indicator Move Up/Down Fix
 
 ## Goal

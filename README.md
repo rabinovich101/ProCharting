@@ -136,6 +136,21 @@ ARCHITECTURE.md            # Architecture notes
 | Account buttons show that accounts are not connected | Provide `NEXT_PUBLIC_SUPABASE_URL` and either `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`. |
 | Iframe is too short or clipped | Increase the iframe height or use a responsive wrapper with a minimum height of at least `520px`. |
 
+## Support The Project
+
+If you want to contribute to ProCharting by supporting the project, you can use
+one of these crypto addresses:
+
+| Network | Address |
+| --- | --- |
+| Bitcoin | `bc1qfk3wug57fqt42m7ghtvuvlghwk9v6h4x28uryw` |
+| Solana | `GV64YGniKMgrk8v992hkuNVzvt7soGQL9vqWtDGge8ry` |
+| Ethereum | `0x88C8cAfd5D0163994A9C4099640ebDF1db604F11` |
+| BNB Smart Chain | `0x88C8cAfd5D0163994A9C4099640ebDF1db604F11` |
+
+Voluntary support does not grant a license, usage rights, redistribution
+rights, or permission to embed ProCharting without prior written approval.
+
 ## License
 
 Proprietary. See [LICENSE](LICENSE). ProCharting is not open-source software
