@@ -6574,19 +6574,17 @@ export default function Home() {
     const rect = canvas?.getBoundingClientRect();
     if (!drawing || !rect) return null;
 
-    const start = getDrawingPointForAnchor(paneIndex, drawing.anchors[0]!);
-    if (!start) return null;
-
     const bounds = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
-    const end =
-      drawing.kind === 'trend-line' && drawing.anchors[1]
-        ? getDrawingPointForAnchor(paneIndex, drawing.anchors[1])
-        : { x: bounds.chartArea.left + bounds.chartArea.width, y: start.y };
-    if (!end) return null;
+    const chartArea = bounds.chartArea;
 
     const toolbarWidth = Math.min(354, Math.max(180, rect.width - 20));
-    const left = clamp((Math.min(start.x, end.x) + Math.max(start.x, end.x)) / 2 - toolbarWidth / 2, 10, rect.width - toolbarWidth - 10);
-    const top = clamp(Math.min(start.y, end.y) - 43, 8, Math.max(8, rect.height - 42));
+    const toolbarCenterX = chartArea.width > 0 ? chartArea.left + chartArea.width / 2 : rect.width / 2;
+    const left = clamp(
+      toolbarCenterX - toolbarWidth / 2,
+      10,
+      Math.max(10, rect.width - toolbarWidth - 10)
+    );
+    const top = clamp(chartArea.height > 0 ? chartArea.top + 14 : 8, 8, Math.max(8, rect.height - 42));
 
     return { left, top, width: toolbarWidth };
   };

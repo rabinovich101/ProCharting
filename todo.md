@@ -7097,3 +7097,59 @@ locked drawings remain solid while refusing drag edits.
 - Temporary video frames, screenshots, Playwright traces, reports, and test
   results were removed. The three pre-existing deleted TradingView grid JSON
   files remain untouched.
+
+# Fixed TradingView Drawing Toolbar Position
+
+## Goal
+
+Make the selected drawing toolbar for color/width/lock/delete stay in a stable
+pane position after a trendline is drawn or moved, matching TradingView's
+object-toolbar behavior instead of following the drawing geometry.
+
+## Investigation / Decisions
+
+- The selected-object toolbar is positioned in
+  `TEST/binance-chart-test/app/page.tsx` by
+  `getSelectedDrawingToolbarStyle`.
+- The current implementation calculates toolbar `left` and `top` from the
+  selected drawing's start/end anchors. That makes the toolbar chase the
+  trendline when the user drags or resizes it.
+- The fix should use the pane/canvas chart bounds instead: center the toolbar
+  near the top of the plot area, clamp it to the visible canvas, and keep it
+  independent from selected drawing anchors.
+- No `.env` files will be touched. The existing unrelated deleted TradingView
+  grid JSON files remain untouched.
+
+## Checklist
+
+- [x] Inspect selected drawing toolbar positioning and current tests.
+- [x] Write this correction plan in `todo.md`.
+- [x] Change selected drawing toolbar positioning to be pane-fixed rather than
+      drawing-anchor based.
+- [x] Update `ARCHITECTURE.md` to note the stable selected-object toolbar
+      positioning.
+- [x] Run typecheck, build, signed-out e2e, and a logged-in Playwright manual
+      drag-position check.
+- [x] Clean temporary screenshots/reports, review git status, commit, push, and
+      leave unrelated pre-existing changes untouched.
+
+## Review
+
+- Updated `getSelectedDrawingToolbarStyle` so the selected drawing toolbar is
+  centered near the top of the plot pane using canvas/chart bounds instead of
+  selected drawing start/end anchors.
+- The toolbar now remains visually stable while a trendline is dragged or
+  resized. The selected drawing still updates normally underneath it.
+- Updated `ARCHITECTURE.md` to document that the selected-object toolbar is
+  pane-fixed and does not follow drawing geometry.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Manual host Playwright logged-in drag check with temporary dummy public
+    Supabase env vars and a seeded local-only session: the trendline's selected
+    drawing state changed after drag, while the toolbar box stayed exactly
+    fixed at `x=495`, `y=63`, `width=354`, `height=38`.
+- Temporary screenshot, Playwright traces, reports, and test results were
+  removed. The three pre-existing deleted TradingView grid JSON files remain
+  untouched.

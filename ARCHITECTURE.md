@@ -548,12 +548,13 @@ The chart app supports:
   the Trend Line Tools group with implemented Trendline and Horizontal ray
   tools. Drawing anchors are stored as logical bar index plus price, rendered in
   the main price-pane canvas pass, and selected drawings show a DOM floating
-  toolbar with style affordances, lock/unlock, delete, and more controls. Locked
-  drawings stay visually solid and remain selectable/deletable, but do not
-  respond to drag/resize gestures. Signed-out users do not render the rail,
-  drawing pixels, selected-object toolbar, or drawing hit-testing. Drawings are
-  scoped to pane index and do not alter candle, indicator, or renderer package
-  contracts.
+  toolbar with style affordances, lock/unlock, delete, and more controls. The
+  selected-object toolbar is positioned near the top of the plot pane and does
+  not follow the selected drawing as it is dragged or resized. Locked drawings
+  stay visually solid and remain selectable/deletable, but do not respond to
+  drag/resize gestures. Signed-out users do not render the rail, drawing pixels,
+  selected-object toolbar, or drawing hit-testing. Drawings are scoped to pane
+  index and do not alter candle, indicator, or renderer package contracts.
 - Active indicators are stored as registry-backed instances with mutable
   settings. HTML legend/action rows mirror the canvas visual layout: price
   overlays sit under the instrument/OHLC row, volume controls sit over the
