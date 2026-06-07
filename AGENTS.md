@@ -13,4 +13,6 @@ after you finnish ALWAYS test with camoufox or Playwright and devtools (if it's 
 always update ARCHITECTURE.md file when current architecture is changed or you find something new.
 Only modify code directly related to the task. Don't refactor, reformat, or 'improve' unrelated code.
 commit , push ,clean
+clean playwright images or what ever you use as you finnis
+ssh details for the server in .env file
 don't change this file without my permission!.
