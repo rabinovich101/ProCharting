@@ -58,6 +58,9 @@ subdomain without requiring inbound VM ports.
 CI/CD is VM-local through a GitHub Actions self-hosted runner labelled
 `procharts-vm`. Pushes to `main` run `.github/workflows/deploy-vm.yml` on that
 runner, checkout the repository on the VM, and execute `scripts/deploy-vm.sh`.
+The VM checkout uses `clean: false` because the production PM2 app serves from
+the same worktree; deleting untracked runtime files such as `node_modules`
+before the deploy script stops PM2 can break live requests mid-deploy.
 The deploy script runs `npm ci` and `npm run build` inside
 `TEST/binance-chart-test`, then restarts the `procharts-app` pm2 process with
 `npm start -- -H 127.0.0.1 -p 3000`.
