@@ -497,20 +497,22 @@ The chart app supports:
   at the top of the chart stage behind this overlay instead of reserving a blank
   legend strip, matching TradingView's floating-legend layout.
 - Active indicators are stored as registry-backed instances with mutable
-  settings. A separate top-left HTML legend sits below the instrument/OHLC row
-  with high-contrast TradingView-style typography. Its rows stay compact by
-  default and expand on desktop hover/focus/open states to expose controls for
-  hide/show, settings, remove, duplicate, and ordering actions. Settings such
-  as length, source, standard deviation, MACD fast/slow/signal, and primary
-  color update the active instance and redraw the chart. Indicator series are
-  cached per pane by candle-array reference and active-indicator state, so
-  hover-only `mousePos` updates can refresh legend values for the snapped candle
-  without recomputing every indicator from the full candle history.
+  settings. HTML legend/action rows mirror the canvas visual layout: price
+  overlays sit under the instrument/OHLC row, volume controls sit over the
+  volume band, and oscillator controls sit over their lower panes. Rows stay
+  compact by default and expand on desktop hover/focus/open states to expose
+  controls for hide/show, settings, remove, duplicate, and ordering actions.
+  Settings such as length, source, standard deviation, MACD fast/slow/signal,
+  MACD oscillator/signal MA type, signal color, and primary color update the
+  active instance and redraw the chart. Indicator series are cached per pane by
+  candle-array reference and active-indicator state, so hover-only `mousePos`
+  updates can refresh legend values for the snapped candle without recomputing
+  every indicator from the full candle history.
 - Selected price overlays participate in automatic Y-range fitting and draw on
   the main price pane. Volume draws in the volume band, and oscillator
   indicators draw in compact lower panes with guide lines and right-side value
-  labels. Oscillator pane headers share the same per-candle legend-value
-  extraction as the DOM indicator legend, so MACD line, signal, and histogram
+  labels. Lower-pane headers are DOM legend/action rows that reuse the same
+  per-candle legend-value extraction, so MACD line, signal, and histogram
   values update to the candle under the crosshair without recalculating the
   indicator series during hover.
 - Dark/light UI themes.

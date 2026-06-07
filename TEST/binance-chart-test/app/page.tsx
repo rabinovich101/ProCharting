@@ -88,6 +88,7 @@ type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
+type IndicatorMaType = 'EMA' | 'SMA';
 type AuthMode = 'login' | 'signup';
 type AuthOAuthProvider = 'google' | 'github';
 type IndicatorFormula =
@@ -147,6 +148,22 @@ interface ChartInteractionBounds {
   timeScaleArea: ChartCanvasArea;
 }
 
+interface OscillatorPaneArea extends ChartCanvasArea {
+  indicator: ActiveIndicator;
+}
+
+interface ChartVisualLayout {
+  chartArea: ChartCanvasArea;
+  volumeArea: ChartCanvasArea;
+  oscillatorPaneAreas: OscillatorPaneArea[];
+  crosshairAreas: ChartCanvasArea[];
+  timeScaleArea: ChartCanvasArea;
+  rightAxisWidth: number;
+  bottomAxisHeight: number;
+  compactChart: boolean;
+  narrowChart: boolean;
+}
+
 interface MenuOption<T extends string> {
   value: T;
   label: string;
@@ -161,6 +178,8 @@ interface IndicatorSettings {
   signalPeriod?: number;
   stdDev?: number;
   source?: IndicatorSource;
+  oscillatorMaType?: IndicatorMaType;
+  signalMaType?: IndicatorMaType;
   color?: string;
   secondaryColor?: string;
   tertiaryColor?: string;
@@ -1232,6 +1251,8 @@ const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
       slowPeriod: 26,
       signalPeriod: 9,
       source: 'close',
+      oscillatorMaType: 'EMA',
+      signalMaType: 'EMA',
       color: '#2962ff',
       secondaryColor: '#ff6d00',
       tertiaryColor: '#7c8da6',
@@ -1311,9 +1332,8 @@ const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
 ];
 
 const INDICATOR_SOURCE_OPTIONS: IndicatorSource[] = ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4'];
+const INDICATOR_MA_TYPE_OPTIONS: IndicatorMaType[] = ['EMA', 'SMA'];
 const CHART_AXIS_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif';
-const CHART_MONO_FONT_FAMILY =
-  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 const getCanvasFont = (fontSize: number, fontFamily = CHART_AXIS_FONT_FAMILY) => `${fontSize}px ${fontFamily}`;
 
 const PALETTES: Record<ThemeName, Palette> = {
@@ -1363,6 +1383,108 @@ const MAX_FUTURE_BARS = 120;
 const Y_AXIS_SCALE_SPEED = 1.7;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const getChartVisualLayout = ({
+  width,
+  height,
+  showVolume,
+  oscillatorIndicators,
+}: {
+  width: number;
+  height: number;
+  showVolume: boolean;
+  oscillatorIndicators: ActiveIndicator[];
+}): ChartVisualLayout => {
+  const compactChart = width < 520;
+  const narrowChart = width < 620;
+  const rightAxisWidth = compactChart ? 82 : 102;
+  const bottomAxisHeight = compactChart ? 31 : 38;
+  const topPlotInset = 0;
+  const oscillatorCount = oscillatorIndicators.length;
+  const requestedVolumeHeight = showVolume ? clamp(height * 0.15, 46, 96) : 0;
+  const minMainChartHeight = width < 520 ? 176 : 220;
+  const availableAuxHeight = Math.max(0, height - bottomAxisHeight - topPlotInset - minMainChartHeight);
+  const paneGap = 10;
+  const volumeHeight = showVolume ? Math.min(requestedVolumeHeight, Math.max(42, availableAuxHeight * 0.38)) : 0;
+  const availablePaneHeight = Math.max(
+    0,
+    availableAuxHeight - volumeHeight - (showVolume && oscillatorCount > 0 ? paneGap : 0)
+  );
+  const oscillatorPaneHeight =
+    oscillatorCount > 0
+      ? clamp(
+          (availablePaneHeight - paneGap * Math.max(0, oscillatorCount - 1)) / oscillatorCount,
+          58,
+          104
+        )
+      : 0;
+  const oscillatorTotalHeight =
+    oscillatorCount > 0
+      ? oscillatorPaneHeight * oscillatorCount + paneGap * Math.max(0, oscillatorCount - 1)
+      : 0;
+  const chartArea = {
+    left: compactChart ? 8 : 12,
+    top: topPlotInset,
+    width: Math.max(80, width - rightAxisWidth - (compactChart ? 10 : 18)),
+    height: Math.max(
+      120,
+      height -
+        bottomAxisHeight -
+        topPlotInset -
+        volumeHeight -
+        oscillatorTotalHeight -
+        (showVolume ? paneGap : 0) -
+        (oscillatorCount > 0 ? paneGap : 0)
+    ),
+  };
+  const volumeArea = {
+    left: chartArea.left,
+    top: chartArea.top + chartArea.height + paneGap,
+    width: chartArea.width,
+    height: Math.max(0, volumeHeight - 14),
+  };
+  const oscillatorStartTop =
+    chartArea.top +
+    chartArea.height +
+    (showVolume ? volumeHeight + paneGap : 0) +
+    (oscillatorCount > 0 ? paneGap : 0);
+  const oscillatorPaneAreas = oscillatorIndicators.map((indicator, index) => ({
+    indicator,
+    left: chartArea.left,
+    top: oscillatorStartTop + index * (oscillatorPaneHeight + paneGap),
+    width: chartArea.width,
+    height: oscillatorPaneHeight,
+  }));
+  const crosshairAreas: ChartCanvasArea[] = [
+    chartArea,
+    ...(showVolume && volumeArea.height > 0 ? [volumeArea] : []),
+    ...oscillatorPaneAreas
+      .filter((area) => area.height > 0)
+      .map(({ left, top, width: areaWidth, height: areaHeight }) => ({
+        left,
+        top,
+        width: areaWidth,
+        height: areaHeight,
+      })),
+  ];
+  const timeScaleArea = {
+    left: chartArea.left,
+    top: Math.max(chartArea.top, height - bottomAxisHeight),
+    width: chartArea.width,
+    height: bottomAxisHeight,
+  };
+
+  return {
+    chartArea,
+    volumeArea,
+    oscillatorPaneAreas,
+    crosshairAreas,
+    timeScaleArea,
+    rightAxisWidth,
+    bottomAxisHeight,
+    compactChart,
+    narrowChart,
+  };
+};
 const createDefaultViewRange = (): ViewRange => ({
   startIndex: 0,
   endIndex: 100,
@@ -1891,6 +2013,12 @@ const exponentialMovingAverageNullable = (values: Array<number | null>, period: 
   return result;
 };
 
+const calculateMovingAverageValues = (values: number[], period: number, maType: IndicatorMaType) =>
+  maType === 'SMA' ? simpleMovingAverageValues(values, period) : exponentialMovingAverageValues(values, period);
+
+const calculateMovingAverageNullable = (values: Array<number | null>, period: number, maType: IndicatorMaType) =>
+  maType === 'SMA' ? simpleMovingAverageNullable(values, period) : exponentialMovingAverageNullable(values, period);
+
 const weightedMovingAverageValues = (values: number[], period: number) => {
   const result: Array<number | null> = new Array(values.length).fill(null);
   const denominator = (period * (period + 1)) / 2;
@@ -1990,13 +2118,20 @@ const calculateRsiValues = (values: number[], period: number) => {
   return result;
 };
 
-const calculateMacdSeries = (values: number[], fastPeriod: number, slowPeriod: number, signalPeriod: number) => {
-  const fast = exponentialMovingAverageValues(values, fastPeriod);
-  const slow = exponentialMovingAverageValues(values, slowPeriod);
+const calculateMacdSeries = (
+  values: number[],
+  fastPeriod: number,
+  slowPeriod: number,
+  signalPeriod: number,
+  oscillatorMaType: IndicatorMaType,
+  signalMaType: IndicatorMaType
+) => {
+  const fast = calculateMovingAverageValues(values, fastPeriod, oscillatorMaType);
+  const slow = calculateMovingAverageValues(values, slowPeriod, oscillatorMaType);
   const macd = values.map((_, index) =>
     fast[index] !== null && slow[index] !== null ? fast[index]! - slow[index]! : null
   );
-  const signal = exponentialMovingAverageNullable(macd, signalPeriod);
+  const signal = calculateMovingAverageNullable(macd, signalPeriod, signalMaType);
   const histogram = macd.map((value, index) =>
     value !== null && signal[index] !== null ? value - signal[index]! : null
   );
@@ -2079,8 +2214,15 @@ const computeIndicatorSeries = (indicator: ActiveIndicator, candles: Candle[]): 
   const period = sanitizePeriod(settings.period, definition.defaults.period ?? 20);
   const fastPeriod = sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12);
   const slowPeriod = sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26);
-  const signalPeriod = sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9);
+  const signalPeriod = sanitizePeriod(
+    settings.signalPeriod,
+    definition.defaults.signalPeriod ?? 9,
+    1,
+    definition.formula === 'macd' ? 50 : 500
+  );
   const stdDev = clamp(settings.stdDev ?? definition.defaults.stdDev ?? 2, 0.1, 10);
+  const oscillatorMaType = settings.oscillatorMaType ?? definition.defaults.oscillatorMaType ?? 'EMA';
+  const signalMaType = settings.signalMaType ?? definition.defaults.signalMaType ?? 'EMA';
   const color = settings.color ?? definition.defaults.color ?? '#2962ff';
   const secondaryColor = settings.secondaryColor ?? definition.defaults.secondaryColor ?? '#ff6d00';
   const tertiaryColor = settings.tertiaryColor ?? definition.defaults.tertiaryColor ?? '#7c8da6';
@@ -2134,7 +2276,7 @@ const computeIndicatorSeries = (indicator: ActiveIndicator, candles: Candle[]): 
   }
 
   if (definition.formula === 'macd') {
-    const macd = calculateMacdSeries(values, fastPeriod, slowPeriod, signalPeriod);
+    const macd = calculateMacdSeries(values, fastPeriod, slowPeriod, signalPeriod, oscillatorMaType, signalMaType);
     return {
       lines: [
         { label: 'MACD', color, values: macd.macd },
@@ -2214,7 +2356,12 @@ const getIndicatorLegendName = (indicator: ActiveIndicator, symbol: string) => {
   const period = sanitizePeriod(settings.period, definition.defaults.period ?? 20);
   const fastPeriod = sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12);
   const slowPeriod = sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26);
-  const signalPeriod = sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9);
+  const signalPeriod = sanitizePeriod(
+    settings.signalPeriod,
+    definition.defaults.signalPeriod ?? 9,
+    1,
+    definition.formula === 'macd' ? 50 : 500
+  );
   const stdDev = clamp(settings.stdDev ?? definition.defaults.stdDev ?? 2, 0.1, 10);
 
   if (definition.formula === 'volume') return `Vol · ${symbol.replace('USDT', '')}`;
@@ -3260,6 +3407,22 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') {
+      requestLegendRender();
+      return;
+    }
+
+    const observer = new ResizeObserver(() => requestLegendRender());
+
+    canvasRefs.current.slice(0, paneCount).forEach((canvas) => {
+      if (canvas) observer.observe(canvas);
+    });
+    requestLegendRender();
+
+    return () => observer.disconnect();
+  }, [paneCount, selectedLayoutId]);
+
+  useEffect(() => {
     const paneRequests = paneStatesRef.current.map((pane, index) => ({
       index,
       symbol: pane.symbol,
@@ -3986,7 +4149,7 @@ export default function Home() {
     const pane = paneStatesRef.current[paneIndex];
     if (!pane) return;
 
-    const { candles, viewRange, manualPriceRange, timeframe, symbol } = pane;
+    const { candles, viewRange, manualPriceRange, timeframe } = pane;
     const latestCandle = candles.length > 0 ? candles[candles.length - 1] : null;
     const activeIndicatorSeries = paneIndicatorSeries[paneIndex] ?? {};
     const ctx = canvas.getContext('2d');
@@ -4006,84 +4169,23 @@ export default function Home() {
 
     if (candles.length === 0) return;
 
-    const compactChart = rect.width < 520;
-    const narrowChart = rect.width < 620;
+    const {
+      chartArea,
+      volumeArea,
+      oscillatorPaneAreas,
+      crosshairAreas,
+      timeScaleArea,
+      rightAxisWidth,
+      compactChart,
+      narrowChart,
+    } = getChartVisualLayout({
+      width: rect.width,
+      height: rect.height,
+      showVolume,
+      oscillatorIndicators: visibleOscillatorIndicators,
+    });
     const axisFontSize = compactChart ? 13 : 14;
     const indicatorPaneFontSize = compactChart ? 12 : 13;
-    const rightAxisWidth = compactChart ? 82 : 102;
-    const bottomAxisHeight = compactChart ? 31 : 38;
-    const topPlotInset = 0;
-    const oscillatorCount = visibleOscillatorIndicators.length;
-    const requestedVolumeHeight = showVolume ? clamp(rect.height * 0.15, 46, 96) : 0;
-    const minMainChartHeight = rect.width < 520 ? 176 : 220;
-    const availableAuxHeight = Math.max(
-      0,
-      rect.height - bottomAxisHeight - topPlotInset - minMainChartHeight
-    );
-    const paneGap = 10;
-    const volumeHeight = showVolume ? Math.min(requestedVolumeHeight, Math.max(42, availableAuxHeight * 0.38)) : 0;
-    const availablePaneHeight = Math.max(
-      0,
-      availableAuxHeight - volumeHeight - (showVolume && oscillatorCount > 0 ? paneGap : 0)
-    );
-    const oscillatorPaneHeight =
-      oscillatorCount > 0
-        ? clamp(
-            (availablePaneHeight - paneGap * Math.max(0, oscillatorCount - 1)) / oscillatorCount,
-            58,
-            104
-          )
-        : 0;
-    const oscillatorTotalHeight =
-      oscillatorCount > 0
-        ? oscillatorPaneHeight * oscillatorCount + paneGap * Math.max(0, oscillatorCount - 1)
-        : 0;
-    const chartArea = {
-      left: compactChart ? 8 : 12,
-      top: topPlotInset,
-      width: Math.max(80, rect.width - rightAxisWidth - (compactChart ? 10 : 18)),
-      height: Math.max(
-        120,
-        rect.height -
-          bottomAxisHeight -
-          topPlotInset -
-          volumeHeight -
-          oscillatorTotalHeight -
-          (showVolume ? paneGap : 0) -
-          (oscillatorCount > 0 ? paneGap : 0)
-      ),
-    };
-    const volumeArea = {
-      left: chartArea.left,
-      top: chartArea.top + chartArea.height + 10,
-      width: chartArea.width,
-      height: Math.max(0, volumeHeight - 14),
-    };
-    const oscillatorStartTop =
-      chartArea.top +
-      chartArea.height +
-      (showVolume ? volumeHeight + paneGap : 0) +
-      (oscillatorCount > 0 ? paneGap : 0);
-    const oscillatorPaneAreas = visibleOscillatorIndicators.map((indicator, index) => ({
-      indicator,
-      left: chartArea.left,
-      top: oscillatorStartTop + index * (oscillatorPaneHeight + paneGap),
-      width: chartArea.width,
-      height: oscillatorPaneHeight,
-    }));
-    const crosshairAreas: ChartCanvasArea[] = [
-      chartArea,
-      ...(showVolume && volumeArea.height > 0 ? [volumeArea] : []),
-      ...oscillatorPaneAreas
-        .filter((area) => area.height > 0)
-        .map(({ left, top, width, height }) => ({ left, top, width, height })),
-    ];
-    const timeScaleArea = {
-      left: chartArea.left,
-      top: Math.max(chartArea.top, rect.height - bottomAxisHeight),
-      width: chartArea.width,
-      height: bottomAxisHeight,
-    };
 
     const visibleIndexedCandles: Array<{ candle: Candle; index: number }> = [];
     const firstVisibleIndex = Math.max(0, Math.floor(viewRange.startIndex));
@@ -4296,21 +4398,6 @@ export default function Home() {
     const currentPriceColor = latestCandle!.close >= latestCandle!.open ? palette.green : palette.red;
     const currentPriceInside =
       currentPriceY >= chartArea.top && currentPriceY <= chartArea.top + chartArea.height;
-    const crosshairLegendIndex =
-      chartSettings.showCrosshair &&
-      crosshairPosition &&
-      crosshairPosition.x >= chartArea.left &&
-      crosshairPosition.x <= chartArea.left + chartArea.width &&
-      crosshairAreas.some(
-        (area) =>
-          crosshairPosition.y >= area.top &&
-          crosshairPosition.y <= area.top + area.height
-      )
-        ? Math.floor(clamp(crosshairPosition.logicalIndex, 0, candles.length - 1))
-        : null;
-    const activeLegendCandle =
-      crosshairLegendIndex !== null ? candles[crosshairLegendIndex] ?? latestCandle! : latestCandle!;
-
     if (chartSettings.showCurrentPriceLine && currentPriceInside) {
       ctx.strokeStyle = currentPriceColor;
       ctx.setLineDash([1.5, 3]);
@@ -4345,15 +4432,6 @@ export default function Home() {
         ctx.fillRect(x - candleWidth / 2, volumeArea.top + volumeArea.height - barHeight, candleWidth, barHeight);
         ctx.globalAlpha = 1;
       });
-
-      ctx.fillStyle = palette.text;
-      ctx.font = getCanvasFont(indicatorPaneFontSize);
-      ctx.textAlign = 'left';
-      ctx.fillText(
-        `Vol ${formatCompact(activeLegendCandle.volume)}`,
-        volumeArea.left + 2,
-        volumeArea.top + indicatorPaneFontSize + 5
-      );
     }
 
     oscillatorPaneAreas.forEach((pane) => {
@@ -4456,37 +4534,6 @@ export default function Home() {
       ctx.lineTo(pane.left + pane.width, pane.top);
       ctx.lineTo(pane.left + pane.width, pane.top + pane.height);
       ctx.stroke();
-
-      ctx.fillStyle = palette.text;
-      ctx.font = getCanvasFont(indicatorPaneFontSize, CHART_MONO_FONT_FAMILY);
-      ctx.textAlign = 'left';
-      const headerY = pane.top + indicatorPaneFontSize + 5;
-      const headerMaxX = rect.width - rightAxisWidth - 8;
-      const headerTitle = getIndicatorLegendName(pane.indicator, symbol);
-      const oscillatorLegendIndex = crosshairLegendIndex ?? candles.length - 1;
-      const oscillatorLegendValues = getIndicatorLegendValues({
-        definition,
-        computed,
-        legendIndex: oscillatorLegendIndex,
-        legendCandle: activeLegendCandle,
-        defaultColor: palette.text,
-        positiveColor: palette.green,
-        negativeColor: palette.red,
-      });
-      let headerX = pane.left + 2;
-
-      ctx.fillText(headerTitle, headerX, headerY);
-      headerX += ctx.measureText(headerTitle).width + 8;
-
-      for (const item of oscillatorLegendValues) {
-        const valueText = formatIndicatorNumber(item.value);
-        const valueWidth = ctx.measureText(valueText).width;
-        if (headerX + valueWidth > headerMaxX) break;
-
-        ctx.fillStyle = item.color;
-        ctx.fillText(valueText, headerX, headerY);
-        headerX += valueWidth + 7;
-      }
 
       ctx.textAlign = 'right';
       ctx.fillStyle = palette.text;
@@ -5266,233 +5313,365 @@ export default function Home() {
     const { pane, legendIndex, legendCandle } = getPaneLegendSnapshot(paneIndex);
     const activeIndicatorSeries = paneIndicatorSeries[paneIndex] ?? {};
 
-    return chartSettings.showIndicatorLegend && activeIndicators.length > 0 && pane && legendCandle ? (
-      <div
-        ref={attachRef ? indicatorLegendRef : undefined}
-        className="indicator-legend-overlay"
-        aria-label={`Active indicators pane ${paneIndex + 1}`}
-      >
-        {activeIndicators.map((indicator, index) => {
-          const definition = getIndicatorDefinition(indicator.definitionId);
-          const computed = activeIndicatorSeries[indicator.id];
-          const indicatorValues = getIndicatorLegendValues({
-            definition,
-            computed,
-            legendIndex,
-            legendCandle,
-            defaultColor: palette.text,
-            positiveColor: palette.green,
-            negativeColor: palette.red,
-          });
-          const settings = indicator.settings;
-          const canEditPeriod =
-            definition.defaults.period !== undefined ||
-            settings.period !== undefined ||
-            ['sma', 'ema', 'wma', 'rsi', 'stochastic', 'donchian', 'atr', 'momentum', 'roc'].includes(
-              definition.formula
-            );
-          const canEditSource = definition.defaults.source !== undefined || settings.source !== undefined;
-          const canEditDeviation =
-            definition.formula === 'bb' ||
-            definition.formula === 'bb-percent' ||
-            definition.formula === 'bb-width';
-          const canEditMacd = definition.formula === 'macd';
-          const canEditSignal = canEditMacd || definition.formula === 'stochastic';
+    if (!chartSettings.showIndicatorLegend || activeIndicators.length === 0 || !pane || !legendCandle) {
+      return null;
+    }
 
-          return (
-            <div
-              key={`${paneIndex}-${indicator.id}`}
-              className="indicator-legend-row"
-              data-visible={indicator.visible}
-              data-settings-open={settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex}
-              data-more-open={moreTarget?.indicatorId === indicator.id && moreTarget.paneIndex === paneIndex}
-            >
-              <div className="indicator-legend-main">
-                <span className="indicator-legend-title">{getIndicatorLegendName(indicator, pane.symbol)}</span>
-                {indicatorValues.map((item) => (
-                  <span key={`${paneIndex}-${indicator.id}-${item.label}`} className="indicator-legend-value" style={{ color: item.color }}>
-                    {formatIndicatorNumber(item.value)}
-                  </span>
-                ))}
-                <span className="indicator-legend-actions">
-                  <button
-                    type="button"
-                    className="legend-action-button"
-                    aria-label={`${indicator.visible ? 'Hide' : 'Show'} ${definition.name}`}
-                    title={indicator.visible ? 'Hide' : 'Show'}
-                    onClick={() => toggleIndicatorVisibility(indicator.id)}
-                  >
-                    <span className={`legend-action-glyph ${indicator.visible ? 'eye' : 'eye-off'}`} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="legend-action-button"
-                    aria-label={`Settings for ${definition.name}`}
-                    title="Settings"
-                    onClick={() => {
-                      setSettingsTarget((current) =>
-                        current?.indicatorId === indicator.id && current.paneIndex === paneIndex
-                          ? null
-                          : { indicatorId: indicator.id, paneIndex }
-                      );
-                      setMoreTarget(null);
-                    }}
-                  >
-                    <span className="legend-action-glyph settings" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M10.4 3h3.2l.6 2.4c.5.2 1 .4 1.4.8l2.4-.8 1.6 2.8-1.8 1.7c.1.5.2 1.1.2 1.6s-.1 1.1-.2 1.6l1.8 1.7-1.6 2.8-2.4-.8c-.4.3-.9.6-1.4.8l-.6 2.4h-3.2l-.6-2.4c-.5-.2-1-.4-1.4-.8l-2.4.8-1.6-2.8 1.8-1.7c-.1-.5-.2-1.1-.2-1.6s.1-1.1.2-1.6L4.4 8.2 6 5.4l2.4.8c.4-.3.9-.6 1.4-.8L10.4 3Z" />
-                        <circle cx="12" cy="11.5" r="2.6" />
-                      </svg>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="legend-action-button"
-                    aria-label={`Remove ${definition.name}`}
-                    title="Remove"
-                    onClick={() => removeIndicator(indicator.id)}
-                  >
-                    <span className="legend-action-glyph remove" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="legend-action-button"
-                    aria-label={`More actions for ${definition.name}`}
-                    title="More"
-                    onClick={() => {
-                      setMoreTarget((current) =>
-                        current?.indicatorId === indicator.id && current.paneIndex === paneIndex
-                          ? null
-                          : { indicatorId: indicator.id, paneIndex }
-                      );
-                      setSettingsTarget(null);
-                    }}
-                  >
-                    <span className="legend-action-glyph more" aria-hidden="true" />
-                  </button>
+    const canvas = canvasRefs.current[paneIndex];
+    const rect = canvas?.getBoundingClientRect();
+    const visualLayout = rect
+      ? getChartVisualLayout({
+          width: rect.width,
+          height: rect.height,
+          showVolume,
+          oscillatorIndicators: visibleOscillatorIndicators,
+        })
+      : null;
+    const visibleVolumeIndicatorId =
+      showVolume && visualLayout?.volumeArea.height ? visibleVolumeIndicator?.id ?? null : null;
+    const visibleOscillatorIndicatorIds = new Set(
+      visualLayout?.oscillatorPaneAreas
+        .filter((area) => area.height > 0)
+        .map((area) => area.indicator.id) ?? []
+    );
+    const getLegendStyleForArea = (area: ChartCanvasArea): CSSProperties => ({
+      left: area.left + 2,
+      maxWidth: Math.max(168, area.width - 8),
+      top: area.top + 4,
+    });
+    const getSettingsPlacementForArea = (area: ChartCanvasArea) =>
+      rect && area.top + 260 > rect.height ? 'above' : 'below';
+    const priceIndicators = activeIndicators.filter((indicator) => {
+      const definition = getIndicatorDefinition(indicator.definitionId);
+
+      if (definition.pane === 'price') return true;
+      if (!indicator.visible) return true;
+      if (definition.pane === 'volume') return indicator.id !== visibleVolumeIndicatorId;
+      if (definition.pane === 'oscillator') return !visibleOscillatorIndicatorIds.has(indicator.id);
+      return false;
+    });
+
+    const renderLegendRow = (indicator: ActiveIndicator, settingsPlacement: 'above' | 'below') => {
+      const definition = getIndicatorDefinition(indicator.definitionId);
+      const computed = activeIndicatorSeries[indicator.id];
+      const indicatorValues = getIndicatorLegendValues({
+        definition,
+        computed,
+        legendIndex,
+        legendCandle,
+        defaultColor: palette.text,
+        positiveColor: palette.green,
+        negativeColor: palette.red,
+      });
+      const settings = indicator.settings;
+      const indicatorIndex = activeIndicators.findIndex((item) => item.id === indicator.id);
+      const canEditPeriod =
+        definition.defaults.period !== undefined ||
+        settings.period !== undefined ||
+        ['sma', 'ema', 'wma', 'rsi', 'stochastic', 'donchian', 'atr', 'momentum', 'roc'].includes(
+          definition.formula
+        );
+      const canEditSource = definition.defaults.source !== undefined || settings.source !== undefined;
+      const canEditDeviation =
+        definition.formula === 'bb' ||
+        definition.formula === 'bb-percent' ||
+        definition.formula === 'bb-width';
+      const canEditMacd = definition.formula === 'macd';
+      const canEditSignal = canEditMacd || definition.formula === 'stochastic';
+      const signalPeriodMax = canEditMacd ? 50 : 200;
+
+      return (
+        <div
+          key={`${paneIndex}-${indicator.id}`}
+          className="indicator-legend-row"
+          data-visible={indicator.visible}
+          data-settings-open={settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex}
+          data-more-open={moreTarget?.indicatorId === indicator.id && moreTarget.paneIndex === paneIndex}
+          data-settings-placement={settingsPlacement}
+        >
+          <div className="indicator-legend-main">
+            <span className="indicator-legend-title">{getIndicatorLegendName(indicator, pane.symbol)}</span>
+            {indicatorValues.map((item) => (
+              <span
+                key={`${paneIndex}-${indicator.id}-${item.label}`}
+                className="indicator-legend-value"
+                style={{ color: item.color }}
+              >
+                {formatIndicatorNumber(item.value)}
+              </span>
+            ))}
+            <span className="indicator-legend-actions">
+              <button
+                type="button"
+                className="legend-action-button"
+                aria-label={`${indicator.visible ? 'Hide' : 'Show'} ${definition.name}`}
+                title={indicator.visible ? 'Hide' : 'Show'}
+                onClick={() => toggleIndicatorVisibility(indicator.id)}
+              >
+                <span className={`legend-action-glyph ${indicator.visible ? 'eye' : 'eye-off'}`} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="legend-action-button"
+                aria-label={`Settings for ${definition.name}`}
+                title="Settings"
+                onClick={() => {
+                  setSettingsTarget((current) =>
+                    current?.indicatorId === indicator.id && current.paneIndex === paneIndex
+                      ? null
+                      : { indicatorId: indicator.id, paneIndex }
+                  );
+                  setMoreTarget(null);
+                }}
+              >
+                <span className="legend-action-glyph settings" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M10.4 3h3.2l.6 2.4c.5.2 1 .4 1.4.8l2.4-.8 1.6 2.8-1.8 1.7c.1.5.2 1.1.2 1.6s-.1 1.1-.2 1.6l1.8 1.7-1.6 2.8-2.4-.8c-.4.3-.9.6-1.4.8l-.6 2.4h-3.2l-.6-2.4c-.5-.2-1-.4-1.4-.8l-2.4.8-1.6-2.8 1.8-1.7c-.1-.5-.2-1.1-.2-1.6s.1-1.1.2-1.6L4.4 8.2 6 5.4l2.4.8c.4-.3.9-.6 1.4-.8L10.4 3Z" />
+                    <circle cx="12" cy="11.5" r="2.6" />
+                  </svg>
                 </span>
-              </div>
+              </button>
+              <button
+                type="button"
+                className="legend-action-button"
+                aria-label={`Remove ${definition.name}`}
+                title="Remove"
+                onClick={() => removeIndicator(indicator.id)}
+              >
+                <span className="legend-action-glyph remove" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="legend-action-button"
+                aria-label={`More actions for ${definition.name}`}
+                title="More"
+                onClick={() => {
+                  setMoreTarget((current) =>
+                    current?.indicatorId === indicator.id && current.paneIndex === paneIndex
+                      ? null
+                      : { indicatorId: indicator.id, paneIndex }
+                  );
+                  setSettingsTarget(null);
+                }}
+              >
+                <span className="legend-action-glyph more" aria-hidden="true" />
+              </button>
+            </span>
+          </div>
 
-              {settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex && (
-                <div className="indicator-settings-panel" role="group" aria-label={`${definition.name} settings`}>
+          {settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex && (
+            <div className="indicator-settings-panel" role="group" aria-label={`${definition.name} settings`}>
+              <label>
+                <span>{canEditMacd ? 'MACD color' : 'Color'}</span>
+                <input
+                  type="color"
+                  value={settings.color ?? definition.defaults.color ?? '#2962ff'}
+                  onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
+                />
+              </label>
+              {canEditMacd && (
+                <label>
+                  <span>Signal color</span>
+                  <input
+                    type="color"
+                    value={settings.secondaryColor ?? definition.defaults.secondaryColor ?? '#ff6d00'}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { secondaryColor: event.target.value })}
+                  />
+                </label>
+              )}
+              {canEditPeriod && (
+                <label>
+                  <span>Length</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={sanitizePeriod(settings.period, definition.defaults.period ?? 20)}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { period: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditSource && (
+                <label>
+                  <span>Source</span>
+                  <select
+                    value={settings.source ?? definition.defaults.source ?? 'close'}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { source: event.target.value as IndicatorSource })
+                    }
+                  >
+                    {INDICATOR_SOURCE_OPTIONS.map((sourceOption) => (
+                      <option key={sourceOption} value={sourceOption}>
+                        {sourceOption}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {canEditDeviation && (
+                <label>
+                  <span>Std dev</span>
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="10"
+                    step="0.1"
+                    value={settings.stdDev ?? definition.defaults.stdDev ?? 2}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { stdDev: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditMacd && (
+                <>
                   <label>
-                    <span>Color</span>
+                    <span>Fast length</span>
                     <input
-                      type="color"
-                      value={settings.color ?? definition.defaults.color ?? '#2962ff'}
-                      onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
+                      type="number"
+                      min="1"
+                      max="500"
+                      value={sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12)}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, { fastPeriod: Number(event.target.value) })
+                      }
                     />
                   </label>
-                  {canEditPeriod && (
-                    <label>
-                      <span>Length</span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="500"
-                        value={sanitizePeriod(settings.period, definition.defaults.period ?? 20)}
-                        onChange={(event) => updateIndicatorSettings(indicator.id, { period: Number(event.target.value) })}
-                      />
-                    </label>
-                  )}
-                  {canEditSource && (
-                    <label>
-                      <span>Source</span>
-                      <select
-                        value={settings.source ?? definition.defaults.source ?? 'close'}
-                        onChange={(event) =>
-                          updateIndicatorSettings(indicator.id, { source: event.target.value as IndicatorSource })
-                        }
-                      >
-                        {INDICATOR_SOURCE_OPTIONS.map((sourceOption) => (
-                          <option key={sourceOption} value={sourceOption}>
-                            {sourceOption}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  {canEditDeviation && (
-                    <label>
-                      <span>Std dev</span>
-                      <input
-                        type="number"
-                        min="0.1"
-                        max="10"
-                        step="0.1"
-                        value={settings.stdDev ?? definition.defaults.stdDev ?? 2}
-                        onChange={(event) => updateIndicatorSettings(indicator.id, { stdDev: Number(event.target.value) })}
-                      />
-                    </label>
-                  )}
-                  {canEditMacd && (
-                    <>
-                      <label>
-                        <span>Fast</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="200"
-                          value={sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12)}
-                          onChange={(event) =>
-                            updateIndicatorSettings(indicator.id, { fastPeriod: Number(event.target.value) })
-                          }
-                        />
-                      </label>
-                      <label>
-                        <span>Slow</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="300"
-                          value={sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26)}
-                          onChange={(event) =>
-                            updateIndicatorSettings(indicator.id, { slowPeriod: Number(event.target.value) })
-                          }
-                        />
-                      </label>
-                    </>
-                  )}
-                  {canEditSignal && (
-                    <label>
-                      <span>Signal</span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="200"
-                        value={sanitizePeriod(settings.signalPeriod, definition.defaults.signalPeriod ?? 9)}
-                        onChange={(event) =>
-                          updateIndicatorSettings(indicator.id, { signalPeriod: Number(event.target.value) })
-                        }
-                      />
-                    </label>
-                  )}
-                </div>
+                  <label>
+                    <span>Slow length</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="500"
+                      value={sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26)}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, { slowPeriod: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Oscillator MA type</span>
+                    <select
+                      value={settings.oscillatorMaType ?? definition.defaults.oscillatorMaType ?? 'EMA'}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, {
+                          oscillatorMaType: event.target.value as IndicatorMaType,
+                        })
+                      }
+                    >
+                      {INDICATOR_MA_TYPE_OPTIONS.map((maType) => (
+                        <option key={maType} value={maType}>
+                          {maType}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
               )}
-
-              {moreTarget?.indicatorId === indicator.id && moreTarget.paneIndex === paneIndex && (
-                <div className="indicator-more-panel" role="menu" aria-label={`${definition.name} actions`}>
-                  <button type="button" role="menuitem" onClick={() => duplicateIndicator(indicator.id)}>
-                    Duplicate
-                  </button>
-                  <button type="button" role="menuitem" disabled={index === 0} onClick={() => moveIndicator(indicator.id, -1)}>
-                    Move up
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={index === activeIndicators.length - 1}
-                    onClick={() => moveIndicator(indicator.id, 1)}
+              {canEditSignal && (
+                <label>
+                  <span>{canEditMacd ? 'Signal smoothing' : 'Signal'}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={signalPeriodMax}
+                    value={sanitizePeriod(
+                      settings.signalPeriod,
+                      definition.defaults.signalPeriod ?? 9,
+                      1,
+                      signalPeriodMax
+                    )}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { signalPeriod: Number(event.target.value) })
+                    }
+                  />
+                </label>
+              )}
+              {canEditMacd && (
+                <label>
+                  <span>Signal line MA type</span>
+                  <select
+                    value={settings.signalMaType ?? definition.defaults.signalMaType ?? 'EMA'}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { signalMaType: event.target.value as IndicatorMaType })
+                    }
                   >
-                    Move down
-                  </button>
-                </div>
+                    {INDICATOR_MA_TYPE_OPTIONS.map((maType) => (
+                      <option key={maType} value={maType}>
+                        {maType}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
             </div>
-          );
-        })}
+          )}
+
+          {moreTarget?.indicatorId === indicator.id && moreTarget.paneIndex === paneIndex && (
+            <div className="indicator-more-panel" role="menu" aria-label={`${definition.name} actions`}>
+              <button type="button" role="menuitem" onClick={() => duplicateIndicator(indicator.id)}>
+                Duplicate
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={indicatorIndex <= 0}
+                onClick={() => moveIndicator(indicator.id, -1)}
+              >
+                Move up
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={indicatorIndex === -1 || indicatorIndex === activeIndicators.length - 1}
+                onClick={() => moveIndicator(indicator.id, 1)}
+              >
+                Move down
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div
+        ref={attachRef ? indicatorLegendRef : undefined}
+        className="indicator-legend-layer"
+        aria-label={`Active indicators pane ${paneIndex + 1}`}
+      >
+        {priceIndicators.length > 0 && (
+          <div
+            className="indicator-legend-overlay indicator-legend-overlay-price"
+            data-visual-pane="price"
+            aria-label={`Price indicators pane ${paneIndex + 1}`}
+          >
+            {priceIndicators.map((indicator) => renderLegendRow(indicator, 'below'))}
+          </div>
+        )}
+        {visualLayout && visibleVolumeIndicatorId && visibleVolumeIndicator && (
+          <div
+            className="indicator-legend-overlay indicator-legend-overlay-floating"
+            data-visual-pane="volume"
+            style={getLegendStyleForArea(visualLayout.volumeArea)}
+            aria-label={`Volume indicators pane ${paneIndex + 1}`}
+          >
+            {renderLegendRow(visibleVolumeIndicator, getSettingsPlacementForArea(visualLayout.volumeArea))}
+          </div>
+        )}
+        {visualLayout?.oscillatorPaneAreas
+          .filter((area) => area.height > 0)
+          .map((area) => (
+            <div
+              key={`${paneIndex}-${area.indicator.id}-pane-legend`}
+              className="indicator-legend-overlay indicator-legend-overlay-floating"
+              data-visual-pane="oscillator"
+              style={getLegendStyleForArea(area)}
+              aria-label={`${getIndicatorDefinition(area.indicator.definitionId).name} pane ${paneIndex + 1}`}
+            >
+              {renderLegendRow(area.indicator, getSettingsPlacementForArea(area))}
+            </div>
+          ))}
       </div>
-    ) : null;
+    );
   };
   const retryPane = (paneIndex: number) => {
     updatePaneState(paneIndex, (pane) => ({ ...pane, refreshNonce: pane.refreshNonce + 1 }));

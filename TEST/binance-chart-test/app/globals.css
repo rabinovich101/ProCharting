@@ -1990,6 +1990,13 @@ summary {
   color: var(--negative);
 }
 
+.indicator-legend-layer {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 12;
+}
+
 .indicator-legend-overlay {
   align-items: flex-start;
   display: flex;
@@ -2000,7 +2007,10 @@ summary {
   pointer-events: auto;
   position: absolute;
   top: 64px;
-  z-index: 12;
+}
+
+.indicator-legend-overlay-floating {
+  max-width: 360px;
 }
 
 .indicator-legend-row {
@@ -2251,6 +2261,14 @@ summary {
   max-width: min(480px, calc(100vw - 34px));
 }
 
+.indicator-legend-row[data-settings-placement="above"] .indicator-settings-panel {
+  bottom: calc(100% + 4px);
+  left: 0;
+  margin-top: 0;
+  position: absolute;
+  z-index: 4;
+}
+
 .indicator-settings-panel label {
   display: flex;
   flex-direction: column;
@@ -2288,6 +2306,11 @@ summary {
   right: 0;
   top: calc(100% + 2px);
   z-index: 2;
+}
+
+.indicator-legend-row[data-settings-placement="above"] .indicator-more-panel {
+  bottom: calc(100% + 2px);
+  top: auto;
 }
 
 .indicator-more-panel button {

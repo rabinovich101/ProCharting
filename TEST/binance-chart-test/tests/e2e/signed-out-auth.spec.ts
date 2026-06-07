@@ -224,6 +224,38 @@ test.describe('signed-out chart access', () => {
     await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
   });
 
+  test('shows hover actions and TradingView-style settings for lower-pane MACD', async ({ page }) => {
+    await openApp(page);
+
+    await page.getByRole('button', { name: 'Indicators, 2 active' }).click();
+    await page.locator('#indicators-menu').getByRole('menuitemcheckbox', { name: 'MACD Moving average convergence divergence MACD' }).click();
+    await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    const macdRow = page.locator('.indicator-legend-overlay[data-visual-pane="oscillator"] .indicator-legend-row', {
+      hasText: 'MACD',
+    });
+    await expect(macdRow).toBeVisible();
+    await macdRow.hover();
+    await expect(macdRow.getByRole('button', { name: 'Settings for MACD' })).toBeVisible();
+    await expect(macdRow.getByRole('button', { name: 'Hide MACD' })).toBeVisible();
+    await expect(macdRow.getByRole('button', { name: 'Remove MACD' })).toBeVisible();
+
+    await macdRow.getByRole('button', { name: 'Settings for MACD' }).click();
+    const settings = page.getByRole('group', { name: 'MACD settings' });
+    await expect(settings.getByLabel('Source')).toHaveValue('close');
+    await expect(settings.getByLabel('Fast length')).toHaveValue('12');
+    await expect(settings.getByLabel('Slow length')).toHaveValue('26');
+    await expect(settings.getByLabel('Signal smoothing')).toHaveValue('9');
+    await expect(settings.getByLabel('Oscillator MA type')).toHaveValue('EMA');
+    await expect(settings.getByLabel('Signal line MA type')).toHaveValue('EMA');
+
+    await settings.getByLabel('Oscillator MA type').selectOption('SMA');
+    await settings.getByLabel('Signal line MA type').selectOption('SMA');
+    await expect(settings.getByLabel('Oscillator MA type')).toHaveValue('SMA');
+    await expect(settings.getByLabel('Signal line MA type')).toHaveValue('SMA');
+  });
+
   test('keeps signed-out auth buttons inside the mobile header', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openApp(page);

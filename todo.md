@@ -1,3 +1,81 @@
+# Indicator Hover Controls And MACD Settings
+
+## Goal
+
+Make every active indicator expose the same hover actions and settings controls
+where the indicator is visually shown, whether it is overlaid on the price
+chart, drawn in the volume area, or drawn in a lower oscillator pane. Expand
+MACD settings to match TradingView's documented MACD inputs as closely as this
+app's current chart engine supports.
+
+## Investigation / Decisions
+
+- The standalone chart UI lives in `TEST/binance-chart-test/app/page.tsx` with
+  related styling in `TEST/binance-chart-test/app/globals.css`.
+- The current DOM indicator legend already reveals hide/settings/remove/more
+  actions on hover, but it renders the full active indicator list at a fixed
+  top-left overlay. Lower-pane indicators such as RSI/MACD are also drawn as
+  canvas text inside their panes, so hovering the visual lower-pane label does
+  not expose DOM actions there.
+- The chart canvas already computes the visual price, volume, and oscillator
+  pane geometry. Reusing that same geometry for DOM legend placement keeps the
+  action rows aligned without introducing a second layout model.
+- TradingView documents MACD as MACD = Fast MA - Slow MA, Signal = moving
+  average of MACD, and Histogram = MACD - Signal. Its MACD settings include
+  Source, Fast length, Slow length, Signal length, Oscillator MA type, Signal
+  MA type, and optional timeframe behavior. This app has no multi-timeframe
+  indicator engine yet, so the supported scope is source, lengths, and the two
+  SMA/EMA MA type selectors.
+- The video's TradingView Pine source uses default MACD values 12, 26, close,
+  signal smoothing 9, Oscillator MA Type EMA/SMA, and Signal Line MA Type
+  EMA/SMA. I will add the same defaults and calculation choices.
+- Keep the fix simple: avoid changing the chart data model or adding
+  multi-timeframe indicator support in this pass.
+
+## Checklist
+
+- [x] Inspect the provided recording and identify the TradingView hover/settings
+      behavior to mirror.
+- [x] Read TradingView MACD documentation and map supported settings to this
+      app.
+- [x] Add a reusable visual-pane layout helper so DOM legends can align with
+      price, volume, and oscillator panes.
+- [x] Render hover/action rows per visual indicator pane and keep current
+      settings/more menu behavior.
+- [x] Expand MACD settings and calculation support for oscillator and signal
+      MA type selectors.
+- [x] Update focused tests for lower-pane hover controls and MACD settings.
+- [x] Update `ARCHITECTURE.md` if the chart UI architecture/knowledge changes.
+- [x] Verify with local build/tests and Playwright or Browser tooling.
+- [ ] Review final diff, commit, push, and leave the worktree clean except
+      unrelated pre-existing changes.
+
+## Review
+
+- Added a shared chart visual layout helper and reused it for canvas drawing
+  and DOM indicator legend placement.
+- Indicator legend/action rows now render in the visual pane where the
+  indicator appears: price overlay, volume band, or lower oscillator pane.
+- Lower-pane rows use the same hover/focus/open action controls as existing
+  indicator rows, including hide/show, settings, remove, duplicate, and move.
+- MACD settings now include TradingView-style Source, Fast length, Slow length,
+  Signal smoothing, Oscillator MA type, Signal line MA type, MACD color, and
+  Signal color controls.
+- MACD calculation now honors the Oscillator MA type and Signal line MA type
+  settings with EMA/SMA choices.
+- Removed duplicate canvas-drawn indicator header text for volume/oscillator
+  panes so the DOM legend is the single interaction surface.
+- Updated `ARCHITECTURE.md` to document DOM indicator rows mirroring the canvas
+  visual pane layout.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts -g "MACD"`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - In-app browser opened `http://127.0.0.1:3000`, added MACD, and confirmed
+    the MACD DOM legend row appears in the lower oscillator pane.
+- Camoufox could not browse `127.0.0.1` because its policy blocks private/local
+  IP addresses.
+
 # Resend Registration Email Integration
 
 ## Goal
@@ -5826,6 +5904,50 @@ React chart-pane state writes from ordinary hover movement.
   page title `ProCharting Market Desk`, chart and active indicator overlays
   rendered, screenshot captured, and console diagnostics reported 0 warnings and
   0 errors.
+
+# MCP Docker Runtime Cleanup
+
+## Goal
+
+Stop unused MCP-related Docker containers that are currently running, while
+leaving project and infrastructure containers alone.
+
+## Investigation / Decisions
+
+- The project root `docker-compose.yml` only defines the `procharting` app
+  container.
+- Running Supabase and Postgres containers have stable service names and appear
+  to be intentional infrastructure, so they should stay running.
+- Running `mcp/*` and extra `mcr.microsoft.com/playwright:v1.52.0-noble`
+  containers have random Docker names, no compose project label, and
+  `AutoRemove=true`, so they are ephemeral MCP/tool containers.
+- Cleanup should stop containers only. Docker images are left in place so tools
+  can start again later without a repull.
+
+## Checklist
+
+- [x] Inspect the project Docker Compose boundary.
+- [x] Inventory running MCP/Playwright tool containers.
+- [x] Stop unused MCP/Playwright tool containers.
+- [x] Verify project/infrastructure containers are still running.
+- [x] Add cleanup review notes.
+
+## Review
+
+- Stopped 13 ephemeral tool containers: 11 `mcp/chroma` containers and 2
+  `mcr.microsoft.com/playwright:v1.52.0-noble` containers.
+- Verified no running or exited MCP/Playwright tool containers remain.
+- Left Docker images cached in place, including the Playwright image, so tools
+  can restart later without pulling again.
+- Verified named Supabase and Postgres infrastructure containers are still
+  running and healthy where Docker reports health status.
+- Validation passed: MCP/Playwright container inventory is empty and
+  `git diff --check` reports no whitespace errors.
+- No `ARCHITECTURE.md` update was needed because no application architecture
+  changed.
+- Not committed or pushed because `todo.md` was already modified before this
+  cleanup; committing it now would mix this housekeeping note with unrelated
+  pending plan history.
 
 # Distinguish Header Indicator Icon
 
