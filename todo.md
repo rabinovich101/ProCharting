@@ -6821,3 +6821,151 @@ admin login password without committing secrets.
   - Logged-out access to `/admin/settings` redirects back to the admin login.
 - Deleted the temporary admin runtime diagnostics workflow after use.
 - Verified no Playwright containers remain after cleanup.
+
+# Admin User Tracking Info
+
+## Goal
+
+Add enterprise-style user tracking visibility to the admin users panel so an
+admin can review recent user sessions, login IP addresses, last-seen IP
+addresses, and privacy-preserving browser/device fingerprints.
+
+## Research Notes
+
+- OWASP Logging guidance recommends application-level security logs for login,
+  logout, session refresh, source address, user identity, user agent, result,
+  and related interaction context.
+- OWASP Session Management guidance treats session IDs as sensitive bearer
+  secrets and recommends secure server-side session management, secure cookie
+  handling, and careful session repository protection.
+- NIST SP 800-63B session management guidance frames sessions as server-issued
+  secrets created after authentication and terminated by timeout or explicit
+  logout.
+- W3C fingerprinting guidance warns that browser fingerprinting can identify
+  users, correlate sessions, and track users without transparency or control.
+  For this project, the implementation should use a clearable local device
+  marker hashed server-side instead of invasive high-entropy fingerprinting.
+
+## Investigation / Decisions
+
+- The relevant app is `TEST/binance-chart-test`, a Next.js app with Supabase
+  browser auth and a server-rendered `/admin/users` panel.
+- Project-owned Supabase schema lives in `infra/supabase/migrations`; generated
+  Supabase runtime files and `.env` files must not be edited.
+- Browser auth already creates a Supabase client only when public Supabase env
+  values exist, so tracking should no-op cleanly when account infrastructure is
+  disconnected.
+- Admin reads already use a server-only service-role key; the tracking table
+  should be read in the same server-only path and not expose privileged data to
+  browser code.
+- User tracking writes should go through a server route that validates the
+  Supabase access token, captures request IP/user-agent server-side, hashes a
+  clearable browser device marker, and stores only operational metadata.
+- The admin users table should show a compact session summary inline and a
+  details expansion for recent sessions.
+
+## Checklist
+
+- [x] Add a Supabase migration for `public.user_session_activity` with indexes,
+      RLS enabled, and no direct authenticated-user table grants.
+- [x] Add a server-side tracking endpoint that validates Supabase bearer tokens,
+      captures IP/user-agent metadata, hashes the browser device marker, and
+      upserts session activity rows.
+- [x] Send tracking events from the browser auth flow for initial session,
+      sign-in/signup, token refresh, and explicit sign-out.
+- [x] Extend `/admin/users` data loading to fetch recent session activity for
+      the visible users.
+- [x] Render session count, login IP, last IP, fingerprint hash, and recent
+      session details in the admin users panel.
+- [x] Update admin CSS for the new compact session details UI.
+- [x] Update `ARCHITECTURE.md` and Supabase docs with the tracking boundary.
+- [x] Run type/build/e2e validation and browser verification.
+- [x] Clean temporary Playwright artifacts and review git status.
+
+## Review
+
+- Added `infra/supabase/migrations/003_user_session_activity.sql` with a
+  service-role-only tracking table, RLS enabled, request metadata columns,
+  session timestamps, and HMAC fingerprint storage.
+- Added `/api/user-tracking` to validate Supabase bearer tokens, derive a
+  session identifier, capture IP/user-agent metadata server-side, hash the
+  browser device marker, and insert/update activity rows.
+- Added browser auth lifecycle tracking for initial sessions, sign-in/signup,
+  token refresh, and sign-out. Tracking failures are intentionally non-blocking
+  for chart/account actions.
+- Extended `/admin/users` to load recent session activity, show a tracked
+  sessions stat, and render login IP, last IP, fingerprint hash, last seen, and
+  expandable recent session details per user.
+- Updated admin CSS for the new session cell/details UI and fixed the users
+  stat fallback so a user list without pagination link metadata does not show
+  `0` total users when rows are present.
+- Updated `ARCHITECTURE.md` and `infra/supabase/README.md` with the tracking
+  schema, route boundary, and privacy-preserving fingerprint design.
+- Validation passed:
+  - `pnpm run typecheck`
+  - `./node_modules/.bin/next build --no-lint` from
+    `TEST/binance-chart-test`
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
+  - Manual Playwright verification against a local fake Supabase backend:
+    logged into `/admin/users`, verified session/IP/fingerprint rendering,
+    opened recent session details, and checked desktop/mobile page-level
+    overflow was false.
+- `npm --prefix TEST/binance-chart-test run build` is currently blocked by
+  unrelated pre-existing unused drawing-tool symbols in
+  `TEST/binance-chart-test/app/page.tsx` (`DRAWING_HANDLE_RADIUS`,
+  `DRAWING_TOOL_OPTIONS`, `createDrawingId`, drawing state setters, and related
+  helpers). Those drawing changes were left untouched.
+
+# TradingView-Style Drawing Lines
+
+## Goal
+
+Implement the first two TradingView-style drawing tools from the recording in
+the standalone chart app: a two-point diagonal trend line/ray workflow and a
+horizontal level/ray workflow, including selection handles, floating
+lock/unlock and delete controls, and locked-object protection.
+
+## Investigation / Decisions
+
+- The active product surface is the Next.js app at
+  `TEST/binance-chart-test`; the chart canvas, pointer interactions, layout
+  snapshots, and indicator overlays all live in `app/page.tsx`.
+- The recording shows TradingView's left drawing menu and the floating selected
+  drawing toolbar. The relevant first pass is the line-tool behavior: select a
+  drawing tool, place one or two anchors on the main price chart, show the
+  selected drawing handles, allow lock/unlock and remove from the floating
+  toolbar, and prevent editing locked drawings.
+- TradingView documentation confirms the trend-line tool is a two-point drawing
+  with editable style/coordinates, while horizontal line and horizontal ray
+  tools mark specific price levels and can expose price labels. The Charting
+  Library drawings list also groups Trend Line, Ray, Horizontal Line, and
+  Horizontal Ray under Trend Line Tools and includes actions for locking and
+  removing drawings.
+- Keep this first pass intentionally small: draw on the main price pane only,
+  preserve existing chart pan/zoom behavior when no drawing tool or drawing hit
+  is active, and store drawings in saved chart layouts without changing market
+  data or indicator architecture.
+- No `.env` files will be touched.
+
+## Checklist
+
+- [x] Inspect the recording, TradingView docs, app chart code, CSS, tests, and
+      current architecture notes.
+- [x] Write this implementation plan in `todo.md`.
+- [x] Add drawing state/types for trend line/ray and horizontal level/ray tools.
+- [x] Add a compact left drawing toolbar with the two recorded tool entries.
+- [x] Render drawings on the main canvas with selected handles, projected ray
+      geometry, and price labels for horizontal tools.
+- [x] Implement placement, selection, drag/resize, lock/unlock, delete, Escape,
+      and Delete/Backspace behavior.
+- [x] Persist drawings through saved chart layouts and restore them safely.
+- [ ] Add focused Playwright coverage for drawing, locking, deleting, and canvas
+      rendering.
+- [ ] Update `ARCHITECTURE.md` with the drawing overlay boundary.
+- [ ] Run type/build/e2e validation and Playwright/browser verification.
+- [ ] Clean temporary recording/Playwright artifacts, review git status, commit,
+      push, and leave unrelated pre-existing changes untouched.
+
+## Review
+
+- Pending.

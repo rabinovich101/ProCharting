@@ -144,6 +144,14 @@ Security, and adds owner-scoped select, insert, update, and delete policies.
 The table also supports one `is_autosave` row per user for future current-state
 autosave while still allowing named saved layouts.
 
+The `user_session_activity` table records admin-visible session telemetry for
+authenticated chart users. It references `auth.users(id)`, enables Row Level
+Security, revokes direct browser-role grants, and is written only by the
+server-side `/api/user-tracking` route after Supabase bearer-token validation.
+It stores request IP/user-agent metadata, limited browser context, session
+timestamps, and a HMAC fingerprint hash derived from a clearable browser device
+marker instead of storing the raw marker.
+
 The standalone `TEST/binance-chart-test` app now has a narrow browser auth
 entry boundary for this Supabase-owned identity model. The header creates a
 Supabase browser client only when `NEXT_PUBLIC_SUPABASE_URL` and either
@@ -204,11 +212,21 @@ Node server code instead of middleware. `/admin/settings` provides the
 authenticated password-change form and refreshes the session cookie after a
 successful change. `/admin/users` lists Supabase Auth users through
 `supabase.auth.admin.listUsers` with a server-only service-role key, then joins
-matching `public.user_profiles` and `public.chart_layouts` rows for profile and
-saved-layout activity. The users route is disabled until the app runtime has
-valid admin credentials, `SUPABASE_SERVICE_ROLE_KEY`, and either `SUPABASE_URL`
-or `NEXT_PUBLIC_SUPABASE_URL`. The privileged key remains server runtime state;
-it must not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
+matching `public.user_profiles`, `public.chart_layouts`, and recent
+`public.user_session_activity` rows for profile, saved-layout, and login/session
+activity. `user_session_activity` is created by the third project migration and
+records Supabase session identifiers, login IP, last IP, IP header source,
+user-agent, limited browser context, sign-in/sign-out timestamps, and a
+server-side HMAC fingerprint hash. The browser sends a clearable local device
+marker to `/api/user-tracking`; that route validates the Supabase bearer token,
+captures IP/user-agent metadata on the server, hashes the marker with
+`PROCHARTS_TRACKING_SALT` when configured or the service-role key fallback, and
+writes through the service-role boundary. The raw device marker is not stored in
+Postgres, and the tracking table has RLS enabled with direct anon/authenticated
+grants revoked. The users route is disabled until the app runtime has valid
+admin credentials, `SUPABASE_SERVICE_ROLE_KEY`, and either `SUPABASE_URL` or
+`NEXT_PUBLIC_SUPABASE_URL`. The privileged key remains server runtime state; it
+must not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
 The admin panel presentation now uses a shared server-component shell in
 `TEST/binance-chart-test/app/admin/admin-shell.tsx`. Authenticated admin pages
 compose that shell with a reusable top navigation and page hero, while the

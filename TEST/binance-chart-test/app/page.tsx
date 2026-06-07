@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
@@ -23,6 +23,57 @@ const createSupabaseBrowserClient = (): SupabaseClient | null => {
   }
 
   return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+};
+
+const getOrCreateUserTrackingDeviceId = (): string => {
+  const existingDeviceId = window.localStorage.getItem(USER_TRACKING_DEVICE_STORAGE_KEY);
+  if (existingDeviceId) {
+    return existingDeviceId;
+  }
+
+  const nextDeviceId =
+    typeof window.crypto?.randomUUID === 'function'
+      ? window.crypto.randomUUID()
+      : `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  window.localStorage.setItem(USER_TRACKING_DEVICE_STORAGE_KEY, nextDeviceId);
+  return nextDeviceId;
+};
+
+const getUserTrackingBrowserContext = () => ({
+  devicePixelRatio: window.devicePixelRatio,
+  language: navigator.language,
+  languages: Array.from(navigator.languages ?? []).slice(0, 5),
+  platform: navigator.platform,
+  screen: {
+    colorDepth: window.screen.colorDepth,
+    height: window.screen.height,
+    width: window.screen.width,
+  },
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+});
+
+const sendUserTrackingEvent = async (session: Session | null, eventType: UserTrackingEventType): Promise<void> => {
+  if (!session?.access_token || typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    await fetch('/api/user-tracking', {
+      body: JSON.stringify({
+        browserContext: getUserTrackingBrowserContext(),
+        deviceId: getOrCreateUserTrackingDeviceId(),
+        eventType,
+      }),
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    });
+  } catch {
+    // Tracking should never block account actions or chart rendering.
+  }
 };
 
 interface Candle {
@@ -91,6 +142,7 @@ type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohl
 type IndicatorMaType = 'EMA' | 'SMA';
 type AuthMode = 'login' | 'signup';
 type AuthOAuthProvider = 'google' | 'github';
+type UserTrackingEventType = 'session_seen' | 'sign_in' | 'sign_up' | 'token_refreshed' | 'sign_out';
 type IndicatorFormula =
   | 'volume'
   | 'sma'
@@ -397,6 +449,7 @@ interface SymbolSearchOption {
 
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
 const CHART_LAYOUT_STORAGE_KEY = 'procharting.chartLayouts';
+const USER_TRACKING_DEVICE_STORAGE_KEY = 'procharting.userTrackingDevice';
 const MAX_SAVED_CHART_LAYOUTS = 12;
 const LAYOUT_SYNC_LABELS: Record<LayoutSyncKey, string> = {
   symbol: 'Symbol',
@@ -3014,6 +3067,9 @@ export default function Home() {
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
   const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
   const legendRenderFrameRef = useRef<number | undefined>(undefined);
+  const authSessionRef = useRef<Session | null>(null);
+  const pendingAuthTrackingEventRef = useRef<UserTrackingEventType | null>(null);
+  const trackedAuthEventsRef = useRef<Set<string>>(new Set());
 
   const [chartPanes, setChartPanes] = useState<ChartPaneState[]>(() => [createChartPaneState()]);
   const [legendRenderVersion, setLegendRenderVersion] = useState(0);
@@ -3057,6 +3113,15 @@ export default function Home() {
   const supabase = supabaseRef.current;
   const isAuthenticated = authUser !== null;
   const authUserLabel = authUser?.email ?? 'Account';
+  const trackAuthSessionEvent = (session: Session | null, eventType: UserTrackingEventType) => {
+    if (!session?.access_token) return;
+
+    const eventKey = `${eventType}:${session.access_token.slice(-32)}`;
+    if (trackedAuthEventsRef.current.has(eventKey)) return;
+
+    trackedAuthEventsRef.current.add(eventKey);
+    void sendUserTrackingEvent(session, eventType);
+  };
   const authPasswordSecurity = useMemo(
     () => getPasswordSecurityReport(authForm.password, authForm),
     [authForm]
@@ -3163,20 +3228,42 @@ export default function Home() {
 
     void supabase.auth.getSession().then(({ data }) => {
       if (isActive) {
+        authSessionRef.current = data.session;
         setAuthUser(data.session?.user ?? null);
+        trackAuthSessionEvent(data.session, 'session_seen');
       }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      authSessionRef.current = session;
       setAuthUser(session?.user ?? null);
       if (session?.user) {
+        const trackingEvent =
+          event === 'SIGNED_IN'
+            ? pendingAuthTrackingEventRef.current ?? 'sign_in'
+            : event === 'TOKEN_REFRESHED'
+              ? 'token_refreshed'
+              : event === 'INITIAL_SESSION'
+                ? 'session_seen'
+                : null;
+
+        if (trackingEvent) {
+          trackAuthSessionEvent(session, trackingEvent);
+        }
+
+        if (event === 'SIGNED_IN') {
+          pendingAuthTrackingEventRef.current = null;
+        }
+
         setAuthMode(null);
         setAuthActionLabel('');
         setAuthMessage('');
         setAuthForm(DEFAULT_AUTH_FORM_STATE);
         setAuthPasswordVisible(false);
+      } else if (event === 'SIGNED_OUT') {
+        authSessionRef.current = null;
       }
     });
 
@@ -4866,6 +4953,7 @@ export default function Home() {
     setAuthMessage('');
 
     try {
+      pendingAuthTrackingEventRef.current = authMode === 'signup' ? 'sign_up' : 'sign_in';
       const result =
         authMode === 'signup'
           ? await supabase.auth.signUp({
@@ -4880,17 +4968,20 @@ export default function Home() {
           : await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
+        pendingAuthTrackingEventRef.current = null;
         setAuthMessage(result.error.message);
         return;
       }
 
       if (authMode === 'signup' && !result.data.session) {
+        pendingAuthTrackingEventRef.current = null;
         setAuthMessage('Check your email to confirm your account.');
         return;
       }
 
       closeHeaderOverlays();
     } catch (error) {
+      pendingAuthTrackingEventRef.current = null;
       setAuthMessage(error instanceof Error ? error.message : 'Authentication failed.');
     } finally {
       setAuthLoading(false);
@@ -4906,6 +4997,7 @@ export default function Home() {
     setAuthMessage('');
 
     try {
+      pendingAuthTrackingEventRef.current = 'sign_in';
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -4914,9 +5006,11 @@ export default function Home() {
       });
 
       if (error) {
+        pendingAuthTrackingEventRef.current = null;
         setAuthMessage(error.message);
       }
     } catch (error) {
+      pendingAuthTrackingEventRef.current = null;
       setAuthMessage(error instanceof Error ? error.message : 'Authentication failed.');
     } finally {
       setAuthLoading(false);
@@ -4932,7 +5026,10 @@ export default function Home() {
 
     setAuthLoading(true);
     try {
+      const currentSession = authSessionRef.current ?? (await supabase.auth.getSession()).data.session;
+      await sendUserTrackingEvent(currentSession, 'sign_out');
       await supabase.auth.signOut();
+      authSessionRef.current = null;
       setAuthUser(null);
     } finally {
       setAuthLoading(false);

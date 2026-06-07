@@ -182,3 +182,22 @@ verification, and identity-provider records in the `auth` schema.
 - `display_name` and `avatar_url` hold minimal app-owned profile data;
 - Row Level Security restricts profile select/insert/update to the
   authenticated owner.
+
+## User Session Tracking Schema
+
+`migrations/003_user_session_activity.sql` creates
+`public.user_session_activity` for admin-visible login/session telemetry:
+
+- `user_id` references `auth.users(id)`;
+- `auth_session_id` stores the Supabase session claim when available, otherwise
+  a one-way hash-derived fallback identifier;
+- `login_ip_address`, `last_ip_address`, `ip_source`, and `user_agent` capture
+  request metadata server-side;
+- `fingerprint_hash` stores a HMAC of the clearable browser device marker,
+  user ID, and user agent, not the raw marker;
+- `browser_context` stores limited browser context such as language, timezone,
+  platform, screen size, and pixel ratio;
+- Row Level Security is enabled and direct `anon`/`authenticated` grants are
+  revoked. Writes go through the Next.js `/api/user-tracking` route after
+  Supabase bearer-token validation, and admin reads use the server-only
+  service-role boundary.

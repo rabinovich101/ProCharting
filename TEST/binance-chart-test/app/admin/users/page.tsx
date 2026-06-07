@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 const DEFAULT_PAGE = 1;
 const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 100;
+const SESSION_ROWS_PER_USER = 10;
 
 type SearchParamValue = string | string[] | undefined;
 type AdminSearchParams = Record<string, SearchParamValue>;
@@ -51,6 +52,23 @@ interface ChartLayoutRow {
   updated_at: string;
 }
 
+interface UserSessionActivityRow {
+  auth_session_id: string;
+  browser_context: Record<string, unknown> | null;
+  fingerprint_hash: string;
+  fingerprint_version: string;
+  ip_source: string | null;
+  last_event_type: string;
+  last_ip_address: string | null;
+  last_seen_at: string;
+  login_ip_address: string | null;
+  sign_in_count: number;
+  signed_in_at: string;
+  signed_out_at: string | null;
+  user_agent: string | null;
+  user_id: string;
+}
+
 interface LayoutSummary {
   autosaveCount: number;
   latestLayoutName: string | null;
@@ -58,10 +76,21 @@ interface LayoutSummary {
   totalCount: number;
 }
 
+interface SessionSummary {
+  latestFingerprintHash: string | null;
+  latestLastIpAddress: string | null;
+  latestLoginIpAddress: string | null;
+  latestSeenAt: string | null;
+  openCount: number;
+  recentSessions: UserSessionActivityRow[];
+  totalCount: number;
+}
+
 interface AdminUserRow {
   layoutSummary: LayoutSummary;
   profile: UserProfileRow | null;
   providers: string[];
+  sessionSummary: SessionSummary;
   status: AccountStatus;
   user: User;
 }
@@ -181,10 +210,58 @@ const loadLayoutRows = async (
   };
 };
 
+const loadSessionRows = async (
+  supabase: SupabaseClient,
+  userIds: string[]
+): Promise<{ error: string | null; sessions: UserSessionActivityRow[] }> => {
+  if (userIds.length === 0) {
+    return { error: null, sessions: [] };
+  }
+
+  const { data, error } = await supabase
+    .from("user_session_activity")
+    .select(
+      [
+        "user_id",
+        "auth_session_id",
+        "fingerprint_hash",
+        "fingerprint_version",
+        "login_ip_address",
+        "last_ip_address",
+        "ip_source",
+        "user_agent",
+        "browser_context",
+        "sign_in_count",
+        "signed_in_at",
+        "last_seen_at",
+        "signed_out_at",
+        "last_event_type",
+      ].join(", ")
+    )
+    .in("user_id", userIds)
+    .order("last_seen_at", { ascending: false })
+    .limit(userIds.length * SESSION_ROWS_PER_USER);
+
+  return {
+    error: error?.message ?? null,
+    sessions: (data ?? []) as unknown as UserSessionActivityRow[],
+  };
+};
+
 const createEmptyLayoutSummary = (): LayoutSummary => ({
   autosaveCount: 0,
   latestLayoutName: null,
   latestUpdatedAt: null,
+  totalCount: 0,
+});
+
+const createEmptySessionSummary = (): SessionSummary => ({
+  latestFingerprintHash: null,
+  latestLastIpAddress: null,
+  latestLoginIpAddress: null,
+  latestSeenAt: null,
+  openCount: 0,
+  recentSessions: [],
   totalCount: 0,
 });
 
@@ -205,6 +282,35 @@ const summarizeLayouts = (layouts: ChartLayoutRow[]): Map<string, LayoutSummary>
     }
 
     summaries.set(layout.user_id, current);
+  }
+
+  return summaries;
+};
+
+const summarizeSessions = (sessions: UserSessionActivityRow[]): Map<string, SessionSummary> => {
+  const summaries = new Map<string, SessionSummary>();
+
+  for (const session of sessions) {
+    const current = summaries.get(session.user_id) ?? createEmptySessionSummary();
+    current.totalCount += 1;
+
+    if (!session.signed_out_at) {
+      current.openCount += 1;
+    }
+
+    const latestTimestamp = current.latestSeenAt ? Date.parse(current.latestSeenAt) : -Infinity;
+    if (Date.parse(session.last_seen_at) > latestTimestamp) {
+      current.latestFingerprintHash = session.fingerprint_hash;
+      current.latestLastIpAddress = session.last_ip_address;
+      current.latestLoginIpAddress = session.login_ip_address;
+      current.latestSeenAt = session.last_seen_at;
+    }
+
+    if (current.recentSessions.length < SESSION_ROWS_PER_USER) {
+      current.recentSessions.push(session);
+    }
+
+    summaries.set(session.user_id, current);
   }
 
   return summaries;
@@ -265,16 +371,21 @@ const loadAdminUsers = async (
   }
 
   const users = data.users;
+  const total = data.total && data.total > 0 ? data.total : users.length;
   const userIds = users.map((user) => user.id);
-  const [profileResult, layoutResult] = await Promise.all([
+  const [profileResult, layoutResult, sessionResult] = await Promise.all([
     loadProfiles(supabase, userIds),
     loadLayoutRows(supabase, userIds),
+    loadSessionRows(supabase, userIds),
   ]);
   const profilesByUserId = new Map(profileResult.profiles.map((profile) => [profile.user_id, profile]));
   const layoutSummariesByUserId = summarizeLayouts(layoutResult.layouts);
+  const sessionSummariesByUserId = summarizeSessions(sessionResult.sessions);
 
   return {
-    fetchErrors: [profileResult.error, layoutResult.error].filter((message): message is string => Boolean(message)),
+    fetchErrors: [profileResult.error, layoutResult.error, sessionResult.error].filter((message): message is string =>
+      Boolean(message)
+    ),
     lastPage: data.lastPage ?? page,
     nextPage: data.nextPage ?? null,
     page,
@@ -283,10 +394,11 @@ const loadAdminUsers = async (
       layoutSummary: layoutSummariesByUserId.get(user.id) ?? createEmptyLayoutSummary(),
       profile: profilesByUserId.get(user.id) ?? null,
       providers: getProviders(user),
+      sessionSummary: sessionSummariesByUserId.get(user.id) ?? createEmptySessionSummary(),
       status: getAccountStatus(user),
       user,
     })),
-    total: data.total ?? users.length,
+    total,
   };
 };
 
@@ -305,6 +417,33 @@ const formatDate = (value: string | null | undefined): string => {
     timeStyle: "short",
     timeZone: "UTC",
   }).format(date);
+};
+
+const formatFingerprint = (value: string | null | undefined): string => {
+  if (!value) {
+    return "None";
+  }
+
+  return `${value.slice(0, 12)}...${value.slice(-6)}`;
+};
+
+const formatIpAddress = (value: string | null | undefined): string => value ?? "None";
+
+const formatBrowserContext = (value: Record<string, unknown> | null): string => {
+  if (!value) {
+    return "No browser context";
+  }
+
+  const parts = [
+    typeof value.platform === "string" ? value.platform : null,
+    typeof value.timezone === "string" ? value.timezone : null,
+    typeof value.language === "string" ? value.language : null,
+    typeof value.screenWidth === "number" && typeof value.screenHeight === "number"
+      ? `${value.screenWidth}x${value.screenHeight}`
+      : null,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(" / ") : "No browser context";
 };
 
 const formatBoolean = (value: boolean | undefined): string => (value ? "Yes" : "No");
@@ -371,6 +510,7 @@ const AdminStats = ({ result }: { result: AdminUsersResult }) => {
   const pendingUsers = result.rows.filter((row) => row.status.label === "Pending confirmation").length;
   const layoutCount = result.rows.reduce((total, row) => total + row.layoutSummary.totalCount, 0);
   const oauthUsers = result.rows.filter((row) => row.providers.length > 0).length;
+  const trackedSessions = result.rows.reduce((total, row) => total + row.sessionSummary.totalCount, 0);
 
   return (
     <section className="admin-stat-grid" aria-label="Current user page summary">
@@ -395,11 +535,62 @@ const AdminStats = ({ result }: { result: AdminUsersResult }) => {
         <small>External identity providers</small>
       </article>
       <article className="admin-stat-card">
+        <span>Tracked sessions</span>
+        <strong>{trackedSessions}</strong>
+        <small>Recent browser activity rows</small>
+      </article>
+      <article className="admin-stat-card">
         <span>Layouts on page</span>
         <strong>{layoutCount}</strong>
         <small>Saved chart states</small>
       </article>
     </section>
+  );
+};
+
+const AdminSessionCell = ({ summary }: { summary: SessionSummary }) => {
+  if (summary.totalCount === 0) {
+    return (
+      <div className="admin-session-cell empty">
+        <span>No tracked sessions</span>
+        <small>Activity appears after the user signs in again.</small>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-session-cell">
+      <span className="admin-primary-text">
+        {summary.totalCount} recent / {summary.openCount} open
+      </span>
+      <small>Login IP: {formatIpAddress(summary.latestLoginIpAddress)}</small>
+      <small>Last IP: {formatIpAddress(summary.latestLastIpAddress)}</small>
+      <code title={summary.latestFingerprintHash ?? undefined}>
+        Fingerprint {formatFingerprint(summary.latestFingerprintHash)}
+      </code>
+      <small>Last seen: {formatDate(summary.latestSeenAt)}</small>
+
+      <details className="admin-session-details">
+        <summary>Recent sessions</summary>
+        <ol>
+          {summary.recentSessions.map((session) => (
+            <li key={`${session.auth_session_id}:${session.fingerprint_hash}`}>
+              <span>
+                {session.last_event_type} / {session.signed_out_at ? "signed out" : "open"}
+              </span>
+              <small>Signed in: {formatDate(session.signed_in_at)}</small>
+              <small>Last seen: {formatDate(session.last_seen_at)}</small>
+              <small>Login IP: {formatIpAddress(session.login_ip_address)}</small>
+              <small>Last IP: {formatIpAddress(session.last_ip_address)}</small>
+              <small>Source: {session.ip_source ?? "Unknown"}</small>
+              <small>{formatBrowserContext(session.browser_context)}</small>
+              <code title={session.fingerprint_hash}>{formatFingerprint(session.fingerprint_hash)}</code>
+              {session.user_agent && <small title={session.user_agent}>UA: {session.user_agent}</small>}
+            </li>
+          ))}
+        </ol>
+      </details>
+    </div>
   );
 };
 
@@ -432,6 +623,7 @@ const AdminUsersTable = ({ result }: { result: AdminUsersResult }) => (
             <th scope="col">Profile</th>
             <th scope="col">Layouts</th>
             <th scope="col">Timeline</th>
+            <th scope="col">Sessions</th>
             <th scope="col">Details</th>
           </tr>
         </thead>
@@ -466,6 +658,9 @@ const AdminUsersTable = ({ result }: { result: AdminUsersResult }) => (
                 <span>Created: {renderTime(row.user.created_at)}</span>
                 <small>Last sign in: {formatDate(row.user.last_sign_in_at)}</small>
                 <small>Updated: {formatDate(row.user.updated_at)}</small>
+              </td>
+              <td>
+                <AdminSessionCell summary={row.sessionSummary} />
               </td>
               <td>
                 <details className="admin-user-details">
@@ -504,6 +699,7 @@ const AdminUsersTable = ({ result }: { result: AdminUsersResult }) => (
                     app_metadata: row.user.app_metadata,
                     identities: row.user.identities ?? [],
                     profile: row.profile,
+                    sessions: row.sessionSummary.recentSessions,
                     user_metadata: row.user.user_metadata,
                   })}</pre>
                 </details>
