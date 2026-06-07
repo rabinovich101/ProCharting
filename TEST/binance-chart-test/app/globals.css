@@ -2933,7 +2933,8 @@ summary {
   max-width: 460px;
 }
 
-.admin-login-form {
+.admin-login-form,
+.admin-settings-form {
   align-content: center;
   background: rgba(9, 12, 14, 0.52);
   border: 1px solid var(--admin-border);
@@ -2943,19 +2944,22 @@ summary {
   padding: 18px;
 }
 
-.admin-login-form label {
+.admin-login-form label,
+.admin-settings-form label {
   display: grid;
   gap: 7px;
 }
 
-.admin-login-form label span {
+.admin-login-form label span,
+.admin-settings-form label span {
   color: var(--admin-muted);
   font-size: 11px;
   font-weight: 820;
   text-transform: uppercase;
 }
 
-.admin-login-form input {
+.admin-login-form input,
+.admin-settings-form input {
   background: #0c0f11;
   border: 1px solid var(--admin-border);
   border-radius: 8px;
@@ -2968,19 +2972,22 @@ summary {
     box-shadow 150ms ease;
 }
 
-.admin-login-form input:focus {
+.admin-login-form input:focus,
+.admin-settings-form input:focus {
   border-color: color-mix(in srgb, var(--admin-blue) 72%, var(--admin-border));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-blue) 18%, transparent);
 }
 
 .admin-login-form button,
+.admin-settings-form button,
 .admin-hero-meta button {
   border-radius: 8px;
   font-weight: 820;
   min-height: 38px;
 }
 
-.admin-login-form button {
+.admin-login-form button,
+.admin-settings-form button {
   background: var(--admin-green);
   border: 1px solid color-mix(in srgb, var(--admin-green) 80%, #ffffff);
   color: #101315;
@@ -2988,7 +2995,9 @@ summary {
 }
 
 .admin-login-form button:hover,
-.admin-login-form button:focus-visible {
+.admin-login-form button:focus-visible,
+.admin-settings-form button:hover,
+.admin-settings-form button:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-green) 20%, transparent);
 }
 
@@ -3100,6 +3109,18 @@ summary {
   margin: 0;
 }
 
+.admin-hero-meta a {
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  color: var(--admin-muted);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 820;
+  min-height: 38px;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
 .admin-hero-meta button {
   background: transparent;
   border: 1px solid var(--admin-border);
@@ -3107,6 +3128,8 @@ summary {
   padding: 0 12px;
 }
 
+.admin-hero-meta a:hover,
+.admin-hero-meta a:focus-visible,
 .admin-hero-meta button:hover,
 .admin-hero-meta button:focus-visible {
   background: var(--admin-panel-2);
@@ -3202,6 +3225,17 @@ summary {
 
 .admin-users-panel {
   overflow: hidden;
+}
+
+.admin-settings-panel {
+  max-width: 760px;
+}
+
+.admin-settings-form {
+  background: transparent;
+  border: 0;
+  max-width: 520px;
+  padding: 18px;
 }
 
 .admin-users-panel-header {

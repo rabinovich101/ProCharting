@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { requireAdminPageSession } from "../../../lib/admin-access";
+import { getActiveAdminCredentials } from "../../../lib/admin-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,7 @@ interface AdminUsersPageProps {
 }
 
 interface AdminConfig {
-  basicAuthConfigured: boolean;
+  adminCredentialsConfigured: boolean;
   missingKeys: string[];
   serviceRoleKey: string | null;
   supabaseUrl: string | null;
@@ -89,16 +91,14 @@ const getFirstEnv = (...names: string[]): string | null => {
   return null;
 };
 
-const getAdminConfig = (): AdminConfig => {
+const getAdminConfig = async (): Promise<AdminConfig> => {
   const supabaseUrl = getFirstEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = getFirstEnv("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY", "SERVICE_ROLE_KEY");
-  const basicAuthConfigured = Boolean(
-    process.env.PROCHARTS_ADMIN_USERNAME?.trim() && process.env.PROCHARTS_ADMIN_PASSWORD?.trim()
-  );
+  const adminCredentialsConfigured = Boolean(await getActiveAdminCredentials());
   const missingKeys: string[] = [];
 
-  if (!basicAuthConfigured) {
-    missingKeys.push("PROCHARTS_ADMIN_USERNAME and PROCHARTS_ADMIN_PASSWORD");
+  if (!adminCredentialsConfigured) {
+    missingKeys.push("PROCHARTS_ADMIN_USERNAME and PROCHARTS_ADMIN_PASSWORD or admin credentials file");
   }
 
   if (!supabaseUrl) {
@@ -110,7 +110,7 @@ const getAdminConfig = (): AdminConfig => {
   }
 
   return {
-    basicAuthConfigured,
+    adminCredentialsConfigured,
     missingKeys,
     serviceRoleKey,
     supabaseUrl,
@@ -518,8 +518,10 @@ const AdminUsersTable = ({ result }: { result: AdminUsersResult }) => (
 
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
-  const config = getAdminConfig();
-  const ready = Boolean(config.basicAuthConfigured && config.serviceRoleKey && config.supabaseUrl);
+  await requireAdminPageSession("/admin/users");
+
+  const config = await getAdminConfig();
+  const ready = Boolean(config.adminCredentialsConfigured && config.serviceRoleKey && config.supabaseUrl);
   let result: AdminUsersResult | null = null;
   let loadError: Error | null = null;
 
@@ -551,6 +553,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         <div className="admin-hero-meta" aria-label="Admin route details">
           <span>/admin/users</span>
           <strong>Service-role only</strong>
+          <Link href="/admin/settings">Settings</Link>
           <form action="/admin/logout" method="post">
             <button type="submit">Sign out</button>
           </form>

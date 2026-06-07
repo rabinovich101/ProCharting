@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'node:path';
 
 const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
+const adminCredentialsFile = path.join(process.cwd(), 'test-results', 'admin-credentials.json');
+
+process.env.PROCHARTS_ADMIN_CREDENTIALS_FILE = adminCredentialsFile;
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -19,6 +23,7 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: '',
       NEXT_PUBLIC_SUPABASE_URL: '',
       NEXT_TELEMETRY_DISABLED: '1',
+      PROCHARTS_ADMIN_CREDENTIALS_FILE: adminCredentialsFile,
       PROCHARTS_ADMIN_PASSWORD: 'test-password',
       PROCHARTS_ADMIN_USERNAME: 'test-admin',
       SUPABASE_SERVICE_ROLE_KEY: '',

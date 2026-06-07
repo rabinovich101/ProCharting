@@ -3,10 +3,16 @@ import {
   ADMIN_SESSION_COOKIE,
   ADMIN_SESSION_MAX_AGE_SECONDS,
   createAdminSessionValue,
-  getAdminRuntimeConfig,
   getRequestOrigin,
   sanitizeAdminNextPath,
 } from "../../../lib/admin-session";
+import {
+  getActiveAdminCredentials,
+  getAdminSessionConfigFromCredentials,
+  verifyAdminPassword,
+} from "../../../lib/admin-credentials";
+
+export const runtime = "nodejs";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
@@ -86,9 +92,9 @@ export async function POST(request: NextRequest) {
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const nextPath = sanitizeAdminNextPath(formData.get("next"));
-  const adminConfig = getAdminRuntimeConfig();
+  const adminCredentials = await getActiveAdminCredentials();
 
-  if (!adminConfig) {
+  if (!adminCredentials) {
     return createLoginRedirect(request, "config", nextPath);
   }
 
@@ -100,13 +106,13 @@ export async function POST(request: NextRequest) {
     return createLoginRedirect(request, "rate", nextPath);
   }
 
-  if (username !== adminConfig.username || password !== adminConfig.password) {
+  if (username !== adminCredentials.username || !(await verifyAdminPassword(password, adminCredentials))) {
     recordFailedAttempt(attemptKey, now);
     return createLoginRedirect(request, "credentials", nextPath);
   }
 
   clearFailedAttempts(attemptKey);
-  const sessionValue = await createAdminSessionValue(adminConfig, now);
+  const sessionValue = await createAdminSessionValue(getAdminSessionConfigFromCredentials(adminCredentials), now);
   const response = NextResponse.redirect(new URL(nextPath, getRequestOrigin(request.headers, request.url)), { status: 303 });
   response.cookies.set(ADMIN_SESSION_COOKIE, sessionValue, {
     httpOnly: true,

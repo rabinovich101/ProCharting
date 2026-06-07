@@ -10,21 +10,10 @@ interface AdminSessionPayload {
   v: 1;
 }
 
-interface AdminRuntimeConfig {
-  password: string;
+export interface AdminSessionConfig {
+  sessionSecret: string;
   username: string;
 }
-
-export const getAdminRuntimeConfig = (): AdminRuntimeConfig | null => {
-  const username = process.env.PROCHARTS_ADMIN_USERNAME?.trim();
-  const password = process.env.PROCHARTS_ADMIN_PASSWORD?.trim();
-
-  if (!username || !password) {
-    return null;
-  }
-
-  return { password, username };
-};
 
 const bytesToBase64Url = (bytes: Uint8Array): string => {
   let binary = "";
@@ -78,21 +67,21 @@ const constantTimeEqual = (left: string, right: string): boolean => {
   return difference === 0;
 };
 
-export const createAdminSessionValue = async (config: AdminRuntimeConfig, now = Date.now()): Promise<string> => {
+export const createAdminSessionValue = async (config: AdminSessionConfig, now = Date.now()): Promise<string> => {
   const payload: AdminSessionPayload = {
     exp: Math.floor(now / 1000) + ADMIN_SESSION_MAX_AGE_SECONDS,
     sub: config.username,
     v: 1,
   };
   const encodedPayload = stringToBase64Url(JSON.stringify(payload));
-  const signature = await createHmacSignature(encodedPayload, config.password);
+  const signature = await createHmacSignature(encodedPayload, config.sessionSecret);
 
   return `${encodedPayload}.${signature}`;
 };
 
 export const verifyAdminSessionValue = async (
   value: string | undefined,
-  config: AdminRuntimeConfig | null,
+  config: AdminSessionConfig | null,
   now = Date.now()
 ): Promise<boolean> => {
   if (!value || !config) {
@@ -104,7 +93,7 @@ export const verifyAdminSessionValue = async (
     return false;
   }
 
-  const expectedSignature = await createHmacSignature(encodedPayload, config.password);
+  const expectedSignature = await createHmacSignature(encodedPayload, config.sessionSecret);
   if (!constantTimeEqual(signature, expectedSignature)) {
     return false;
   }

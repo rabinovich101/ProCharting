@@ -2,12 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import {
-  ADMIN_SESSION_COOKIE,
-  getAdminRuntimeConfig,
-  sanitizeAdminNextPath,
-  verifyAdminSessionValue,
-} from "../../lib/admin-session";
+import { verifyAdminCookieValue } from "../../lib/admin-access";
+import { ADMIN_SESSION_COOKIE, sanitizeAdminNextPath } from "../../lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -50,9 +46,8 @@ const getStatusMessage = (error: string | undefined, loggedOut: string | undefin
 export default async function AdminLoginPage({ searchParams }: AdminLoginPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const nextPath = sanitizeAdminNextPath(getSearchParam(resolvedSearchParams, "next"));
-  const adminConfig = getAdminRuntimeConfig();
   const cookieStore = await cookies();
-  const hasAdminSession = await verifyAdminSessionValue(cookieStore.get(ADMIN_SESSION_COOKIE)?.value, adminConfig);
+  const hasAdminSession = await verifyAdminCookieValue(cookieStore.get(ADMIN_SESSION_COOKIE)?.value);
   const statusMessage = getStatusMessage(
     getSearchParam(resolvedSearchParams, "error"),
     getSearchParam(resolvedSearchParams, "loggedOut")

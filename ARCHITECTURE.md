@@ -177,18 +177,27 @@ modes and redirect through the configured Supabase Auth provider when the
 deployment has the public Supabase env vars and provider credentials.
 The standalone app also has a server-rendered owner admin boundary. `/admin`
 renders the visible username/password entry page. `/admin/login` validates
-credentials server-side against `PROCHARTS_ADMIN_USERNAME` and
-`PROCHARTS_ADMIN_PASSWORD`, rate-limits repeated failures by client/username,
-and sets a signed HTTP-only admin session cookie scoped to `/admin` on success.
-A narrow Next.js middleware protects private admin paths such as `/admin/users`
-by accepting either that signed session cookie or the existing HTTP Basic Auth
-fallback for scripts. `/admin/users` lists Supabase Auth users through
+credentials server-side, rate-limits repeated failures by client/username, and
+sets a signed HTTP-only admin session cookie scoped to `/admin` on success.
+`PROCHARTS_ADMIN_USERNAME` and `PROCHARTS_ADMIN_PASSWORD` remain the bootstrap
+credential source. After an admin changes the password from
+`/admin/settings`, the app writes a salted scrypt password hash to a
+server-only credential file, defaulting to
+`$HOME/.procharts/admin-credentials.json` unless
+`PROCHARTS_ADMIN_CREDENTIALS_FILE` points elsewhere. Once that file exists, it
+is the active password source and the env password is no longer accepted by the
+login form. Private admin pages and admin route handlers verify the signed
+session server-side against the active credential source, while middleware only
+adds no-store cache headers for `/admin/*`; this keeps mutable password state in
+Node server code instead of middleware. `/admin/settings` provides the
+authenticated password-change form and refreshes the session cookie after a
+successful change. `/admin/users` lists Supabase Auth users through
 `supabase.auth.admin.listUsers` with a server-only service-role key, then joins
 matching `public.user_profiles` and `public.chart_layouts` rows for profile and
 saved-layout activity. The users route is disabled until the app runtime has
-`SUPABASE_SERVICE_ROLE_KEY` and either `SUPABASE_URL` or
-`NEXT_PUBLIC_SUPABASE_URL`. The privileged key remains server runtime state; it
-must not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
+valid admin credentials, `SUPABASE_SERVICE_ROLE_KEY`, and either `SUPABASE_URL`
+or `NEXT_PUBLIC_SUPABASE_URL`. The privileged key remains server runtime state;
+it must not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
 On the production VM, `/etc/procharts/app.env` sets the admin route's
 server-only `SUPABASE_URL` to the local Supabase Kong gateway at
 `http://127.0.0.1:8000`, while browser auth keeps using the public same-domain

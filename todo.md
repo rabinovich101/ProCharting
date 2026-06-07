@@ -6576,3 +6576,93 @@ password entry fields, then let a valid admin session enter the existing
   context.
 - Stopped and auto-removed the two running Playwright tool containers:
   `b7e5a1082406` and `1286ad29eeb0`.
+
+# Admin Credential Update
+
+## Goal
+
+Update the admin login credentials for `/admin` in local ignored runtime env and
+production server runtime env without committing secrets.
+
+## Investigation / Decisions
+
+- Admin credentials are operational runtime state in
+  `PROCHARTS_ADMIN_USERNAME` and `PROCHARTS_ADMIN_PASSWORD`.
+- Local app credentials live in ignored `TEST/binance-chart-test/.env.local`.
+- Production app credentials live in `/etc/procharts/app.env` and require a
+  PM2 redeploy/restart before the Next.js process sees the new values.
+- Direct SSH from this Mac has timed out previously, so use the VM-local
+  self-hosted runner path if direct SSH is still unavailable.
+
+## Checklist
+
+- [x] Update local ignored app env with the requested admin username/password.
+- [x] Update production `/etc/procharts/app.env` with the same credentials.
+- [x] Redeploy production so PM2 receives the new credentials.
+- [ ] Verify `/admin` login works with the requested credentials.
+- [x] Remove temporary GitHub Actions secrets/workflows if used.
+- [ ] Stop any Playwright containers after verification.
+
+## Review
+
+- Updated the local ignored app env and production `/etc/procharts/app.env`
+  without committing the credential values.
+- VM-local deployment run `27087639118` passed after fixing shell-safe quoting
+  for passwords containing `$`.
+- Removed the temporary GitHub Actions runtime secrets.
+- Public `/admin` verification remains part of the final post-deploy check for
+  the settings feature.
+
+# Admin Settings Password Change
+
+## Goal
+
+Add an authenticated settings area inside `/admin` where an admin can change the
+admin login password without committing secrets.
+
+## Investigation / Decisions
+
+- The current admin login password is read from server-only env values.
+- A password that can be changed from the UI must be stored in a server-only
+  writable credential store, not in git or browser-visible state.
+- Next middleware is not the right layer for mutable filesystem-backed
+  credentials, so private admin pages and admin route handlers should verify the
+  signed admin session server-side.
+- The env password remains the bootstrap/fallback credential until a settings
+  password is saved. Once saved, the stored password hash becomes the active
+  login credential.
+- Store only a salted password hash on disk, never the plaintext changed
+  password.
+
+## Checklist
+
+- [x] Add a server-only admin credential store with hashed password writes.
+- [x] Rewire admin login/session verification to use the mutable credential
+      store.
+- [x] Add `/admin/settings` and a protected password-change route.
+- [x] Link settings from the existing admin users panel.
+- [x] Update admin Playwright coverage for password change and protected access.
+- [x] Update `ARCHITECTURE.md` with the admin credential store design.
+- [x] Run validation and browser verification.
+- [ ] Stop any Playwright containers after verification.
+- [ ] Review, commit, push, and clean temporary deployment artifacts.
+
+## Review
+
+- Added `/admin/settings` with a change-password form and sign-out control.
+- Added `/admin/settings/password` to verify the current password, validate the
+  new password, store a salted scrypt hash, and refresh the admin session.
+- Added a server-only admin credential store at
+  `$HOME/.procharts/admin-credentials.json` by default, with
+  `PROCHARTS_ADMIN_CREDENTIALS_FILE` for overrides.
+- Moved private admin authorization into Node server pages/routes so the
+  mutable credential store is authoritative; middleware now only sets no-store
+  cache headers for `/admin/*`.
+- Removed the HTTP Basic Auth fallback so old env passwords do not remain a
+  direct private-route bypass after a settings password is saved.
+- Validation passed:
+  - `pnpm run typecheck:test`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/admin-users.spec.ts`
+  - `pnpm run typecheck`
+  - `npm --prefix TEST/binance-chart-test run test:e2e`
