@@ -30,6 +30,7 @@ test.describe("admin users panel", () => {
     await page.goto("/admin");
 
     await expect(page.getByRole("heading", { name: "ProCharting admin" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Enter the console" })).toBeVisible();
     await expect(page.getByLabel("Username")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Enter admin" })).toBeVisible();
@@ -57,6 +58,10 @@ test.describe("admin users panel", () => {
     await loginAsAdmin(page);
 
     await expect(page.getByRole("heading", { name: "User administration" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /ProCharting Admin/ })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Admin sections" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Users/ })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("link", { name: /Settings/ })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Admin users panel is disabled" })).toBeVisible();
 
     await page.getByRole("button", { name: "Sign out" }).click();
@@ -90,11 +95,12 @@ test.describe("admin users panel", () => {
     const updatedPassword = "new-test-password-1$";
 
     await loginAsAdmin(page);
-    await page.getByRole("link", { name: "Settings" }).click();
+    await page.getByRole("link", { name: /Settings/ }).click();
 
     await expect(page).toHaveURL(/\/admin\/settings/);
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Change password" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Settings/ })).toHaveAttribute("aria-current", "page");
 
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth))

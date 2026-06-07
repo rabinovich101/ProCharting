@@ -209,6 +209,12 @@ saved-layout activity. The users route is disabled until the app runtime has
 valid admin credentials, `SUPABASE_SERVICE_ROLE_KEY`, and either `SUPABASE_URL`
 or `NEXT_PUBLIC_SUPABASE_URL`. The privileged key remains server runtime state;
 it must not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.
+The admin panel presentation now uses a shared server-component shell in
+`TEST/binance-chart-test/app/admin/admin-shell.tsx`. Authenticated admin pages
+compose that shell with a reusable top navigation and page hero, while the
+login page reuses the same visual design tokens without rendering protected
+navigation. This keeps future admin sections aligned to the same chrome without
+moving admin auth or Supabase service-role logic into client-side code.
 On the production VM, `/etc/procharts/app.env` sets the admin route's
 server-only `SUPABASE_URL` to the local Supabase Kong gateway at
 `http://127.0.0.1:8000`, while browser auth keeps using the public same-domain
@@ -311,7 +317,10 @@ harness under `tests/e2e`. The harness runs the Next dev server on
 signed-out auth coverage, mocks `/api/binance` candle responses, and replaces
 the browser Binance WebSocket with a local no-op socket before the app boots.
 This keeps signup/login entry tests and public chart-control tests independent
-from live Binance and external Supabase projects.
+from live Binance and external Supabase projects. The Playwright web server
+starts plain `next dev` directly rather than the app's Turbopack `npm run dev`
+script because local Turbopack startup can fail before tests with transient
+`.next` manifest files missing.
 
 As of May 31, 2026, the automatic renderer path selects Canvas2D because it is
 the complete package-rendering path used by the runnable chart app. The WebGPU
@@ -524,13 +533,17 @@ The chart app supports:
   controls for hide/show, settings, remove, duplicate, and ordering actions.
   Ordering actions are scoped to the row's current visible legend group, so
   lower-pane indicators move relative to other oscillator panes instead of
-  stepping invisibly through price/volume indicators.
+  stepping invisibly through price/volume indicators. The price-overlay legend
+  stack is height-bounded and scrollable so many active overlays cannot cover
+  lower-pane indicator controls.
   Settings such as length, source, standard deviation, MACD fast/slow/signal,
-  MACD oscillator/signal MA type, signal color, and primary color update the
-  active instance and redraw the chart. Indicator series are cached per pane by
-  candle-array reference and active-indicator state, so hover-only `mousePos`
-  updates can refresh legend values for the snapped candle without recomputing
-  every indicator from the full candle history.
+  MACD oscillator/signal MA type, primary/secondary/tertiary series colors,
+  Bollinger fill color, Stochastic %D color, volume down color, and MACD
+  histogram positive/negative colors update the active instance and redraw the
+  chart. Indicator series are cached per pane by candle-array reference and
+  active-indicator state, so hover-only `mousePos` updates can refresh legend
+  values for the snapped candle without recomputing every indicator from the
+  full candle history.
 - Selected price overlays participate in automatic Y-range fitting and draw on
   the main price pane. Volume draws in the volume band, and oscillator
   indicators draw in compact lower panes with guide lines and right-side value

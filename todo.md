@@ -1,3 +1,140 @@
+# Professional Admin Panel Redesign
+
+## Goal
+
+Redesign the existing ProCharting admin panel into a professional, scalable
+operations console that can grow beyond the current users and settings screens
+without changing the server-side auth, password, or Supabase data behavior.
+
+## Investigation / Decisions
+
+- The active admin surface lives in the standalone Next.js app at
+  `TEST/binance-chart-test/app/admin`.
+- `/admin` is the server-rendered login entry, `/admin/users` is the protected
+  Supabase Auth/user-layout review page, and `/admin/settings` is the protected
+  password settings page.
+- Existing server logic already handles session validation, logout, password
+  updates, missing service-role config, pagination, and Supabase joins. Preserve
+  that behavior and redesign only the directly related admin UI markup/styles.
+- Use a restrained professional dark operations aesthetic that fits the charting
+  product, with clear neutral surfaces, green/blue/yellow/red status semantics,
+  and dense readable tables for future admin workflows.
+- Add a reusable admin shell/navigation pattern so future admin pages can slot
+  into the same chrome without a new layout decision.
+- Keep the implementation simple: no new dependencies, no client state, no
+  unrelated chart UI refactors, and no `.env` changes.
+
+## Checklist
+
+- [x] Inspect the current admin pages, CSS, tests, and architecture notes.
+- [x] Write this implementation plan in `todo.md`.
+- [x] Redesign `/admin`, `/admin/users`, and `/admin/settings` markup for a
+      scalable admin shell and professional page hierarchy.
+- [x] Replace the current admin CSS with a cleaner responsive design system for
+      shell navigation, panels, stats, forms, tables, and states.
+- [x] Update focused Playwright tests to cover the new admin shell/nav and keep
+      existing auth/password/overflow behavior protected.
+- [x] Update `ARCHITECTURE.md` with the admin UI shell knowledge.
+- [x] Run build and focused Playwright tests.
+- [x] Verify manually with Browser/Playwright screenshots across desktop and
+      mobile, then clean generated screenshots or temporary artifacts.
+- [x] Review final diff, commit, push, and leave unrelated pre-existing
+      worktree changes untouched.
+
+## Review
+
+- Added a shared server-component admin shell in
+  `TEST/binance-chart-test/app/admin/admin-shell.tsx` with reusable top
+  navigation and page hero primitives for future admin sections.
+- Redesigned `/admin`, `/admin/users`, and `/admin/settings` around a more
+  professional operations-console hierarchy while preserving existing login,
+  logout, password update, session, missing-config, and Supabase data behavior.
+- Added admin CSS for the shell, navigation, route summary, state panels,
+  metric cards, tables, details, login form, and settings layout with desktop
+  and mobile responsive states.
+- Updated admin Playwright coverage to assert the new shell/navigation while
+  keeping existing auth/password and no-horizontal-overflow checks.
+- Updated `ARCHITECTURE.md` to document the admin UI shell boundary.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/admin-users.spec.ts`
+  - `npm run build` from `TEST/binance-chart-test`
+  - Manual Playwright desktop/mobile screenshot pass for login, users, and
+    settings with heading/nav/overflow checks.
+- Camoufox cannot browse private/local IPs in this environment, and the in-app
+  browser start timed out, so local manual QA used Playwright directly.
+- Temporary Playwright screenshots and the manual admin credentials file were
+  removed after inspection.
+
+# Indicator Functionality And Settings Audit
+
+## Goal
+
+Audit every built-in chart indicator one by one, verify that each indicator can be
+added, calculated, rendered, and configured through the visible indicator settings
+UI, then fix any directly related gaps with the smallest safe changes.
+
+## Investigation / Decisions
+
+- The active product surface is the standalone Next.js chart app in
+  `TEST/binance-chart-test`; the indicator registry, calculation helpers,
+  canvas rendering, and legend/settings UI are all in `app/page.tsx`.
+- The current built-in indicator registry contains 18 definitions: Volume,
+  Moving Average, Moving Average 200, Exponential Moving Average, EMA 20,
+  Bollinger Bands, VWAP Session, Donchian Channels, Weighted Moving Average,
+  Relative Strength Index, MACD, Stochastic, Momentum, Rate Of Change,
+  Accumulation/Distribution, Average True Range, Bollinger Bands %b, and
+  Bollinger BandWidth.
+- Every definition currently has a calculation branch, but some rendered series
+  colors are not configurable from the settings panel: volume down bars,
+  Bollinger upper/lower/fill colors, Donchian lower/basis colors, Stochastic %D
+  color, and MACD histogram positive/negative colors.
+- Keep the fix scoped to settings that already affect indicator rendering. Do not
+  add unrelated indicators, multi-timeframe studies, alerts, or a new indicator
+  engine in this pass.
+
+## Checklist
+
+- [x] Verify the registry and calculation branch for each built-in indicator.
+- [x] Add missing settings controls for rendered secondary/tertiary/fill/histogram
+      colors.
+- [x] Wire MACD histogram positive/negative colors through indicator settings.
+- [x] Add focused Playwright coverage that adds every built-in indicator and
+      checks the available settings controls.
+- [x] Update `ARCHITECTURE.md` with any newly confirmed indicator settings
+      architecture.
+- [x] Run build and focused Playwright tests.
+- [x] Verify manually with Playwright or Browser tooling.
+- [ ] Review final diff, commit, push, clean generated verification files, and
+      leave unrelated pre-existing worktree changes untouched.
+
+## Review
+
+- Verified all 18 built-in indicators in the registry have calculation branches
+  and can be added from the Indicators menu.
+- Added visible settings controls for rendered color values that were previously
+  fixed or hidden: volume down bars, Bollinger upper/lower/fill colors,
+  Donchian lower/basis colors, Stochastic %D color, and MACD histogram
+  positive/negative colors.
+- Updated MACD computation/rendering settings so histogram positive/negative
+  colors come from the active indicator instance instead of hard-coded defaults.
+- Fixed the ATR legend name so it no longer shows a meaningless `close` source,
+  and made volume legend color reflect the active up/down color settings.
+- Bounded the price-overlay legend stack so adding many price indicators does
+  not cover lower-pane controls.
+- Updated Playwright coverage to add every built-in indicator, open each
+  settings panel, assert expected controls, and confirm the chart canvas renders
+  nonblank pixels. Extended the MACD settings test to cover histogram colors.
+- Updated the Playwright web server command to start plain `next dev` for e2e
+  runs, avoiding local Turbopack `.next` manifest startup failures while leaving
+  the normal app `npm run dev` script unchanged.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts -g "adds every built-in indicator"`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts -g "lower-pane MACD"`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `npm --prefix TEST/binance-chart-test run build` after one transient local
+    Next manifest-generation failure on the first attempt.
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+
 # README Contribution Addresses
 
 ## Goal

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { requireAdminPageSession } from "../../../lib/admin-access";
+import { AdminPageHero, AdminShell, AdminTopbar } from "../admin-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -62,50 +62,70 @@ export default async function AdminSettingsPage({ searchParams }: AdminSettingsP
   );
 
   return (
-    <main className="admin-users-shell">
-      <header className="admin-users-hero">
-        <div>
-          <Link className="admin-back-link" href="/admin/users">
-            Users
-          </Link>
-          <span className="admin-eyebrow">Admin settings</span>
-          <h1>Settings</h1>
-          <p>Security controls for admin access.</p>
-        </div>
-        <div className="admin-hero-meta" aria-label="Admin settings details">
-          <span>/admin/settings</span>
-          <strong>Password</strong>
-          <form action="/admin/logout" method="post">
-            <button type="submit">Sign out</button>
-          </form>
-        </div>
-      </header>
+    <AdminShell>
+      <AdminTopbar active="settings" />
+      <AdminPageHero
+        description="Security controls for rotating the active admin credential source without exposing private runtime state."
+        eyebrow="Admin settings"
+        meta={[
+          { label: "Route", value: "/admin/settings" },
+          { label: "Control", value: "Password rotation" },
+          { label: "Session", value: "Refreshes on update" },
+        ]}
+        title="Settings"
+      />
 
-      <section className="admin-users-panel admin-settings-panel" aria-labelledby="admin-change-password-title">
-        <div className="admin-users-panel-header">
-          <div>
-            <span className="admin-eyebrow">Security</span>
-            <h2 id="admin-change-password-title">Change password</h2>
+      <div className="admin-settings-grid">
+        <aside className="admin-side-panel" aria-label="Admin security model">
+          <span className="admin-eyebrow">Access model</span>
+          <h2>Credential changes stay server-side.</h2>
+          <p>
+            The active admin password can move from bootstrap environment variables to the private credentials file
+            without exposing secret material to the browser.
+          </p>
+          <dl>
+            <div>
+              <dt>Cookie</dt>
+              <dd>Signed and HTTP-only</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>Restricted to admin routes</dd>
+            </div>
+            <div>
+              <dt>Policy</dt>
+              <dd>Minimum 10 characters with complexity</dd>
+            </div>
+          </dl>
+        </aside>
+
+        <section className="admin-panel admin-settings-panel" aria-labelledby="admin-change-password-title">
+          <div className="admin-panel-header">
+            <div>
+              <span className="admin-eyebrow">Security</span>
+              <h2 id="admin-change-password-title">Change password</h2>
+              <p>Update the admin credential used by future login attempts.</p>
+            </div>
           </div>
-        </div>
 
-        <form className="admin-settings-form" action="/admin/settings/password" method="post">
-          <label>
-            <span>Current password</span>
-            <input autoComplete="current-password" name="currentPassword" required type="password" />
-          </label>
-          <label>
-            <span>New password</span>
-            <input autoComplete="new-password" minLength={10} name="newPassword" required type="password" />
-          </label>
-          <label>
-            <span>Confirm new password</span>
-            <input autoComplete="new-password" minLength={10} name="confirmPassword" required type="password" />
-          </label>
-          {statusMessage && <span className="admin-login-status">{statusMessage}</span>}
-          <button type="submit">Update password</button>
-        </form>
-      </section>
-    </main>
+          <form className="admin-form-card admin-settings-form" action="/admin/settings/password" method="post">
+            <label>
+              <span>Current password</span>
+              <input autoComplete="current-password" name="currentPassword" required type="password" />
+            </label>
+            <label>
+              <span>New password</span>
+              <input autoComplete="new-password" minLength={10} name="newPassword" required type="password" />
+            </label>
+            <label>
+              <span>Confirm new password</span>
+              <input autoComplete="new-password" minLength={10} name="confirmPassword" required type="password" />
+            </label>
+            {statusMessage && <span className="admin-login-status">{statusMessage}</span>}
+            <button type="submit">Update password</button>
+          </form>
+        </section>
+      </div>
+    </AdminShell>
   );
 }

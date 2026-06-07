@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { verifyAdminCookieValue } from "../../lib/admin-access";
 import { ADMIN_SESSION_COOKIE, sanitizeAdminNextPath } from "../../lib/admin-session";
+import { AdminShell } from "./admin-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export default async function AdminLoginPage({ searchParams }: AdminLoginPagePro
   }
 
   return (
-    <main className="admin-users-shell admin-login-shell">
+    <AdminShell className="admin-login-shell">
       <section className="admin-login-panel" aria-labelledby="admin-login-title">
         <div className="admin-login-copy">
           <Link className="admin-back-link" href="/">
@@ -66,10 +67,29 @@ export default async function AdminLoginPage({ searchParams }: AdminLoginPagePro
           </Link>
           <span className="admin-eyebrow">Admin entry</span>
           <h1 id="admin-login-title">ProCharting admin</h1>
-          <p>Restricted operations console for account data and access review.</p>
+          <p>Restricted operations console for account data, saved chart layouts, and access review.</p>
+
+          <dl className="admin-login-proof" aria-label="Admin access safeguards">
+            <div>
+              <dt>Session</dt>
+              <dd>HTTP-only cookie</dd>
+            </div>
+            <div>
+              <dt>Runtime</dt>
+              <dd>Server validated</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>Admin routes only</dd>
+            </div>
+          </dl>
         </div>
 
-        <form className="admin-login-form" action="/admin/login" method="post">
+        <form className="admin-form-card admin-login-form" action="/admin/login" method="post">
+          <div className="admin-form-heading">
+            <span className="admin-eyebrow">Secure sign in</span>
+            <h2>Enter the console</h2>
+          </div>
           <input name="next" type="hidden" value={nextPath} />
           <label>
             <span>Username</span>
@@ -83,6 +103,6 @@ export default async function AdminLoginPage({ searchParams }: AdminLoginPagePro
           <button type="submit">Enter admin</button>
         </form>
       </section>
-    </main>
+    </AdminShell>
   );
 }

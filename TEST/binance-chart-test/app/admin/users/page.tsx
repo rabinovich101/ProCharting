@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { requireAdminPageSession } from "../../../lib/admin-access";
 import { getActiveAdminCredentials } from "../../../lib/admin-credentials";
+import { AdminPageHero, AdminShell, AdminTopbar } from "../admin-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -319,13 +320,13 @@ const renderTime = (value: string | null | undefined) => (
 );
 
 const renderMissingConfig = (config: AdminConfig) => (
-  <section className="admin-config-panel" aria-labelledby="admin-config-title">
+  <section className="admin-state-panel" aria-labelledby="admin-config-title">
     <span className="admin-eyebrow">Configuration needed</span>
     <h2 id="admin-config-title">Admin users panel is disabled</h2>
     <p>
       Add the missing server-only environment variables before deploying this route with live account data.
     </p>
-    <ul>
+    <ul className="admin-chip-list">
       {config.missingKeys.map((key) => (
         <li key={key}>
           <code>{key}</code>
@@ -336,7 +337,7 @@ const renderMissingConfig = (config: AdminConfig) => (
 );
 
 const renderLoadError = (error: Error) => (
-  <section className="admin-config-panel danger" role="alert">
+  <section className="admin-state-panel danger" role="alert">
     <span className="admin-eyebrow">Supabase error</span>
     <h2>User data could not be loaded</h2>
     <p>{error.message}</p>
@@ -373,36 +374,42 @@ const AdminStats = ({ result }: { result: AdminUsersResult }) => {
 
   return (
     <section className="admin-stat-grid" aria-label="Current user page summary">
-      <div>
+      <article className="admin-stat-card primary">
         <span>Total users</span>
         <strong>{result.total}</strong>
-      </div>
-      <div>
+        <small>Supabase Auth accounts</small>
+      </article>
+      <article className="admin-stat-card">
         <span>Active on page</span>
         <strong>{activeUsers}</strong>
-      </div>
-      <div>
+        <small>Signed in at least once</small>
+      </article>
+      <article className="admin-stat-card">
         <span>Pending on page</span>
         <strong>{pendingUsers}</strong>
-      </div>
-      <div>
+        <small>Awaiting confirmation</small>
+      </article>
+      <article className="admin-stat-card">
         <span>OAuth users on page</span>
         <strong>{oauthUsers}</strong>
-      </div>
-      <div>
+        <small>External identity providers</small>
+      </article>
+      <article className="admin-stat-card">
         <span>Layouts on page</span>
         <strong>{layoutCount}</strong>
-      </div>
+        <small>Saved chart states</small>
+      </article>
     </section>
   );
 };
 
 const AdminUsersTable = ({ result }: { result: AdminUsersResult }) => (
-  <section className="admin-users-panel" aria-labelledby="admin-users-table-title">
-    <div className="admin-users-panel-header">
+  <section className="admin-panel admin-users-panel" aria-labelledby="admin-users-table-title">
+    <div className="admin-panel-header">
       <div>
         <span className="admin-eyebrow">Accounts</span>
         <h2 id="admin-users-table-title">Supabase users</h2>
+        <p>Review identities, profiles, and layout activity from the current page of accounts.</p>
       </div>
       {renderPagination(result)}
     </div>
@@ -415,7 +422,7 @@ const AdminUsersTable = ({ result }: { result: AdminUsersResult }) => (
       </div>
     )}
 
-    <div className="admin-users-table-wrap">
+    <div className="admin-table-shell">
       <table className="admin-users-table">
         <thead>
           <tr>
@@ -540,25 +547,18 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   }
 
   return (
-    <main className="admin-users-shell">
-      <header className="admin-users-hero">
-        <div>
-          <Link className="admin-back-link" href="/">
-            Market desk
-          </Link>
-          <span className="admin-eyebrow">Server admin</span>
-          <h1>User administration</h1>
-          <p>Supabase Auth accounts, profile records, and saved chart layout activity.</p>
-        </div>
-        <div className="admin-hero-meta" aria-label="Admin route details">
-          <span>/admin/users</span>
-          <strong>Service-role only</strong>
-          <Link href="/admin/settings">Settings</Link>
-          <form action="/admin/logout" method="post">
-            <button type="submit">Sign out</button>
-          </form>
-        </div>
-      </header>
+    <AdminShell>
+      <AdminTopbar active="users" />
+      <AdminPageHero
+        description="Supabase Auth accounts, profile records, and saved chart layout activity in one controlled review surface."
+        eyebrow="Server admin"
+        meta={[
+          { label: "Route", value: "/admin/users" },
+          { label: "Access", value: "Service-role only" },
+          { label: "Runtime", value: ready ? "Configured" : "Config needed" },
+        ]}
+        title="User administration"
+      />
 
       {!ready && renderMissingConfig(config)}
       {loadError && renderLoadError(loadError)}
@@ -568,6 +568,6 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           <AdminUsersTable result={result} />
         </>
       )}
-    </main>
+    </AdminShell>
   );
 }
