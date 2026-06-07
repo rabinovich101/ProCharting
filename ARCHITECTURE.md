@@ -543,13 +543,17 @@ The chart app supports:
   OHLC area crisp and readable over the dark grid. The canvas plot/grid begins
   at the top of the chart stage behind this overlay instead of reserving a blank
   legend strip, matching TradingView's floating-legend layout.
-- The chart stage also owns the first TradingView-style drawing-tool rail. In
-  this pass it exposes Trend line and Horizontal ray tools. Drawing anchors are
-  stored as logical bar index plus price, rendered in the main price-pane canvas
-  pass, and selected drawings show DOM lock/delete controls over the canvas.
-  Locked drawings remain selectable and deletable but do not respond to
-  drag/resize gestures. Drawings are scoped to pane index and do not alter
-  candle, indicator, or renderer package contracts.
+- The chart stage also owns the authenticated TradingView-style drawing-tool
+  rail. Logged-in users get the recorded Cursor group with Cross/Dot modes and
+  the Trend Line Tools group with implemented Trendline and Horizontal ray
+  tools. Drawing anchors are stored as logical bar index plus price, rendered in
+  the main price-pane canvas pass, and selected drawings show a DOM floating
+  toolbar with style affordances, lock/unlock, delete, and more controls. Locked
+  drawings stay visually solid and remain selectable/deletable, but do not
+  respond to drag/resize gestures. Signed-out users do not render the rail,
+  drawing pixels, selected-object toolbar, or drawing hit-testing. Drawings are
+  scoped to pane index and do not alter candle, indicator, or renderer package
+  contracts.
 - Active indicators are stored as registry-backed instances with mutable
   settings. HTML legend/action rows mirror the canvas visual layout: price
   overlays sit under the instrument/OHLC row, volume controls sit over the
@@ -653,13 +657,13 @@ clean-chart state, matching TradingView before chart history is created.
 Saved chart layouts in the standalone QA app persist to browser `localStorage`
 under `procharting.chartLayouts`. Each saved layout stores the selected split
 grid, active pane index, layout sync toggles, chart style, theme, chart settings,
-active indicator instances, drawing objects, and per-pane symbol, interval,
-manual price range, and logical view range. Candles, live feed status,
-pointer/crosshair state, pending drawing state, and drag state are intentionally
-excluded so restoring a layout recreates fresh pane sessions and reloads market
-data through the existing Binance REST and websocket pipeline. This keeps the
-client-side store small while preserving a plain JSON snapshot shape that can
-move to a server-backed chart-layout table later.
+active indicator instances, authenticated drawing objects, and per-pane symbol,
+interval, manual price range, and logical view range. Candles, live feed status,
+pointer/crosshair state, drawing menu/cursor mode, pending drawing state, and
+drag state are intentionally excluded so restoring a layout recreates fresh pane
+sessions and reloads market data through the existing Binance REST and websocket
+pipeline. This keeps the client-side store small while preserving a plain JSON
+snapshot shape that can move to a server-backed chart-layout table later.
 
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent

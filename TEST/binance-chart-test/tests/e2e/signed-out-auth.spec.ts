@@ -380,46 +380,27 @@ test.describe('signed-out chart access', () => {
     await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
   });
 
-  test('draws, locks, and deletes TradingView-style line drawings', async ({ page }) => {
+  test('keeps TradingView-style drawing tools disabled for signed-out users', async ({ page }) => {
     await openApp(page);
     const { box, canvas } = await getReadyCanvasBox(page);
 
-    await page.getByRole('button', { name: 'Trend line drawing tool' }).click();
-    await expect(canvas).toHaveAttribute('data-active-drawing-tool', 'trend-line');
-
-    const trendStart = { x: box.x + box.width * 0.34, y: box.y + box.height * 0.32 };
-    const trendEnd = { x: box.x + box.width * 0.58, y: box.y + box.height * 0.2 };
-    await page.mouse.click(trendStart.x, trendStart.y);
-    await page.mouse.click(trendEnd.x, trendEnd.y);
-    await expect(canvas).toHaveAttribute('data-drawings-count', '1');
-    await expect(canvas).toHaveAttribute('data-selected-drawing', /trend-line\|unlocked/);
-
-    const drawingToolbar = page.getByRole('toolbar', { name: 'Selected drawing actions' });
-    await expect(drawingToolbar).toBeVisible();
-    await drawingToolbar.getByRole('button', { name: 'Lock drawing' }).click();
-    await expect(canvas).toHaveAttribute('data-selected-drawing', /trend-line\|locked/);
-
-    const lockedState = await canvas.getAttribute('data-selected-drawing');
-    await page.mouse.move((trendStart.x + trendEnd.x) / 2, (trendStart.y + trendEnd.y) / 2);
-    await page.mouse.down();
-    await page.mouse.move((trendStart.x + trendEnd.x) / 2 + 80, (trendStart.y + trendEnd.y) / 2 + 60);
-    await page.mouse.up();
-    await expect(canvas).toHaveAttribute('data-selected-drawing', lockedState ?? '');
-
-    await drawingToolbar.getByRole('button', { name: 'Delete drawing' }).click();
+    await expect(page.getByRole('toolbar', { name: 'Drawing tools' })).toHaveCount(0);
+    await expect(page.getByRole('menu', { name: 'Cursor tools' })).toHaveCount(0);
+    await expect(page.getByRole('menu', { name: 'Trend line tools' })).toHaveCount(0);
+    await expect(page.getByRole('toolbar', { name: 'Selected drawing actions' })).toHaveCount(0);
+    await expect(canvas).toHaveAttribute('data-active-drawing-tool', '');
     await expect(canvas).toHaveAttribute('data-drawings-count', '0');
-    await expect(drawingToolbar).toBeHidden();
+    await expect(canvas).toHaveAttribute('data-selected-drawing', '');
 
-    await page.getByRole('button', { name: 'Horizontal ray drawing tool' }).click();
-    await expect(canvas).toHaveAttribute('data-active-drawing-tool', 'horizontal-ray');
-    await page.mouse.click(box.x + box.width * 0.42, box.y + box.height * 0.3);
-    await expect(canvas).toHaveAttribute('data-drawings-count', '1');
-    await expect(canvas).toHaveAttribute('data-selected-drawing', /horizontal-ray\|unlocked/);
-    await expect(drawingToolbar).toBeVisible();
+    const firstPoint = { x: box.x + box.width * 0.34, y: box.y + box.height * 0.32 };
+    const secondPoint = { x: box.x + box.width * 0.58, y: box.y + box.height * 0.2 };
+    await page.mouse.click(firstPoint.x, firstPoint.y);
+    await page.mouse.click(secondPoint.x, secondPoint.y);
 
     await page.keyboard.press('Delete');
     await expect(canvas).toHaveAttribute('data-drawings-count', '0');
-    await expect(drawingToolbar).toBeHidden();
+    await expect(canvas).toHaveAttribute('data-selected-drawing', '');
+    await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
   });
 
   test('adds every built-in indicator and exposes its configurable settings', async ({ page }) => {

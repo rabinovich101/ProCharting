@@ -137,7 +137,9 @@ type MenuKey = 'timeframe' | 'chartStyle' | 'indicators';
 type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
+type CursorToolId = 'cross' | 'dot';
 type DrawingToolId = 'trend-line' | 'horizontal-ray';
+type DrawingMenuId = 'cursor' | 'line-tools';
 type DrawingDragMode = 'none' | 'body' | 'start' | 'end';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
@@ -239,6 +241,24 @@ interface DrawingHitResult {
   drawing: ChartDrawing;
   target: Exclude<DrawingDragMode, 'none'>;
 }
+
+interface DrawingMenuToolEntry {
+  type: 'tool';
+  id: string;
+  label: string;
+  icon: string;
+  shortcut?: string;
+  tool?: DrawingToolId;
+  cursor?: CursorToolId;
+  disabled?: boolean;
+}
+
+interface DrawingMenuSectionEntry {
+  type: 'section';
+  label: string;
+}
+
+type DrawingMenuEntry = DrawingMenuToolEntry | DrawingMenuSectionEntry;
 
 interface OscillatorPaneArea extends ChartCanvasArea {
   indicator: ActiveIndicator;
@@ -517,9 +537,45 @@ const DEFAULT_CHART_SETTINGS: ChartSettingsState = {
 const DRAWING_DEFAULT_COLOR = '#2962ff';
 const DRAWING_HANDLE_RADIUS = 4.5;
 const DRAWING_HIT_TOLERANCE = 8;
-const DRAWING_TOOL_OPTIONS: Array<{ id: DrawingToolId; label: string; description: string }> = [
-  { id: 'trend-line', label: 'Trend line', description: 'Draw a two-point diagonal line' },
-  { id: 'horizontal-ray', label: 'Horizontal ray', description: 'Draw a right-extending price level' },
+const CURSOR_TOOL_LABELS: Record<CursorToolId, string> = {
+  cross: 'Cross',
+  dot: 'Dot',
+};
+const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
+  'trend-line': 'Trendline',
+  'horizontal-ray': 'Horizontal ray',
+};
+const CURSOR_MENU_ENTRIES: DrawingMenuEntry[] = [
+  { type: 'tool', id: 'cross', label: 'Cross', icon: 'cursor-cross', cursor: 'cross' },
+  { type: 'tool', id: 'dot', label: 'Dot', icon: 'cursor-dot', cursor: 'dot' },
+  { type: 'tool', id: 'arrow', label: 'Arrow', icon: 'cursor-arrow', disabled: true },
+  { type: 'tool', id: 'demonstration', label: 'Demonstration', icon: 'cursor-demo', disabled: true },
+  { type: 'tool', id: 'magic', label: 'Magic', icon: 'cursor-magic', disabled: true },
+  { type: 'tool', id: 'eraser', label: 'Eraser', icon: 'cursor-eraser', disabled: true },
+];
+const LINE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
+  { type: 'section', label: 'Lines' },
+  { type: 'tool', id: 'trend-line', label: 'Trendline', icon: 'trend-line', shortcut: 'T', tool: 'trend-line' },
+  { type: 'tool', id: 'ray', label: 'Ray', icon: 'ray', shortcut: 'R', disabled: true },
+  { type: 'tool', id: 'info-line', label: 'Info line', icon: 'info-line', disabled: true },
+  { type: 'tool', id: 'extended-line', label: 'Extended line', icon: 'extended-line', disabled: true },
+  { type: 'tool', id: 'trend-angle', label: 'Trend angle', icon: 'trend-angle', disabled: true },
+  { type: 'tool', id: 'horizontal-line', label: 'Horizontal line', icon: 'horizontal-line', shortcut: 'H', disabled: true },
+  {
+    type: 'tool',
+    id: 'horizontal-ray',
+    label: 'Horizontal ray',
+    icon: 'horizontal-ray',
+    shortcut: 'J',
+    tool: 'horizontal-ray',
+  },
+  { type: 'tool', id: 'vertical-line', label: 'Vertical line', icon: 'vertical-line', shortcut: 'V', disabled: true },
+  { type: 'tool', id: 'cross-line', label: 'Cross line', icon: 'cross-line', shortcut: 'C', disabled: true },
+  { type: 'section', label: 'Channels' },
+  { type: 'tool', id: 'parallel-channel', label: 'Parallel channel', icon: 'parallel-channel', disabled: true },
+  { type: 'tool', id: 'regression-trend', label: 'Regression trend', icon: 'regression-trend', disabled: true },
+  { type: 'tool', id: 'flat-top-bottom', label: 'Flat top/bottom', icon: 'flat-channel', disabled: true },
+  { type: 'tool', id: 'disjoint-channel', label: 'Disjoint channel', icon: 'disjoint-channel', disabled: true },
 ];
 
 const layoutCell = (column: number, row: number, columnSpan = 1, rowSpan = 1): LayoutCellSpec => ({
@@ -3182,6 +3238,7 @@ export default function Home() {
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
+  const drawingToolsRef = useRef<HTMLDivElement>(null);
   const symbolSearchInputRef = useRef<HTMLInputElement>(null);
   const indicatorLegendRef = useRef<HTMLDivElement>(null);
   const activeStreamsRef = useRef<Set<string>>(new Set());
@@ -3196,6 +3253,8 @@ export default function Home() {
   const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
   const legendRenderFrameRef = useRef<number | undefined>(undefined);
   const authSessionRef = useRef<Session | null>(null);
+  const isAuthenticatedRef = useRef(false);
+  const wasAuthenticatedRef = useRef(false);
   const pendingAuthTrackingEventRef = useRef<UserTrackingEventType | null>(null);
   const trackedAuthEventsRef = useRef<Set<string>>(new Set());
 
@@ -3204,7 +3263,10 @@ export default function Home() {
   const [activePaneIndex, setActivePaneIndex] = useState(0);
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
   const [theme, setTheme] = useState<ThemeName>('dark');
+  const [cursorTool, setCursorTool] = useState<CursorToolId>('cross');
+  const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
+  const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [pendingDrawing, setPendingDrawing] = useState<PendingDrawing | null>(null);
@@ -3245,6 +3307,7 @@ export default function Home() {
   const supabase = supabaseRef.current;
   const isAuthenticated = authUser !== null;
   const authUserLabel = authUser?.email ?? 'Account';
+  isAuthenticatedRef.current = isAuthenticated;
   const trackAuthSessionEvent = (session: Session | null, eventType: UserTrackingEventType) => {
     if (!session?.access_token) return;
 
@@ -3653,6 +3716,10 @@ export default function Home() {
         setHeaderPanel(null);
       }
 
+      if (!drawingToolsRef.current?.contains(target)) {
+        setActiveDrawingMenu(null);
+      }
+
       if (!indicatorLegendRef.current?.contains(target)) {
         setSettingsTarget(null);
         setMoreTarget(null);
@@ -3669,6 +3736,7 @@ export default function Home() {
         setAuthActionLabel('');
         setAuthMessage('');
         setActiveDrawingTool(null);
+        setActiveDrawingMenu(null);
         setPendingDrawing(null);
         setSelectedDrawingId(null);
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
@@ -3676,6 +3744,7 @@ export default function Home() {
 
       if (
         (event.key === 'Delete' || event.key === 'Backspace') &&
+        isAuthenticatedRef.current &&
         selectedDrawingIdRef.current &&
         !(event.target instanceof HTMLInputElement) &&
         !(event.target instanceof HTMLTextAreaElement)
@@ -4131,7 +4200,7 @@ export default function Home() {
 
     if (canvas) {
       canvas.dataset.pointerArea = area;
-      canvas.style.cursor = getCanvasCursorForState(pane.dragMode, area);
+      canvas.style.cursor = isAuthenticated && activeDrawingTool ? 'crosshair' : getCanvasCursorForState(pane.dragMode, area);
     }
 
     if (currentLegendIndex !== nextLegendIndex) {
@@ -4157,16 +4226,65 @@ export default function Home() {
     Math.hypot(first.x - second.x, first.y - second.y);
 
   const isChartNavigationArea = (area: ChartPointerArea) => area === 'plot' || area === 'time-scale';
-  const selectDrawingTool = (tool: DrawingToolId) => {
+  const clearDrawingInteractionState = (paneIndex = activePaneIndex) => {
+    setActiveDrawingTool(null);
+    setActiveDrawingMenu(null);
+    setPendingDrawing(null);
+    setSelectedDrawingId(null);
+    drawingDragRef.current = createDrawingDragState(paneIndex);
+  };
+  const toggleDrawingMenu = (menu: DrawingMenuId) => {
+    if (!isAuthenticated) {
+      clearDrawingInteractionState();
+      return;
+    }
+
     setOpenMenu(null);
     setHeaderPanel(null);
     setSettingsTarget(null);
     setMoreTarget(null);
+    setActiveDrawingMenu((current) => (current === menu ? null : menu));
+  };
+  const selectCursorTool = (tool: CursorToolId) => {
+    if (!isAuthenticated) return;
+
+    setCursorTool(tool);
+    setActiveDrawingMenu(null);
+    setActiveDrawingTool(null);
+    setPendingDrawing(null);
+    drawingDragRef.current = createDrawingDragState(activePaneIndex);
+  };
+  const selectDrawingTool = (tool: DrawingToolId) => {
+    if (!isAuthenticated) {
+      clearDrawingInteractionState();
+      return;
+    }
+
+    setOpenMenu(null);
+    setHeaderPanel(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
+    setActiveDrawingMenu(null);
     setPendingDrawing(null);
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
     setSelectedDrawingId(null);
+    setLastDrawingTool(tool);
     setActiveDrawingTool((current) => (current === tool ? null : tool));
   };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      wasAuthenticatedRef.current = true;
+      return;
+    }
+
+    if (!wasAuthenticatedRef.current) return;
+
+    wasAuthenticatedRef.current = false;
+    clearDrawingInteractionState(activePaneIndex);
+    setDrawings([]);
+  }, [activePaneIndex, isAuthenticated]);
+
   const createChartDrawing = (
     paneIndex: number,
     kind: DrawingToolId,
@@ -4191,9 +4309,10 @@ export default function Home() {
     setSelectedDrawingId(drawing.id);
     setPendingDrawing(null);
     setActiveDrawingTool(null);
+    setActiveDrawingMenu(null);
   };
   const toggleSelectedDrawingLock = () => {
-    if (!selectedDrawingId) return;
+    if (!isAuthenticated || !selectedDrawingId) return;
 
     setDrawings((current) =>
       current.map((drawing) =>
@@ -4204,7 +4323,7 @@ export default function Home() {
     );
   };
   const removeSelectedDrawing = () => {
-    if (!selectedDrawingId) return;
+    if (!isAuthenticated || !selectedDrawingId) return;
 
     setDrawings((current) => current.filter((drawing) => drawing.id !== selectedDrawingId));
     setSelectedDrawingId(null);
@@ -4281,7 +4400,7 @@ export default function Home() {
 
     if (area === 'outside') return;
 
-    if (area === 'plot' && activeDrawingTool) {
+    if (area === 'plot' && isAuthenticated && activeDrawingTool) {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
       if (!anchor) return;
 
@@ -4302,7 +4421,7 @@ export default function Home() {
       return;
     }
 
-    if (area === 'plot') {
+    if (area === 'plot' && isAuthenticated) {
       const drawingHit = getDrawingHitResult(paneIndex, x, y);
       if (drawingHit) {
         setSelectedDrawingId(drawingHit.drawing.id);
@@ -4375,6 +4494,7 @@ export default function Home() {
     const area = getPointerArea(paneIndex, x, y);
 
     if (
+      isAuthenticated &&
       activeDrawingTool === 'trend-line' &&
       pendingDrawing?.tool === 'trend-line' &&
       pendingDrawing.paneIndex === paneIndex &&
@@ -4387,7 +4507,11 @@ export default function Home() {
     }
 
     const drawingDrag = drawingDragRef.current;
-    if (drawingDrag.mode !== 'none' && drawingDrag.paneIndex === paneIndex && drawingDrag.drawingId) {
+    if (!isAuthenticated && drawingDrag.mode !== 'none') {
+      drawingDragRef.current = createDrawingDragState(paneIndex);
+    }
+
+    if (isAuthenticated && drawingDrag.mode !== 'none' && drawingDrag.paneIndex === paneIndex && drawingDrag.drawingId) {
       const currentPriceRange = getCurrentPriceRange(paneIndex);
       const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
       const currentAnchor = getDrawingAnchorAtPoint(paneIndex, x, y);
@@ -4949,7 +5073,7 @@ export default function Home() {
 
       ctx.strokeStyle = drawing.color;
       ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
-      ctx.setLineDash(drawing.locked ? [5, 4] : []);
+      ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
 
@@ -4972,11 +5096,12 @@ export default function Home() {
       drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
     };
 
-    drawings
-      .filter((drawing) => drawing.paneIndex === paneIndex)
+    const visiblePaneDrawings = isAuthenticated ? drawings.filter((drawing) => drawing.paneIndex === paneIndex) : [];
+
+    visiblePaneDrawings
       .forEach((drawing) => drawDrawing(drawing, drawing.id === selectedDrawingId));
 
-    if (pendingDrawing?.tool === 'trend-line' && pendingDrawing.paneIndex === paneIndex) {
+    if (isAuthenticated && pendingDrawing?.tool === 'trend-line' && pendingDrawing.paneIndex === paneIndex) {
       drawDrawing(
         {
           id: 'pending-trend-line',
@@ -5239,6 +5364,16 @@ export default function Home() {
       }
       ctx.setLineDash([]);
 
+      if (isAuthenticated && cursorTool === 'dot' && crosshairInsidePricePane) {
+        ctx.fillStyle = theme === 'dark' ? '#111827' : '#ffffff';
+        ctx.strokeStyle = palette.text;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(crosshairPosition.x, crosshairPosition.y, 4.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
       if (crosshairInsidePricePane) {
         const priceLabel = formatPrice(crosshairPosition.dataY);
         ctx.fillStyle = palette.axisBg;
@@ -5289,6 +5424,7 @@ export default function Home() {
   }, [
     chartPanes,
     chartStyle,
+    cursorTool,
     drawings,
     pendingDrawing,
     selectedDrawingId,
@@ -5301,8 +5437,10 @@ export default function Home() {
   ]);
 
   const getCanvasCursor = (paneIndex: number, pane: ChartPaneState) => {
-    if (activeDrawingTool) return 'crosshair';
-    if (drawingDragRef.current.mode !== 'none' && drawingDragRef.current.paneIndex === paneIndex) return 'grabbing';
+    if (isAuthenticated && activeDrawingTool) return 'crosshair';
+    if (isAuthenticated && drawingDragRef.current.mode !== 'none' && drawingDragRef.current.paneIndex === paneIndex) {
+      return 'grabbing';
+    }
 
     return getCanvasCursorForState(pane.dragMode, getPaneHoverState(paneIndex).pointerArea);
   };
@@ -5488,6 +5626,8 @@ export default function Home() {
   };
   const handleSignOut = async () => {
     closeHeaderOverlays();
+    clearDrawingInteractionState(activePaneIndex);
+    setDrawings([]);
 
     if (!supabase) {
       setAuthUser(null);
@@ -5600,7 +5740,9 @@ export default function Home() {
       layoutSync: { ...layoutSync },
       chartSettings: { ...chartSettings },
       indicators: copyIndicatorsForSnapshot(activeIndicators),
-      drawings: copyDrawingsForSnapshot(drawings.filter((drawing) => drawing.paneIndex < paneCount)),
+      drawings: copyDrawingsForSnapshot(
+        (isAuthenticated ? drawings : []).filter((drawing) => drawing.paneIndex < paneCount)
+      ),
       panes: visiblePaneSnapshots.length > 0 ? visiblePaneSnapshots : [createSavedPaneSnapshot(activePane)],
     };
   };
@@ -5728,6 +5870,7 @@ export default function Home() {
     chartPanes,
     chartSettings,
     chartStyle,
+    drawings,
     isAuthenticated,
     layoutAutosave,
     layoutSync,
@@ -6410,9 +6553,11 @@ export default function Home() {
     updatePaneState(paneIndex, (pane) => ({ ...pane, refreshNonce: pane.refreshNonce + 1 }));
   };
   const getPaneDrawingCount = (paneIndex: number) =>
-    drawings.filter((drawing) => drawing.paneIndex === paneIndex).length;
+    isAuthenticated ? drawings.filter((drawing) => drawing.paneIndex === paneIndex).length : 0;
   const getSelectedDrawingForPane = (paneIndex: number) =>
-    drawings.find((drawing) => drawing.id === selectedDrawingId && drawing.paneIndex === paneIndex) ?? null;
+    isAuthenticated
+      ? drawings.find((drawing) => drawing.id === selectedDrawingId && drawing.paneIndex === paneIndex) ?? null
+      : null;
   const getSelectedDrawingStateLabel = (paneIndex: number) => {
     const drawing = getSelectedDrawingForPane(paneIndex);
     if (!drawing) return '';
@@ -6439,16 +6584,101 @@ export default function Home() {
         : { x: bounds.chartArea.left + bounds.chartArea.width, y: start.y };
     if (!end) return null;
 
-    const toolbarWidth = 126;
+    const toolbarWidth = Math.min(354, Math.max(180, rect.width - 20));
     const left = clamp((Math.min(start.x, end.x) + Math.max(start.x, end.x)) / 2 - toolbarWidth / 2, 10, rect.width - toolbarWidth - 10);
     const top = clamp(Math.min(start.y, end.y) - 43, 8, Math.max(8, rect.height - 42));
 
-    return { left, top };
+    return { left, top, width: toolbarWidth };
+  };
+  const renderDrawingMenuEntry = (entry: DrawingMenuEntry) => {
+    if (entry.type === 'section') {
+      return (
+        <span key={entry.label} className="drawing-tool-menu-section" role="presentation">
+          {entry.label}
+        </span>
+      );
+    }
+
+    const active =
+      (entry.cursor !== undefined && cursorTool === entry.cursor) ||
+      (entry.tool !== undefined && activeDrawingTool === entry.tool);
+    const handleEntryClick = () => {
+      if (entry.disabled) return;
+      if (entry.cursor) {
+        selectCursorTool(entry.cursor);
+      } else if (entry.tool) {
+        selectDrawingTool(entry.tool);
+      }
+    };
+
+    return (
+      <button
+        key={entry.id}
+        type="button"
+        role="menuitemradio"
+        aria-checked={active}
+        aria-disabled={entry.disabled ? 'true' : undefined}
+        className="drawing-tool-menu-item"
+        data-active={active}
+        data-disabled={entry.disabled === true}
+        onClick={handleEntryClick}
+      >
+        <span className={`drawing-tool-icon ${entry.icon}`} aria-hidden="true" />
+        <span>{entry.label}</span>
+        {entry.shortcut && <kbd>{entry.shortcut}</kbd>}
+      </button>
+    );
+  };
+  const renderDrawingToolRail = () => {
+    if (!isAuthenticated) return null;
+
+    const visibleLineTool = activeDrawingTool ?? lastDrawingTool;
+
+    return (
+      <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`Cursor tool, ${CURSOR_TOOL_LABELS[cursorTool]}`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'cursor'}
+            title={CURSOR_TOOL_LABELS[cursorTool]}
+            data-active={activeDrawingMenu === 'cursor'}
+            onClick={() => toggleDrawingMenu('cursor')}
+          >
+            <span className={`drawing-tool-icon cursor-${cursorTool}`} aria-hidden="true" />
+          </button>
+          {activeDrawingMenu === 'cursor' && (
+            <div className="drawing-tool-menu cursor-menu" role="menu" aria-label="Cursor tools">
+              {CURSOR_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            </div>
+          )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${DRAWING_TOOL_LABELS[visibleLineTool]} drawing tool group`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'line-tools'}
+            title={DRAWING_TOOL_LABELS[visibleLineTool]}
+            data-active={activeDrawingMenu === 'line-tools' || activeDrawingTool !== null}
+            onClick={() => toggleDrawingMenu('line-tools')}
+          >
+            <span className={`drawing-tool-icon ${visibleLineTool}`} aria-hidden="true" />
+          </button>
+          {activeDrawingMenu === 'line-tools' && (
+            <div className="drawing-tool-menu line-tools-menu" role="menu" aria-label="Trend line tools">
+              {LINE_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
   const renderSelectedDrawingToolbar = (paneIndex: number) => {
     const drawing = getSelectedDrawingForPane(paneIndex);
     const style = getSelectedDrawingToolbarStyle(paneIndex);
-    if (!drawing || !style) return null;
+    if (!isAuthenticated || !drawing || !style) return null;
 
     return (
       <div
@@ -6460,6 +6690,29 @@ export default function Home() {
         onMouseDown={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
+        <button type="button" aria-label="Drawing templates" title="Templates">
+          <span className="drawing-toolbar-glyph templates" aria-hidden="true" />
+        </button>
+        <span className="drawing-toolbar-divider" aria-hidden="true" />
+        <button type="button" aria-label="Drawing line color" title="Line color">
+          <span className="drawing-color-swatch" style={{ backgroundColor: drawing.color }} aria-hidden="true" />
+        </button>
+        <button type="button" aria-label="Drawing text settings" title="Text">
+          <span className="drawing-toolbar-glyph text" aria-hidden="true" />
+        </button>
+        <button type="button" className="drawing-toolbar-wide-button" aria-label="Drawing line width" title="Line width">
+          <span className="drawing-line-sample" aria-hidden="true" />
+          <span className="drawing-toolbar-value">{drawing.lineWidth}px</span>
+        </button>
+        <button type="button" aria-label="Drawing line style" title="Line style">
+          <span className="drawing-line-sample" aria-hidden="true" />
+        </button>
+        <button type="button" aria-label="Drawing settings" title="Settings">
+          <span className="drawing-toolbar-glyph settings" aria-hidden="true" />
+        </button>
+        <button type="button" aria-label="Add alert to drawing" title="Add alert">
+          <span className="drawing-toolbar-glyph alert" aria-hidden="true" />
+        </button>
         <button
           type="button"
           aria-label={drawing.locked ? 'Unlock drawing' : 'Lock drawing'}
@@ -6470,6 +6723,9 @@ export default function Home() {
         </button>
         <button type="button" aria-label="Delete drawing" title="Delete" onClick={removeSelectedDrawing}>
           <span className="drawing-toolbar-glyph delete" aria-hidden="true" />
+        </button>
+        <button type="button" aria-label="More drawing actions" title="More">
+          <span className="drawing-toolbar-glyph more" aria-hidden="true" />
         </button>
       </div>
     );
@@ -7599,20 +7855,7 @@ export default function Home() {
         data-layout-id={selectedLayout.id}
         data-legend-version={legendRenderVersion}
       >
-        <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools">
-          {DRAWING_TOOL_OPTIONS.map((tool) => (
-            <button
-              key={tool.id}
-              type="button"
-              aria-label={`${tool.label} drawing tool`}
-              title={tool.label}
-              data-active={activeDrawingTool === tool.id}
-              onClick={() => selectDrawingTool(tool.id)}
-            >
-              <span className={`drawing-tool-icon ${tool.id}`} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
+        {renderDrawingToolRail()}
         <div
           className="chart-layout-grid"
           style={{
@@ -7637,7 +7880,8 @@ export default function Home() {
                 canvasProps={{
                   'aria-label': `${formatSymbol(pane.symbol)} ${pane.timeframe} chart pane ${paneIndex + 1}`,
                   'data-active-pane': activePaneIndex === paneIndex ? 'true' : 'false',
-                  'data-active-drawing-tool': activeDrawingTool ?? '',
+                  'data-active-drawing-tool': isAuthenticated ? activeDrawingTool ?? '' : '',
+                  'data-cursor-tool': isAuthenticated ? cursorTool : 'cross',
                   'data-drag-mode': pane.dragMode,
                   'data-drawing-drag-mode':
                     drawingDragRef.current.paneIndex === paneIndex ? drawingDragRef.current.mode : 'none',

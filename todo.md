@@ -7001,3 +7001,99 @@ lock/unlock and delete controls, and locked-object protection.
     pixels, and screenshot layering.
 - Temporary recording frames, manual screenshots, Playwright test results, and
   Playwright report artifacts were removed after verification.
+
+# TradingView Drawing Gate and Video-Match Correction
+
+## Goal
+
+Correct the first drawing implementation so it is available only to logged-in
+users and more closely follows the recorded TradingView behavior: the cursor
+tool group opens as Cross/Dot, the trend-line group opens as a TradingView-like
+menu, selected drawings use the compact floating style/lock/delete toolbar, and
+locked drawings remain solid while refusing drag edits.
+
+## Investigation / Decisions
+
+- The current drawing overlay is still contained in
+  `TEST/binance-chart-test/app/page.tsx`, with styles in
+  `TEST/binance-chart-test/app/globals.css` and signed-out coverage in
+  `TEST/binance-chart-test/tests/e2e/signed-out-auth.spec.ts`.
+- Re-watching the recording shows the first toolbar interaction is the Cursor
+  group, where Dot is selected from the Cross/Dot/Arrow/Demonstration/Magic
+  menu. It changes the pointer/crosshair style; it is not a persistent line
+  drawing.
+- The recorded line tools are the Trendline two-click drawing and Horizontal
+  ray one-click drawing from TradingView's Trend Line Tools group. The group is
+  a single left-rail button that opens a menu, not two standalone buttons.
+- TradingView support/docs confirm that Trendline is a two-point drawing and
+  Horizontal ray extends from an origin to the right. The Charting Library docs
+  list `cursor`, `dot`, `trend_line`, and `horizontal_ray` as supported tools
+  and expose floating toolbar lock/remove actions.
+- Signed-out users should not see the drawing rail, open drawing menus, create
+  drawings, select drawings, drag drawings, or delete drawings through drawing
+  shortcuts. Existing market chart crosshair/navigation can remain available.
+- No `.env` files will be touched.
+
+## Checklist
+
+- [x] Re-inspect the recording frames and current implementation.
+- [x] Check TradingView support docs and Charting Library docs for cursor,
+      trendline, horizontal ray, lock, and remove behavior.
+- [x] Write this correction plan in `todo.md`.
+- [x] Gate the drawing feature behind authenticated user state in UI rendering,
+      mouse/keyboard handlers, canvas drawing, and saved-layout drawing counts.
+- [x] Replace the two standalone drawing buttons with grouped Cursor and Trend
+      Line Tools menus matching the recorded TradingView toolbar shape.
+- [x] Add Dot cursor mode from the recording without turning it into a saved
+      drawing object.
+- [x] Improve the selected drawing toolbar to include style/width affordances
+      plus lock/delete/more controls and keep locked objects solid.
+- [x] Update signed-out e2e coverage to prove the drawing feature is hidden and
+      inert for anonymous users.
+- [x] Update `ARCHITECTURE.md` with the authenticated drawing-tool boundary.
+- [x] Run typecheck, build, Playwright e2e, and manual browser visual
+      verification.
+- [x] Clean temporary frames/screenshots/reports, review git status, commit,
+      push, and leave unrelated pre-existing changes untouched.
+
+## Review
+
+- Re-watched the supplied recording and corrected the model from two flat
+  drawing buttons to TradingView-style grouped tools: a Cursor group with
+  Cross/Dot behavior and a Trend Line Tools group with implemented Trendline
+  and Horizontal ray.
+- Gated the drawing rail, drawing menus, canvas drawing pixels, hit-testing,
+  selected-object toolbar, keyboard deletion, and drawing metadata behind
+  authenticated user state. Signed-out users keep normal chart navigation and
+  crosshair behavior, but cannot see or use drawing features.
+- Reworked the selected drawing toolbar to resemble TradingView's floating
+  object toolbar with style/color/width affordances, alert, lock/unlock, delete,
+  and more controls. Locked drawings now remain solid and selectable/deletable,
+  but do not drag or resize.
+- Added Dot cursor mode as a cursor/crosshair visual only; it does not create a
+  saved drawing object.
+- Updated the signed-out Playwright test to assert the drawing tools are hidden
+  and inert for anonymous users.
+- Updated `ARCHITECTURE.md` with the authenticated drawing boundary and saved
+  layout notes.
+- TradingView references used:
+  - TradingView drawing tools overview: Cursor tools include Cross and Dot, and
+    trend tools include Trendline and Horizontal ray.
+  - TradingView Trendline docs: trend lines are two-point drawings.
+  - TradingView Horizontal Ray docs: horizontal rays extend from an origin to
+    the right.
+  - Charting Library v29 docs: drawing identifiers include `cursor`, `dot`,
+    `trend_line`, and `horizontal_ray`; drawing actions include lock/remove.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Manual host Playwright signed-out pass at `http://127.0.0.1:3100`:
+    drawing rail/toolbar absent, canvas drawing count zero, chart nonblank.
+  - Manual host Playwright logged-in pass using temporary dummy public Supabase
+    env vars and a seeded local-only session: drawing rail visible, Dot cursor
+    mode active, Trendline and Horizontal ray created from the grouped menu,
+    floating toolbar visible, locked drag left the trendline unchanged.
+- Temporary video frames, screenshots, Playwright traces, reports, and test
+  results were removed. The three pre-existing deleted TradingView grid JSON
+  files remain untouched.
