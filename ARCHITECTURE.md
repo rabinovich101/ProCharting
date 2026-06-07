@@ -73,6 +73,9 @@ runner user can source it during deploy while other local users cannot read it.
 During VM deploy, app-local `.env.local` and `.env.production.local` files are
 moved aside before the Next.js build so stale ignored dotenv files cannot
 override `/etc/procharts/app.env` in production.
+The deploy script stops the existing PM2 app before `npm ci` mutates
+`node_modules`; this creates a short deployment interruption but avoids serving
+requests from a process whose Next.js dependencies are being replaced.
 The deploy script clears GitHub Actions' process-tracking environment before
 starting PM2 so runner cleanup does not terminate the production app it just
 launched.
