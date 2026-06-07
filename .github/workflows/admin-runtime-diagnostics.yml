@@ -42,18 +42,18 @@ jobs:
 
           if [[ -f "$credential_file" ]]; then
             echo "credential_file=present"
-            node - "$credential_file" <<'NODE'
-            const fs = require("fs");
-            const file = process.argv[2];
-            try {
-              const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-              console.log(`credential_file_version=${parsed.version ?? "missing"}`);
-              console.log(`credential_file_algorithm=${parsed.algorithm ?? "missing"}`);
-              console.log(`credential_file_hash_present=${typeof parsed.passwordHash === "string" && parsed.passwordHash.length > 0}`);
-            } catch {
-              console.log("credential_file_invalid=true");
-            }
-            NODE
+            node -e '
+              const fs = require("fs");
+              const file = process.argv[1];
+              try {
+                const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+                console.log(`credential_file_version=${parsed.version ?? "missing"}`);
+                console.log(`credential_file_algorithm=${parsed.algorithm ?? "missing"}`);
+                console.log(`credential_file_hash_present=${typeof parsed.passwordHash === "string" && parsed.passwordHash.length > 0}`);
+              } catch {
+                console.log("credential_file_invalid=true");
+              }
+            ' "$credential_file"
           else
             echo "credential_file=missing"
           fi
