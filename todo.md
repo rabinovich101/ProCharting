@@ -6599,9 +6599,9 @@ production server runtime env without committing secrets.
 - [x] Update local ignored app env with the requested admin username/password.
 - [x] Update production `/etc/procharts/app.env` with the same credentials.
 - [x] Redeploy production so PM2 receives the new credentials.
-- [ ] Verify `/admin` login works with the requested credentials.
+- [x] Verify `/admin` login works with the requested credentials.
 - [x] Remove temporary GitHub Actions secrets/workflows if used.
-- [ ] Stop any Playwright containers after verification.
+- [x] Stop any Playwright containers after verification.
 
 ## Review
 
@@ -6609,9 +6609,15 @@ production server runtime env without committing secrets.
   without committing the credential values.
 - VM-local deployment run `27087639118` passed after fixing shell-safe quoting
   for passwords containing `$`.
-- Removed the temporary GitHub Actions runtime secrets.
-- Public `/admin` verification remains part of the final post-deploy check for
-  the settings feature.
+- A follow-up VM diagnostic run `27088682228` synced the requested admin
+  credential into `/etc/procharts/app.env`, redeployed, and verified VM-local
+  and public admin login with the live runtime env.
+- Public Playwright verification against
+  `https://procharts.thefiscalwire.com/admin` passed with the requested
+  credential: the login opened `/admin/users`, the Supabase users table was
+  visible, and the disabled state was absent.
+- Removed the temporary GitHub Actions runtime secrets after successful
+  production verification.
 
 # Admin Settings Password Change
 
@@ -6644,8 +6650,8 @@ admin login password without committing secrets.
 - [x] Update admin Playwright coverage for password change and protected access.
 - [x] Update `ARCHITECTURE.md` with the admin credential store design.
 - [x] Run validation and browser verification.
-- [ ] Stop any Playwright containers after verification.
-- [ ] Review, commit, push, and clean temporary deployment artifacts.
+- [x] Stop any Playwright containers after verification.
+- [x] Review, commit, push, and clean temporary deployment artifacts.
 
 ## Review
 
@@ -6666,3 +6672,15 @@ admin login password without committing secrets.
   - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/admin-users.spec.ts`
   - `pnpm run typecheck`
   - `npm --prefix TEST/binance-chart-test run test:e2e`
+- Production deploy/diagnostic validation passed:
+  - Deploy VM run `27088632372`
+  - Admin Runtime Diagnostics run `27088682228`
+- Live Playwright verification against
+  `https://procharts.thefiscalwire.com/admin` passed:
+  - Login opens `/admin/users` with live Supabase users visible.
+  - `/admin/settings` shows the change-password form and sign-out control.
+  - Desktop and mobile settings checks have no horizontal overflow.
+  - Sign-out returns to `/admin?loggedOut=1`.
+  - Logged-out access to `/admin/settings` redirects back to the admin login.
+- Deleted the temporary admin runtime diagnostics workflow after use.
+- Verified no Playwright containers remain after cleanup.
