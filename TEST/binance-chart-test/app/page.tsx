@@ -158,7 +158,20 @@ type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
 type CursorToolId = 'cross' | 'dot';
-type DrawingToolId = 'trend-line' | 'ray' | 'horizontal-ray';
+type DrawingToolId =
+  | 'trend-line'
+  | 'ray'
+  | 'info-line'
+  | 'extended-line'
+  | 'trend-angle'
+  | 'horizontal-line'
+  | 'horizontal-ray'
+  | 'vertical-line'
+  | 'cross-line'
+  | 'parallel-channel'
+  | 'regression-trend'
+  | 'flat-top-bottom'
+  | 'disjoint-channel';
 type DrawingMenuId = 'cursor' | 'line-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
@@ -181,7 +194,7 @@ type DrawingStatsSelectValue =
   | 'all';
 type DrawingAlertCondition = 'crossing' | 'crossing-up' | 'crossing-down' | 'greater-than' | 'less-than';
 type DrawingAlertFrequency = 'only-once' | 'once-per-bar' | 'once-per-bar-close';
-type DrawingDragMode = 'none' | 'body' | 'start' | 'end';
+type DrawingDragMode = 'none' | 'body' | 'start' | 'end' | 'third' | 'fourth';
 type DrawingHitTarget = Exclude<DrawingDragMode, 'none'>;
 type DrawingHoverTarget = DrawingHitTarget | null;
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
@@ -239,6 +252,12 @@ interface ChartCanvasArea {
   height: number;
 }
 
+interface DrawingRenderedSegment {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  muted?: boolean;
+}
+
 interface ChartInteractionBounds {
   minPrice: number;
   maxPrice: number;
@@ -292,7 +311,7 @@ interface ChartDrawing {
 interface PendingDrawing {
   tool: DrawingToolId;
   paneIndex: number;
-  anchor: ChartDrawingAnchor;
+  anchors: ChartDrawingAnchor[];
   preview: ChartDrawingAnchor;
 }
 
@@ -746,7 +765,17 @@ const CURSOR_TOOL_LABELS: Record<CursorToolId, string> = {
 const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'trend-line': 'Trendline',
   ray: 'Ray',
+  'info-line': 'Info line',
+  'extended-line': 'Extended line',
+  'trend-angle': 'Trend angle',
+  'horizontal-line': 'Horizontal line',
   'horizontal-ray': 'Horizontal ray',
+  'vertical-line': 'Vertical line',
+  'cross-line': 'Cross line',
+  'parallel-channel': 'Parallel channel',
+  'regression-trend': 'Regression trend',
+  'flat-top-bottom': 'Flat top/bottom',
+  'disjoint-channel': 'Disjoint channel',
 };
 const CURSOR_MENU_ENTRIES: DrawingMenuEntry[] = [
   { type: 'tool', id: 'cross', label: 'Cross', icon: 'cursor-cross', cursor: 'cross' },
@@ -760,10 +789,10 @@ const LINE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
   { type: 'section', label: 'Lines' },
   { type: 'tool', id: 'trend-line', label: 'Trendline', icon: 'trend-line', shortcut: 'T', tool: 'trend-line' },
   { type: 'tool', id: 'ray', label: 'Ray', icon: 'ray', shortcut: 'R', tool: 'ray' },
-  { type: 'tool', id: 'info-line', label: 'Info line', icon: 'info-line', disabled: true },
-  { type: 'tool', id: 'extended-line', label: 'Extended line', icon: 'extended-line', disabled: true },
-  { type: 'tool', id: 'trend-angle', label: 'Trend angle', icon: 'trend-angle', disabled: true },
-  { type: 'tool', id: 'horizontal-line', label: 'Horizontal line', icon: 'horizontal-line', shortcut: 'H', disabled: true },
+  { type: 'tool', id: 'info-line', label: 'Info line', icon: 'info-line', shortcut: 'I', tool: 'info-line' },
+  { type: 'tool', id: 'extended-line', label: 'Extended line', icon: 'extended-line', shortcut: 'E', tool: 'extended-line' },
+  { type: 'tool', id: 'trend-angle', label: 'Trend angle', icon: 'trend-angle', shortcut: 'A', tool: 'trend-angle' },
+  { type: 'tool', id: 'horizontal-line', label: 'Horizontal line', icon: 'horizontal-line', shortcut: 'H', tool: 'horizontal-line' },
   {
     type: 'tool',
     id: 'horizontal-ray',
@@ -772,13 +801,13 @@ const LINE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
     shortcut: 'J',
     tool: 'horizontal-ray',
   },
-  { type: 'tool', id: 'vertical-line', label: 'Vertical line', icon: 'vertical-line', shortcut: 'V', disabled: true },
-  { type: 'tool', id: 'cross-line', label: 'Cross line', icon: 'cross-line', shortcut: 'C', disabled: true },
+  { type: 'tool', id: 'vertical-line', label: 'Vertical line', icon: 'vertical-line', shortcut: 'V', tool: 'vertical-line' },
+  { type: 'tool', id: 'cross-line', label: 'Cross line', icon: 'cross-line', shortcut: 'C', tool: 'cross-line' },
   { type: 'section', label: 'Channels' },
-  { type: 'tool', id: 'parallel-channel', label: 'Parallel channel', icon: 'parallel-channel', disabled: true },
-  { type: 'tool', id: 'regression-trend', label: 'Regression trend', icon: 'regression-trend', disabled: true },
-  { type: 'tool', id: 'flat-top-bottom', label: 'Flat top/bottom', icon: 'flat-channel', disabled: true },
-  { type: 'tool', id: 'disjoint-channel', label: 'Disjoint channel', icon: 'disjoint-channel', disabled: true },
+  { type: 'tool', id: 'parallel-channel', label: 'Parallel channel', icon: 'parallel-channel', shortcut: 'P', tool: 'parallel-channel' },
+  { type: 'tool', id: 'regression-trend', label: 'Regression trend', icon: 'regression-trend', shortcut: 'G', tool: 'regression-trend' },
+  { type: 'tool', id: 'flat-top-bottom', label: 'Flat top/bottom', icon: 'flat-channel', shortcut: 'F', tool: 'flat-top-bottom' },
+  { type: 'tool', id: 'disjoint-channel', label: 'Disjoint channel', icon: 'disjoint-channel', shortcut: 'D', tool: 'disjoint-channel' },
 ];
 const DRAWING_TOOL_SHORTCUTS = LINE_TOOL_MENU_ENTRIES.reduce<Record<string, DrawingToolId>>((shortcuts, entry) => {
   if (entry.type === 'tool' && !entry.disabled && entry.shortcut && entry.tool) {
@@ -1959,9 +1988,42 @@ const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
   anchors: cloneDrawingAnchors(drawing.anchors),
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
-  value === 'trend-line' || value === 'ray' || value === 'horizontal-ray';
-const isTwoAnchorDrawingTool = (kind: DrawingToolId) => kind === 'trend-line' || kind === 'ray';
-const getRequiredDrawingAnchorCount = (kind: DrawingToolId) => (isTwoAnchorDrawingTool(kind) ? 2 : 1);
+  value === 'trend-line' ||
+  value === 'ray' ||
+  value === 'info-line' ||
+  value === 'extended-line' ||
+  value === 'trend-angle' ||
+  value === 'horizontal-line' ||
+  value === 'horizontal-ray' ||
+  value === 'vertical-line' ||
+  value === 'cross-line' ||
+  value === 'parallel-channel' ||
+  value === 'regression-trend' ||
+  value === 'flat-top-bottom' ||
+  value === 'disjoint-channel';
+const isOneAnchorDrawingTool = (kind: DrawingToolId) =>
+  kind === 'horizontal-line' || kind === 'horizontal-ray' || kind === 'vertical-line' || kind === 'cross-line';
+const isTwoAnchorDrawingTool = (kind: DrawingToolId) =>
+  kind === 'trend-line' ||
+  kind === 'ray' ||
+  kind === 'info-line' ||
+  kind === 'extended-line' ||
+  kind === 'trend-angle';
+const isChannelDrawingTool = (kind: DrawingToolId) =>
+  kind === 'parallel-channel' ||
+  kind === 'regression-trend' ||
+  kind === 'flat-top-bottom' ||
+  kind === 'disjoint-channel';
+const isMultiAnchorDrawingTool = (kind: DrawingToolId) => !isOneAnchorDrawingTool(kind);
+const isHorizontalDrawingTool = (kind: DrawingToolId) => kind === 'horizontal-line' || kind === 'horizontal-ray';
+const isVerticalDrawingTool = (kind: DrawingToolId) => kind === 'vertical-line';
+const getRequiredDrawingAnchorCount = (kind: DrawingToolId) =>
+  kind === 'disjoint-channel' ? 4 : isChannelDrawingTool(kind) ? 3 : isTwoAnchorDrawingTool(kind) ? 2 : 1;
+const DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX = ['start', 'end', 'third', 'fourth'] as const;
+const getDrawingHitTargetForAnchorIndex = (index: number): DrawingHitTarget | null =>
+  DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX[index] ?? null;
+const getDrawingAnchorIndexForHitTarget = (target: DrawingDragMode) =>
+  target === 'start' ? 0 : target === 'end' ? 1 : target === 'third' ? 2 : target === 'fourth' ? 3 : null;
 const isDrawingLineStyle = (value: unknown): value is DrawingLineStyle =>
   value === 'solid' || value === 'dashed' || value === 'dotted';
 const isDrawingExtendMode = (value: unknown): value is DrawingExtendMode =>
@@ -2184,7 +2246,128 @@ const getRenderedDrawingLinePoints = (
     };
   }
 
+  if (drawing.kind === 'extended-line') {
+    return {
+      start: getRayBoundaryPoint(second, start, chartArea),
+      end: getRayBoundaryPoint(start, second, chartArea),
+    };
+  }
+
   return { start, end: second };
+};
+const getProjectedChannelOffset = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  control: { x: number; y: number }
+) => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared < 0.01) {
+    return { x: control.x - start.x, y: control.y - start.y };
+  }
+
+  const projection = ((control.x - start.x) * dx + (control.y - start.y) * dy) / lengthSquared;
+  const projectedPoint = {
+    x: start.x + dx * projection,
+    y: start.y + dy * projection,
+  };
+
+  return {
+    x: control.x - projectedPoint.x,
+    y: control.y - projectedPoint.y,
+  };
+};
+const getDrawingRenderedSegments = (
+  drawing: ChartDrawing,
+  points: Array<{ x: number; y: number }>,
+  chartArea: ChartCanvasArea
+): DrawingRenderedSegment[] => {
+  const start = points[0];
+  if (!start) return [];
+
+  const right = chartArea.left + chartArea.width;
+  const bottom = chartArea.top + chartArea.height;
+
+  if (drawing.kind === 'horizontal-line') {
+    return [{ start: { x: chartArea.left, y: start.y }, end: { x: right, y: start.y } }];
+  }
+
+  if (drawing.kind === 'horizontal-ray') {
+    return [{ start, end: { x: right, y: start.y } }];
+  }
+
+  if (drawing.kind === 'vertical-line') {
+    return [{ start: { x: start.x, y: chartArea.top }, end: { x: start.x, y: bottom } }];
+  }
+
+  if (drawing.kind === 'cross-line') {
+    return [
+      { start: { x: chartArea.left, y: start.y }, end: { x: right, y: start.y } },
+      { start: { x: start.x, y: chartArea.top }, end: { x: start.x, y: bottom } },
+    ];
+  }
+
+  const second = points[1];
+  if (!second) return [];
+
+  if (isTwoAnchorDrawingTool(drawing.kind)) {
+    return [getRenderedDrawingLinePoints(drawing, start, second, chartArea)];
+  }
+
+  if (drawing.kind === 'flat-top-bottom') {
+    const third = points[2];
+    if (!third) return [];
+
+    const leftX = clamp(Math.min(start.x, second.x), chartArea.left, right);
+    const rightX = clamp(Math.max(start.x, second.x), chartArea.left, right);
+    const topY = Math.min(start.y, third.y);
+    const bottomY = Math.max(start.y, third.y);
+
+    return [
+      { start: { x: leftX, y: topY }, end: { x: rightX, y: topY } },
+      { start: { x: leftX, y: bottomY }, end: { x: rightX, y: bottomY } },
+      { start: { x: leftX, y: topY }, end: { x: leftX, y: bottomY }, muted: true },
+      { start: { x: rightX, y: topY }, end: { x: rightX, y: bottomY }, muted: true },
+    ];
+  }
+
+  if (drawing.kind === 'disjoint-channel') {
+    const third = points[2];
+    const fourth = points[3];
+    if (!third || !fourth) return [];
+
+    return [
+      { start, end: second },
+      { start: third, end: fourth },
+      { start, end: third, muted: true },
+      { start: second, end: fourth, muted: true },
+    ];
+  }
+
+  const third = points[2];
+  if (!third) return [];
+
+  const offset = getProjectedChannelOffset(start, second, third);
+  const upperStart = { x: start.x + offset.x, y: start.y + offset.y };
+  const upperEnd = { x: second.x + offset.x, y: second.y + offset.y };
+
+  if (drawing.kind === 'regression-trend') {
+    const lowerStart = { x: start.x - offset.x, y: start.y - offset.y };
+    const lowerEnd = { x: second.x - offset.x, y: second.y - offset.y };
+
+    return [
+      { start, end: second },
+      { start: upperStart, end: upperEnd },
+      { start: lowerStart, end: lowerEnd },
+    ];
+  }
+
+  return [
+    { start, end: second },
+    { start: upperStart, end: upperEnd },
+    { start: { x: (start.x + upperStart.x) / 2, y: (start.y + upperStart.y) / 2 }, end: { x: (second.x + upperEnd.x) / 2, y: (second.y + upperEnd.y) / 2 }, muted: true },
+  ];
 };
 const createPaneHoverState = (): PaneHoverState => ({
   mousePos: null,
@@ -4607,32 +4790,24 @@ export default function Home() {
       .reverse();
 
     for (const drawing of drawingsForPane) {
-      const start = getDrawingPointForAnchor(paneIndex, drawing.anchors[0]!);
-      if (!start) continue;
+      const points = drawing.anchors
+        .map((anchor) => getDrawingPointForAnchor(paneIndex, anchor))
+        .filter((point): point is { x: number; y: number } => point !== null);
+      if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) continue;
 
-      if (Math.hypot(x - start.x, y - start.y) <= DRAWING_HIT_TOLERANCE) {
-        return { drawing, target: 'start' };
+      for (let anchorIndex = 0; anchorIndex < points.length; anchorIndex += 1) {
+        const point = points[anchorIndex]!;
+        const target = getDrawingHitTargetForAnchorIndex(anchorIndex);
+        if (target && Math.hypot(x - point.x, y - point.y) <= DRAWING_HIT_TOLERANCE) {
+          return { drawing, target };
+        }
       }
 
-      if (isTwoAnchorDrawingTool(drawing.kind)) {
-        const endAnchor = drawing.anchors[1];
-        if (!endAnchor) continue;
-
-        const end = getDrawingPointForAnchor(paneIndex, endAnchor);
-        if (!end) continue;
-
-        if (Math.hypot(x - end.x, y - end.y) <= DRAWING_HIT_TOLERANCE) {
-          return { drawing, target: 'end' };
-        }
-
-        const renderedLine = getRenderedDrawingLinePoints(drawing, start, end, chartArea);
-        if (getDistanceToSegment(x, y, renderedLine.start, renderedLine.end) <= DRAWING_HIT_TOLERANCE) {
-          return { drawing, target: 'body' };
-        }
-      } else if (
-        x >= start.x - DRAWING_HIT_TOLERANCE &&
-        x <= chartArea.left + chartArea.width + DRAWING_HIT_TOLERANCE &&
-        Math.abs(y - start.y) <= DRAWING_HIT_TOLERANCE
+      const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
+      if (
+        renderedSegments.some(
+          (segment) => getDistanceToSegment(x, y, segment.start, segment.end) <= DRAWING_HIT_TOLERANCE
+        )
       ) {
         return { drawing, target: 'body' };
       }
@@ -4792,6 +4967,12 @@ export default function Home() {
     anchors: ChartDrawingAnchor[]
   ): ChartDrawing => {
     const now = Date.now();
+    const defaultStats =
+      kind === 'info-line'
+        ? { ...createDrawingStatsFromSelectValue(createDefaultDrawingStats(), 'all'), alwaysShow: true }
+        : kind === 'trend-angle'
+          ? { ...createDefaultDrawingStats(), angle: true, alwaysShow: true }
+          : createDefaultDrawingStats();
 
     return {
       id: createDrawingId(kind),
@@ -4815,9 +4996,9 @@ export default function Home() {
       textItalic: false,
       textAlignment: 'center',
       textVerticalAlignment: 'top',
-      showMiddlePoint: false,
-      showPriceLabels: false,
-      stats: createDefaultDrawingStats(),
+      showMiddlePoint: kind === 'parallel-channel' || kind === 'regression-trend',
+      showPriceLabels: kind === 'horizontal-line' || kind === 'horizontal-ray' || kind === 'cross-line',
+      stats: defaultStats,
       timeframeVisibility: createDefaultDrawingTimeframeVisibility(),
       alertEnabled: false,
       alertCondition: 'crossing',
@@ -5053,11 +5234,17 @@ export default function Home() {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
       if (!anchor) return;
 
-      if (isTwoAnchorDrawingTool(activeDrawingTool)) {
+      if (isMultiAnchorDrawingTool(activeDrawingTool)) {
+        const requiredAnchorCount = getRequiredDrawingAnchorCount(activeDrawingTool);
         if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
-          addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, [pendingDrawing.anchor, anchor]));
+          const nextAnchors = [...pendingDrawing.anchors, anchor];
+          if (nextAnchors.length >= requiredAnchorCount) {
+            addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, nextAnchors));
+          } else {
+            setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: nextAnchors, preview: anchor });
+          }
         } else {
-          setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchor, preview: anchor });
+          setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: [anchor], preview: anchor });
           setSelectedDrawingId(null);
           setActiveDrawingToolbarMenu(null);
           setDrawingToolbarStatus('');
@@ -5149,7 +5336,7 @@ export default function Home() {
     if (
       isAuthenticated &&
       activeDrawingTool &&
-      isTwoAnchorDrawingTool(activeDrawingTool) &&
+      isMultiAnchorDrawingTool(activeDrawingTool) &&
       pendingDrawing?.tool === activeDrawingTool &&
       pendingDrawing.paneIndex === paneIndex &&
       area === 'plot'
@@ -5185,12 +5372,14 @@ export default function Home() {
             if (drawingDrag.mode === 'body') {
               nextAnchors = nextAnchors.map((anchor) => ({
                 logicalIndex:
-                  drawing.kind === 'horizontal-ray' ? anchor.logicalIndex : anchor.logicalIndex + logicalDelta,
+                  isHorizontalDrawingTool(drawing.kind) ? anchor.logicalIndex : anchor.logicalIndex + logicalDelta,
                 price: anchor.price + priceDelta,
               }));
             } else {
-              const anchorIndex = drawingDrag.mode === 'end' ? 1 : 0;
-              nextAnchors[anchorIndex] = currentAnchor;
+              const anchorIndex = getDrawingAnchorIndexForHitTarget(drawingDrag.mode);
+              if (anchorIndex !== null && nextAnchors[anchorIndex]) {
+                nextAnchors[anchorIndex] = currentAnchor;
+              }
             }
 
             return { ...drawing, anchors: nextAnchors, updatedAt: Date.now() };
@@ -5755,7 +5944,9 @@ export default function Home() {
       ctx.stroke();
     };
     const getDrawingStatsLines = (drawing: ChartDrawing) => {
-      if (!isTwoAnchorDrawingTool(drawing.kind) || !drawing.anchors[0] || !drawing.anchors[1]) return [];
+      if (drawing.anchors.length < 2 || isOneAnchorDrawingTool(drawing.kind) || !drawing.anchors[0] || !drawing.anchors[1]) {
+        return [];
+      }
 
       const [firstAnchor, secondAnchor] = drawing.anchors;
       const priceDelta = secondAnchor.price - firstAnchor.price;
@@ -5875,54 +6066,68 @@ export default function Home() {
       ctx.restore();
     };
     const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
-      const start = drawing.anchors[0] ? pointForDrawingAnchor(drawing.anchors[0]) : null;
-      if (!start) return;
+      const points = drawing.anchors.map(pointForDrawingAnchor);
+      if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) return;
 
-      ctx.strokeStyle = getDrawingStrokeColor(drawing);
-      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
-      applyDrawingLineStyle(drawing);
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
+      const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
+      const primarySegment = renderedSegments[0];
+      if (!primarySegment) return;
 
-      if (isTwoAnchorDrawingTool(drawing.kind)) {
-        const second = drawing.anchors[1] ? pointForDrawingAnchor(drawing.anchors[1]) : null;
-        if (!second) return;
+      if (isChannelDrawingTool(drawing.kind)) {
+        const fillSegments =
+          drawing.kind === 'regression-trend' && renderedSegments[1] && renderedSegments[2]
+            ? [renderedSegments[1], renderedSegments[2]]
+            : renderedSegments[0] && renderedSegments[1]
+              ? [renderedSegments[0], renderedSegments[1]]
+              : null;
+        if (fillSegments) {
+          ctx.save();
+          ctx.fillStyle = hexToRgba(drawing.color, drawing.opacity * 0.12);
+          ctx.beginPath();
+          ctx.moveTo(fillSegments[0].start.x, fillSegments[0].start.y);
+          ctx.lineTo(fillSegments[0].end.x, fillSegments[0].end.y);
+          ctx.lineTo(fillSegments[1].end.x, fillSegments[1].end.y);
+          ctx.lineTo(fillSegments[1].start.x, fillSegments[1].start.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
 
-        const renderedLine = getRenderedDrawingLinePoints(drawing, start, second, chartArea);
-        const leftArrowTail = renderedLine.start === start ? second : start;
-        const rightArrowTail = renderedLine.end === second ? start : second;
+      renderedSegments.forEach((segment) => {
+        ctx.strokeStyle = segment.muted ? hexToRgba(drawing.color, drawing.opacity * 0.56) : getDrawingStrokeColor(drawing);
+        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        applyDrawingLineStyle(drawing);
+        if (segment.muted && drawing.lineStyle === 'solid') {
+          ctx.setLineDash([drawing.lineWidth * 2.5, drawing.lineWidth * 2.5]);
+        }
         ctx.beginPath();
-        ctx.moveTo(renderedLine.start.x, renderedLine.start.y);
-        ctx.lineTo(renderedLine.end.x, renderedLine.end.y);
+        ctx.moveTo(segment.start.x, segment.start.y);
+        ctx.lineTo(segment.end.x, segment.end.y);
         ctx.stroke();
         ctx.setLineDash([]);
-        drawDrawingArrowEnd(drawing, renderedLine.start, leftArrowTail, drawing.leftEnd);
-        drawDrawingArrowEnd(drawing, renderedLine.end, rightArrowTail, drawing.rightEnd);
-        drawDrawingHandle(start, selected);
-        drawDrawingHandle(second, selected);
-        if (drawing.showMiddlePoint) {
-          drawDrawingHandle({ x: (start.x + second.x) / 2, y: (start.y + second.y) / 2 }, true);
-        }
-        if (drawing.showPriceLabels) {
-          drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
-          drawingPriceLabels.push({ y: second.y, price: drawing.anchors[1]!.price, color: drawing.color, selected });
-        }
-        drawDrawingText(drawing, start, second);
-        drawDrawingStats(drawing, start, second, selected);
-        return;
+      });
+
+      if (!isChannelDrawingTool(drawing.kind)) {
+        drawDrawingArrowEnd(drawing, primarySegment.start, primarySegment.end, drawing.leftEnd);
+        drawDrawingArrowEnd(drawing, primarySegment.end, primarySegment.start, drawing.rightEnd);
       }
 
-      const end = { x: chartArea.left + chartArea.width, y: start.y };
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      drawDrawingArrowEnd(drawing, start, end, drawing.leftEnd);
-      drawDrawingArrowEnd(drawing, end, start, drawing.rightEnd);
-      drawDrawingHandle(start, selected);
-      if (drawing.showPriceLabels || selected) {
-        drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
+      points.forEach((point) => drawDrawingHandle(point, selected));
+      if (drawing.showMiddlePoint && points[0] && points[1]) {
+        drawDrawingHandle({ x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 }, true);
       }
-      drawDrawingText(drawing, start, end);
+
+      if ((drawing.showPriceLabels || (selected && !isVerticalDrawingTool(drawing.kind))) && !isVerticalDrawingTool(drawing.kind)) {
+        drawing.anchors.forEach((anchor, index) => {
+          const point = points[index];
+          if (!point) return;
+          drawingPriceLabels.push({ y: point.y, price: anchor.price, color: drawing.color, selected });
+        });
+      }
+
+      drawDrawingText(drawing, primarySegment.start, primarySegment.end);
+      drawDrawingStats(drawing, primarySegment.start, primarySegment.end, selected);
     };
 
     const visiblePaneDrawings = isAuthenticated
@@ -5935,7 +6140,7 @@ export default function Home() {
     if (
       isAuthenticated &&
       pendingDrawing &&
-      isTwoAnchorDrawingTool(pendingDrawing.tool) &&
+      isMultiAnchorDrawingTool(pendingDrawing.tool) &&
       pendingDrawing.paneIndex === paneIndex
     ) {
       drawDrawing(
@@ -5943,7 +6148,7 @@ export default function Home() {
           id: `pending-${pendingDrawing.tool}`,
           kind: pendingDrawing.tool,
           paneIndex,
-          anchors: [pendingDrawing.anchor, pendingDrawing.preview],
+          anchors: [...pendingDrawing.anchors, pendingDrawing.preview],
           locked: false,
           visible: true,
           color: DRAWING_DEFAULT_COLOR,
@@ -7693,9 +7898,10 @@ export default function Home() {
     const drawing = getSelectedDrawingForPane(paneIndex);
     const style = getSelectedDrawingToolbarStyle(paneIndex);
     if (!isAuthenticated || !drawing || !style) return null;
+    const drawingCoordinatePoints = drawing.anchors;
     const pointOne = drawing.anchors[0];
     const pointTwo = drawing.anchors[1];
-    const usesTabbedSettingsDialog = isTwoAnchorDrawingTool(drawing.kind);
+    const usesTabbedSettingsDialog = true;
     const closeDrawingSettingsDialog = () => {
       setActiveDrawingToolbarMenu(null);
       setDrawingToolbarStatus('');
@@ -7976,48 +8182,27 @@ export default function Home() {
       if (activeDrawingSettingsTab === 'coordinates') {
         return (
           <div className="drawing-settings-tab-panel">
-            {pointOne && (
-              <div className="drawing-settings-coordinate-row">
-                <span>#1 (price, bar)</span>
+            {drawingCoordinatePoints.map((point, index) => (
+              <div key={index} className="drawing-settings-coordinate-row">
+                <span>#{index + 1} (price, bar)</span>
                 <input
                   type="number"
-                  aria-label="Point 1 price"
-                  value={Number(pointOne.price.toFixed(2))}
+                  aria-label={`Point ${index + 1} price`}
+                  value={Number(point.price.toFixed(2))}
                   step="0.01"
-                  onChange={(event) => updateSelectedDrawingAnchor(0, { price: Number(event.target.value) })}
+                  onChange={(event) => updateSelectedDrawingAnchor(index, { price: Number(event.target.value) })}
                 />
                 <input
                   type="number"
-                  aria-label="Point 1 bar"
-                  value={Number(pointOne.logicalIndex.toFixed(2))}
+                  aria-label={`Point ${index + 1} bar`}
+                  value={Number(point.logicalIndex.toFixed(2))}
                   step="0.25"
                   onChange={(event) =>
-                    updateSelectedDrawingAnchor(0, { logicalIndex: Number(event.target.value) })
+                    updateSelectedDrawingAnchor(index, { logicalIndex: Number(event.target.value) })
                   }
                 />
               </div>
-            )}
-            {pointTwo && (
-              <div className="drawing-settings-coordinate-row">
-                <span>#2 (price, bar)</span>
-                <input
-                  type="number"
-                  aria-label="Point 2 price"
-                  value={Number(pointTwo.price.toFixed(2))}
-                  step="0.01"
-                  onChange={(event) => updateSelectedDrawingAnchor(1, { price: Number(event.target.value) })}
-                />
-                <input
-                  type="number"
-                  aria-label="Point 2 bar"
-                  value={Number(pointTwo.logicalIndex.toFixed(2))}
-                  step="0.25"
-                  onChange={(event) =>
-                    updateSelectedDrawingAnchor(1, { logicalIndex: Number(event.target.value) })
-                  }
-                />
-              </div>
-            )}
+            ))}
           </div>
         );
       }

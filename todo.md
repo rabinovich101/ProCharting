@@ -1,3 +1,79 @@
+# Complete TradingView Line Tool Set
+
+## Goal
+
+Enable every line and channel entry in the authenticated TradingView-style Trend
+Line Tools menu, using the same selection, floating toolbar, lock/delete, text,
+settings, drag, and hover behavior already built for Trendline and Ray.
+
+## Investigation / Decisions
+
+- TradingView's official drawing-tool overview lists the same trend tools that
+  are already present in this app's menu: Trendline, Ray, Info line, Extended
+  line, Trend angle, Horizontal line, Horizontal ray, Vertical line, Crossline,
+  and the channel group with Parallel channel, Regression trend, Flat
+  top/bottom, and Disjoint channel.
+- Existing app code already has disabled menu entries and CSS icons for the
+  remaining tools; the implementation gap is in `DrawingToolId`, anchor counts,
+  rendering, hit-testing, preview, and coordinate/settings support.
+- Keep the drawing system simple and compatible with saved layouts: one-anchor
+  tools are Horizontal line, Horizontal ray, Vertical line, and Cross line;
+  two-anchor tools are Trendline, Ray, Info line, Extended line, and Trend
+  angle; channel tools use three anchors so the third point sets the second
+  channel rail offset.
+- Reuse the existing `ChartDrawing` fields instead of adding a separate channel
+  data model. Channel tools render multiple line segments from the stored
+  anchors, and body dragging still moves every anchor together.
+- Keep these tools authenticated-only through the existing drawing rail gate.
+  Signed-out users still cannot activate shortcuts, draw, see drawings, or hit
+  test drawings.
+
+## Checklist
+
+- [x] Expand drawing tool types, labels, shortcuts, and menu entries for all
+      line and channel tools.
+- [x] Add anchor-count helpers and pending drawing flow for one-, two-, three-,
+      and four-anchor drawings.
+- [x] Add canvas geometry helpers for full horizontal/vertical/cross lines,
+      extended lines, rays, info/trend-angle labels, and channel rails.
+- [x] Update hit-testing and dragging so bodies, endpoints, and channel offset
+      handles behave like the existing Trendline/Ray tools.
+- [x] Update settings/coordinates UI to support one-, two-, three-, and
+      four-anchor drawings without breaking the existing TradingView-style
+      dialog.
+- [x] Update `ARCHITECTURE.md`.
+- [x] Run typecheck/build, signed-out regression, and logged-in Playwright smoke
+      for all enabled line tools.
+- [x] Close/clean Playwright images and artifacts, commit, push, and leave
+      unrelated deleted JSON files untouched.
+
+## Review
+
+- Enabled every existing Trend Line Tools menu line/channel entry for logged-in
+  users: Trendline, Ray, Info line, Extended line, Trend angle, Horizontal
+  line, Horizontal ray, Vertical line, Cross line, Parallel channel, Regression
+  trend, Flat top/bottom, and Disjoint channel.
+- Added shared anchor-count and rendered-segment geometry helpers for one-,
+  two-, three-, and four-anchor drawings.
+- Updated drawing placement preview, rendering, hit-testing, body drag, handle
+  drag, text placement, stats labels, and settings coordinates to use the same
+  segment geometry.
+- Added full-width/full-height horizontal, vertical, and cross-line rendering;
+  extended-line boundary rendering; and simple channel rail/fill rendering for
+  channel tools.
+- Info line now defaults to all stats visible, and Trend angle defaults to the
+  angle label visible.
+- Updated `ARCHITECTURE.md` with the expanded tool set and anchor model.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Logged-in Playwright smoke on `http://127.0.0.1:3101` with dummy Supabase
+    public env/session, mocked market data, all 13 line/channel tools drawn
+    from the real menu, Disjoint channel Point 4 coordinates verified, body
+    hover `grab` verified, screenshot inspection, and nonblank canvas check.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+
 # Trendline Text Above Line And Hover Cursor
 
 ## Goal
