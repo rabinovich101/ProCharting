@@ -549,15 +549,17 @@ The chart app supports:
   tools. Drawing anchors are stored as logical bar index plus price, rendered in
   the main price-pane canvas pass, and selected drawings show a DOM floating
   toolbar with working TradingView-like quick controls for templates, line color,
-  text, line width, line style, settings, local alert state, lock/unlock, delete,
-  and more actions. The selected-object toolbar is positioned near the top of
-  the plot pane by default, can be moved by dragging its far-left handle, and
-  does not follow the selected drawing as it is dragged or resized. Drawing
-  objects store visibility, interval visibility, line style, text, middle-point,
-  price-label, alert, and local sync flags in addition to anchors/color/width.
-  Hidden or interval-filtered drawings do not render or participate in
-  hit-testing, while the currently selected object can still keep its toolbar
-  open for correction. Locked drawings stay visually solid and remain
+  opacity, text, line width, line style, arrow ends, settings, local alert state,
+  lock/unlock, delete, and more actions. The selected-object toolbar is
+  positioned near the top of the plot pane by default, can be moved by dragging
+  its far-left handle, and does not follow the selected drawing as it is dragged
+  or resized. Drawing objects store visibility, interval and per-timeframe
+  visibility, line style, opacity, arrow-end choices, formatted text,
+  middle-point, price-label, stats-label, alert configuration, and local sync
+  flags in addition to anchors/color/width. Hidden or interval-filtered drawings
+  do not render or participate in hit-testing, while the currently selected
+  object can still keep its toolbar open for correction. Locked drawings stay
+  visually solid and remain
   selectable/deletable, but do not respond to drag/resize gestures. Signed-out
   users do not render the rail, drawing pixels, selected-object toolbar, or
   drawing hit-testing. Drawings are scoped to pane index and do not alter candle,
@@ -667,14 +669,16 @@ under `procharting.chartLayouts`. Each saved layout stores the selected split
 grid, active pane index, layout sync toggles, chart style, theme, chart settings,
 active indicator instances, authenticated drawing objects, and per-pane symbol,
 interval, manual price range, and logical view range. Authenticated drawing
-snapshots include anchors, lock/visibility, line color/width/style, text,
-price-label, alert, interval visibility, and local sync flags. Candles, live feed
-status, pointer/crosshair state, drawing rail/menu/cursor mode, selected-toolbar
-popover state, drawing-toolbar position, pending drawing state, and drag state
-are intentionally excluded so restoring a layout recreates fresh pane sessions
-and reloads market data through the existing Binance REST and websocket
-pipeline. This keeps the client-side store small while preserving a plain JSON
-snapshot shape that can move to a server-backed chart-layout table later.
+snapshots include anchors, lock/visibility, line color/opacity/width/style,
+arrow ends, text formatting, price-label and stats-label settings, alert
+configuration, interval/per-timeframe visibility, and local sync flags. Candles,
+live feed status, pointer/crosshair state, drawing rail/menu/cursor mode,
+selected-toolbar popover state, drawing-toolbar position, pending drawing state,
+and drag state are intentionally excluded so restoring a layout recreates fresh
+pane sessions and reloads market data through the existing Binance REST and
+websocket pipeline. This keeps the client-side store small while preserving a
+plain JSON snapshot shape that can move to a server-backed chart-layout table
+later.
 
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent

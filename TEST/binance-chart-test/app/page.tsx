@@ -144,6 +144,11 @@ type DrawingMenuId = 'cursor' | 'line-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
 type DrawingToolbarMenuId = 'templates' | 'color' | 'text' | 'width' | 'style' | 'settings' | 'alert' | 'more';
+type DrawingArrowEnd = 'none' | 'arrow';
+type DrawingTextAlignment = 'left' | 'center' | 'right';
+type DrawingStatsPosition = 'above' | 'below';
+type DrawingAlertCondition = 'crossing' | 'crossing-up' | 'crossing-down' | 'greater-than' | 'less-than';
+type DrawingAlertFrequency = 'only-once' | 'once-per-bar' | 'once-per-bar-close';
 type DrawingDragMode = 'none' | 'body' | 'start' | 'end';
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
@@ -221,13 +226,26 @@ interface ChartDrawing {
   locked: boolean;
   visible: boolean;
   color: string;
+  opacity: number;
   lineWidth: number;
   lineStyle: DrawingLineStyle;
+  leftEnd: DrawingArrowEnd;
+  rightEnd: DrawingArrowEnd;
   text: string;
   showText: boolean;
+  textColor: string;
+  textSize: number;
+  textBold: boolean;
+  textItalic: boolean;
+  textAlignment: DrawingTextAlignment;
   showMiddlePoint: boolean;
   showPriceLabels: boolean;
+  stats: DrawingStatsState;
+  timeframeVisibility: Record<string, boolean>;
   alertEnabled: boolean;
+  alertCondition: DrawingAlertCondition;
+  alertFrequency: DrawingAlertFrequency;
+  alertMessage: string;
   visibility: DrawingVisibilityMode;
   syncInLayout: boolean;
   syncGlobally: boolean;
@@ -272,8 +290,23 @@ interface DrawingToolbarDragState extends DrawingToolbarPosition {
 
 interface DrawingStylePreset {
   color: string;
+  opacity: number;
   lineWidth: number;
   lineStyle: DrawingLineStyle;
+  leftEnd: DrawingArrowEnd;
+  rightEnd: DrawingArrowEnd;
+}
+
+interface DrawingStatsState {
+  priceRange: boolean;
+  percentChange: boolean;
+  change: boolean;
+  barsRange: boolean;
+  dateTimeRange: boolean;
+  distance: boolean;
+  angle: boolean;
+  alwaysShow: boolean;
+  position: DrawingStatsPosition;
 }
 
 interface DrawingMenuToolEntry {
@@ -570,16 +603,44 @@ const DEFAULT_CHART_SETTINGS: ChartSettingsState = {
 };
 const DRAWING_DEFAULT_COLOR = '#2962ff';
 const DRAWING_DEFAULT_LINE_STYLE: DrawingLineStyle = 'solid';
+const DRAWING_DEFAULT_TEXT_COLOR = '#ffffff';
+const DRAWING_DEFAULT_OPACITY = 1;
 const DRAWING_HANDLE_RADIUS = 4.5;
 const DRAWING_HIT_TOLERANCE = 8;
 const DRAWING_FLOATING_TOOLBAR_HEIGHT = 38;
 const DRAWING_FLOATING_TOOLBAR_MARGIN = 8;
 const DRAWING_COLOR_SWATCHES = ['#2962ff', '#089981', '#f23645', '#ff9800', '#9c27b0', '#ffffff', '#000000'];
 const DRAWING_LINE_WIDTH_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
+const DRAWING_TEXT_SIZE_OPTIONS = [10, 12, 14, 16, 18, 20] as const;
 const DRAWING_LINE_STYLE_OPTIONS: Array<{ value: DrawingLineStyle; label: string }> = [
   { value: 'solid', label: 'Solid' },
   { value: 'dashed', label: 'Dashed' },
   { value: 'dotted', label: 'Dotted' },
+];
+const DRAWING_ARROW_END_OPTIONS: Array<{ value: DrawingArrowEnd; label: string }> = [
+  { value: 'none', label: 'Normal' },
+  { value: 'arrow', label: 'Arrow' },
+];
+const DRAWING_TEXT_ALIGNMENT_OPTIONS: Array<{ value: DrawingTextAlignment; label: string }> = [
+  { value: 'left', label: 'Left' },
+  { value: 'center', label: 'Center' },
+  { value: 'right', label: 'Right' },
+];
+const DRAWING_STATS_POSITION_OPTIONS: Array<{ value: DrawingStatsPosition; label: string }> = [
+  { value: 'above', label: 'Above' },
+  { value: 'below', label: 'Below' },
+];
+const DRAWING_ALERT_CONDITION_OPTIONS: Array<{ value: DrawingAlertCondition; label: string }> = [
+  { value: 'crossing', label: 'Crossing' },
+  { value: 'crossing-up', label: 'Crossing up' },
+  { value: 'crossing-down', label: 'Crossing down' },
+  { value: 'greater-than', label: 'Greater than' },
+  { value: 'less-than', label: 'Less than' },
+];
+const DRAWING_ALERT_FREQUENCY_OPTIONS: Array<{ value: DrawingAlertFrequency; label: string }> = [
+  { value: 'only-once', label: 'Only once' },
+  { value: 'once-per-bar', label: 'Once per bar' },
+  { value: 'once-per-bar-close', label: 'Once per bar close' },
 ];
 const DRAWING_VISIBILITY_OPTIONS: Array<{ value: DrawingVisibilityMode; label: string; description: string }> = [
   { value: 'all', label: 'All intervals', description: 'Visible on every chart interval' },
@@ -588,8 +649,11 @@ const DRAWING_VISIBILITY_OPTIONS: Array<{ value: DrawingVisibilityMode; label: s
 ];
 const DEFAULT_DRAWING_STYLE_PRESET: DrawingStylePreset = {
   color: DRAWING_DEFAULT_COLOR,
+  opacity: DRAWING_DEFAULT_OPACITY,
   lineWidth: 2,
   lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+  leftEnd: 'none',
+  rightEnd: 'none',
 };
 const CURSOR_TOOL_LABELS: Record<CursorToolId, string> = {
   cross: 'Cross',
@@ -1197,6 +1261,23 @@ const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
   { value: '1w', label: '1W', description: '1 week' },
   { value: '1M', label: '1M', description: '1 month' },
 ];
+const DRAWING_TIMEFRAME_VALUES = TIMEFRAME_OPTIONS.map((option) => option.value);
+const createDefaultDrawingStats = (): DrawingStatsState => ({
+  priceRange: false,
+  percentChange: false,
+  change: false,
+  barsRange: false,
+  dateTimeRange: false,
+  distance: false,
+  angle: false,
+  alwaysShow: false,
+  position: 'above',
+});
+const createDefaultDrawingTimeframeVisibility = () =>
+  DRAWING_TIMEFRAME_VALUES.reduce<Record<string, boolean>>((visibilityByTimeframe, timeframe) => {
+    visibilityByTimeframe[timeframe] = true;
+    return visibilityByTimeframe;
+  }, {});
 const SYMBOL_SEARCH_TABS: Array<{ id: SymbolSearchCategory; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'favorites', label: 'Favorites' },
@@ -1781,13 +1862,53 @@ const isDrawingLineStyle = (value: unknown): value is DrawingLineStyle =>
   value === 'solid' || value === 'dashed' || value === 'dotted';
 const isDrawingVisibilityMode = (value: unknown): value is DrawingVisibilityMode =>
   value === 'all' || value === 'intraday' || value === 'daily-plus';
+const isDrawingArrowEnd = (value: unknown): value is DrawingArrowEnd => value === 'none' || value === 'arrow';
+const isDrawingTextAlignment = (value: unknown): value is DrawingTextAlignment =>
+  value === 'left' || value === 'center' || value === 'right';
+const isDrawingStatsPosition = (value: unknown): value is DrawingStatsPosition =>
+  value === 'above' || value === 'below';
+const isDrawingAlertCondition = (value: unknown): value is DrawingAlertCondition =>
+  value === 'crossing' ||
+  value === 'crossing-up' ||
+  value === 'crossing-down' ||
+  value === 'greater-than' ||
+  value === 'less-than';
+const isDrawingAlertFrequency = (value: unknown): value is DrawingAlertFrequency =>
+  value === 'only-once' || value === 'once-per-bar' || value === 'once-per-bar-close';
 const isDailyPlusTimeframe = (timeframe: string) => timeframe === '1d' || timeframe === '1w' || timeframe === '1M';
 const shouldRenderDrawingForTimeframe = (drawing: ChartDrawing, timeframe: string) => {
   if (!drawing.visible) return false;
+  if (drawing.timeframeVisibility[timeframe] === false) return false;
   if (drawing.visibility === 'all') return true;
 
   const dailyPlus = isDailyPlusTimeframe(timeframe);
   return drawing.visibility === 'daily-plus' ? dailyPlus : !dailyPlus;
+};
+const sanitizeDrawingStats = (stats: unknown): DrawingStatsState => {
+  const defaults = createDefaultDrawingStats();
+  if (!stats || typeof stats !== 'object') return defaults;
+
+  const candidate = stats as Partial<DrawingStatsState>;
+  return {
+    priceRange: candidate.priceRange === true,
+    percentChange: candidate.percentChange === true,
+    change: candidate.change === true,
+    barsRange: candidate.barsRange === true,
+    dateTimeRange: candidate.dateTimeRange === true,
+    distance: candidate.distance === true,
+    angle: candidate.angle === true,
+    alwaysShow: candidate.alwaysShow === true,
+    position: isDrawingStatsPosition(candidate.position) ? candidate.position : defaults.position,
+  };
+};
+const sanitizeDrawingTimeframeVisibility = (visibility: unknown) => {
+  const defaults = createDefaultDrawingTimeframeVisibility();
+  if (!visibility || typeof visibility !== 'object') return defaults;
+
+  return DRAWING_TIMEFRAME_VALUES.reduce<Record<string, boolean>>((nextVisibility, timeframe) => {
+    nextVisibility[timeframe] = (visibility as Record<string, unknown>)[timeframe] !== false;
+    return nextVisibility;
+  }, {});
 };
 const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawing[] => {
   if (!Array.isArray(drawings)) return [];
@@ -1828,13 +1949,26 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         locked: drawing.locked === true,
         visible: drawing.visible !== false,
         color: typeof drawing.color === 'string' ? drawing.color : DRAWING_DEFAULT_COLOR,
+        opacity: Number.isFinite(drawing.opacity) ? clamp(drawing.opacity!, 0.1, 1) : DRAWING_DEFAULT_OPACITY,
         lineWidth: Number.isFinite(drawing.lineWidth) ? clamp(drawing.lineWidth!, 1, 6) : 2,
         lineStyle: isDrawingLineStyle(drawing.lineStyle) ? drawing.lineStyle : DRAWING_DEFAULT_LINE_STYLE,
+        leftEnd: isDrawingArrowEnd(drawing.leftEnd) ? drawing.leftEnd : 'none',
+        rightEnd: isDrawingArrowEnd(drawing.rightEnd) ? drawing.rightEnd : 'none',
         text: typeof drawing.text === 'string' ? drawing.text.slice(0, 120) : '',
         showText: drawing.showText === true,
+        textColor: typeof drawing.textColor === 'string' ? drawing.textColor : DRAWING_DEFAULT_TEXT_COLOR,
+        textSize: Number.isFinite(drawing.textSize) ? clamp(drawing.textSize!, 10, 20) : 12,
+        textBold: drawing.textBold === true,
+        textItalic: drawing.textItalic === true,
+        textAlignment: isDrawingTextAlignment(drawing.textAlignment) ? drawing.textAlignment : 'center',
         showMiddlePoint: drawing.showMiddlePoint === true,
         showPriceLabels: drawing.showPriceLabels === true,
+        stats: sanitizeDrawingStats(drawing.stats),
+        timeframeVisibility: sanitizeDrawingTimeframeVisibility(drawing.timeframeVisibility),
         alertEnabled: drawing.alertEnabled === true,
+        alertCondition: isDrawingAlertCondition(drawing.alertCondition) ? drawing.alertCondition : 'crossing',
+        alertFrequency: isDrawingAlertFrequency(drawing.alertFrequency) ? drawing.alertFrequency : 'only-once',
+        alertMessage: typeof drawing.alertMessage === 'string' ? drawing.alertMessage.slice(0, 160) : '',
         visibility: isDrawingVisibilityMode(drawing.visibility) ? drawing.visibility : 'all',
         syncInLayout: drawing.syncInLayout === true,
         syncGlobally: drawing.syncGlobally === true,
@@ -4407,13 +4541,26 @@ export default function Home() {
       locked: false,
       visible: true,
       color: DRAWING_DEFAULT_COLOR,
+      opacity: DRAWING_DEFAULT_OPACITY,
       lineWidth: 2,
       lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+      leftEnd: 'none',
+      rightEnd: 'none',
       text: '',
       showText: false,
+      textColor: DRAWING_DEFAULT_TEXT_COLOR,
+      textSize: 12,
+      textBold: false,
+      textItalic: false,
+      textAlignment: 'center',
       showMiddlePoint: false,
       showPriceLabels: false,
+      stats: createDefaultDrawingStats(),
+      timeframeVisibility: createDefaultDrawingTimeframeVisibility(),
       alertEnabled: false,
+      alertCondition: 'crossing',
+      alertFrequency: 'only-once',
+      alertMessage: '',
       visibility: 'all',
       syncInLayout: false,
       syncGlobally: false,
@@ -4454,16 +4601,22 @@ export default function Home() {
   const applyDrawingStylePreset = () => {
     patchSelectedDrawing({
       color: drawingStylePreset.color,
+      opacity: drawingStylePreset.opacity,
       lineWidth: drawingStylePreset.lineWidth,
       lineStyle: drawingStylePreset.lineStyle,
+      leftEnd: drawingStylePreset.leftEnd,
+      rightEnd: drawingStylePreset.rightEnd,
     });
     setDrawingToolbarStatus('Drawing template applied');
   };
   const saveDrawingStylePreset = (drawing: ChartDrawing) => {
     setDrawingStylePreset({
       color: drawing.color,
+      opacity: drawing.opacity,
       lineWidth: drawing.lineWidth,
       lineStyle: drawing.lineStyle,
+      leftEnd: drawing.leftEnd,
+      rightEnd: drawing.rightEnd,
     });
     setDrawingToolbarStatus('Drawing template saved');
   };
@@ -5294,6 +5447,27 @@ export default function Home() {
         ctx.setLineDash([]);
       }
     };
+    const getDrawingStrokeColor = (drawing: ChartDrawing) => hexToRgba(drawing.color, drawing.opacity);
+    const drawDrawingArrowEnd = (
+      drawing: ChartDrawing,
+      tip: { x: number; y: number },
+      tail: { x: number; y: number },
+      endType: DrawingArrowEnd
+    ) => {
+      if (endType !== 'arrow') return;
+
+      const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+      const size = Math.max(8, drawing.lineWidth * 4.2);
+      ctx.save();
+      ctx.fillStyle = getDrawingStrokeColor(drawing);
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - Math.cos(angle - Math.PI / 6) * size, tip.y - Math.sin(angle - Math.PI / 6) * size);
+      ctx.lineTo(tip.x - Math.cos(angle + Math.PI / 6) * size, tip.y - Math.sin(angle + Math.PI / 6) * size);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
     const drawDrawingHandle = (point: { x: number; y: number }, selected: boolean) => {
       if (!selected) return;
 
@@ -5305,24 +5479,87 @@ export default function Home() {
       ctx.fill();
       ctx.stroke();
     };
+    const getDrawingStatsLines = (drawing: ChartDrawing) => {
+      if (drawing.kind !== 'trend-line' || !drawing.anchors[0] || !drawing.anchors[1]) return [];
+
+      const [firstAnchor, secondAnchor] = drawing.anchors;
+      const priceDelta = secondAnchor.price - firstAnchor.price;
+      const barsDelta = secondAnchor.logicalIndex - firstAnchor.logicalIndex;
+      const percentDelta = firstAnchor.price !== 0 ? (priceDelta / firstAnchor.price) * 100 : 0;
+      const dateTimeDelta = Math.abs(timeForIndex(secondAnchor.logicalIndex) - timeForIndex(firstAnchor.logicalIndex));
+      const days = Math.floor(dateTimeDelta / 86_400_000);
+      const hours = Math.floor((dateTimeDelta % 86_400_000) / 3_600_000);
+      const minutes = Math.round((dateTimeDelta % 3_600_000) / 60_000);
+      const distance = Math.hypot(barsDelta, priceDelta);
+      const angle = Math.atan2(priceDelta, Math.max(0.0001, Math.abs(barsDelta))) * (180 / Math.PI);
+
+      return [
+        drawing.stats.priceRange ? `Range ${formatPrice(Math.abs(priceDelta))}` : null,
+        drawing.stats.percentChange ? `${percentDelta >= 0 ? '+' : ''}${percentDelta.toFixed(2)}%` : null,
+        drawing.stats.change ? `Change ${priceDelta >= 0 ? '+' : ''}${formatPrice(priceDelta)}` : null,
+        drawing.stats.barsRange ? `${Math.abs(barsDelta).toFixed(1)} bars` : null,
+        drawing.stats.dateTimeRange
+          ? `Time ${days > 0 ? `${days}d ` : ''}${hours > 0 ? `${hours}h ` : ''}${minutes}m`
+          : null,
+        drawing.stats.distance ? `Distance ${distance.toFixed(2)}` : null,
+        drawing.stats.angle ? `Angle ${angle.toFixed(1)}deg` : null,
+      ].filter((line): line is string => line !== null);
+    };
+    const drawDrawingStats = (
+      drawing: ChartDrawing,
+      start: { x: number; y: number },
+      end: { x: number; y: number },
+      selected: boolean
+    ) => {
+      if (!selected && !drawing.stats.alwaysShow) return;
+
+      const lines = getDrawingStatsLines(drawing);
+      if (lines.length === 0) return;
+
+      ctx.font = getCanvasFont(11);
+      const paddingX = 8;
+      const paddingY = 6;
+      const lineHeight = 15;
+      const labelWidth = Math.min(260, Math.max(...lines.map((line) => ctx.measureText(line).width)) + paddingX * 2);
+      const labelHeight = lines.length * lineHeight + paddingY * 2;
+      const midX = (start.x + end.x) / 2;
+      const midY = (start.y + end.y) / 2;
+      const labelX = clamp(midX - labelWidth / 2, chartArea.left + 4, chartArea.left + chartArea.width - labelWidth - 4);
+      const labelY = clamp(
+        drawing.stats.position === 'above' ? midY - labelHeight - 14 : midY + 14,
+        chartArea.top + 4,
+        chartArea.top + chartArea.height - labelHeight - 4
+      );
+
+      ctx.fillStyle = theme === 'dark' ? 'rgba(15, 23, 42, 0.86)' : 'rgba(255, 255, 255, 0.92)';
+      ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+      ctx.strokeStyle = hexToRgba(drawing.color, 0.72);
+      ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
+      ctx.fillStyle = theme === 'dark' ? '#f8fafc' : '#1f2937';
+      lines.forEach((line, index) => {
+        ctx.fillText(line, labelX + paddingX, labelY + paddingY + 11 + index * lineHeight);
+      });
+    };
     const drawDrawingText = (drawing: ChartDrawing, start: { x: number; y: number }, end: { x: number; y: number }) => {
       const text = drawing.showText ? drawing.text.trim() : '';
       if (!text) return;
 
-      const textX = (start.x + end.x) / 2 + 8;
-      const textY = (start.y + end.y) / 2 - 8;
-      ctx.font = '600 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      const textAnchorRatio = drawing.textAlignment === 'left' ? 0.18 : drawing.textAlignment === 'right' ? 0.82 : 0.5;
+      const textX = start.x + (end.x - start.x) * textAnchorRatio + 8;
+      const textY = start.y + (end.y - start.y) * textAnchorRatio - 8;
+      ctx.font = `${drawing.textItalic ? 'italic ' : ''}${drawing.textBold ? '700' : '500'} ${drawing.textSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       const textWidth = Math.min(220, ctx.measureText(text).width + 12);
+      const textHeight = drawing.textSize + 10;
       ctx.fillStyle = theme === 'dark' ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)';
-      ctx.fillRect(textX - 6, textY - 15, textWidth, 20);
-      ctx.fillStyle = drawing.color;
+      ctx.fillRect(textX - 6, textY - drawing.textSize - 6, textWidth, textHeight);
+      ctx.fillStyle = drawing.textColor;
       ctx.fillText(text, textX, textY);
     };
     const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
       const start = drawing.anchors[0] ? pointForDrawingAnchor(drawing.anchors[0]) : null;
       if (!start) return;
 
-      ctx.strokeStyle = drawing.color;
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
       ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
       applyDrawingLineStyle(drawing);
       ctx.beginPath();
@@ -5335,6 +5572,8 @@ export default function Home() {
         ctx.lineTo(end.x, end.y);
         ctx.stroke();
         ctx.setLineDash([]);
+        drawDrawingArrowEnd(drawing, start, end, drawing.leftEnd);
+        drawDrawingArrowEnd(drawing, end, start, drawing.rightEnd);
         drawDrawingHandle(start, selected);
         drawDrawingHandle(end, selected);
         if (drawing.showMiddlePoint) {
@@ -5345,6 +5584,7 @@ export default function Home() {
           drawingPriceLabels.push({ y: end.y, price: drawing.anchors[1]!.price, color: drawing.color, selected });
         }
         drawDrawingText(drawing, start, end);
+        drawDrawingStats(drawing, start, end, selected);
         return;
       }
 
@@ -5352,6 +5592,8 @@ export default function Home() {
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
       ctx.setLineDash([]);
+      drawDrawingArrowEnd(drawing, start, end, drawing.leftEnd);
+      drawDrawingArrowEnd(drawing, end, start, drawing.rightEnd);
       drawDrawingHandle(start, selected);
       if (drawing.showPriceLabels || selected) {
         drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
@@ -5376,13 +5618,26 @@ export default function Home() {
           locked: false,
           visible: true,
           color: DRAWING_DEFAULT_COLOR,
+          opacity: DRAWING_DEFAULT_OPACITY,
           lineWidth: 2,
           lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+          leftEnd: 'none',
+          rightEnd: 'none',
           text: '',
           showText: false,
+          textColor: DRAWING_DEFAULT_TEXT_COLOR,
+          textSize: 12,
+          textBold: false,
+          textItalic: false,
+          textAlignment: 'center',
           showMiddlePoint: false,
           showPriceLabels: false,
+          stats: createDefaultDrawingStats(),
+          timeframeVisibility: createDefaultDrawingTimeframeVisibility(),
           alertEnabled: false,
+          alertCondition: 'crossing',
+          alertFrequency: 'only-once',
+          alertMessage: '',
           visibility: 'all',
           syncInLayout: false,
           syncGlobally: false,
@@ -6848,13 +7103,35 @@ export default function Home() {
       drawing.locked ? 'locked' : 'unlocked',
       drawing.visible ? 'visible' : 'hidden',
       drawing.color,
+      `opacity:${drawing.opacity.toFixed(2)}`,
       `${drawing.lineWidth}px`,
       drawing.lineStyle,
+      `left:${drawing.leftEnd}`,
+      `right:${drawing.rightEnd}`,
       drawing.showText ? `text:${drawing.text}` : 'text-off',
+      `textColor:${drawing.textColor}`,
+      `textSize:${drawing.textSize}`,
+      drawing.textBold ? 'text-bold' : 'text-regular',
+      drawing.textItalic ? 'text-italic' : 'text-normal',
+      `textAlign:${drawing.textAlignment}`,
       drawing.showMiddlePoint ? 'middle-on' : 'middle-off',
       drawing.showPriceLabels ? 'labels-on' : 'labels-off',
+      drawing.stats.priceRange ? 'stats-price-on' : 'stats-price-off',
+      drawing.stats.percentChange ? 'stats-percent-on' : 'stats-percent-off',
+      drawing.stats.change ? 'stats-change-on' : 'stats-change-off',
+      drawing.stats.barsRange ? 'stats-bars-on' : 'stats-bars-off',
+      drawing.stats.dateTimeRange ? 'stats-time-on' : 'stats-time-off',
+      drawing.stats.distance ? 'stats-distance-on' : 'stats-distance-off',
+      drawing.stats.angle ? 'stats-angle-on' : 'stats-angle-off',
+      drawing.stats.alwaysShow ? 'stats-always-on' : 'stats-always-off',
+      `statsPosition:${drawing.stats.position}`,
       drawing.alertEnabled ? 'alert-on' : 'alert-off',
+      `alertCondition:${drawing.alertCondition}`,
+      `alertFrequency:${drawing.alertFrequency}`,
       `visibility:${drawing.visibility}`,
+      ...DRAWING_TIMEFRAME_VALUES.map((timeframe) =>
+        drawing.timeframeVisibility[timeframe] === false ? `${timeframe}:hidden` : `${timeframe}:visible`
+      ),
       drawing.syncInLayout ? 'sync-layout-on' : 'sync-layout-off',
       drawing.syncGlobally ? 'sync-global-on' : 'sync-global-off',
       ...drawing.anchors.map((anchor) => `${anchor.logicalIndex.toFixed(2)},${anchor.price.toFixed(2)}`),
@@ -7130,6 +7407,16 @@ export default function Home() {
                   onChange={(event) => patchSelectedDrawing({ color: event.target.value })}
                 />
               </label>
+              <label>
+                <span>Opacity</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={Math.round(drawing.opacity * 100)}
+                  onChange={(event) => patchSelectedDrawing({ opacity: clamp(Number(event.target.value) / 100, 0.1, 1) })}
+                />
+              </label>
             </>
           )}
           {activeDrawingToolbarMenu === 'text' && (
@@ -7158,6 +7445,57 @@ export default function Home() {
                   }
                 />
               </label>
+              <label>
+                <span>Color</span>
+                <input
+                  type="color"
+                  value={colorToInputValue(drawing.textColor, DRAWING_DEFAULT_TEXT_COLOR)}
+                  onChange={(event) => patchSelectedDrawing({ textColor: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Size</span>
+                <select
+                  value={drawing.textSize}
+                  onChange={(event) => patchSelectedDrawing({ textSize: Number(event.target.value) })}
+                >
+                  {DRAWING_TEXT_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}px
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="drawing-toolbar-choice-grid" role="group" aria-label="Text emphasis">
+                <button
+                  type="button"
+                  data-active={drawing.textBold}
+                  onClick={() => patchSelectedDrawing({ textBold: !drawing.textBold })}
+                >
+                  B
+                </button>
+                <button
+                  type="button"
+                  data-active={drawing.textItalic}
+                  onClick={() => patchSelectedDrawing({ textItalic: !drawing.textItalic })}
+                >
+                  I
+                </button>
+              </div>
+              <div className="drawing-toolbar-menu-list" role="radiogroup" aria-label="Text alignment">
+                {DRAWING_TEXT_ALIGNMENT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={drawing.textAlignment === option.value}
+                    data-active={drawing.textAlignment === option.value}
+                    onClick={() => patchSelectedDrawing({ textAlignment: option.value })}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </>
           )}
           {activeDrawingToolbarMenu === 'width' && (
@@ -7197,6 +7535,42 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              <label>
+                <span>Opacity</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={Math.round(drawing.opacity * 100)}
+                  onChange={(event) => patchSelectedDrawing({ opacity: clamp(Number(event.target.value) / 100, 0.1, 1) })}
+                />
+              </label>
+              <label>
+                <span>Left end</span>
+                <select
+                  value={drawing.leftEnd}
+                  onChange={(event) => patchSelectedDrawing({ leftEnd: event.target.value as DrawingArrowEnd })}
+                >
+                  {DRAWING_ARROW_END_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Right end</span>
+                <select
+                  value={drawing.rightEnd}
+                  onChange={(event) => patchSelectedDrawing({ rightEnd: event.target.value as DrawingArrowEnd })}
+                >
+                  {DRAWING_ARROW_END_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </>
           )}
           {activeDrawingToolbarMenu === 'settings' && (
@@ -7240,6 +7614,102 @@ export default function Home() {
                   checked={drawing.showPriceLabels}
                   onChange={(event) => patchSelectedDrawing({ showPriceLabels: event.target.checked })}
                 />
+              </label>
+              <span className="drawing-toolbar-section-label">Stats</span>
+              <label>
+                <span>Price range</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.priceRange}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, priceRange: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Percent change</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.percentChange}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, percentChange: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Change</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.change}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, change: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Bars range</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.barsRange}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, barsRange: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Date/time range</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.dateTimeRange}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, dateTimeRange: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Distance</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.distance}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, distance: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Angle</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.angle}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, angle: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Always show stats</span>
+                <input
+                  type="checkbox"
+                  checked={drawing.stats.alwaysShow}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, alwaysShow: event.target.checked } })
+                  }
+                />
+              </label>
+              <label>
+                <span>Stats position</span>
+                <select
+                  value={drawing.stats.position}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ stats: { ...drawing.stats, position: event.target.value as DrawingStatsPosition } })
+                  }
+                >
+                  {DRAWING_STATS_POSITION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               {pointOne && (
                 <div className="drawing-toolbar-coordinate-grid">
@@ -7288,7 +7758,46 @@ export default function Home() {
           {activeDrawingToolbarMenu === 'alert' && (
             <>
               <strong>Trendline alert</strong>
-              <span className="drawing-toolbar-help">Crossing trendline</span>
+              <label>
+                <span>Condition</span>
+                <select
+                  value={drawing.alertCondition}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ alertCondition: event.target.value as DrawingAlertCondition })
+                  }
+                >
+                  {DRAWING_ALERT_CONDITION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Frequency</span>
+                <select
+                  value={drawing.alertFrequency}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ alertFrequency: event.target.value as DrawingAlertFrequency })
+                  }
+                >
+                  {DRAWING_ALERT_FREQUENCY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="drawing-toolbar-stacked-label">
+                <span>Message</span>
+                <input
+                  type="text"
+                  maxLength={160}
+                  value={drawing.alertMessage}
+                  placeholder="Trendline crossed"
+                  onChange={(event) => patchSelectedDrawing({ alertMessage: event.target.value })}
+                />
+              </label>
               <button
                 type="button"
                 role="menuitem"
@@ -7327,6 +7836,25 @@ export default function Home() {
                   </span>
                 </button>
               ))}
+              <div className="drawing-toolbar-timeframe-grid" role="group" aria-label="Timeframe visibility">
+                {TIMEFRAME_OPTIONS.map((option) => (
+                  <label key={option.value}>
+                    <span>{option.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={drawing.timeframeVisibility[option.value] !== false}
+                      onChange={(event) =>
+                        patchSelectedDrawing({
+                          timeframeVisibility: {
+                            ...drawing.timeframeVisibility,
+                            [option.value]: event.target.checked,
+                          },
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
               <span className="drawing-toolbar-section-label">Object actions</span>
               <button type="button" role="menuitem" onClick={duplicateSelectedDrawing}>
                 Clone
@@ -7365,8 +7893,8 @@ export default function Home() {
       );
     };
     const lineSampleStyle = {
-      color: drawing.color,
-      backgroundColor: drawing.lineStyle === 'solid' ? drawing.color : undefined,
+      color: hexToRgba(drawing.color, drawing.opacity),
+      backgroundColor: drawing.lineStyle === 'solid' ? hexToRgba(drawing.color, drawing.opacity) : undefined,
     };
 
     return (

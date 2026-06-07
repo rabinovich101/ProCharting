@@ -7296,3 +7296,70 @@ and deletable for logged-in users only.
   `https://www.tradingview.com/support/solutions/43000518095-trend-line/`.
 - Camoufox MCP remains unable to browse localhost/private IPs in this
   environment, so local UI verification used Playwright directly.
+
+# TradingView Trendline Deep Settings Fidelity
+
+## Goal
+
+Continue closing the gap between the selected trendline toolbar and TradingView's
+actual trendline behavior by adding the deeper Style, Text, Stats, Visibility,
+and Alert property controls that TradingView documents for trendlines.
+
+## Investigation / Decisions
+
+- The current selected toolbar now has working quick menus, but the drawing model
+  still lacks TradingView trendline fields for opacity, left/right arrow ends,
+  text color/size/bold/italic/alignment, stats labels, per-timeframe visibility,
+  and alert condition/frequency/message.
+- TradingView's trendline documentation states that Style includes line color,
+  opacity, thickness, style, arrow-shaped ends, middle point, price labels, and
+  stats; Text includes text formatting and alignment; Coordinates controls both
+  end points; Visibility switches display across timeframes; Alert is created
+  from the floating toolbar clock icon.
+- Keep this pass focused on client-side chart behavior. Add local fields and UI
+  controls, render the visual output on canvas, preserve old saved drawings with
+  sanitizer defaults, and do not touch `.env` or unrelated files.
+- The existing unrelated deleted TradingView grid JSON files remain untouched.
+
+## Checklist
+
+- [x] Inspect current selected trendline toolbar/data/rendering code and official
+      TradingView trendline documentation.
+- [x] Write this deeper fidelity plan in `todo.md`.
+- [x] Add trendline opacity, arrow ends, stats, text formatting/alignment,
+      timeframe visibility map, and alert configuration fields with sanitizer
+      defaults.
+- [x] Render opacity, arrowheads, text formatting/alignment, and stats labels on
+      the canvas.
+- [x] Expand toolbar Style/Text/Settings/Alert/More panels to control the new
+      fields.
+- [x] Update `ARCHITECTURE.md` with the deeper trendline property model.
+- [x] Run typecheck, build, signed-out e2e, and logged-in Playwright checks for
+      the new trendline fields.
+- [x] Clean temporary artifacts, review status, commit, push, and leave unrelated
+      pre-existing changes untouched.
+
+## Review
+
+- Added the deeper TradingView trendline property model to saved/sanitized
+  drawings: opacity, arrow ends, text color/size/bold/italic/alignment, stats
+  flags and position, per-timeframe visibility, and alert condition/frequency/
+  message.
+- Rendered the new visual properties on the canvas, including translucent
+  strokes, arrowheads, formatted text, middle/price labels, and selected or
+  always-visible stats labels.
+- Expanded the floating selected-drawing toolbar with deeper Style, Text,
+  Settings, Alert, and More controls while keeping the menu authenticated-only.
+- Verified the toolbar behavior with a logged-in Playwright audit using mocked
+  Supabase/market data: line color and opacity, text styling, width/style,
+  arrow ends, stats, alert settings, per-timeframe visibility, stable popover
+  position, draggable left handle, and toolbar stability after moving the
+  trendline.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright manual audit on `127.0.0.1:3100`.
+- Removed generated `.next`, Playwright test output, and temporary screenshots.
+  The unrelated pre-existing deleted TradingView grid JSON files were left
+  untouched.

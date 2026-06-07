@@ -2905,7 +2905,9 @@ summary {
   font-size: 12px;
   gap: 7px;
   left: 0;
+  max-height: min(72vh, 620px);
   min-width: 226px;
+  overflow-y: auto;
   padding: 9px;
   position: absolute;
   top: calc(100% + 7px);
@@ -2962,6 +2964,11 @@ summary {
   width: auto;
 }
 
+.drawing-toolbar-popover input[type="range"] {
+  accent-color: var(--accent);
+  padding: 0;
+}
+
 .drawing-toolbar-popover input[type="color"] {
   height: 28px;
   padding: 2px;
@@ -3010,6 +3017,17 @@ summary {
   display: grid;
   gap: 6px;
   grid-template-columns: 54px minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.drawing-toolbar-timeframe-grid {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.drawing-toolbar-timeframe-grid label {
+  min-height: 28px;
+  padding: 4px 6px;
 }
 
 .drawing-toolbar-coordinate-grid span,
