@@ -8,6 +8,10 @@ jobs:
     name: Diagnose Admin Runtime
     runs-on: [self-hosted, procharts-vm]
     timeout-minutes: 10
+    env:
+      ADMIN_USERNAME: ${{ secrets.PROCHARTS_ADMIN_RUNTIME_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.PROCHARTS_ADMIN_RUNTIME_PASSWORD }}
+      SUDO_PASSWORD: ${{ secrets.PROCHARTS_VM_SUDO_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -24,6 +28,51 @@ jobs:
           if [[ ! -f "$env_file" ]]; then
             echo "server_env=missing"
             exit 1
+          fi
+
+          if [[ -n "${ADMIN_USERNAME:-}" && -n "${ADMIN_PASSWORD:-}" && -n "${SUDO_PASSWORD:-}" ]]; then
+            sudo_with_password() {
+              printf '%s\n' "$SUDO_PASSWORD" | sudo -S -p '' "$@"
+            }
+
+            shell_quote_env_value() {
+              printf "'"
+              printf '%s' "$1" | sed "s/'/'\\\\''/g"
+              printf "'"
+            }
+
+            upsert_env() {
+              local key="$1"
+              local value="$2"
+              local line
+              line="${key}=$(shell_quote_env_value "$value")"
+              awk -v key="$key" -v line="$line" '
+                index($0, key "=") == 1 {
+                  print line
+                  found = 1
+                  next
+                }
+                { print }
+                END {
+                  if (!found) {
+                    print line
+                  }
+                }
+              ' "$tmp" > "$next"
+              mv "$next" "$tmp"
+            }
+
+            tmp="$(mktemp)"
+            next="$(mktemp)"
+            trap 'rm -f "$tmp" "$next"' EXIT
+
+            sudo_with_password cat "$env_file" > "$tmp"
+            upsert_env "PROCHARTS_ADMIN_USERNAME" "$ADMIN_USERNAME"
+            upsert_env "PROCHARTS_ADMIN_PASSWORD" "$ADMIN_PASSWORD"
+            sudo_with_password install -m 0640 -o root -g ooo "$tmp" "$env_file"
+            echo "requested_admin_env_synced=true"
+
+            bash scripts/deploy-vm.sh
           fi
 
           set -a
