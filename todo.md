@@ -1,3 +1,70 @@
+# Ray Drawing Tool Enablement
+
+## Goal
+
+Enable TradingView-style Ray in the authenticated drawing tools so logged-in
+users can choose it from the Trend line tools menu or press `R`, place the
+origin with the first click, set direction with the second click, and then edit,
+lock, move, style, or delete it through the same selected-drawing toolbar flow.
+
+## Investigation / Decisions
+
+- The active drawing implementation lives in
+  `TEST/binance-chart-test/app/page.tsx`; the left drawing rail, menu entries,
+  keyboard shortcuts, saved-layout sanitizer, canvas rendering, hit-testing,
+  dragging, selected toolbar, and settings all share this file.
+- Official TradingView Ray behavior is two-point: the first point defines the
+  origin, the second point defines direction, and the ray extends indefinitely
+  in that direction.
+- Keep the implementation scoped to the existing authenticated drawing system.
+  Ray should remain hidden from signed-out users because the drawing rail and
+  shortcut handler are already gated by `isAuthenticated`.
+- Reuse Trendline's style/settings/stat/coordinate behavior where Ray also has
+  two anchors. Horizontal ray remains a one-click horizontal drawing.
+- Do not add new dependencies, refactor unrelated chart code, or modify `.env`.
+
+## Checklist
+
+- [x] Add Ray to the drawing tool type guard, labels, menu entry, and shortcut
+      path.
+- [x] Share two-anchor creation/sanitization logic between Trendline and Ray.
+- [x] Render Ray as a line from the origin through the second point extended to
+      the chart boundary in that direction, with handles, middle point, price
+      labels, text, stats, and arrow-end styling.
+- [x] Support Ray preview, hit-testing, body/endpoint dragging, selection,
+      lock/delete protection, and toolbar settings coordinates.
+- [x] Update `ARCHITECTURE.md` with the Ray drawing behavior.
+- [x] Run typecheck, build, focused Playwright coverage, and manual browser
+      verification for logged-in Ray behavior.
+- [x] Review, clean generated artifacts, commit, push, and leave unrelated
+      pre-existing worktree changes untouched.
+
+## Review
+
+- Enabled Ray in the authenticated Trend line tools menu with the advertised
+  `R` shortcut while preserving the signed-out drawing gate.
+- Added shared two-anchor drawing helpers so Trendline and Ray both sanitize,
+  preview, create, drag, and expose coordinate settings through the same path.
+- Added Ray canvas geometry that renders from the origin through the second
+  anchor to the chart boundary without storing a synthetic endpoint.
+- Reused selected-drawing lock/delete, style, text, stats, alert, and More-menu
+  behavior for Ray; toolbar titles now use the selected drawing's label.
+- Updated `ARCHITECTURE.md` to document Ray, its shortcut, and its anchor model.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright smoke on `http://127.0.0.1:3101` with dummy Supabase
+    public env/session, mocked market data, Ray menu/shortcut/draw/settings,
+    lock/delete protection, screenshot inspection, and nonblank canvas check.
+  - `git diff --check`
+- The Browser-use MCP navigation reached the local target, but its state and
+  screenshot calls failed with internal CDP/session initialization errors; the
+  direct Playwright verification above covered the functional browser behavior.
+- Temporary `.next`, `test-results`, and `/tmp/procharting-ray-tool.png` files
+  were removed. The unrelated pre-existing deleted TradingView JSON files were
+  left untouched.
+
 # Professional Admin Panel Redesign
 
 ## Goal

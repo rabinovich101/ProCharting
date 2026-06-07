@@ -156,7 +156,7 @@ type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
 type CursorToolId = 'cross' | 'dot';
-type DrawingToolId = 'trend-line' | 'horizontal-ray';
+type DrawingToolId = 'trend-line' | 'ray' | 'horizontal-ray';
 type DrawingMenuId = 'cursor' | 'line-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
@@ -678,6 +678,7 @@ const CURSOR_TOOL_LABELS: Record<CursorToolId, string> = {
 };
 const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'trend-line': 'Trendline',
+  ray: 'Ray',
   'horizontal-ray': 'Horizontal ray',
 };
 const CURSOR_MENU_ENTRIES: DrawingMenuEntry[] = [
@@ -691,7 +692,7 @@ const CURSOR_MENU_ENTRIES: DrawingMenuEntry[] = [
 const LINE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
   { type: 'section', label: 'Lines' },
   { type: 'tool', id: 'trend-line', label: 'Trendline', icon: 'trend-line', shortcut: 'T', tool: 'trend-line' },
-  { type: 'tool', id: 'ray', label: 'Ray', icon: 'ray', shortcut: 'R', disabled: true },
+  { type: 'tool', id: 'ray', label: 'Ray', icon: 'ray', shortcut: 'R', tool: 'ray' },
   { type: 'tool', id: 'info-line', label: 'Info line', icon: 'info-line', disabled: true },
   { type: 'tool', id: 'extended-line', label: 'Extended line', icon: 'extended-line', disabled: true },
   { type: 'tool', id: 'trend-angle', label: 'Trend angle', icon: 'trend-angle', disabled: true },
@@ -1891,7 +1892,9 @@ const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
   anchors: cloneDrawingAnchors(drawing.anchors),
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
-  value === 'trend-line' || value === 'horizontal-ray';
+  value === 'trend-line' || value === 'ray' || value === 'horizontal-ray';
+const isTwoAnchorDrawingTool = (kind: DrawingToolId) => kind === 'trend-line' || kind === 'ray';
+const getRequiredDrawingAnchorCount = (kind: DrawingToolId) => (isTwoAnchorDrawingTool(kind) ? 2 : 1);
 const isDrawingLineStyle = (value: unknown): value is DrawingLineStyle =>
   value === 'solid' || value === 'dashed' || value === 'dotted';
 const isDrawingVisibilityMode = (value: unknown): value is DrawingVisibilityMode =>
@@ -1948,21 +1951,27 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
   if (!Array.isArray(drawings)) return [];
 
   return drawings
-    .filter((drawing): drawing is Partial<ChartDrawing> & { anchors: ChartDrawingAnchor[] } => {
-      if (!drawing || typeof drawing !== 'object') return false;
+    .filter(
+      (drawing): drawing is Partial<ChartDrawing> & {
+        kind: DrawingToolId;
+        paneIndex: number;
+        anchors: ChartDrawingAnchor[];
+      } => {
+        if (!drawing || typeof drawing !== 'object') return false;
 
-      const candidate = drawing as Partial<ChartDrawing>;
-      if (!isDrawingToolId(candidate.kind)) return false;
-      if (!Array.isArray(candidate.anchors)) return false;
-      if (typeof candidate.paneIndex !== 'number' || candidate.paneIndex < 0 || candidate.paneIndex >= paneCount) {
-        return false;
+        const candidate = drawing as Partial<ChartDrawing>;
+        if (!isDrawingToolId(candidate.kind)) return false;
+        if (!Array.isArray(candidate.anchors)) return false;
+        if (typeof candidate.paneIndex !== 'number' || candidate.paneIndex < 0 || candidate.paneIndex >= paneCount) {
+          return false;
+        }
+
+        const requiredAnchors = getRequiredDrawingAnchorCount(candidate.kind);
+        return candidate.anchors.length >= requiredAnchors;
       }
-
-      const requiredAnchors = candidate.kind === 'trend-line' ? 2 : 1;
-      return candidate.anchors.length >= requiredAnchors;
-    })
+    )
     .map((drawing, index) => {
-      const requiredAnchors = drawing.kind === 'trend-line' ? 2 : 1;
+      const requiredAnchors = getRequiredDrawingAnchorCount(drawing.kind);
       const anchors = drawing.anchors
         .slice(0, requiredAnchors)
         .filter(
@@ -2025,6 +2034,28 @@ const getDistanceToSegment = (
 
   const t = clamp(((x - start.x) * dx + (y - start.y) * dy) / lengthSquared, 0, 1);
   return Math.hypot(x - (start.x + t * dx), y - (start.y + t * dy));
+};
+const getRayBoundaryPoint = (
+  start: { x: number; y: number },
+  control: { x: number; y: number },
+  chartArea: ChartCanvasArea
+) => {
+  const dx = control.x - start.x;
+  const dy = control.y - start.y;
+  if (Math.hypot(dx, dy) < 0.01) return control;
+
+  const right = chartArea.left + chartArea.width;
+  const bottom = chartArea.top + chartArea.height;
+  const candidates = [
+    dx > 0 ? (right - start.x) / dx : dx < 0 ? (chartArea.left - start.x) / dx : Number.POSITIVE_INFINITY,
+    dy > 0 ? (bottom - start.y) / dy : dy < 0 ? (chartArea.top - start.y) / dy : Number.POSITIVE_INFINITY,
+  ].filter((value) => Number.isFinite(value) && value >= 1);
+  const t = candidates.length > 0 ? Math.min(...candidates) : 1;
+
+  return {
+    x: start.x + dx * t,
+    y: start.y + dy * t,
+  };
 };
 const createPaneHoverState = (): PaneHoverState => ({
   mousePos: null,
@@ -4444,7 +4475,7 @@ export default function Home() {
         return { drawing, target: 'start' };
       }
 
-      if (drawing.kind === 'trend-line') {
+      if (isTwoAnchorDrawingTool(drawing.kind)) {
         const endAnchor = drawing.anchors[1];
         if (!endAnchor) continue;
 
@@ -4455,7 +4486,8 @@ export default function Home() {
           return { drawing, target: 'end' };
         }
 
-        if (getDistanceToSegment(x, y, start, end) <= DRAWING_HIT_TOLERANCE) {
+        const bodyEnd = drawing.kind === 'ray' ? getRayBoundaryPoint(start, end, chartArea) : end;
+        if (getDistanceToSegment(x, y, start, bodyEnd) <= DRAWING_HIT_TOLERANCE) {
           return { drawing, target: 'body' };
         }
       } else if (
@@ -4855,19 +4887,17 @@ export default function Home() {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
       if (!anchor) return;
 
-      if (
-        activeDrawingTool === 'trend-line' &&
-        pendingDrawing?.tool === 'trend-line' &&
-        pendingDrawing.paneIndex === paneIndex
-      ) {
-        addCompletedDrawing(createChartDrawing(paneIndex, 'trend-line', [pendingDrawing.anchor, anchor]));
-      } else if (activeDrawingTool === 'trend-line') {
-        setPendingDrawing({ tool: 'trend-line', paneIndex, anchor, preview: anchor });
-        setSelectedDrawingId(null);
-        setActiveDrawingToolbarMenu(null);
-        setDrawingToolbarStatus('');
+      if (isTwoAnchorDrawingTool(activeDrawingTool)) {
+        if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
+          addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, [pendingDrawing.anchor, anchor]));
+        } else {
+          setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchor, preview: anchor });
+          setSelectedDrawingId(null);
+          setActiveDrawingToolbarMenu(null);
+          setDrawingToolbarStatus('');
+        }
       } else {
-        addCompletedDrawing(createChartDrawing(paneIndex, 'horizontal-ray', [anchor]));
+        addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, [anchor]));
       }
 
       event.preventDefault();
@@ -4952,8 +4982,9 @@ export default function Home() {
 
     if (
       isAuthenticated &&
-      activeDrawingTool === 'trend-line' &&
-      pendingDrawing?.tool === 'trend-line' &&
+      activeDrawingTool &&
+      isTwoAnchorDrawingTool(activeDrawingTool) &&
+      pendingDrawing?.tool === activeDrawingTool &&
       pendingDrawing.paneIndex === paneIndex &&
       area === 'plot'
     ) {
@@ -5555,7 +5586,7 @@ export default function Home() {
       ctx.stroke();
     };
     const getDrawingStatsLines = (drawing: ChartDrawing) => {
-      if (drawing.kind !== 'trend-line' || !drawing.anchors[0] || !drawing.anchors[1]) return [];
+      if (!isTwoAnchorDrawingTool(drawing.kind) || !drawing.anchors[0] || !drawing.anchors[1]) return [];
 
       const [firstAnchor, secondAnchor] = drawing.anchors;
       const priceDelta = secondAnchor.price - firstAnchor.price;
@@ -5640,26 +5671,27 @@ export default function Home() {
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
 
-      if (drawing.kind === 'trend-line') {
-        const end = drawing.anchors[1] ? pointForDrawingAnchor(drawing.anchors[1]) : null;
-        if (!end) return;
+      if (isTwoAnchorDrawingTool(drawing.kind)) {
+        const second = drawing.anchors[1] ? pointForDrawingAnchor(drawing.anchors[1]) : null;
+        if (!second) return;
 
+        const end = drawing.kind === 'ray' ? getRayBoundaryPoint(start, second, chartArea) : second;
         ctx.lineTo(end.x, end.y);
         ctx.stroke();
         ctx.setLineDash([]);
-        drawDrawingArrowEnd(drawing, start, end, drawing.leftEnd);
-        drawDrawingArrowEnd(drawing, end, start, drawing.rightEnd);
+        drawDrawingArrowEnd(drawing, start, second, drawing.leftEnd);
+        drawDrawingArrowEnd(drawing, end, second, drawing.rightEnd);
         drawDrawingHandle(start, selected);
-        drawDrawingHandle(end, selected);
+        drawDrawingHandle(second, selected);
         if (drawing.showMiddlePoint) {
-          drawDrawingHandle({ x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }, true);
+          drawDrawingHandle({ x: (start.x + second.x) / 2, y: (start.y + second.y) / 2 }, true);
         }
         if (drawing.showPriceLabels) {
           drawingPriceLabels.push({ y: start.y, price: drawing.anchors[0]!.price, color: drawing.color, selected });
-          drawingPriceLabels.push({ y: end.y, price: drawing.anchors[1]!.price, color: drawing.color, selected });
+          drawingPriceLabels.push({ y: second.y, price: drawing.anchors[1]!.price, color: drawing.color, selected });
         }
-        drawDrawingText(drawing, start, end);
-        drawDrawingStats(drawing, start, end, selected);
+        drawDrawingText(drawing, start, second);
+        drawDrawingStats(drawing, start, second, selected);
         return;
       }
 
@@ -5683,11 +5715,16 @@ export default function Home() {
     visiblePaneDrawings
       .forEach((drawing) => drawDrawing(drawing, drawing.id === selectedDrawingId));
 
-    if (isAuthenticated && pendingDrawing?.tool === 'trend-line' && pendingDrawing.paneIndex === paneIndex) {
+    if (
+      isAuthenticated &&
+      pendingDrawing &&
+      isTwoAnchorDrawingTool(pendingDrawing.tool) &&
+      pendingDrawing.paneIndex === paneIndex
+    ) {
       drawDrawing(
         {
-          id: 'pending-trend-line',
-          kind: 'trend-line',
+          id: `pending-${pendingDrawing.tool}`,
+          kind: pendingDrawing.tool,
           paneIndex,
           anchors: [pendingDrawing.anchor, pendingDrawing.preview],
           locked: false,
@@ -7513,7 +7550,7 @@ export default function Home() {
                   type="text"
                   maxLength={120}
                   value={drawing.text}
-                  placeholder="Trendline note"
+                  placeholder="Drawing note"
                   onChange={(event) =>
                     patchSelectedDrawing({
                       text: event.target.value,
@@ -7652,7 +7689,7 @@ export default function Home() {
           )}
           {activeDrawingToolbarMenu === 'settings' && (
             <>
-              <strong>Trendline settings</strong>
+              <strong>{DRAWING_TOOL_LABELS[drawing.kind]} settings</strong>
               <label>
                 <span>Line</span>
                 <select
@@ -7809,7 +7846,7 @@ export default function Home() {
                   />
                 </div>
               )}
-              {drawing.kind === 'trend-line' && pointTwo && (
+              {isTwoAnchorDrawingTool(drawing.kind) && pointTwo && (
                 <div className="drawing-toolbar-coordinate-grid">
                   <span>Point 2</span>
                   <input
@@ -7834,7 +7871,7 @@ export default function Home() {
           )}
           {activeDrawingToolbarMenu === 'alert' && (
             <>
-              <strong>Trendline alert</strong>
+              <strong>{DRAWING_TOOL_LABELS[drawing.kind]} alert</strong>
               <label>
                 <span>Condition</span>
                 <select
@@ -7871,7 +7908,7 @@ export default function Home() {
                   type="text"
                   maxLength={160}
                   value={drawing.alertMessage}
-                  placeholder="Trendline crossed"
+                  placeholder="Drawing crossed"
                   onChange={(event) => patchSelectedDrawing({ alertMessage: event.target.value })}
                 />
               </label>

@@ -545,14 +545,18 @@ The chart app supports:
   legend strip, matching TradingView's floating-legend layout.
 - The chart stage also owns the authenticated TradingView-style drawing-tool
   rail. Logged-in users get the recorded Cursor group with Cross/Dot modes and
-  the Trend Line Tools group with implemented Trendline and Horizontal ray
+  the Trend Line Tools group with implemented Trendline, Ray, and Horizontal ray
   tools. Enabled line tools can also be activated from their advertised keyboard
-  shortcuts (`T` for Trendline and `J` for Horizontal ray) when focus is not in
-  an editable field. Drawing anchors are stored as logical bar index plus price,
-  rendered in the main price-pane canvas pass, and selected drawings show a DOM
-  floating toolbar with working TradingView-like quick controls for templates,
-  line color, opacity, text, line width, line style, arrow ends, settings, local
-  alert state, lock/unlock, delete, and more actions. The abstract
+  shortcuts (`T` for Trendline, `R` for Ray, and `J` for Horizontal ray) when
+  focus is not in an editable field. Drawing anchors are stored as logical bar
+  index plus price; Trendline and Ray use two anchors, while Horizontal ray uses
+  one. Ray renders from its origin through the second anchor and extends to the
+  chart boundary in that direction without storing an extra synthetic endpoint.
+  Drawings are rendered in the main price-pane canvas pass, and selected
+  drawings show a DOM floating toolbar with working TradingView-like quick
+  controls for templates, line color, opacity, text, line width, line style,
+  arrow ends, settings, local alert state, lock/unlock, delete, and more
+  actions. The abstract
   selected-toolbar glyphs use Lucide React icons so actions like lock, delete,
   alert, settings, and overflow read as familiar tool icons instead of bespoke
   CSS drawings. The More action opens a TradingView-style context menu with
