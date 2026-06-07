@@ -40,6 +40,13 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
+for local_env_file in .env.local .env.production.local; do
+  if [[ -f "$local_env_file" ]]; then
+    mv "$local_env_file" "${local_env_file}.ignored-by-vm-deploy"
+    echo "Moved $APP_DIR/$local_env_file aside for VM deployment; $ENV_FILE is authoritative."
+  fi
+done
+
 npm ci
 npm run build
 

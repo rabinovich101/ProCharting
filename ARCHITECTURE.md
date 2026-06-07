@@ -70,6 +70,9 @@ not contain Supabase server secrets such as service-role keys, JWT secrets,
 Postgres passwords, or OAuth client secrets.
 The file is owned by `root:ooo` with mode `0640` so the self-hosted Actions
 runner user can source it during deploy while other local users cannot read it.
+During VM deploy, app-local `.env.local` and `.env.production.local` files are
+moved aside before the Next.js build so stale ignored dotenv files cannot
+override `/etc/procharts/app.env` in production.
 The deploy script clears GitHub Actions' process-tracking environment before
 starting PM2 so runner cleanup does not terminate the production app it just
 launched.
