@@ -1,3 +1,72 @@
+# TradingView Drawing Settings Dialog
+
+## Goal
+
+Replace the compact Trendline/Ray settings popover with a TradingView-style
+floating settings dialog after clicking the selected drawing Settings button,
+matching the provided Style, Text, Coordinates, and Visibility screenshots.
+
+## Investigation / Decisions
+
+- The current drawing Settings button is handled inside
+  `TEST/binance-chart-test/app/page.tsx` by `renderSelectedDrawingToolbar` and
+  `activeDrawingToolbarMenu === 'settings'`.
+- TradingView opens a larger object settings dialog with a title, close button,
+  four tabs, tab-specific content, and a footer with Template, Cancel, and Ok.
+- Keep this scoped to Trendline and Ray, which both have two anchors and share
+  style/text/coordinate/visibility controls. Horizontal ray keeps the existing
+  compact settings behavior for now.
+- Use live updates to the existing drawing state to keep the implementation
+  simple; Cancel closes the dialog rather than building a new draft/revert
+  layer.
+- Add only small data-model extensions needed by the dialog: line extension for
+  Trendline and a `right` stats-label position matching the screenshot.
+
+## Checklist
+
+- [x] Add tab state and helpers for the drawing settings dialog.
+- [x] Add Style tab controls for line color/style/arrow ends, Trendline extend,
+      middle point, price labels, stats, stats position, and always-show stats.
+- [x] Add Text tab controls matching the screenshot layout and preserving
+      existing text rendering behavior.
+- [x] Add Coordinates tab with price/bar order for both anchors.
+- [x] Add Visibility tab with TradingView-style interval rows mapped to the
+      app's available timeframes.
+- [x] Style the dialog to match the TradingView modal shape without disturbing
+      the quick toolbar menus.
+- [x] Update `ARCHITECTURE.md`, run verification, clean artifacts, commit, push,
+      and leave unrelated deleted JSON files untouched.
+
+## Review
+
+- Replaced the compact Settings popover for Trendline and Ray with a
+  TradingView-style floating object settings dialog.
+- Added Style, Text, Coordinates, and Visibility tabs with matching title,
+  close button, underline tabs, Template/Cancel/Ok footer, and light modal
+  styling over the chart.
+- Added real Trendline extension support (`Don't extend`, left, right, both)
+  to the drawing model, rendering, hit-testing, saved layout sanitizer, style
+  template save/apply, and selected drawing state label.
+- Added text vertical alignment and `Right` stats-label positioning so the Text
+  and Style tabs map to visible drawing behavior.
+- Mapped the Visibility tab rows to available chart timeframes: Minutes
+  controls `1m/5m/15m/30m`, Hours controls `1h/4h`, Days controls `1d`, Weeks
+  controls `1w`, and Months controls `1M`.
+- Updated `ARCHITECTURE.md` with the tabbed drawing settings dialog and new
+  Trendline extension field.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Logged-in Playwright smoke on `http://127.0.0.1:3101` with dummy Supabase
+    public env/session, mocked market data, Trendline and Ray settings dialogs,
+    all four tabs, Trendline extend, text, coordinates, visibility rows,
+    screenshots, and nonblank canvas check.
+  - `git diff --check`
+- Temporary `.next`, `test-results`, and `/tmp/procharting-*settings*.png`
+  files were removed. The unrelated pre-existing deleted TradingView JSON files
+  were left untouched.
+
 # Ray Drawing Tool Enablement
 
 ## Goal

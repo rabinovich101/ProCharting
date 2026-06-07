@@ -25,10 +25,12 @@ import {
   Layers,
   Lock,
   MoreHorizontal,
+  Pencil,
   Settings,
   Trash2,
   Type,
   Unlock,
+  X,
 } from 'lucide-react';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -159,11 +161,24 @@ type CursorToolId = 'cross' | 'dot';
 type DrawingToolId = 'trend-line' | 'ray' | 'horizontal-ray';
 type DrawingMenuId = 'cursor' | 'line-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
+type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
 type DrawingToolbarMenuId = 'templates' | 'color' | 'text' | 'width' | 'style' | 'settings' | 'alert' | 'more';
+type DrawingSettingsTab = 'style' | 'text' | 'coordinates' | 'visibility';
 type DrawingArrowEnd = 'none' | 'arrow';
 type DrawingTextAlignment = 'left' | 'center' | 'right';
-type DrawingStatsPosition = 'above' | 'below';
+type DrawingTextVerticalAlignment = 'top' | 'middle' | 'bottom';
+type DrawingStatsPosition = 'above' | 'below' | 'right';
+type DrawingStatsSelectValue =
+  | 'hidden'
+  | 'priceRange'
+  | 'percentChange'
+  | 'change'
+  | 'barsRange'
+  | 'dateTimeRange'
+  | 'distance'
+  | 'angle'
+  | 'all';
 type DrawingAlertCondition = 'crossing' | 'crossing-up' | 'crossing-down' | 'greater-than' | 'less-than';
 type DrawingAlertFrequency = 'only-once' | 'once-per-bar' | 'once-per-bar-close';
 type DrawingDragMode = 'none' | 'body' | 'start' | 'end';
@@ -246,6 +261,7 @@ interface ChartDrawing {
   opacity: number;
   lineWidth: number;
   lineStyle: DrawingLineStyle;
+  extend: DrawingExtendMode;
   leftEnd: DrawingArrowEnd;
   rightEnd: DrawingArrowEnd;
   text: string;
@@ -255,6 +271,7 @@ interface ChartDrawing {
   textBold: boolean;
   textItalic: boolean;
   textAlignment: DrawingTextAlignment;
+  textVerticalAlignment: DrawingTextVerticalAlignment;
   showMiddlePoint: boolean;
   showPriceLabels: boolean;
   stats: DrawingStatsState;
@@ -310,6 +327,7 @@ interface DrawingStylePreset {
   opacity: number;
   lineWidth: number;
   lineStyle: DrawingLineStyle;
+  extend: DrawingExtendMode;
   leftEnd: DrawingArrowEnd;
   rightEnd: DrawingArrowEnd;
 }
@@ -634,6 +652,12 @@ const DRAWING_LINE_STYLE_OPTIONS: Array<{ value: DrawingLineStyle; label: string
   { value: 'dashed', label: 'Dashed' },
   { value: 'dotted', label: 'Dotted' },
 ];
+const DRAWING_EXTEND_OPTIONS: Array<{ value: DrawingExtendMode; label: string }> = [
+  { value: 'none', label: "Don't extend" },
+  { value: 'left', label: 'Extend left' },
+  { value: 'right', label: 'Extend right' },
+  { value: 'both', label: 'Extend both' },
+];
 const DRAWING_ARROW_END_OPTIONS: Array<{ value: DrawingArrowEnd; label: string }> = [
   { value: 'none', label: 'Normal' },
   { value: 'arrow', label: 'Arrow' },
@@ -643,9 +667,32 @@ const DRAWING_TEXT_ALIGNMENT_OPTIONS: Array<{ value: DrawingTextAlignment; label
   { value: 'center', label: 'Center' },
   { value: 'right', label: 'Right' },
 ];
+const DRAWING_TEXT_VERTICAL_ALIGNMENT_OPTIONS: Array<{ value: DrawingTextVerticalAlignment; label: string }> = [
+  { value: 'top', label: 'Top' },
+  { value: 'middle', label: 'Middle' },
+  { value: 'bottom', label: 'Bottom' },
+];
 const DRAWING_STATS_POSITION_OPTIONS: Array<{ value: DrawingStatsPosition; label: string }> = [
   { value: 'above', label: 'Above' },
   { value: 'below', label: 'Below' },
+  { value: 'right', label: 'Right' },
+];
+const DRAWING_SETTINGS_TABS: Array<{ value: DrawingSettingsTab; label: string }> = [
+  { value: 'style', label: 'Style' },
+  { value: 'text', label: 'Text' },
+  { value: 'coordinates', label: 'Coordinates' },
+  { value: 'visibility', label: 'Visibility' },
+];
+const DRAWING_STATS_SELECT_OPTIONS: Array<{ value: DrawingStatsSelectValue; label: string }> = [
+  { value: 'hidden', label: 'Hidden' },
+  { value: 'priceRange', label: 'Price range' },
+  { value: 'percentChange', label: 'Percent change' },
+  { value: 'change', label: 'Change' },
+  { value: 'barsRange', label: 'Bars range' },
+  { value: 'dateTimeRange', label: 'Date/time range' },
+  { value: 'distance', label: 'Distance' },
+  { value: 'angle', label: 'Angle' },
+  { value: 'all', label: 'All stats' },
 ];
 const DRAWING_ALERT_CONDITION_OPTIONS: Array<{ value: DrawingAlertCondition; label: string }> = [
   { value: 'crossing', label: 'Crossing' },
@@ -664,11 +711,28 @@ const DRAWING_VISIBILITY_OPTIONS: Array<{ value: DrawingVisibilityMode; label: s
   { value: 'intraday', label: 'Intraday only', description: '1m through 4H intervals' },
   { value: 'daily-plus', label: 'Daily and above', description: '1D, 1W, and 1M intervals' },
 ];
+const DRAWING_VISIBILITY_GROUPS: Array<{
+  id: string;
+  label: string;
+  min?: number;
+  max?: number;
+  timeframes: string[];
+}> = [
+  { id: 'ticks', label: 'Ticks', timeframes: [] },
+  { id: 'seconds', label: 'Seconds', min: 1, max: 59, timeframes: [] },
+  { id: 'minutes', label: 'Minutes', min: 1, max: 59, timeframes: ['1m', '5m', '15m', '30m'] },
+  { id: 'hours', label: 'Hours', min: 1, max: 24, timeframes: ['1h', '4h'] },
+  { id: 'days', label: 'Days', min: 1, max: 366, timeframes: ['1d'] },
+  { id: 'weeks', label: 'Weeks', min: 1, max: 52, timeframes: ['1w'] },
+  { id: 'months', label: 'Months', min: 1, max: 12, timeframes: ['1M'] },
+  { id: 'ranges', label: 'Ranges', timeframes: [] },
+];
 const DEFAULT_DRAWING_STYLE_PRESET: DrawingStylePreset = {
   color: DRAWING_DEFAULT_COLOR,
   opacity: DRAWING_DEFAULT_OPACITY,
   lineWidth: 2,
   lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+  extend: 'none',
   leftEnd: 'none',
   rightEnd: 'none',
 };
@@ -1306,7 +1370,7 @@ const createDefaultDrawingStats = (): DrawingStatsState => ({
   distance: false,
   angle: false,
   alwaysShow: false,
-  position: 'above',
+  position: 'right',
 });
 const createDefaultDrawingTimeframeVisibility = () =>
   DRAWING_TIMEFRAME_VALUES.reduce<Record<string, boolean>>((visibilityByTimeframe, timeframe) => {
@@ -1897,13 +1961,17 @@ const isTwoAnchorDrawingTool = (kind: DrawingToolId) => kind === 'trend-line' ||
 const getRequiredDrawingAnchorCount = (kind: DrawingToolId) => (isTwoAnchorDrawingTool(kind) ? 2 : 1);
 const isDrawingLineStyle = (value: unknown): value is DrawingLineStyle =>
   value === 'solid' || value === 'dashed' || value === 'dotted';
+const isDrawingExtendMode = (value: unknown): value is DrawingExtendMode =>
+  value === 'none' || value === 'left' || value === 'right' || value === 'both';
 const isDrawingVisibilityMode = (value: unknown): value is DrawingVisibilityMode =>
   value === 'all' || value === 'intraday' || value === 'daily-plus';
 const isDrawingArrowEnd = (value: unknown): value is DrawingArrowEnd => value === 'none' || value === 'arrow';
 const isDrawingTextAlignment = (value: unknown): value is DrawingTextAlignment =>
   value === 'left' || value === 'center' || value === 'right';
+const isDrawingTextVerticalAlignment = (value: unknown): value is DrawingTextVerticalAlignment =>
+  value === 'top' || value === 'middle' || value === 'bottom';
 const isDrawingStatsPosition = (value: unknown): value is DrawingStatsPosition =>
-  value === 'above' || value === 'below';
+  value === 'above' || value === 'below' || value === 'right';
 const isDrawingAlertCondition = (value: unknown): value is DrawingAlertCondition =>
   value === 'crossing' ||
   value === 'crossing-up' ||
@@ -1937,6 +2005,32 @@ const sanitizeDrawingStats = (stats: unknown): DrawingStatsState => {
     alwaysShow: candidate.alwaysShow === true,
     position: isDrawingStatsPosition(candidate.position) ? candidate.position : defaults.position,
   };
+};
+const DRAWING_STATS_SELECT_KEYS: Array<Exclude<DrawingStatsSelectValue, 'hidden' | 'all'>> = [
+  'priceRange',
+  'percentChange',
+  'change',
+  'barsRange',
+  'dateTimeRange',
+  'distance',
+  'angle',
+];
+const getDrawingStatsSelectValue = (stats: DrawingStatsState): DrawingStatsSelectValue => {
+  const activeKeys = DRAWING_STATS_SELECT_KEYS.filter((key) => stats[key]);
+  if (activeKeys.length === 0) return 'hidden';
+  if (activeKeys.length === DRAWING_STATS_SELECT_KEYS.length) return 'all';
+
+  return activeKeys[0] ?? 'hidden';
+};
+const createDrawingStatsFromSelectValue = (
+  currentStats: DrawingStatsState,
+  value: DrawingStatsSelectValue
+): DrawingStatsState => {
+  const nextStats = { ...currentStats };
+  DRAWING_STATS_SELECT_KEYS.forEach((key) => {
+    nextStats[key] = value === 'all' || value === key;
+  });
+  return nextStats;
 };
 const sanitizeDrawingTimeframeVisibility = (visibility: unknown) => {
   const defaults = createDefaultDrawingTimeframeVisibility();
@@ -1995,6 +2089,7 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         opacity: Number.isFinite(drawing.opacity) ? clamp(drawing.opacity!, 0.1, 1) : DRAWING_DEFAULT_OPACITY,
         lineWidth: Number.isFinite(drawing.lineWidth) ? clamp(drawing.lineWidth!, 1, 6) : 2,
         lineStyle: isDrawingLineStyle(drawing.lineStyle) ? drawing.lineStyle : DRAWING_DEFAULT_LINE_STYLE,
+        extend: isDrawingExtendMode(drawing.extend) ? drawing.extend : 'none',
         leftEnd: isDrawingArrowEnd(drawing.leftEnd) ? drawing.leftEnd : 'none',
         rightEnd: isDrawingArrowEnd(drawing.rightEnd) ? drawing.rightEnd : 'none',
         text: typeof drawing.text === 'string' ? drawing.text.slice(0, 120) : '',
@@ -2004,6 +2099,9 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         textBold: drawing.textBold === true,
         textItalic: drawing.textItalic === true,
         textAlignment: isDrawingTextAlignment(drawing.textAlignment) ? drawing.textAlignment : 'center',
+        textVerticalAlignment: isDrawingTextVerticalAlignment(drawing.textVerticalAlignment)
+          ? drawing.textVerticalAlignment
+          : 'top',
         showMiddlePoint: drawing.showMiddlePoint === true,
         showPriceLabels: drawing.showPriceLabels === true,
         stats: sanitizeDrawingStats(drawing.stats),
@@ -2056,6 +2154,34 @@ const getRayBoundaryPoint = (
     x: start.x + dx * t,
     y: start.y + dy * t,
   };
+};
+const getRenderedDrawingLinePoints = (
+  drawing: ChartDrawing,
+  start: { x: number; y: number },
+  second: { x: number; y: number },
+  chartArea: ChartCanvasArea
+) => {
+  if (drawing.kind === 'ray') {
+    return {
+      start,
+      end: getRayBoundaryPoint(start, second, chartArea),
+    };
+  }
+
+  if (drawing.kind === 'trend-line') {
+    return {
+      start:
+        drawing.extend === 'left' || drawing.extend === 'both'
+          ? getRayBoundaryPoint(second, start, chartArea)
+          : start,
+      end:
+        drawing.extend === 'right' || drawing.extend === 'both'
+          ? getRayBoundaryPoint(start, second, chartArea)
+          : second,
+    };
+  }
+
+  return { start, end: second };
 };
 const createPaneHoverState = (): PaneHoverState => ({
   mousePos: null,
@@ -3547,6 +3673,7 @@ export default function Home() {
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
   const [activeDrawingToolbarMenu, setActiveDrawingToolbarMenu] = useState<DrawingToolbarMenuId | null>(null);
+  const [activeDrawingSettingsTab, setActiveDrawingSettingsTab] = useState<DrawingSettingsTab>('style');
   const [drawingStylePreset, setDrawingStylePreset] = useState<DrawingStylePreset>(DEFAULT_DRAWING_STYLE_PRESET);
   const [drawingToolbarStatus, setDrawingToolbarStatus] = useState('');
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
@@ -4486,8 +4613,8 @@ export default function Home() {
           return { drawing, target: 'end' };
         }
 
-        const bodyEnd = drawing.kind === 'ray' ? getRayBoundaryPoint(start, end, chartArea) : end;
-        if (getDistanceToSegment(x, y, start, bodyEnd) <= DRAWING_HIT_TOLERANCE) {
+        const renderedLine = getRenderedDrawingLinePoints(drawing, start, end, chartArea);
+        if (getDistanceToSegment(x, y, renderedLine.start, renderedLine.end) <= DRAWING_HIT_TOLERANCE) {
           return { drawing, target: 'body' };
         }
       } else if (
@@ -4645,6 +4772,7 @@ export default function Home() {
       opacity: DRAWING_DEFAULT_OPACITY,
       lineWidth: 2,
       lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+      extend: 'none',
       leftEnd: 'none',
       rightEnd: 'none',
       text: '',
@@ -4654,6 +4782,7 @@ export default function Home() {
       textBold: false,
       textItalic: false,
       textAlignment: 'center',
+      textVerticalAlignment: 'top',
       showMiddlePoint: false,
       showPriceLabels: false,
       stats: createDefaultDrawingStats(),
@@ -4705,6 +4834,7 @@ export default function Home() {
       opacity: drawingStylePreset.opacity,
       lineWidth: drawingStylePreset.lineWidth,
       lineStyle: drawingStylePreset.lineStyle,
+      extend: drawingStylePreset.extend,
       leftEnd: drawingStylePreset.leftEnd,
       rightEnd: drawingStylePreset.rightEnd,
     });
@@ -4716,6 +4846,7 @@ export default function Home() {
       opacity: drawing.opacity,
       lineWidth: drawing.lineWidth,
       lineStyle: drawing.lineStyle,
+      extend: drawing.extend,
       leftEnd: drawing.leftEnd,
       rightEnd: drawing.rightEnd,
     });
@@ -4811,6 +4942,9 @@ export default function Home() {
   };
   const toggleDrawingToolbarMenu = (menu: DrawingToolbarMenuId) => {
     setDrawingToolbarStatus('');
+    if (menu === 'settings' && activeDrawingToolbarMenu !== 'settings') {
+      setActiveDrawingSettingsTab('style');
+    }
     setActiveDrawingToolbarMenu((current) => (current === menu ? null : menu));
   };
 
@@ -5630,9 +5764,17 @@ export default function Home() {
       const labelHeight = lines.length * lineHeight + paddingY * 2;
       const midX = (start.x + end.x) / 2;
       const midY = (start.y + end.y) / 2;
-      const labelX = clamp(midX - labelWidth / 2, chartArea.left + 4, chartArea.left + chartArea.width - labelWidth - 4);
+      const labelX = clamp(
+        drawing.stats.position === 'right' ? midX + 14 : midX - labelWidth / 2,
+        chartArea.left + 4,
+        chartArea.left + chartArea.width - labelWidth - 4
+      );
       const labelY = clamp(
-        drawing.stats.position === 'above' ? midY - labelHeight - 14 : midY + 14,
+        drawing.stats.position === 'above'
+          ? midY - labelHeight - 14
+          : drawing.stats.position === 'right'
+            ? midY - labelHeight / 2
+            : midY + 14,
         chartArea.top + 4,
         chartArea.top + chartArea.height - labelHeight - 4
       );
@@ -5651,8 +5793,14 @@ export default function Home() {
       if (!text) return;
 
       const textAnchorRatio = drawing.textAlignment === 'left' ? 0.18 : drawing.textAlignment === 'right' ? 0.82 : 0.5;
+      const verticalOffset =
+        drawing.textVerticalAlignment === 'bottom'
+          ? drawing.textSize + 14
+          : drawing.textVerticalAlignment === 'middle'
+            ? drawing.textSize / 2
+            : -8;
       const textX = start.x + (end.x - start.x) * textAnchorRatio + 8;
-      const textY = start.y + (end.y - start.y) * textAnchorRatio - 8;
+      const textY = start.y + (end.y - start.y) * textAnchorRatio + verticalOffset;
       ctx.font = `${drawing.textItalic ? 'italic ' : ''}${drawing.textBold ? '700' : '500'} ${drawing.textSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       const textWidth = Math.min(220, ctx.measureText(text).width + 12);
       const textHeight = drawing.textSize + 10;
@@ -5675,12 +5823,16 @@ export default function Home() {
         const second = drawing.anchors[1] ? pointForDrawingAnchor(drawing.anchors[1]) : null;
         if (!second) return;
 
-        const end = drawing.kind === 'ray' ? getRayBoundaryPoint(start, second, chartArea) : second;
-        ctx.lineTo(end.x, end.y);
+        const renderedLine = getRenderedDrawingLinePoints(drawing, start, second, chartArea);
+        const leftArrowTail = renderedLine.start === start ? second : start;
+        const rightArrowTail = renderedLine.end === second ? start : second;
+        ctx.beginPath();
+        ctx.moveTo(renderedLine.start.x, renderedLine.start.y);
+        ctx.lineTo(renderedLine.end.x, renderedLine.end.y);
         ctx.stroke();
         ctx.setLineDash([]);
-        drawDrawingArrowEnd(drawing, start, second, drawing.leftEnd);
-        drawDrawingArrowEnd(drawing, end, second, drawing.rightEnd);
+        drawDrawingArrowEnd(drawing, renderedLine.start, leftArrowTail, drawing.leftEnd);
+        drawDrawingArrowEnd(drawing, renderedLine.end, rightArrowTail, drawing.rightEnd);
         drawDrawingHandle(start, selected);
         drawDrawingHandle(second, selected);
         if (drawing.showMiddlePoint) {
@@ -5733,6 +5885,7 @@ export default function Home() {
           opacity: DRAWING_DEFAULT_OPACITY,
           lineWidth: 2,
           lineStyle: DRAWING_DEFAULT_LINE_STYLE,
+          extend: 'none',
           leftEnd: 'none',
           rightEnd: 'none',
           text: '',
@@ -5742,6 +5895,7 @@ export default function Home() {
           textBold: false,
           textItalic: false,
           textAlignment: 'center',
+          textVerticalAlignment: 'top',
           showMiddlePoint: false,
           showPriceLabels: false,
           stats: createDefaultDrawingStats(),
@@ -7218,6 +7372,7 @@ export default function Home() {
       `opacity:${drawing.opacity.toFixed(2)}`,
       `${drawing.lineWidth}px`,
       drawing.lineStyle,
+      `extend:${drawing.extend}`,
       `left:${drawing.leftEnd}`,
       `right:${drawing.rightEnd}`,
       drawing.showText ? `text:${drawing.text}` : 'text-off',
@@ -7226,6 +7381,7 @@ export default function Home() {
       drawing.textBold ? 'text-bold' : 'text-regular',
       drawing.textItalic ? 'text-italic' : 'text-normal',
       `textAlign:${drawing.textAlignment}`,
+      `textVertical:${drawing.textVerticalAlignment}`,
       drawing.showMiddlePoint ? 'middle-on' : 'middle-off',
       drawing.showPriceLabels ? 'labels-on' : 'labels-off',
       drawing.stats.priceRange ? 'stats-price-on' : 'stats-price-off',
@@ -7469,8 +7625,416 @@ export default function Home() {
     if (!isAuthenticated || !drawing || !style) return null;
     const pointOne = drawing.anchors[0];
     const pointTwo = drawing.anchors[1];
+    const usesTabbedSettingsDialog = isTwoAnchorDrawingTool(drawing.kind);
+    const closeDrawingSettingsDialog = () => {
+      setActiveDrawingToolbarMenu(null);
+      setDrawingToolbarStatus('');
+    };
+    const handleDrawingSettingsTemplateAction = (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const action = event.target.value;
+      event.target.value = '';
+
+      if (action === 'save') {
+        saveDrawingStylePreset(drawing);
+      } else if (action === 'apply') {
+        applyDrawingStylePreset();
+      } else if (action === 'reset') {
+        resetSelectedDrawingStyle();
+      }
+    };
+    const isVisibilityGroupChecked = (group: (typeof DRAWING_VISIBILITY_GROUPS)[number]) =>
+      group.timeframes.length === 0 ||
+      group.timeframes.every((timeframe) => drawing.timeframeVisibility[timeframe] !== false);
+    const updateVisibilityGroup = (
+      group: (typeof DRAWING_VISIBILITY_GROUPS)[number],
+      checked: boolean
+    ) => {
+      if (group.timeframes.length === 0) return;
+
+      patchSelectedDrawing({
+        timeframeVisibility: {
+          ...drawing.timeframeVisibility,
+          ...group.timeframes.reduce<Record<string, boolean>>((nextVisibility, timeframe) => {
+            nextVisibility[timeframe] = checked;
+            return nextVisibility;
+          }, {}),
+        },
+      });
+    };
+    const renderDialogFooter = () => (
+      <div className="drawing-settings-dialog-footer">
+        <select
+          aria-label="Drawing template action"
+          className="drawing-settings-template-select"
+          defaultValue=""
+          onChange={handleDrawingSettingsTemplateAction}
+        >
+          <option value="">Template</option>
+          <option value="save">Save current style</option>
+          <option value="apply">Apply saved style</option>
+          <option value="reset">Reset style</option>
+        </select>
+        <div className="drawing-settings-dialog-actions">
+          <button type="button" onClick={closeDrawingSettingsDialog}>
+            Cancel
+          </button>
+          <button type="button" className="drawing-settings-ok-button" onClick={closeDrawingSettingsDialog}>
+            Ok
+          </button>
+        </div>
+      </div>
+    );
+    const renderDrawingSettingsTabPanel = () => {
+      if (activeDrawingSettingsTab === 'style') {
+        return (
+          <div className="drawing-settings-tab-panel">
+            <div className="drawing-settings-row">
+              <span>Line</span>
+              <div className="drawing-settings-inline-controls">
+                <label className="drawing-settings-color-picker" aria-label="Line color">
+                  <input
+                    type="color"
+                    value={colorToInputValue(drawing.color, DRAWING_DEFAULT_COLOR)}
+                    onChange={(event) => patchSelectedDrawing({ color: event.target.value })}
+                  />
+                  <span style={{ backgroundColor: drawing.color }} aria-hidden="true" />
+                </label>
+                <select
+                  aria-label="Line style"
+                  className="drawing-settings-line-select"
+                  value={drawing.lineStyle}
+                  onChange={(event) => patchSelectedDrawing({ lineStyle: event.target.value as DrawingLineStyle })}
+                >
+                  {DRAWING_LINE_STYLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="drawing-settings-end-button"
+                  aria-label="Toggle left arrow end"
+                  data-active={drawing.leftEnd === 'arrow'}
+                  onClick={() => patchSelectedDrawing({ leftEnd: drawing.leftEnd === 'arrow' ? 'none' : 'arrow' })}
+                >
+                  <span className="drawing-settings-line-end-sample" data-end="left" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="drawing-settings-end-button"
+                  aria-label="Toggle right arrow end"
+                  data-active={drawing.rightEnd === 'arrow'}
+                  onClick={() => patchSelectedDrawing({ rightEnd: drawing.rightEnd === 'arrow' ? 'none' : 'arrow' })}
+                >
+                  <span className="drawing-settings-line-end-sample" data-end="right" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            {drawing.kind === 'trend-line' && (
+              <label className="drawing-settings-row">
+                <span>Extend</span>
+                <select
+                  value={drawing.extend}
+                  onChange={(event) => patchSelectedDrawing({ extend: event.target.value as DrawingExtendMode })}
+                >
+                  {DRAWING_EXTEND_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="drawing-settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={drawing.showMiddlePoint}
+                onChange={(event) => patchSelectedDrawing({ showMiddlePoint: event.target.checked })}
+              />
+              <span>Middle point</span>
+            </label>
+            <label className="drawing-settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={drawing.showPriceLabels}
+                onChange={(event) => patchSelectedDrawing({ showPriceLabels: event.target.checked })}
+              />
+              <span>Price labels</span>
+            </label>
+            <span className="drawing-settings-section-label">Info</span>
+            <label className="drawing-settings-row">
+              <span>Stats</span>
+              <select
+                value={getDrawingStatsSelectValue(drawing.stats)}
+                onChange={(event) =>
+                  patchSelectedDrawing({
+                    stats: createDrawingStatsFromSelectValue(
+                      drawing.stats,
+                      event.target.value as DrawingStatsSelectValue
+                    ),
+                  })
+                }
+              >
+                {DRAWING_STATS_SELECT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="drawing-settings-row">
+              <span>Stats position</span>
+              <select
+                value={drawing.stats.position}
+                onChange={(event) =>
+                  patchSelectedDrawing({
+                    stats: { ...drawing.stats, position: event.target.value as DrawingStatsPosition },
+                  })
+                }
+              >
+                {DRAWING_STATS_POSITION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="drawing-settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={drawing.stats.alwaysShow}
+                onChange={(event) =>
+                  patchSelectedDrawing({ stats: { ...drawing.stats, alwaysShow: event.target.checked } })
+                }
+              />
+              <span>Always show stats</span>
+            </label>
+          </div>
+        );
+      }
+
+      if (activeDrawingSettingsTab === 'text') {
+        return (
+          <div className="drawing-settings-tab-panel">
+            <div className="drawing-settings-text-toolbar">
+              <label className="drawing-settings-color-picker" aria-label="Text color">
+                <input
+                  type="color"
+                  value={colorToInputValue(drawing.textColor, DRAWING_DEFAULT_TEXT_COLOR)}
+                  onChange={(event) => patchSelectedDrawing({ textColor: event.target.value })}
+                />
+                <span style={{ backgroundColor: drawing.textColor }} aria-hidden="true" />
+              </label>
+              <select
+                aria-label="Text size"
+                value={drawing.textSize}
+                onChange={(event) => patchSelectedDrawing({ textSize: Number(event.target.value) })}
+              >
+                {DRAWING_TEXT_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                aria-label="Bold text"
+                data-active={drawing.textBold}
+                onClick={() => patchSelectedDrawing({ textBold: !drawing.textBold })}
+              >
+                B
+              </button>
+              <button
+                type="button"
+                aria-label="Italic text"
+                data-active={drawing.textItalic}
+                onClick={() => patchSelectedDrawing({ textItalic: !drawing.textItalic })}
+              >
+                I
+              </button>
+            </div>
+            <textarea
+              aria-label="Drawing text"
+              maxLength={120}
+              placeholder="Add text"
+              value={drawing.text}
+              onChange={(event) =>
+                patchSelectedDrawing({
+                  text: event.target.value,
+                  showText: event.target.value.trim().length > 0,
+                })
+              }
+            />
+            <label className="drawing-settings-row">
+              <span>Text alignment</span>
+              <div className="drawing-settings-inline-controls">
+                <select
+                  aria-label="Text vertical alignment"
+                  value={drawing.textVerticalAlignment}
+                  onChange={(event) =>
+                    patchSelectedDrawing({
+                      textVerticalAlignment: event.target.value as DrawingTextVerticalAlignment,
+                    })
+                  }
+                >
+                  {DRAWING_TEXT_VERTICAL_ALIGNMENT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Text horizontal alignment"
+                  value={drawing.textAlignment}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ textAlignment: event.target.value as DrawingTextAlignment })
+                  }
+                >
+                  {DRAWING_TEXT_ALIGNMENT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
+          </div>
+        );
+      }
+
+      if (activeDrawingSettingsTab === 'coordinates') {
+        return (
+          <div className="drawing-settings-tab-panel">
+            {pointOne && (
+              <div className="drawing-settings-coordinate-row">
+                <span>#1 (price, bar)</span>
+                <input
+                  type="number"
+                  aria-label="Point 1 price"
+                  value={Number(pointOne.price.toFixed(2))}
+                  step="0.01"
+                  onChange={(event) => updateSelectedDrawingAnchor(0, { price: Number(event.target.value) })}
+                />
+                <input
+                  type="number"
+                  aria-label="Point 1 bar"
+                  value={Number(pointOne.logicalIndex.toFixed(2))}
+                  step="0.25"
+                  onChange={(event) =>
+                    updateSelectedDrawingAnchor(0, { logicalIndex: Number(event.target.value) })
+                  }
+                />
+              </div>
+            )}
+            {pointTwo && (
+              <div className="drawing-settings-coordinate-row">
+                <span>#2 (price, bar)</span>
+                <input
+                  type="number"
+                  aria-label="Point 2 price"
+                  value={Number(pointTwo.price.toFixed(2))}
+                  step="0.01"
+                  onChange={(event) => updateSelectedDrawingAnchor(1, { price: Number(event.target.value) })}
+                />
+                <input
+                  type="number"
+                  aria-label="Point 2 bar"
+                  value={Number(pointTwo.logicalIndex.toFixed(2))}
+                  step="0.25"
+                  onChange={(event) =>
+                    updateSelectedDrawingAnchor(1, { logicalIndex: Number(event.target.value) })
+                  }
+                />
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      return (
+        <div className="drawing-settings-tab-panel visibility">
+          {DRAWING_VISIBILITY_GROUPS.map((group) => (
+            <div key={group.id} className="drawing-settings-visibility-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={isVisibilityGroupChecked(group)}
+                  onChange={(event) => updateVisibilityGroup(group, event.target.checked)}
+                />
+                <span>{group.label}</span>
+              </label>
+              {group.min !== undefined && group.max !== undefined && (
+                <>
+                  <input
+                    type="number"
+                    aria-label={`${group.label} minimum`}
+                    min={group.min}
+                    max={group.max}
+                    defaultValue={group.min}
+                  />
+                  <span className="drawing-settings-range-track" aria-hidden="true">
+                    <span />
+                    <span />
+                  </span>
+                  <input
+                    type="number"
+                    aria-label={`${group.label} maximum`}
+                    min={group.min}
+                    max={group.max}
+                    defaultValue={group.max}
+                  />
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    };
+    const renderDrawingSettingsDialog = () => {
+      if (activeDrawingToolbarMenu !== 'settings' || !usesTabbedSettingsDialog) return null;
+
+      return (
+        <div
+          className="drawing-settings-dialog"
+          role="dialog"
+          aria-label={`${DRAWING_TOOL_LABELS[drawing.kind]} settings`}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <div className="drawing-settings-dialog-header">
+            <div className="drawing-settings-dialog-title">
+              <strong>{DRAWING_TOOL_LABELS[drawing.kind]}</strong>
+              <button type="button" aria-label="Rename drawing">
+                <Pencil size={17} strokeWidth={1.8} aria-hidden="true" />
+              </button>
+            </div>
+            <button type="button" aria-label="Close drawing settings" onClick={closeDrawingSettingsDialog}>
+              <X size={24} strokeWidth={1.8} aria-hidden="true" />
+            </button>
+          </div>
+          <div className="drawing-settings-tabs" role="tablist" aria-label="Drawing settings tabs">
+            {DRAWING_SETTINGS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                type="button"
+                role="tab"
+                aria-selected={activeDrawingSettingsTab === tab.value}
+                data-active={activeDrawingSettingsTab === tab.value}
+                onClick={() => setActiveDrawingSettingsTab(tab.value)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="drawing-settings-dialog-body">{renderDrawingSettingsTabPanel()}</div>
+          {renderDialogFooter()}
+        </div>
+      );
+    };
     const renderToolbarPanel = () => {
       if (!activeDrawingToolbarMenu) return null;
+      if (activeDrawingToolbarMenu === 'settings' && usesTabbedSettingsDialog) return null;
 
       return (
         <div
@@ -8196,6 +8760,7 @@ export default function Home() {
           <MoreHorizontal className="drawing-toolbar-icon" size={17} strokeWidth={2} aria-hidden="true" />
         </button>
         {renderToolbarPanel()}
+        {renderDrawingSettingsDialog()}
       </div>
     );
   };

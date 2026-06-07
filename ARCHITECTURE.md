@@ -556,7 +556,11 @@ The chart app supports:
   drawings show a DOM floating toolbar with working TradingView-like quick
   controls for templates, line color, opacity, text, line width, line style,
   arrow ends, settings, local alert state, lock/unlock, delete, and more
-  actions. The abstract
+  actions. For two-anchor drawings, the Settings action opens a TradingView-like
+  floating object dialog with Style, Text, Coordinates, and Visibility tabs; the
+  Style tab owns Trendline extension, midpoint, price-label, and stats controls,
+  while Coordinates edits anchor price before bar to match TradingView's
+  property dialog. The abstract
   selected-toolbar glyphs use Lucide React icons so actions like lock, delete,
   alert, settings, and overflow read as familiar tool icons instead of bespoke
   CSS drawings. The More action opens a TradingView-style context menu with
@@ -566,10 +570,10 @@ The chart app supports:
   selected-object toolbar is positioned near the top of the plot pane by
   default, can be moved by dragging its far-left handle, and does not follow the
   selected drawing as it is dragged or resized. Drawing objects store
-  visibility, interval and per-timeframe
-  visibility, line style, opacity, arrow-end choices, formatted text,
-  middle-point, price-label, stats-label, alert configuration, and local sync
-  flags in addition to anchors/color/width. Hidden or interval-filtered drawings
+  visibility, interval and per-timeframe visibility, line style, opacity,
+  Trendline extension, arrow-end choices, formatted text, middle-point,
+  price-label, stats-label, alert configuration, and local sync flags in
+  addition to anchors/color/width. Hidden or interval-filtered drawings
   do not render or participate in hit-testing, while the currently selected
   object can still keep its toolbar open for correction. Locked drawings stay
   visually solid and remain selectable, but do not respond to drag/resize
