@@ -1,3 +1,61 @@
+# Trendline Text Above Line And Hover Cursor
+
+## Goal
+
+Match TradingView's Trendline/Ray text and hover behavior more closely: text
+entered in the Text tab should be able to sit above the drawn line, and an
+existing unlocked drawing should show a hand cursor when the mouse is over the
+movable line body.
+
+## Investigation / Decisions
+
+- TradingView's Trendline help documents a Text tab where users enter text,
+  change formatting, and choose text alignment along the trendline.
+- The current app already stores `textAlignment` and
+  `textVerticalAlignment`, but canvas rendering uses a fixed vertical pixel
+  offset; that does not behave like "above the line" when the line is sloped.
+- Drawing hit-testing already returns `body`, `start`, and `end`, and dragging
+  the `body` target moves all anchors. The missing behavior is exposing that
+  hit result during hover so the canvas cursor can become a hand before the
+  user presses the mouse.
+- Keep this scoped to authenticated Trendline/Ray drawing behavior. Signed-out
+  users still do not render drawings or drawing hit-testing.
+
+## Checklist
+
+- [x] Track drawing hover target in pane hover state without changing candle or
+      indicator hover logic.
+- [x] Show `grab` over unlocked line bodies and `pointer` over unlocked handles;
+      keep `grabbing` while a drawing is actively being moved.
+- [x] Render drawing text above/middle/below using the line's perpendicular
+      direction and clamp the text box inside the plot pane.
+- [x] Update `ARCHITECTURE.md` with the hover-cursor and above-line text
+      rendering detail.
+- [x] Run typecheck/build and Playwright browser smoke for logged-in drawing
+      text plus hover cursor.
+- [x] Clean temporary artifacts, commit, push, and leave unrelated deleted JSON
+      files untouched.
+
+## Review
+
+- Added drawing hover target tracking to pane hover state and canvas data
+  attributes.
+- Unlocked line bodies now show a `grab` cursor on hover, handles show
+  `pointer`, and active drawing movement shows `grabbing`.
+- Drawing text now renders above/middle/below using the rendered line segment's
+  perpendicular direction, so Top text sits above sloped Trendlines and Rays.
+- Updated `ARCHITECTURE.md` with the new drawing text and hover-cursor
+  behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Logged-in Playwright smoke on `http://127.0.0.1:3101` with dummy Supabase
+    public env/session, mocked market data, Trendline `T` shortcut, Text tab
+    entry, Top/Center text alignment, hover `grab`, active `grabbing`, visual
+    screenshot inspection, and nonblank canvas check.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+
 # TradingView Drawing Settings Dialog
 
 ## Goal

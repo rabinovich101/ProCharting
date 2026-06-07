@@ -560,7 +560,14 @@ The chart app supports:
   floating object dialog with Style, Text, Coordinates, and Visibility tabs; the
   Style tab owns Trendline extension, midpoint, price-label, and stats controls,
   while Coordinates edits anchor price before bar to match TradingView's
-  property dialog. The abstract
+  property dialog. Drawing text uses the saved vertical alignment as a
+  line-relative placement: Top and Bottom offset the label along the rendered
+  segment's perpendicular direction and clamp it inside the plot area, so text
+  entered in the Text tab can sit above a sloped Trendline or Ray instead of
+  only moving upward on the screen. Pointer hover state also records unlocked
+  drawing body and handle hits, showing a hand cursor over a movable line body,
+  a pointer over movable handles, and a grabbing cursor during the active move.
+  The abstract
   selected-toolbar glyphs use Lucide React icons so actions like lock, delete,
   alert, settings, and overflow read as familiar tool icons instead of bespoke
   CSS drawings. The More action opens a TradingView-style context menu with

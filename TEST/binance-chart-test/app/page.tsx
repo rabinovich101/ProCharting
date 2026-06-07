@@ -182,6 +182,8 @@ type DrawingStatsSelectValue =
 type DrawingAlertCondition = 'crossing' | 'crossing-up' | 'crossing-down' | 'greater-than' | 'less-than';
 type DrawingAlertFrequency = 'only-once' | 'once-per-bar' | 'once-per-bar-close';
 type DrawingDragMode = 'none' | 'body' | 'start' | 'end';
+type DrawingHitTarget = Exclude<DrawingDragMode, 'none'>;
+type DrawingHoverTarget = DrawingHitTarget | null;
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
 type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
 type IndicatorMaType = 'EMA' | 'SMA';
@@ -305,7 +307,7 @@ interface DrawingDragState {
 
 interface DrawingHitResult {
   drawing: ChartDrawing;
-  target: Exclude<DrawingDragMode, 'none'>;
+  target: DrawingHitTarget;
 }
 
 interface DrawingToolbarPosition {
@@ -461,6 +463,7 @@ interface PaneHoverState {
   pointerArea: ChartPointerArea;
   pointerX: number | null;
   pointerY: number | null;
+  drawingHoverTarget: DrawingHoverTarget;
 }
 
 type HeaderPanelKey =
@@ -2188,6 +2191,7 @@ const createPaneHoverState = (): PaneHoverState => ({
   pointerArea: 'outside',
   pointerX: null,
   pointerY: null,
+  drawingHoverTarget: null,
 });
 const createChartPaneState = (symbol = 'BTCUSDT', timeframe = '1m'): ChartPaneState => ({
   symbol,
@@ -4022,11 +4026,19 @@ export default function Home() {
       : null;
   };
 
-  const getCanvasCursorForState = (dragMode: ChartDragMode, pointerArea: ChartPointerArea) =>
+  const getCanvasCursorForState = (
+    dragMode: ChartDragMode,
+    pointerArea: ChartPointerArea,
+    drawingHoverTarget: DrawingHoverTarget = null
+  ) =>
     dragMode === 'price-scale'
       ? 'ns-resize'
       : dragMode === 'chart-pan'
         ? 'grabbing'
+        : drawingHoverTarget === 'body'
+          ? 'grab'
+          : drawingHoverTarget
+            ? 'pointer'
         : pointerArea === 'price-scale'
           ? 'ns-resize'
           : pointerArea === 'time-scale'
@@ -4649,17 +4661,37 @@ export default function Home() {
     };
     const currentLegendIndex = getHoverLegendIndex(paneIndex, pane, getCurrentHoverMousePosition(paneIndex));
     const nextLegendIndex = getHoverLegendIndex(paneIndex, pane, nextMousePos);
+    const activeDrawingDrag = drawingDragRef.current;
+    const drawingHit =
+      isAuthenticated && !activeDrawingTool && area === 'plot' && activeDrawingDrag.mode === 'none'
+        ? getDrawingHitResult(paneIndex, x, y)
+        : null;
+    const drawingHoverTarget =
+      isAuthenticated && area === 'plot'
+        ? activeDrawingDrag.mode !== 'none' && activeDrawingDrag.paneIndex === paneIndex
+          ? activeDrawingDrag.mode
+          : drawingHit && !drawingHit.drawing.locked
+            ? drawingHit.target
+            : null
+        : null;
 
     paneHoverStatesRef.current[paneIndex] = {
       mousePos: nextMousePos,
       pointerArea: area,
       pointerX: x,
       pointerY: y,
+      drawingHoverTarget,
     };
 
     if (canvas) {
       canvas.dataset.pointerArea = area;
-      canvas.style.cursor = isAuthenticated && activeDrawingTool ? 'crosshair' : getCanvasCursorForState(pane.dragMode, area);
+      canvas.dataset.drawingHoverTarget = drawingHoverTarget ?? 'none';
+      canvas.style.cursor =
+        isAuthenticated && activeDrawingTool
+          ? 'crosshair'
+          : activeDrawingDrag.mode !== 'none' && activeDrawingDrag.paneIndex === paneIndex
+            ? 'grabbing'
+            : getCanvasCursorForState(pane.dragMode, area, drawingHoverTarget);
     }
 
     if (currentLegendIndex !== nextLegendIndex) {
@@ -5222,6 +5254,7 @@ export default function Home() {
   const handleMouseLeave = (paneIndex: number, event: React.MouseEvent<HTMLCanvasElement>) => {
     resetPaneHoverState(paneIndex);
     event.currentTarget.dataset.pointerArea = 'outside';
+    event.currentTarget.dataset.drawingHoverTarget = 'none';
     event.currentTarget.style.cursor = getCanvasCursorForState(dragStateRef.current.mode, 'outside');
     handleMouseUp();
   };
@@ -5372,6 +5405,7 @@ export default function Home() {
 
     endTouchGesture(paneIndex);
     event.currentTarget.dataset.pointerArea = 'outside';
+    event.currentTarget.dataset.drawingHoverTarget = 'none';
     event.currentTarget.style.cursor = getCanvasCursorForState('none', 'outside');
   };
 
@@ -5379,6 +5413,7 @@ export default function Home() {
     endTouchGesture(paneIndex);
     resetPaneHoverState(paneIndex);
     event.currentTarget.dataset.pointerArea = 'outside';
+    event.currentTarget.dataset.drawingHoverTarget = 'none';
     event.currentTarget.style.cursor = getCanvasCursorForState('none', 'outside');
   };
 
@@ -5793,21 +5828,51 @@ export default function Home() {
       if (!text) return;
 
       const textAnchorRatio = drawing.textAlignment === 'left' ? 0.18 : drawing.textAlignment === 'right' ? 0.82 : 0.5;
-      const verticalOffset =
-        drawing.textVerticalAlignment === 'bottom'
-          ? drawing.textSize + 14
-          : drawing.textVerticalAlignment === 'middle'
-            ? drawing.textSize / 2
-            : -8;
-      const textX = start.x + (end.x - start.x) * textAnchorRatio + 8;
-      const textY = start.y + (end.y - start.y) * textAnchorRatio + verticalOffset;
+      ctx.save();
       ctx.font = `${drawing.textItalic ? 'italic ' : ''}${drawing.textBold ? '700' : '500'} ${drawing.textSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      const textWidth = Math.min(220, ctx.measureText(text).width + 12);
-      const textHeight = drawing.textSize + 10;
+      const paddingX = 6;
+      const paddingY = 5;
+      const textWidth = Math.min(220, ctx.measureText(text).width + paddingX * 2);
+      const textHeight = drawing.textSize + paddingY * 2;
+      const anchorX = start.x + (end.x - start.x) * textAnchorRatio;
+      const anchorY = start.y + (end.y - start.y) * textAnchorRatio;
+      const lineDeltaX = end.x - start.x;
+      const lineDeltaY = end.y - start.y;
+      const lineLength = Math.hypot(lineDeltaX, lineDeltaY) || 1;
+      const normalX = -lineDeltaY / lineLength;
+      const normalY = lineDeltaX / lineLength;
+      const aboveNormalX = normalY <= 0 ? normalX : -normalX;
+      const aboveNormalY = normalY <= 0 ? normalY : -normalY;
+      const verticalDistance =
+        drawing.textVerticalAlignment === 'top'
+          ? textHeight / 2 + 8
+          : drawing.textVerticalAlignment === 'bottom'
+            ? -(textHeight / 2 + 8)
+            : 0;
+      const labelCenterX = anchorX + aboveNormalX * verticalDistance;
+      const labelCenterY = anchorY + aboveNormalY * verticalDistance;
+      const unclampedLabelX =
+        drawing.textAlignment === 'left'
+          ? labelCenterX + 4
+          : drawing.textAlignment === 'right'
+            ? labelCenterX - textWidth - 4
+            : labelCenterX - textWidth / 2;
+      const labelX = clamp(
+        unclampedLabelX,
+        chartArea.left + 4,
+        chartArea.left + chartArea.width - textWidth - 4
+      );
+      const labelY = clamp(
+        labelCenterY - textHeight / 2,
+        chartArea.top + 4,
+        chartArea.top + chartArea.height - textHeight - 4
+      );
+
       ctx.fillStyle = theme === 'dark' ? 'rgba(15, 23, 42, 0.82)' : 'rgba(255, 255, 255, 0.92)';
-      ctx.fillRect(textX - 6, textY - drawing.textSize - 6, textWidth, textHeight);
+      ctx.fillRect(labelX, labelY, textWidth, textHeight);
       ctx.fillStyle = drawing.textColor;
-      ctx.fillText(text, textX, textY);
+      ctx.fillText(text, labelX + paddingX, labelY + paddingY + drawing.textSize, textWidth - paddingX * 2);
+      ctx.restore();
     };
     const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
       const start = drawing.anchors[0] ? pointForDrawingAnchor(drawing.anchors[0]) : null;
@@ -6238,7 +6303,12 @@ export default function Home() {
       return 'grabbing';
     }
 
-    return getCanvasCursorForState(pane.dragMode, getPaneHoverState(paneIndex).pointerArea);
+    const hoverState = getPaneHoverState(paneIndex);
+    return getCanvasCursorForState(
+      pane.dragMode,
+      hoverState.pointerArea,
+      isAuthenticated ? hoverState.drawingHoverTarget : null
+    );
   };
   const getPaneLegendSnapshot = (paneIndex: number) => {
     const pane = chartPanes[paneIndex];
@@ -9919,6 +9989,7 @@ export default function Home() {
                   'data-drag-mode': pane.dragMode,
                   'data-drawing-drag-mode':
                     drawingDragRef.current.paneIndex === paneIndex ? drawingDragRef.current.mode : 'none',
+                  'data-drawing-hover-target': isAuthenticated ? hoverState.drawingHoverTarget ?? 'none' : 'none',
                   'data-drawings-count': getPaneDrawingCount(paneIndex),
                   'data-manual-price-scale': pane.manualPriceRange ? 'true' : 'false',
                   'data-pointer-area': hoverState.pointerArea,
