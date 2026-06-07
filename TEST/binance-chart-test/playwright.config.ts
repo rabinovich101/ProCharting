@@ -14,7 +14,7 @@ export default defineConfig({
   reporter: 'list',
   workers: 1,
   webServer: {
-    command: `npm run dev -- --hostname 127.0.0.1 --port ${PORT}`,
+    command: `./node_modules/.bin/next dev --hostname 127.0.0.1 --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,

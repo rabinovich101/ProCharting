@@ -184,6 +184,8 @@ interface IndicatorSettings {
   secondaryColor?: string;
   tertiaryColor?: string;
   fillColor?: string;
+  histogramPositiveColor?: string;
+  histogramNegativeColor?: string;
 }
 
 interface IndicatorDefinition {
@@ -1235,7 +1237,7 @@ const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
     category: 'Momentum',
     pane: 'oscillator',
     formula: 'rsi',
-    defaults: { period: 14, source: 'close', color: '#7e57c2', secondaryColor: '#f5c84b' },
+    defaults: { period: 14, source: 'close', color: '#7e57c2' },
     featured: true,
   },
   {
@@ -1255,7 +1257,8 @@ const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
       signalMaType: 'EMA',
       color: '#2962ff',
       secondaryColor: '#ff6d00',
-      tertiaryColor: '#7c8da6',
+      histogramPositiveColor: '#26a69a',
+      histogramNegativeColor: '#ef5350',
     },
     featured: true,
   },
@@ -1333,6 +1336,38 @@ const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
 
 const INDICATOR_SOURCE_OPTIONS: IndicatorSource[] = ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4'];
 const INDICATOR_MA_TYPE_OPTIONS: IndicatorMaType[] = ['EMA', 'SMA'];
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const COLOR_INPUT_FALLBACK = '#2962ff';
+const colorToInputValue = (color: string | undefined, fallback = COLOR_INPUT_FALLBACK) => {
+  if (!color) return fallback;
+
+  const hex = color.trim();
+  const shortHexMatch = hex.match(/^#([0-9a-f]{3})$/i);
+  if (shortHexMatch) {
+    return `#${shortHexMatch[1]
+      .split('')
+      .map((char) => `${char}${char}`)
+      .join('')}`;
+  }
+
+  if (/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+
+  const rgbMatch = hex.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
+  if (!rgbMatch) return fallback;
+
+  const [, r, g, b] = rgbMatch;
+  return `#${[r, g, b]
+    .map((channel) => clamp(Number(channel), 0, 255).toString(16).padStart(2, '0'))
+    .join('')}`;
+};
+const hexToRgba = (hex: string, alpha: number) => {
+  const input = colorToInputValue(hex);
+  const red = parseInt(input.slice(1, 3), 16);
+  const green = parseInt(input.slice(3, 5), 16);
+  const blue = parseInt(input.slice(5, 7), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
 const CHART_AXIS_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif';
 const getCanvasFont = (fontSize: number, fontFamily = CHART_AXIS_FONT_FAMILY) => `${fontSize}px ${fontFamily}`;
 
@@ -1382,7 +1417,6 @@ const MAX_VISIBLE_BARS = 420;
 const MAX_FUTURE_BARS = 120;
 const Y_AXIS_SCALE_SPEED = 1.7;
 
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const getChartVisualLayout = ({
   width,
   height,
@@ -2226,6 +2260,14 @@ const computeIndicatorSeries = (indicator: ActiveIndicator, candles: Candle[]): 
   const color = settings.color ?? definition.defaults.color ?? '#2962ff';
   const secondaryColor = settings.secondaryColor ?? definition.defaults.secondaryColor ?? '#ff6d00';
   const tertiaryColor = settings.tertiaryColor ?? definition.defaults.tertiaryColor ?? '#7c8da6';
+  const histogramPositiveColor =
+    settings.histogramPositiveColor ??
+    definition.defaults.histogramPositiveColor ??
+    settings.tertiaryColor ??
+    definition.defaults.tertiaryColor ??
+    '#26a69a';
+  const histogramNegativeColor =
+    settings.histogramNegativeColor ?? definition.defaults.histogramNegativeColor ?? '#ef5350';
 
   if (definition.formula === 'sma') {
     return { lines: [{ label: definition.shortName, color, values: simpleMovingAverageValues(values, period) }] };
@@ -2283,8 +2325,8 @@ const computeIndicatorSeries = (indicator: ActiveIndicator, candles: Candle[]): 
         { label: 'Signal', color: secondaryColor, values: macd.signal },
       ],
       histogram: macd.histogram,
-      histogramPositive: '#26a69a',
-      histogramNegative: '#ef5350',
+      histogramPositive: histogramPositiveColor,
+      histogramNegative: histogramNegativeColor,
     };
   }
 
@@ -2370,6 +2412,7 @@ const getIndicatorLegendName = (indicator: ActiveIndicator, symbol: string) => {
   if (definition.formula === 'vwap') return 'VWAP Session';
   if (definition.formula === 'donchian') return `DC ${period}`;
   if (definition.formula === 'stochastic') return `Stoch ${period} ${signalPeriod}`;
+  if (definition.formula === 'atr') return `ATR ${period}`;
   if (definition.defaults.period !== undefined || settings.period !== undefined) {
     return `${definition.shortName} ${period} ${source}`;
   }
@@ -2384,6 +2427,7 @@ const formatIndicatorNumber = (value: number | null | undefined) => {
 };
 
 const getIndicatorLegendValues = ({
+  indicator,
   definition,
   computed,
   legendIndex,
@@ -2392,6 +2436,7 @@ const getIndicatorLegendValues = ({
   positiveColor,
   negativeColor,
 }: {
+  indicator: ActiveIndicator;
   definition: IndicatorDefinition;
   computed: IndicatorComputedSeries | undefined;
   legendIndex: number;
@@ -2401,10 +2446,14 @@ const getIndicatorLegendValues = ({
   negativeColor: string;
 }): IndicatorLegendValue[] => {
   if (definition.formula === 'volume') {
+    const isPositiveVolume = !legendCandle || legendCandle.close >= legendCandle.open;
+
     return [
       {
         label: 'Volume',
-        color: definition.defaults.color ?? defaultColor,
+        color: isPositiveVolume
+          ? indicator.settings.color ?? definition.defaults.color ?? defaultColor
+          : indicator.settings.secondaryColor ?? definition.defaults.secondaryColor ?? negativeColor,
         value: legendCandle?.volume ?? null,
       },
     ];
@@ -5369,6 +5418,7 @@ export default function Home() {
       const definition = getIndicatorDefinition(indicator.definitionId);
       const computed = activeIndicatorSeries[indicator.id];
       const indicatorValues = getIndicatorLegendValues({
+        indicator,
         definition,
         computed,
         legendIndex,
@@ -5392,6 +5442,38 @@ export default function Home() {
       const canEditMacd = definition.formula === 'macd';
       const canEditSignal = canEditMacd || definition.formula === 'stochastic';
       const signalPeriodMax = canEditMacd ? 50 : 200;
+      const primaryColorLabel =
+        definition.formula === 'volume'
+          ? 'Up color'
+          : definition.formula === 'bb'
+            ? 'Basis color'
+            : definition.formula === 'donchian'
+              ? 'Upper color'
+              : definition.formula === 'macd'
+                ? 'MACD color'
+                : definition.formula === 'stochastic'
+                  ? '%K color'
+                  : 'Color';
+      const secondaryColorLabel =
+        definition.formula === 'volume'
+          ? 'Down color'
+          : definition.formula === 'bb'
+            ? 'Upper color'
+            : definition.formula === 'donchian'
+              ? 'Lower color'
+              : definition.formula === 'macd'
+                ? 'Signal color'
+                : definition.formula === 'stochastic'
+                  ? '%D color'
+                  : null;
+      const tertiaryColorLabel =
+        definition.formula === 'bb'
+          ? 'Lower color'
+          : definition.formula === 'donchian'
+            ? 'Basis color'
+            : null;
+      const canEditFillColor = definition.formula === 'bb';
+      const canEditHistogramColors = definition.formula === 'macd';
       const visualGroupIndex = visualGroupIds.indexOf(indicator.id);
       const canMoveUp = visualGroupIndex > 0;
       const canMoveDown = visualGroupIndex >= 0 && visualGroupIndex < visualGroupIds.length - 1;
@@ -5478,22 +5560,74 @@ export default function Home() {
           {settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex && (
             <div className="indicator-settings-panel" role="group" aria-label={`${definition.name} settings`}>
               <label>
-                <span>{canEditMacd ? 'MACD color' : 'Color'}</span>
+                <span>{primaryColorLabel}</span>
                 <input
                   type="color"
-                  value={settings.color ?? definition.defaults.color ?? '#2962ff'}
+                  value={colorToInputValue(settings.color ?? definition.defaults.color)}
                   onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
                 />
               </label>
-              {canEditMacd && (
+              {secondaryColorLabel && (
                 <label>
-                  <span>Signal color</span>
+                  <span>{secondaryColorLabel}</span>
                   <input
                     type="color"
-                    value={settings.secondaryColor ?? definition.defaults.secondaryColor ?? '#ff6d00'}
+                    value={colorToInputValue(settings.secondaryColor ?? definition.defaults.secondaryColor, '#ff6d00')}
                     onChange={(event) => updateIndicatorSettings(indicator.id, { secondaryColor: event.target.value })}
                   />
                 </label>
+              )}
+              {tertiaryColorLabel && (
+                <label>
+                  <span>{tertiaryColorLabel}</span>
+                  <input
+                    type="color"
+                    value={colorToInputValue(settings.tertiaryColor ?? definition.defaults.tertiaryColor, '#7c8da6')}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { tertiaryColor: event.target.value })}
+                  />
+                </label>
+              )}
+              {canEditFillColor && (
+                <label>
+                  <span>Fill color</span>
+                  <input
+                    type="color"
+                    value={colorToInputValue(settings.fillColor ?? definition.defaults.fillColor, '#2962ff')}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { fillColor: hexToRgba(event.target.value, 0.08) })
+                    }
+                  />
+                </label>
+              )}
+              {canEditHistogramColors && (
+                <>
+                  <label>
+                    <span>Histogram positive</span>
+                    <input
+                      type="color"
+                      value={colorToInputValue(
+                        settings.histogramPositiveColor ?? definition.defaults.histogramPositiveColor,
+                        '#26a69a'
+                      )}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, { histogramPositiveColor: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Histogram negative</span>
+                    <input
+                      type="color"
+                      value={colorToInputValue(
+                        settings.histogramNegativeColor ?? definition.defaults.histogramNegativeColor,
+                        '#ef5350'
+                      )}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, { histogramNegativeColor: event.target.value })
+                      }
+                    />
+                  </label>
+                </>
               )}
               {canEditPeriod && (
                 <label>

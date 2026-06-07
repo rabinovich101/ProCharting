@@ -104,7 +104,7 @@ UI, then fix any directly related gaps with the smallest safe changes.
       architecture.
 - [x] Run build and focused Playwright tests.
 - [x] Verify manually with Playwright or Browser tooling.
-- [ ] Review final diff, commit, push, clean generated verification files, and
+- [x] Review final diff, commit, push, clean generated verification files, and
       leave unrelated pre-existing worktree changes untouched.
 
 ## Review

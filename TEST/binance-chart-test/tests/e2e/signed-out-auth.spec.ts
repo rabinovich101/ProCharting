@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const createMockKlines = () => {
   const start = Date.UTC(2026, 0, 1, 0, 0, 0);
@@ -79,6 +79,150 @@ const openApp = async (page: Page) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Sign up' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const exactAccessibleName = (value: string) => new RegExp(`^${escapeRegExp(value)}$`);
+
+interface IndicatorSettingsAuditItem {
+  menuName?: string;
+  settingsName: string;
+  expectedLabels: readonly string[];
+  defaultActive?: boolean;
+}
+
+const setColorInputValue = async (locator: Locator, value: string) => {
+  await locator.evaluate((input, nextValue) => {
+    const colorInput = input as HTMLInputElement;
+    colorInput.value = nextValue;
+    colorInput.dispatchEvent(new Event('input', { bubbles: true }));
+    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+};
+
+const settingControlByLabel = (settings: Locator, label: string) =>
+  settings
+    .locator('label', { hasText: label })
+    .locator('input, select')
+    .first();
+
+const INDICATOR_SETTINGS_AUDIT: readonly IndicatorSettingsAuditItem[] = [
+  {
+    settingsName: 'Volume',
+    expectedLabels: ['Up color', 'Down color'],
+    defaultActive: true,
+  },
+  {
+    settingsName: 'Moving Average',
+    expectedLabels: ['Color', 'Length', 'Source'],
+    defaultActive: true,
+  },
+  {
+    menuName: 'Moving Average 200 Long simple moving average SMA',
+    settingsName: 'Moving Average 200',
+    expectedLabels: ['Color', 'Length', 'Source'],
+  },
+  {
+    menuName: 'Exponential Moving Average Fast exponential moving average EMA',
+    settingsName: 'Exponential Moving Average',
+    expectedLabels: ['Color', 'Length', 'Source'],
+  },
+  {
+    menuName: 'EMA 20 Exponential moving average EMA',
+    settingsName: 'EMA 20',
+    expectedLabels: ['Color', 'Length', 'Source'],
+  },
+  {
+    menuName: 'Bollinger Bands SMA envelope with standard deviation bands BB',
+    settingsName: 'Bollinger Bands',
+    expectedLabels: ['Basis color', 'Upper color', 'Lower color', 'Fill color', 'Length', 'Source', 'Std dev'],
+  },
+  {
+    menuName: 'VWAP Session Session volume weighted average price VWAP',
+    settingsName: 'VWAP Session',
+    expectedLabels: ['Color', 'Source'],
+  },
+  {
+    menuName: 'Donchian Channels High and low price channels DC',
+    settingsName: 'Donchian Channels',
+    expectedLabels: ['Upper color', 'Lower color', 'Basis color', 'Length'],
+  },
+  {
+    menuName: 'Weighted Moving Average Weighted moving average WMA',
+    settingsName: 'Weighted Moving Average',
+    expectedLabels: ['Color', 'Length', 'Source'],
+  },
+  {
+    menuName: 'Relative Strength Index Momentum oscillator RSI',
+    settingsName: 'Relative Strength Index',
+    expectedLabels: ['Color', 'Length', 'Source'],
+  },
+  {
+    menuName: 'MACD Moving average convergence divergence MACD',
+    settingsName: 'MACD',
+    expectedLabels: [
+      'MACD color',
+      'Signal color',
+      'Histogram positive',
+      'Histogram negative',
+      'Source',
+      'Fast length',
+      'Slow length',
+      'Signal smoothing',
+      'Oscillator MA type',
+      'Signal line MA type',
+    ],
+  },
+  {
+    menuName: 'Stochastic Stochastic oscillator Stoch',
+    settingsName: 'Stochastic',
+    expectedLabels: ['%K color', '%D color', 'Length', 'Signal'],
+  },
+  {
+    menuName: 'Momentum Close price momentum Mom',
+    settingsName: 'Momentum',
+    expectedLabels: ['Color', 'Length', 'Source'],
+  },
+  {
+    menuName: 'Rate Of Change Percent rate of change ROC',
+    settingsName: 'Rate Of Change',
+    expectedLabels: ['Color', 'Length', 'Source'],
+  },
+  {
+    menuName: 'Accumulation/Distribution Volume accumulation distribution line A/D',
+    settingsName: 'Accumulation/Distribution',
+    expectedLabels: ['Color'],
+  },
+  {
+    menuName: 'Average True Range Average true range volatility ATR',
+    settingsName: 'Average True Range',
+    expectedLabels: ['Color', 'Length'],
+  },
+  {
+    menuName: 'Bollinger Bands %b Close position inside Bollinger Bands BB %b',
+    settingsName: 'Bollinger Bands %b',
+    expectedLabels: ['Color', 'Length', 'Source', 'Std dev'],
+  },
+  {
+    menuName: 'Bollinger BandWidth Relative Bollinger Band width BBW',
+    settingsName: 'Bollinger BandWidth',
+    expectedLabels: ['Color', 'Length', 'Source', 'Std dev'],
+  },
+];
+
+const addAllMissingAuditIndicators = async (page: Page) => {
+  await page.getByRole('button', { name: 'Indicators, 2 active' }).click();
+  const indicatorsMenu = page.locator('#indicators-menu');
+  await expect(indicatorsMenu).toBeVisible();
+
+  for (const indicator of INDICATOR_SETTINGS_AUDIT) {
+    if (indicator.defaultActive || !indicator.menuName) continue;
+
+    await indicatorsMenu.getByRole('menuitemcheckbox', { name: indicator.menuName }).click();
+  }
+
+  await expect(page.getByRole('button', { name: 'Indicators, 18 active' })).toBeVisible();
+  await page.keyboard.press('Escape');
 };
 
 test.describe('signed-out chart access', () => {
@@ -224,6 +368,66 @@ test.describe('signed-out chart access', () => {
     await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
   });
 
+  test('adds every built-in indicator and exposes its configurable settings', async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await openApp(page);
+
+    await addAllMissingAuditIndicators(page);
+
+    for (const indicator of INDICATOR_SETTINGS_AUDIT) {
+      const row = page.locator('.indicator-legend-row').filter({
+        has: page.getByRole('button', {
+          name: exactAccessibleName(`Settings for ${indicator.settingsName}`),
+        }),
+      });
+
+      await expect(row.first(), `${indicator.settingsName} row should render`).toBeVisible();
+      const settingsButton = row
+        .first()
+        .getByRole('button', { name: exactAccessibleName(`Settings for ${indicator.settingsName}`) });
+      await settingsButton.focus();
+      await expect(settingsButton).toBeVisible();
+      await settingsButton.press('Enter');
+
+      const settings = page.getByRole('group', {
+        name: exactAccessibleName(`${indicator.settingsName} settings`),
+      });
+      await expect(settings, `${indicator.settingsName} settings should open`).toBeVisible();
+
+      for (const label of indicator.expectedLabels) {
+        await expect(
+          settingControlByLabel(settings, label),
+          `${indicator.settingsName} should expose ${label}`
+        ).toBeVisible();
+      }
+
+      await settingsButton.press('Enter');
+    }
+
+    const canvasState = await page.locator('canvas').first().evaluate((canvas: HTMLCanvasElement) => {
+      const context = canvas.getContext('2d');
+      if (!context || canvas.width === 0 || canvas.height === 0) return { width: canvas.width, height: canvas.height, nonBlank: 0 };
+
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      let nonBlank = 0;
+      for (let index = 0; index < data.length; index += 4) {
+        if (data[index] !== 0 || data[index + 1] !== 0 || data[index + 2] !== 0 || data[index + 3] !== 0) {
+          nonBlank += 1;
+        }
+      }
+
+      return { width: canvas.width, height: canvas.height, nonBlank };
+    });
+
+    expect(canvasState.width).toBeGreaterThan(0);
+    expect(canvasState.height).toBeGreaterThan(0);
+    expect(canvasState.nonBlank).toBeGreaterThan(0);
+    expect(pageErrors).toEqual([]);
+  });
+
   test('shows hover actions and TradingView-style settings for lower-pane MACD', async ({ page }) => {
     await openApp(page);
 
@@ -274,11 +478,17 @@ test.describe('signed-out chart access', () => {
     await expect(settings.getByLabel('Signal smoothing')).toHaveValue('9');
     await expect(settings.getByLabel('Oscillator MA type')).toHaveValue('EMA');
     await expect(settings.getByLabel('Signal line MA type')).toHaveValue('EMA');
+    await expect(settings.getByLabel('Histogram positive')).toHaveValue('#26a69a');
+    await expect(settings.getByLabel('Histogram negative')).toHaveValue('#ef5350');
 
     await settings.getByLabel('Oscillator MA type').selectOption('SMA');
     await settings.getByLabel('Signal line MA type').selectOption('SMA');
+    await setColorInputValue(settings.getByLabel('Histogram positive'), '#123456');
+    await setColorInputValue(settings.getByLabel('Histogram negative'), '#654321');
     await expect(settings.getByLabel('Oscillator MA type')).toHaveValue('SMA');
     await expect(settings.getByLabel('Signal line MA type')).toHaveValue('SMA');
+    await expect(settings.getByLabel('Histogram positive')).toHaveValue('#123456');
+    await expect(settings.getByLabel('Histogram negative')).toHaveValue('#654321');
   });
 
   test('keeps signed-out auth buttons inside the mobile header', async ({ page }) => {
