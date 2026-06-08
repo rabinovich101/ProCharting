@@ -636,6 +636,11 @@ const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
 const CHART_LAYOUT_STORAGE_KEY = 'procharting.chartLayouts';
 const USER_TRACKING_DEVICE_STORAGE_KEY = 'procharting.userTrackingDevice';
 const MAX_SAVED_CHART_LAYOUTS = 12;
+const DEFAULT_ACCOUNT_LAYOUT_ID = 'layout-default';
+const DEFAULT_ACCOUNT_LAYOUT_NAME = 'Default';
+const DEFAULT_ACCOUNT_LAYOUT_SYMBOL = 'BTCUSDT';
+const DEFAULT_ACCOUNT_LAYOUT_TIMEFRAME = '1d';
+const DEFAULT_ACCOUNT_LAYOUT_THEME: ThemeName = 'light';
 const LAYOUT_SYNC_LABELS: Record<LayoutSyncKey, string> = {
   symbol: 'Symbol',
   interval: 'Interval',
@@ -2376,7 +2381,10 @@ const createPaneHoverState = (): PaneHoverState => ({
   pointerY: null,
   drawingHoverTarget: null,
 });
-const createChartPaneState = (symbol = 'BTCUSDT', timeframe = '1m'): ChartPaneState => ({
+const createChartPaneState = (
+  symbol = DEFAULT_ACCOUNT_LAYOUT_SYMBOL,
+  timeframe = DEFAULT_ACCOUNT_LAYOUT_TIMEFRAME
+): ChartPaneState => ({
   symbol,
   timeframe,
   candles: [],
@@ -2400,9 +2408,14 @@ const createChartPaneStateFromSnapshot = (
   snapshot: SavedChartPaneSnapshot | undefined,
   refreshNonce = Date.now()
 ): ChartPaneState => {
-  const symbol = typeof snapshot?.symbol === 'string' && snapshot.symbol.length > 0 ? snapshot.symbol : 'BTCUSDT';
+  const symbol =
+    typeof snapshot?.symbol === 'string' && snapshot.symbol.length > 0
+      ? snapshot.symbol
+      : DEFAULT_ACCOUNT_LAYOUT_SYMBOL;
   const timeframe =
-    typeof snapshot?.timeframe === 'string' && snapshot.timeframe.length > 0 ? snapshot.timeframe : '1m';
+    typeof snapshot?.timeframe === 'string' && snapshot.timeframe.length > 0
+      ? snapshot.timeframe
+      : DEFAULT_ACCOUNT_LAYOUT_TIMEFRAME;
 
   return {
     ...createChartPaneState(symbol, timeframe),
@@ -2756,6 +2769,30 @@ const DEFAULT_ACTIVE_INDICATORS: ActiveIndicator[] = [
   createActiveIndicator('volume', 'default'),
   createActiveIndicator('sma-20', 'default'),
 ];
+const createDefaultActiveIndicators = () =>
+  DEFAULT_ACTIVE_INDICATORS.map((indicator) => ({
+    ...indicator,
+    settings: { ...indicator.settings },
+  }));
+const createDefaultSavedChartLayout = (timestamp = Date.now()): SavedChartLayout => {
+  const pane = createChartPaneState(DEFAULT_ACCOUNT_LAYOUT_SYMBOL, DEFAULT_ACCOUNT_LAYOUT_TIMEFRAME);
+
+  return {
+    id: DEFAULT_ACCOUNT_LAYOUT_ID,
+    name: DEFAULT_ACCOUNT_LAYOUT_NAME,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    selectedLayoutId: DEFAULT_LAYOUT_ID,
+    activePaneIndex: 0,
+    chartStyle: 'candles',
+    theme: DEFAULT_ACCOUNT_LAYOUT_THEME,
+    layoutSync: { ...DEFAULT_LAYOUT_SYNC },
+    chartSettings: { ...DEFAULT_CHART_SETTINGS },
+    indicators: createDefaultActiveIndicators(),
+    drawings: [],
+    panes: [createSavedPaneSnapshot(pane)],
+  };
+};
 
 const getSourceValue = (candle: Candle, source: IndicatorSource = 'close') => {
   switch (source) {
@@ -3849,11 +3886,13 @@ export default function Home() {
   const pendingAuthTrackingEventRef = useRef<UserTrackingEventType | null>(null);
   const trackedAuthEventsRef = useRef<Set<string>>(new Set());
 
-  const [chartPanes, setChartPanes] = useState<ChartPaneState[]>(() => [createChartPaneState()]);
+  const [chartPanes, setChartPanes] = useState<ChartPaneState[]>(() => [
+    createChartPaneState(DEFAULT_ACCOUNT_LAYOUT_SYMBOL, DEFAULT_ACCOUNT_LAYOUT_TIMEFRAME),
+  ]);
   const [legendRenderVersion, setLegendRenderVersion] = useState(0);
   const [activePaneIndex, setActivePaneIndex] = useState(0);
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
-  const [theme, setTheme] = useState<ThemeName>('dark');
+  const [theme, setTheme] = useState<ThemeName>(DEFAULT_ACCOUNT_LAYOUT_THEME);
   const [cursorTool, setCursorTool] = useState<CursorToolId>('cross');
   const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
@@ -3866,16 +3905,18 @@ export default function Home() {
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [pendingDrawing, setPendingDrawing] = useState<PendingDrawing | null>(null);
-  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(DEFAULT_ACTIVE_INDICATORS);
+  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(createDefaultActiveIndicators);
   const [settingsTarget, setSettingsTarget] = useState<IndicatorLegendTarget | null>(null);
   const [moreTarget, setMoreTarget] = useState<IndicatorLegendTarget | null>(null);
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [headerPanel, setHeaderPanel] = useState<HeaderPanelKey | null>(null);
   const [indicatorTemplates, setIndicatorTemplates] = useState<IndicatorTemplate[]>([]);
   const [templateName, setTemplateName] = useState('My indicator template');
-  const [savedChartLayouts, setSavedChartLayouts] = useState<SavedChartLayout[]>([]);
-  const [layoutName, setLayoutName] = useState('My chart layout');
-  const [activeSavedLayoutId, setActiveSavedLayoutId] = useState<string | null>(null);
+  const [savedChartLayouts, setSavedChartLayouts] = useState<SavedChartLayout[]>(() => [
+    createDefaultSavedChartLayout(),
+  ]);
+  const [layoutName, setLayoutName] = useState(DEFAULT_ACCOUNT_LAYOUT_NAME);
+  const [activeSavedLayoutId, setActiveSavedLayoutId] = useState<string | null>(DEFAULT_ACCOUNT_LAYOUT_ID);
   const [layoutSaveTargetId, setLayoutSaveTargetId] = useState<string | null>(null);
   const [layoutAutosave, setLayoutAutosave] = useState(false);
   const [layoutSaveStatus, setLayoutSaveStatus] = useState('');
@@ -4098,27 +4139,45 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const seedDefaultSavedChartLayout = () => {
+      const defaultLayout = createDefaultSavedChartLayout();
+      const defaultLayouts = [defaultLayout];
+      window.localStorage.setItem(CHART_LAYOUT_STORAGE_KEY, JSON.stringify(defaultLayouts));
+      setSavedChartLayouts(defaultLayouts);
+      setActiveSavedLayoutId(defaultLayout.id);
+      setLayoutName(defaultLayout.name);
+    };
+
     try {
       const rawLayouts = window.localStorage.getItem(CHART_LAYOUT_STORAGE_KEY);
-      if (!rawLayouts) return;
+      if (!rawLayouts) {
+        seedDefaultSavedChartLayout();
+        return;
+      }
 
       const parsedLayouts = JSON.parse(rawLayouts) as SavedChartLayout[];
-      if (!Array.isArray(parsedLayouts)) return;
+      if (!Array.isArray(parsedLayouts)) {
+        seedDefaultSavedChartLayout();
+        return;
+      }
 
-      setSavedChartLayouts(
-        parsedLayouts
-          .filter(
-            (layout) =>
-              typeof layout.id === 'string' &&
-              typeof layout.name === 'string' &&
-              typeof layout.selectedLayoutId === 'string' &&
-              Array.isArray(layout.panes) &&
-              Array.isArray(layout.indicators)
-          )
-          .slice(0, MAX_SAVED_CHART_LAYOUTS)
+      const validLayouts = parsedLayouts
+        .filter(
+          (layout) =>
+            typeof layout.id === 'string' &&
+            typeof layout.name === 'string' &&
+            typeof layout.selectedLayoutId === 'string' &&
+            Array.isArray(layout.panes) &&
+            Array.isArray(layout.indicators)
+        )
+        .slice(0, MAX_SAVED_CHART_LAYOUTS);
+
+      setSavedChartLayouts(validLayouts);
+      setActiveSavedLayoutId((current) =>
+        current && validLayouts.some((layout) => layout.id === current) ? current : null
       );
     } catch {
-      setSavedChartLayouts([]);
+      seedDefaultSavedChartLayout();
     }
   }, []);
 

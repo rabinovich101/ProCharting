@@ -7849,3 +7849,58 @@ separate Hide action.
 - Removed generated `.next`, Playwright test output, and temporary More-menu
   screenshots. The unrelated pre-existing deleted TradingView grid JSON files
   were left untouched.
+
+# Default Account Layout
+
+## Goal
+
+Create a first-run saved layout named `Default` for accounts so a new account
+starts from an active saved layout using the light canvas theme and the `1d`
+timeframe.
+
+## Investigation / Decisions
+
+- The standalone chart app currently persists saved chart layouts in browser
+  `localStorage` under `procharting.chartLayouts`; Supabase has a future
+  `chart_layouts` table, but app-side save/load has not been migrated there.
+- A saved layout snapshot already includes theme, selected split grid, chart
+  style, layout sync, chart settings, indicators, drawings, and pane snapshots.
+- The simplest safe path is to create one reusable default saved-layout snapshot
+  and use it whenever the saved-layout store is empty.
+- The new default layout should be active immediately, named exactly `Default`,
+  use the existing single-chart grid, retain existing indicator/settings
+  defaults, set canvas theme to `light`, and set the first pane timeframe to
+  `1d`.
+
+## Checklist
+
+- [x] Add default layout constants/helpers using light theme and `1d` timeframe.
+- [x] Seed empty saved-layout storage with the `Default` layout.
+- [x] Make the initial chart state match the default saved layout.
+- [x] Update `ARCHITECTURE.md` with the default saved-layout behavior.
+- [x] Run typecheck/build and Playwright/browser verification.
+- [x] Clean generated verification artifacts.
+
+## Review
+
+- Added a deterministic first-run saved layout named `Default` with id
+  `layout-default`.
+- The initial chart now matches that default saved layout: single chart,
+  `BTCUSDT`, `1d`, candlestick style, existing chart/indicator defaults, and
+  light canvas theme.
+- Empty missing or corrupt `procharting.chartLayouts` storage now seeds the
+  `Default` layout and marks it active. A valid saved-layout array is still
+  respected as-is.
+- Added Playwright coverage for the first-run default layout, including the
+  visible light/1D state and the persisted localStorage snapshot.
+- Updated `ARCHITECTURE.md` with the default saved-layout behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - In-app Browser check on `127.0.0.1:3100` confirmed `data-theme="light"`,
+    `1D`, `BTC/USDT 1d chart pane 1`, and no console errors.
+  - Fresh Playwright context confirmed one persisted layout named `Default`
+    with `theme: "light"` and pane timeframe `1d`.
+- Removed generated `.next` and Playwright `test-results`. The unrelated
+  pre-existing deleted TradingView JSON files were left untouched.

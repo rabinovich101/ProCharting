@@ -712,6 +712,10 @@ pane sessions and reloads market data through the existing Binance REST and
 websocket pipeline. This keeps the client-side store small while preserving a
 plain JSON snapshot shape that can move to a server-backed chart-layout table
 later.
+When the saved-layout store is missing or corrupt, the app seeds a first-run
+saved layout named `Default` and makes it active. That default snapshot uses the
+single-chart grid, the light canvas theme, candlestick style, existing indicator
+and chart-setting defaults, `BTCUSDT`, and the `1d` timeframe.
 
 Historical candles are loaded through the local API route, which validates symbol
 and interval inputs before proxying Binance klines. Live updates use a persistent

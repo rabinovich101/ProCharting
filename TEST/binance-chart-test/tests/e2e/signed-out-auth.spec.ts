@@ -278,6 +278,49 @@ test.describe('signed-out chart access', () => {
     expect(analyticsState.hasGtagFunction).toBe(true);
   });
 
+  test('seeds the first-run Default chart layout', async ({ page }) => {
+    await openApp(page);
+
+    await expect(page.locator('.chart-terminal')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('button', { name: 'Timeframe' })).toContainText('1D');
+    await expect(page.locator('canvas.chart-canvas')).toHaveAttribute('aria-label', 'BTC/USDT 1d chart pane 1');
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const rawLayouts = window.localStorage.getItem('procharting.chartLayouts');
+          const layouts = rawLayouts ? JSON.parse(rawLayouts) : [];
+          const firstLayout = Array.isArray(layouts) ? layouts[0] : null;
+
+          return {
+            layoutCount: Array.isArray(layouts) ? layouts.length : -1,
+            firstLayout: firstLayout
+              ? {
+                  chartStyle: firstLayout.chartStyle,
+                  id: firstLayout.id,
+                  name: firstLayout.name,
+                  paneSymbol: firstLayout.panes?.[0]?.symbol ?? null,
+                  paneTimeframe: firstLayout.panes?.[0]?.timeframe ?? null,
+                  selectedLayoutId: firstLayout.selectedLayoutId,
+                  theme: firstLayout.theme,
+                }
+              : null,
+          };
+        })
+      )
+      .toEqual({
+        layoutCount: 1,
+        firstLayout: {
+          chartStyle: 'candles',
+          id: 'layout-default',
+          name: 'Default',
+          paneSymbol: 'BTCUSDT',
+          paneTimeframe: '1d',
+          selectedLayoutId: '1-single',
+          theme: 'light',
+        },
+      });
+  });
+
   test('shows signup/login entry points and keeps account tools gated', async ({ page }) => {
     await openApp(page);
 
