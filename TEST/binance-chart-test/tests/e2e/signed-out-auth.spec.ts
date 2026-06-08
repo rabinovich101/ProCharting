@@ -321,6 +321,19 @@ test.describe('signed-out chart access', () => {
       });
   });
 
+  test('keeps lowercase minute timeframe labels in the OHLC legend', async ({ page }) => {
+    await openApp(page);
+
+    await page.getByRole('button', { name: 'Timeframe' }).click();
+    await page.locator('#timeframe-menu [data-menu-value="1m"]').click();
+
+    await expect(page.locator('.instrument-legend-overlay')).toHaveAttribute(
+      'aria-label',
+      'BTC/USDT 1m OHLC legend pane 1'
+    );
+    await expect(page.locator('.instrument-legend-symbol')).toHaveText('BTC/USDT 1m');
+  });
+
   test('shows signup/login entry points and keeps account tools gated', async ({ page }) => {
     await openApp(page);
 

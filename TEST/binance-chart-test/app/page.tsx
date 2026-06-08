@@ -1397,6 +1397,8 @@ const TIMEFRAME_OPTIONS: Array<MenuOption<string>> = [
   { value: '1w', label: '1W', description: '1 week' },
   { value: '1M', label: '1M', description: '1 month' },
 ];
+const formatTimeframeLabel = (timeframe: string) =>
+  TIMEFRAME_OPTIONS.find((option) => option.value === timeframe)?.label ?? timeframe;
 const DRAWING_TIMEFRAME_VALUES = TIMEFRAME_OPTIONS.map((option) => option.value);
 const createDefaultDrawingStats = (): DrawingStatsState => ({
   priceRange: false,
@@ -7187,14 +7189,15 @@ export default function Home() {
   };
   const renderInstrumentLegend = (paneIndex: number) => {
     const { pane, legendCandle, legendChange, legendChangePercent, legendTone } = getPaneLegendSnapshot(paneIndex);
+    const timeframeLabel = pane ? formatTimeframeLabel(pane.timeframe) : '';
 
     return chartSettings.showStatusLine && pane && legendCandle ? (
         <div
           className="instrument-legend-overlay"
-          aria-label={`${formatSymbol(pane.symbol)} ${pane.timeframe.toUpperCase()} OHLC legend pane ${paneIndex + 1}`}
+          aria-label={`${formatSymbol(pane.symbol)} ${timeframeLabel} OHLC legend pane ${paneIndex + 1}`}
         >
           <span className="instrument-legend-symbol">
-            {formatSymbol(pane.symbol)} {pane.timeframe.toUpperCase()}
+            {formatSymbol(pane.symbol)} {timeframeLabel}
           </span>
           <span className="instrument-legend-field">
             <span>O</span>
@@ -9613,7 +9616,7 @@ export default function Home() {
                     </span>
                     <span>
                       <strong>{activeSymbol}</strong>
-                      <small>{activeTimeframe.toUpperCase()} active pane</small>
+                      <small>{formatTimeframeLabel(activeTimeframe)} active pane</small>
                     </span>
                   </div>
                   <span className="header-panel-status">

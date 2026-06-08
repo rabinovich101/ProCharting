@@ -7904,3 +7904,48 @@ timeframe.
     with `theme: "light"` and pane timeframe `1d`.
 - Removed generated `.next` and Playwright `test-results`. The unrelated
   pre-existing deleted TradingView JSON files were left untouched.
+
+# OHLC Timeframe Label Casing
+
+## Goal
+
+Fix the OHLC instrument legend so minute intervals keep their lowercase unit:
+`BTC/USDT 1m`, not `BTC/USDT 1M`.
+
+## Investigation / Decisions
+
+- The timeframe toolbar already uses `TIMEFRAME_OPTIONS`, where `1m` and `1M`
+  are distinct display labels.
+- The OHLC legend currently uppercases the raw `pane.timeframe`, which turns
+  the minute interval `1m` into the monthly-looking `1M`.
+- The layout save summary repeats the same uppercase pattern, so the fix should
+  use one small display helper for both locations.
+
+## Checklist
+
+- [x] Add a timeframe display helper based on `TIMEFRAME_OPTIONS`.
+- [x] Replace raw timeframe uppercasing in the OHLC legend.
+- [x] Replace raw timeframe uppercasing in the layout save summary.
+- [x] Add/update Playwright coverage for the `1m` OHLC label.
+- [x] Run typecheck, build, e2e, and browser verification.
+- [x] Clean generated verification artifacts.
+
+## Review
+
+- Added `formatTimeframeLabel()` so display text uses `TIMEFRAME_OPTIONS`
+  labels instead of uppercasing raw timeframe values.
+- Updated the OHLC legend visible text and ARIA label to show `BTC/USDT 1m`
+  for the one-minute timeframe while preserving `1M` for the monthly timeframe.
+- Updated the layout save summary to use the same timeframe display helper.
+- Added Playwright coverage that changes the active chart to `1m` and verifies
+  the OHLC legend label and visible symbol text stay lowercase.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - In-app Browser check on `127.0.0.1:3100` confirmed
+    `BTC/USDT 1m OHLC legend pane 1`, visible `BTC/USDT 1m`, timeframe button
+    `1m`, and no console errors.
+- Removed generated `.next`, Playwright `test-results`, and
+  `playwright-report` artifacts. The unrelated pre-existing deleted TradingView
+  JSON files were left untouched.
