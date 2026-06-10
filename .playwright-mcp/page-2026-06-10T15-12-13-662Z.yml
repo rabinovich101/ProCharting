@@ -1,0 +1,78 @@
+- generic [ref=e3]:
+  - generic [ref=e12]:
+    - 'region "Chart #1" [ref=e15]':
+      - generic [ref=e19]:
+        - generic:
+          - generic:
+            - toolbar:
+              - generic:
+                - generic [ref=e20]:
+                  - generic "Change symbol" [ref=e21]:
+                    - generic [ref=e24]: A
+                    - button "Change symbol" [ref=e25]: Apple Inc
+                  - generic "Change interval" [ref=e26]:
+                    - text: ·
+                    - button "Change interval" [ref=e27]: 1D
+                  - generic [ref=e28]:
+                    - text: ·
+                    - generic [ref=e29]: NASDAQ
+                - generic:
+                  - generic:
+                    - button "Flag symbol":
+                      - generic:
+                        - generic:
+                          - generic:
+                            - img
+                    - button "More":
+                      - generic:
+                        - img
+                - button "Market open · One update every 5 seconds · NASDAQ by Cboe One" [ref=e31]:
+                  - img [ref=e32]:
+                    - img [ref=e33]
+                  - img [ref=e35]:
+                    - img [ref=e36]
+              - generic [ref=e39]:
+                - generic [ref=e40]:
+                  - generic [ref=e41]: O
+                  - generic [ref=e42]: "290.74"
+                - generic [ref=e43]:
+                  - generic [ref=e44]: H
+                  - generic [ref=e45]: "291.19"
+                - generic [ref=e46]:
+                  - generic [ref=e47]: L
+                  - generic [ref=e48]: "287.38"
+                - generic [ref=e49]:
+                  - generic [ref=e50]: C
+                  - generic [ref=e51]: "289.61"
+                - generic [ref=e53]: −0.94 (−0.32%)
+        - generic "Chart for BATS:AAPL, 1 day" [ref=e55]
+    - toolbar [ref=e69]:
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - button "1 day in 1 minute intervals" [ref=e73]:
+            - generic [ref=e74]: 1D
+          - button "5 days in 5 minutes intervals" [ref=e75]:
+            - generic [ref=e76]: 5D
+          - button "1 month in 30 minutes intervals" [ref=e77]:
+            - generic [ref=e78]: 1M
+          - button "3 months in 1 hour intervals" [ref=e79]:
+            - generic [ref=e80]: 3M
+          - button "6 months in 2 hours intervals" [ref=e81]:
+            - generic [ref=e82]: 6M
+          - button "Year to day in 1 day intervals" [ref=e83]:
+            - generic [ref=e84]: YTD
+          - button "1 year in 1 day intervals" [ref=e85]:
+            - generic [ref=e86]: 1Y
+          - button "5 years in 1 week intervals" [ref=e87]:
+            - generic [ref=e88]: 5Y
+          - button "All data in 1 month intervals" [ref=e89]:
+            - generic [ref=e90]: All
+        - button "Go to" [ref=e92]:
+          - img [ref=e93]:
+            - img [ref=e94]
+      - generic [ref=e96]:
+        - button "Timezone" [ref=e99]:
+          - generic [ref=e100]: 15:12:13 UTC
+        - button "Adjust data for dividends" [ref=e104]:
+          - generic [ref=e105]: ADJ
+  - generic "Trading panel" [ref=e109]

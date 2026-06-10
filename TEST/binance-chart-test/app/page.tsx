@@ -157,7 +157,7 @@ type MenuKey = 'timeframe' | 'chartStyle' | 'indicators';
 type ChartPointerArea = 'plot' | 'price-scale' | 'time-scale' | 'outside';
 type ChartDragMode = 'none' | 'chart-pan' | 'price-scale';
 type ChartTouchGestureMode = 'none' | 'pan' | 'pinch';
-type CursorToolId = 'cross' | 'dot';
+type CursorToolId = 'cross' | 'dot' | 'arrow' | 'demonstration' | 'magic' | 'eraser';
 type DrawingToolId =
   | 'trend-line'
   | 'ray'
@@ -372,7 +372,6 @@ interface DrawingMenuToolEntry {
   icon: string;
   shortcut?: string;
   tool?: DrawingToolId;
-  cursor?: CursorToolId;
   disabled?: boolean;
 }
 
@@ -766,7 +765,22 @@ const DEFAULT_DRAWING_STYLE_PRESET: DrawingStylePreset = {
 const CURSOR_TOOL_LABELS: Record<CursorToolId, string> = {
   cross: 'Cross',
   dot: 'Dot',
+  arrow: 'Arrow',
+  demonstration: 'Demonstration',
+  magic: 'Magic',
+  eraser: 'Eraser',
 };
+const CURSOR_TOOL_CANVAS_CURSORS: Record<CursorToolId, string> = {
+  cross: 'crosshair',
+  dot: "url('/cursors/dot.cur'), default",
+  arrow: 'default',
+  demonstration: 'default',
+  magic: "url('/cursors/magic.svg'), default",
+  eraser: "url('/cursors/eraser.cur'), default",
+};
+const CURSOR_TOOLS_WITHOUT_CROSSHAIR: ReadonlySet<CursorToolId> = new Set(['arrow']);
+const CURSOR_FAVORITES_STORAGE_KEY = 'procharting.cursorToolFavorites';
+const VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY = 'procharting.valuesTooltipOnLongPress';
 const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'trend-line': 'Trendline',
   ray: 'Ray',
@@ -782,14 +796,83 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'flat-top-bottom': 'Flat top/bottom',
   'disjoint-channel': 'Disjoint channel',
 };
-const CURSOR_MENU_ENTRIES: DrawingMenuEntry[] = [
-  { type: 'tool', id: 'cross', label: 'Cross', icon: 'cursor-cross', cursor: 'cross' },
-  { type: 'tool', id: 'dot', label: 'Dot', icon: 'cursor-dot', cursor: 'dot' },
-  { type: 'tool', id: 'arrow', label: 'Arrow', icon: 'cursor-arrow', disabled: true },
-  { type: 'tool', id: 'demonstration', label: 'Demonstration', icon: 'cursor-demo', disabled: true },
-  { type: 'tool', id: 'magic', label: 'Magic', icon: 'cursor-magic', disabled: true },
-  { type: 'tool', id: 'eraser', label: 'Eraser', icon: 'cursor-eraser', disabled: true },
+type CursorMenuEntry = { type: 'cursor'; id: CursorToolId } | { type: 'divider' };
+const CURSOR_MENU_ENTRIES: CursorMenuEntry[] = [
+  { type: 'cursor', id: 'cross' },
+  { type: 'cursor', id: 'dot' },
+  { type: 'cursor', id: 'arrow' },
+  { type: 'cursor', id: 'demonstration' },
+  { type: 'cursor', id: 'magic' },
+  { type: 'divider' },
+  { type: 'cursor', id: 'eraser' },
 ];
+const CURSOR_TOOL_ICONS: Record<CursorToolId, ReactNode> = {
+  cross: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <g fill="currentColor">
+        <path d="M18 15h8v-1h-8z" />
+        <path d="M14 18v8h1v-8zM14 3v8h1v-8zM3 15h8v-1h-8z" />
+      </g>
+    </svg>
+  ),
+  dot: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <circle fill="currentColor" cx="14" cy="14" r="3" />
+    </svg>
+  ),
+  arrow: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        d="M11.682 16.09l3.504 6.068 1.732-1-3.497-6.057 3.595-2.1L8 7.74v10.512l3.682-2.163zm-.362 1.372L7 20V6l12 7-4.216 2.462 3.5 6.062-3.464 2-3.5-6.062z"
+      />
+    </svg>
+  ),
+  demonstration: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="currentColor">
+      <path d="m11.26 21 3.65-4.78 6.09-.66L10 8zm3.09-5.71-2.33 3.05-.8-8.3 7.02 4.82z" />
+      <path fillRule="evenodd" d="M25 14a11 11 0 1 1-22 0 11 11 0 0 1 22 0m-1 0a10 10 0 1 1-20 0 10 10 0 0 1 20 0" />
+    </svg>
+  ),
+  magic: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="#BBD9FB"
+        d="M19.18 8.06 5.24 21.76a2.38 2.38 0 1 0 3.63 3.05L19.95 8.7l-.77-.64Z"
+      />
+      <path
+        fill="#FFB74D"
+        d="M23.25 2.55a1 1 0 0 1 1.42 1.18l-.72 2.3a1 1 0 0 0 .25 1l1.7 1.69a1 1 0 0 1-.68 1.71l-2.4.03a1 1 0 0 0-.89.55l-1.07 2.15a1 1 0 0 1-1.84-.13l-.77-2.28a1 1 0 0 0-.8-.67l-2.37-.36a1 1 0 0 1-.45-1.79l1.93-1.43a1 1 0 0 0 .4-.96l-.4-2.37a1 1 0 0 1 1.56-.98l1.96 1.39a1 1 0 0 0 1.04.07l2.13-1.1Z"
+      />
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M23.71 3.43 23 5.73a2 2 0 0 0 .5 2.02l1.72 1.68-2.4.03a2 2 0 0 0-1.77 1.1l-1.08 2.15-.76-2.28a2 2 0 0 0-1.6-1.34l-2.37-.36 1.93-1.43a2 2 0 0 0 .78-1.93L17.54 3l1.96 1.4a2 2 0 0 0 2.08.14l2.13-1.1Zm-.46-.88a1 1 0 0 1 1.42 1.18l-.72 2.3a1 1 0 0 0 .25 1l1.7 1.69a1 1 0 0 1-.68 1.71l-2.4.03a1 1 0 0 0-.89.55l-1.07 2.15a1 1 0 0 1-1.84-.13l-.48-1.41-9.26 13.47A2.88 2.88 0 1 1 4.9 21.4L16.55 9.95l-1.47-.23a1 1 0 0 1-.45-1.79l1.93-1.43a1 1 0 0 0 .4-.96l-.4-2.37a1 1 0 0 1 1.56-.98l1.96 1.39a1 1 0 0 0 1.04.07l2.13-1.1Zm-5.5 7.62L5.58 22.12a1.88 1.88 0 1 0 2.87 2.4l9.65-14.04a1 1 0 0 0-.37-.3Z"
+      />
+    </svg>
+  ),
+  eraser: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 31" width="29" height="31">
+      <g fill="currentColor" fillRule="nonzero">
+        <path d="M15.3 22l8.187-8.187c.394-.394.395-1.028.004-1.418l-4.243-4.243c-.394-.394-1.019-.395-1.407-.006l-11.325 11.325c-.383.383-.383 1.018.007 1.407l1.121 1.121h7.656zm-9.484-.414c-.781-.781-.779-2.049-.007-2.821l11.325-11.325c.777-.777 2.035-.78 2.821.006l4.243 4.243c.781.781.78 2.048-.004 2.832l-8.48 8.48h-8.484l-1.414-1.414z" />
+        <path d="M13.011 22.999h7.999v-1h-7.999zM13.501 11.294l6.717 6.717.707-.707-6.717-6.717z" />
+      </g>
+    </svg>
+  ),
+};
+const CURSOR_FAVORITE_OUTLINE_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" fill="none">
+    <path
+      stroke="currentColor"
+      d="M9 2.13l1.903 3.855.116.236.26.038 4.255.618-3.079 3.001-.188.184.044.259.727 4.237-3.805-2L9 12.434l-.233.122-3.805 2.001.727-4.237.044-.26-.188-.183-3.079-3.001 4.255-.618.26-.038.116-.236L9 2.13z"
+    />
+  </svg>
+);
+const CURSOR_FAVORITE_FILLED_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" fill="none">
+    <path fill="currentColor" d="M9 1l2.35 4.76 5.26.77-3.8 3.7.9 5.24L9 13l-4.7 2.47.9-5.23-3.8-3.71 5.25-.77L9 1z" />
+  </svg>
+);
 const LINE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
   { type: 'section', label: 'Lines' },
   { type: 'tool', id: 'trend-line', label: 'Trendline', icon: 'trend-line', shortcut: 'T', tool: 'trend-line' },
@@ -3896,6 +3979,8 @@ export default function Home() {
   const [chartStyle, setChartStyle] = useState<ChartStyle>('candles');
   const [theme, setTheme] = useState<ThemeName>(DEFAULT_ACCOUNT_LAYOUT_THEME);
   const [cursorTool, setCursorTool] = useState<CursorToolId>('cross');
+  const [favoriteCursorTools, setFavoriteCursorTools] = useState<Partial<Record<CursorToolId, boolean>>>({});
+  const [valuesTooltipOnLongPress, setValuesTooltipOnLongPress] = useState(true);
   const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
@@ -4121,6 +4206,55 @@ export default function Home() {
 
   useEffect(() => {
     try {
+      const rawFavorites = window.localStorage.getItem(CURSOR_FAVORITES_STORAGE_KEY);
+      if (rawFavorites) {
+        const parsedFavorites = JSON.parse(rawFavorites) as Partial<Record<CursorToolId, boolean>>;
+        if (parsedFavorites && typeof parsedFavorites === 'object' && !Array.isArray(parsedFavorites)) {
+          setFavoriteCursorTools(
+            Object.fromEntries(
+              Object.entries(parsedFavorites).filter(
+                ([key, value]) => key in CURSOR_TOOL_LABELS && value === true
+              )
+            ) as Partial<Record<CursorToolId, boolean>>
+          );
+        }
+      }
+
+      const rawValuesTooltip = window.localStorage.getItem(VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY);
+      if (rawValuesTooltip !== null) {
+        setValuesTooltipOnLongPress(rawValuesTooltip === 'true');
+      }
+    } catch {
+      setFavoriteCursorTools({});
+    }
+  }, []);
+
+  const toggleCursorToolFavorite = (tool: CursorToolId) => {
+    setFavoriteCursorTools((current) => {
+      const next = { ...current, [tool]: current[tool] !== true };
+      try {
+        window.localStorage.setItem(CURSOR_FAVORITES_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // storage unavailable
+      }
+      return next;
+    });
+  };
+
+  const toggleValuesTooltipOnLongPress = () => {
+    setValuesTooltipOnLongPress((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY, String(next));
+      } catch {
+        // storage unavailable
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    try {
       const rawTemplates = window.localStorage.getItem(INDICATOR_TEMPLATE_STORAGE_KEY);
       if (!rawTemplates) return;
 
@@ -4270,15 +4404,22 @@ export default function Home() {
       : null;
   };
 
+  const getCursorToolCanvasCursor = () =>
+    CURSOR_TOOL_CANVAS_CURSORS[isAuthenticated ? cursorTool : 'cross'];
+
   const getCanvasCursorForState = (
     dragMode: ChartDragMode,
     pointerArea: ChartPointerArea,
     drawingHoverTarget: DrawingHoverTarget = null
-  ) =>
-    dragMode === 'price-scale'
+  ) => {
+    const eraserActive = isAuthenticated && cursorTool === 'eraser';
+
+    return dragMode === 'price-scale'
       ? 'ns-resize'
       : dragMode === 'chart-pan'
         ? 'grabbing'
+        : drawingHoverTarget && eraserActive
+          ? getCursorToolCanvasCursor()
         : drawingHoverTarget === 'body'
           ? 'grab'
           : drawingHoverTarget
@@ -4287,7 +4428,8 @@ export default function Home() {
           ? 'ns-resize'
           : pointerArea === 'time-scale'
             ? 'ew-resize'
-            : 'crosshair';
+            : getCursorToolCanvasCursor();
+  };
 
   const resetView = (paneIndex = activePaneIndex) => {
     updatePaneState(paneIndex, (pane) => ({
@@ -5318,7 +5460,17 @@ export default function Home() {
       return;
     }
 
-    if (area === 'plot' && isAuthenticated) {
+    if (area === 'plot' && isAuthenticated && cursorTool === 'eraser') {
+      const drawingHit = getDrawingHitResult(paneIndex, x, y);
+      if (drawingHit && !drawingHit.drawing.locked) {
+        setDrawings((current) => current.filter((drawing) => drawing.id !== drawingHit.drawing.id));
+        setSelectedDrawingId((current) => (current === drawingHit.drawing.id ? null : current));
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
+        event.preventDefault();
+        return;
+      }
+    } else if (area === 'plot' && isAuthenticated) {
       const drawingHit = getDrawingHitResult(paneIndex, x, y);
       if (drawingHit) {
         setSelectedDrawingId(drawingHit.drawing.id);
@@ -6452,8 +6604,13 @@ export default function Home() {
       ctx.fillText(tick.label, labelX, rect.height - 10);
     }
 
+    const cursorToolShowsCrosshair =
+      !isAuthenticated ||
+      activeDrawingTool !== null ||
+      !CURSOR_TOOLS_WITHOUT_CROSSHAIR.has(cursorTool);
     const crosshairXInside =
       chartSettings.showCrosshair &&
+      cursorToolShowsCrosshair &&
       crosshairPosition &&
       crosshairPosition.x >= chartArea.left &&
       crosshairPosition.x <= chartArea.left + chartArea.width;
@@ -6473,6 +6630,21 @@ export default function Home() {
     if (crosshairInside && crosshairPosition) {
       const crosshairLogicalIndex = crosshairPosition.logicalIndex;
 
+      if (isAuthenticated && cursorTool === 'demonstration') {
+        const hoverState = paneHoverStatesRef.current[paneIndex];
+        if (
+          hoverState &&
+          hoverState.pointerArea === 'plot' &&
+          hoverState.pointerX !== null &&
+          hoverState.pointerY !== null
+        ) {
+          ctx.fillStyle = 'rgba(242, 54, 69, 0.25)';
+          ctx.beginPath();
+          ctx.arc(hoverState.pointerX, hoverState.pointerY, 15, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
       ctx.strokeStyle = palette.crosshair;
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
@@ -6490,16 +6662,6 @@ export default function Home() {
         ctx.stroke();
       }
       ctx.setLineDash([]);
-
-      if (isAuthenticated && cursorTool === 'dot' && crosshairInsidePricePane) {
-        ctx.fillStyle = theme === 'dark' ? '#111827' : '#ffffff';
-        ctx.strokeStyle = palette.text;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.arc(crosshairPosition.x, crosshairPosition.y, 4.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
 
       if (crosshairInsidePricePane) {
         const priceLabel = formatPrice(crosshairPosition.dataY);
@@ -6552,6 +6714,7 @@ export default function Home() {
     chartPanes,
     chartStyle,
     cursorTool,
+    activeDrawingTool,
     drawings,
     pendingDrawing,
     selectedDrawingId,
@@ -7880,14 +8043,10 @@ export default function Home() {
       );
     }
 
-    const active =
-      (entry.cursor !== undefined && cursorTool === entry.cursor) ||
-      (entry.tool !== undefined && activeDrawingTool === entry.tool);
+    const active = entry.tool !== undefined && activeDrawingTool === entry.tool;
     const handleEntryClick = () => {
       if (entry.disabled) return;
-      if (entry.cursor) {
-        selectCursorTool(entry.cursor);
-      } else if (entry.tool) {
+      if (entry.tool) {
         selectDrawingTool(entry.tool);
       }
     };
@@ -7910,6 +8069,70 @@ export default function Home() {
       </button>
     );
   };
+  const renderCursorMenuEntry = (entry: CursorMenuEntry, index: number) => {
+    if (entry.type === 'divider') {
+      return (
+        <div key={`divider-${index}`} className="cursor-menu-divider" role="separator">
+          <div className="cursor-menu-divider-line" />
+        </div>
+      );
+    }
+
+    const selected = cursorTool === entry.id;
+    const favorite = favoriteCursorTools[entry.id] === true;
+    const favoriteLabel = favorite ? 'Remove from favorites' : 'Add to favorites';
+
+    return (
+      <div
+        key={entry.id}
+        role="menuitemradio"
+        aria-checked={selected}
+        aria-label={CURSOR_TOOL_LABELS[entry.id]}
+        tabIndex={0}
+        className="cursor-menu-item"
+        data-selected={selected}
+        onClick={() => selectCursorTool(entry.id)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectCursorTool(entry.id);
+          }
+        }}
+      >
+        <span className="cursor-menu-item-icon" aria-hidden="true">
+          {CURSOR_TOOL_ICONS[entry.id]}
+        </span>
+        <span className="cursor-menu-item-label">{CURSOR_TOOL_LABELS[entry.id]}</span>
+        <button
+          type="button"
+          className="cursor-menu-item-favorite"
+          data-favorite={favorite}
+          aria-label={favoriteLabel}
+          title={favoriteLabel}
+          tabIndex={-1}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleCursorToolFavorite(entry.id);
+          }}
+        >
+          {favorite ? CURSOR_FAVORITE_FILLED_ICON : CURSOR_FAVORITE_OUTLINE_ICON}
+        </button>
+      </div>
+    );
+  };
+  const handleCursorMainButtonClick = () => {
+    if (!isAuthenticated) {
+      clearDrawingInteractionState();
+      return;
+    }
+
+    if (activeDrawingTool !== null) {
+      selectCursorTool(cursorTool);
+      return;
+    }
+
+    toggleDrawingMenu('cursor');
+  };
   const renderDrawingToolRail = () => {
     if (!isAuthenticated) return null;
 
@@ -7918,20 +8141,46 @@ export default function Home() {
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
         <div className="drawing-tool-group">
-          <button
-            type="button"
-            aria-label={`Cursor tool, ${CURSOR_TOOL_LABELS[cursorTool]}`}
-            aria-haspopup="menu"
-            aria-expanded={activeDrawingMenu === 'cursor'}
-            title={CURSOR_TOOL_LABELS[cursorTool]}
-            data-active={activeDrawingMenu === 'cursor'}
-            onClick={() => toggleDrawingMenu('cursor')}
-          >
-            <span className={`drawing-tool-icon cursor-${cursorTool}`} aria-hidden="true" />
-          </button>
+          <div className="drawing-cursor-control">
+            <button
+              type="button"
+              className="drawing-cursor-main"
+              aria-label={`Cursor tool, ${CURSOR_TOOL_LABELS[cursorTool]}`}
+              title={CURSOR_TOOL_LABELS[cursorTool]}
+              aria-haspopup="menu"
+              aria-expanded={activeDrawingMenu === 'cursor'}
+              data-active={activeDrawingTool === null}
+              onClick={handleCursorMainButtonClick}
+            >
+              <span className="drawing-cursor-icon" aria-hidden="true">
+                {CURSOR_TOOL_ICONS[cursorTool]}
+              </span>
+            </button>
+          </div>
           {activeDrawingMenu === 'cursor' && (
-            <div className="drawing-tool-menu cursor-menu" role="menu" aria-label="Cursor tools">
-              {CURSOR_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            <div className="drawing-tool-menu cursor-menu" role="menu" aria-label="Cursors">
+              {CURSOR_MENU_ENTRIES.map(renderCursorMenuEntry)}
+              <div className="cursor-menu-divider" role="separator">
+                <div className="cursor-menu-divider-line" />
+              </div>
+              <div
+                role="menuitemcheckbox"
+                aria-checked={valuesTooltipOnLongPress}
+                tabIndex={0}
+                className="cursor-menu-toggle"
+                onClick={toggleValuesTooltipOnLongPress}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    toggleValuesTooltipOnLongPress();
+                  }
+                }}
+              >
+                <span className="cursor-menu-toggle-label">Values tooltip on long press</span>
+                <span className="cursor-menu-switch" data-checked={valuesTooltipOnLongPress} aria-hidden="true">
+                  <span className="cursor-menu-switch-thumb" />
+                </span>
+              </div>
             </div>
           )}
         </div>
