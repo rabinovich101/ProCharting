@@ -2653,6 +2653,10 @@ summary {
   min-width: 260px;
 }
 
+.fib-tools-menu {
+  min-width: 280px;
+}
+
 .drawing-tool-menu-section {
   color: var(--text-muted);
   display: block;
@@ -2708,6 +2712,12 @@ summary {
   height: 18px;
   position: relative;
   width: 18px;
+}
+
+.drawing-tool-icon svg {
+  display: block;
+  height: 100%;
+  width: 100%;
 }
 
 .drawing-tool-icon::before,
@@ -3361,6 +3371,67 @@ summary {
   display: grid;
   gap: 8px;
   grid-template-columns: 104px minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.drawing-settings-fib-levels {
+  display: grid;
+  gap: 6px;
+}
+
+.drawing-settings-fib-level-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr) 34px 26px;
+}
+
+.drawing-settings-fib-level-row input[type="checkbox"] {
+  accent-color: #2b2b2b;
+  height: 18px;
+  width: 18px;
+}
+
+.drawing-settings-fib-level-row input[type="number"] {
+  background: #ffffff;
+  border: 1px solid #d8d8d8;
+  border-radius: 6px;
+  color: #222222;
+  min-height: 30px;
+  min-width: 0;
+  padding: 4px 8px;
+}
+
+.drawing-settings-fib-level-remove {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #8a8a8a;
+  font-size: 16px;
+  height: 26px;
+  line-height: 1;
+  width: 26px;
+}
+
+.drawing-settings-fib-level-remove:hover {
+  background: #f1f1f1;
+  color: #222222;
+}
+
+.drawing-settings-fib-level-add {
+  border: 1px dashed #d8d8d8;
+  border-radius: 6px;
+  color: #555555;
+  justify-self: start;
+  min-height: 30px;
+  padding: 4px 12px;
+}
+
+.drawing-settings-fib-level-add:hover {
+  background: #f7f7f7;
+}
+
+.drawing-settings-fib-level-add:disabled {
+  color: #bbbbbb;
+  cursor: not-allowed;
 }
 
 .drawing-settings-tab-panel.visibility {

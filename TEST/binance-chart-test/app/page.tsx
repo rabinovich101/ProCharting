@@ -171,8 +171,18 @@ type DrawingToolId =
   | 'parallel-channel'
   | 'regression-trend'
   | 'flat-top-bottom'
-  | 'disjoint-channel';
-type DrawingMenuId = 'cursor' | 'line-tools';
+  | 'disjoint-channel'
+  | 'fib-retracement'
+  | 'fib-extension'
+  | 'fib-channel'
+  | 'fib-time-zone'
+  | 'fib-speed-fan'
+  | 'fib-trend-time'
+  | 'fib-circles'
+  | 'fib-spiral'
+  | 'fib-arcs'
+  | 'fib-wedge';
+type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
@@ -271,6 +281,12 @@ interface ChartDrawingAnchor {
   price: number;
 }
 
+interface DrawingFibLevel {
+  value: number;
+  enabled: boolean;
+  color: string;
+}
+
 interface ChartDrawing {
   id: string;
   kind: DrawingToolId;
@@ -295,6 +311,11 @@ interface ChartDrawing {
   textVerticalAlignment: DrawingTextVerticalAlignment;
   showMiddlePoint: boolean;
   showPriceLabels: boolean;
+  fibLevels: DrawingFibLevel[];
+  fibShowLevelLabels: boolean;
+  fibShowPriceLabels: boolean;
+  fibBackground: boolean;
+  fibReverse: boolean;
   stats: DrawingStatsState;
   timeframeVisibility: Record<string, boolean>;
   alertEnabled: boolean;
@@ -795,6 +816,69 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'regression-trend': 'Regression trend',
   'flat-top-bottom': 'Flat top/bottom',
   'disjoint-channel': 'Disjoint channel',
+  'fib-retracement': 'Fib retracement',
+  'fib-extension': 'Trend-based fib extension',
+  'fib-channel': 'Fib channel',
+  'fib-time-zone': 'Fib time zone',
+  'fib-speed-fan': 'Fib speed resistance fan',
+  'fib-trend-time': 'Trend-based fib time',
+  'fib-circles': 'Fib circles',
+  'fib-spiral': 'Fib spiral',
+  'fib-arcs': 'Fib speed resistance arcs',
+  'fib-wedge': 'Fib wedge',
+};
+const FIB_DEFAULT_TREND_COLOR = '#787b86';
+const FIB_LEVEL_VALUE_COLORS: Record<string, string> = {
+  '0': '#787b86',
+  '0.236': '#f23645',
+  '0.25': '#f23645',
+  '0.382': '#ff9800',
+  '0.5': '#4caf50',
+  '0.618': '#089981',
+  '0.75': '#00bcd4',
+  '0.786': '#00bcd4',
+  '1': '#787b86',
+  '1.382': '#2962ff',
+  '1.618': '#2962ff',
+  '2': '#089981',
+  '2.382': '#f23645',
+  '2.618': '#f23645',
+  '3': '#9c27b0',
+  '3.618': '#9c27b0',
+  '4.236': '#e91e63',
+};
+const formatFibLevelValue = (value: number) => {
+  const text = value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+  return text === '' || text === '-' ? '0' : text;
+};
+const getFibLevelColor = (value: number) => FIB_LEVEL_VALUE_COLORS[formatFibLevelValue(value)] ?? '#787b86';
+const createFibLevels = (values: number[]): DrawingFibLevel[] =>
+  values.map((value) => ({ value, enabled: true, color: getFibLevelColor(value) }));
+const createDefaultFibLevels = (kind: DrawingToolId): DrawingFibLevel[] => {
+  switch (kind) {
+    case 'fib-retracement':
+    case 'fib-extension':
+      return createFibLevels([0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236]);
+    case 'fib-channel':
+      return createFibLevels([0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]);
+    case 'fib-time-zone':
+      return [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89].map((value) => ({
+        value,
+        enabled: true,
+        color: value === 0 ? '#787b86' : '#2962ff',
+      }));
+    case 'fib-trend-time':
+      return createFibLevels([0, 0.382, 0.5, 0.618, 1, 1.382, 1.618, 2, 2.382, 2.618]);
+    case 'fib-speed-fan':
+      return createFibLevels([0, 0.25, 0.382, 0.5, 0.618, 0.75, 1]);
+    case 'fib-circles':
+      return createFibLevels([0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618]);
+    case 'fib-arcs':
+    case 'fib-wedge':
+      return createFibLevels([0.236, 0.382, 0.5, 0.618, 0.786, 1]);
+    default:
+      return [];
+  }
 };
 type CursorMenuEntry = { type: 'cursor'; id: CursorToolId } | { type: 'divider' };
 const CURSOR_MENU_ENTRIES: CursorMenuEntry[] = [
@@ -897,6 +981,82 @@ const LINE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
   { type: 'tool', id: 'flat-top-bottom', label: 'Flat top/bottom', icon: 'flat-channel', shortcut: 'F', tool: 'flat-top-bottom' },
   { type: 'tool', id: 'disjoint-channel', label: 'Disjoint channel', icon: 'disjoint-channel', shortcut: 'D', tool: 'disjoint-channel' },
 ];
+const FIB_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
+  { type: 'section', label: 'Fibonacci' },
+  { type: 'tool', id: 'fib-retracement', label: 'Fib retracement', icon: 'fib-retracement', shortcut: '⌥F', tool: 'fib-retracement' },
+  { type: 'tool', id: 'fib-extension', label: 'Trend-based fib extension', icon: 'fib-extension', tool: 'fib-extension' },
+  { type: 'tool', id: 'fib-channel', label: 'Fib channel', icon: 'fib-channel', tool: 'fib-channel' },
+  { type: 'tool', id: 'fib-time-zone', label: 'Fib time zone', icon: 'fib-time-zone', tool: 'fib-time-zone' },
+  { type: 'tool', id: 'fib-speed-fan', label: 'Fib speed resistance fan', icon: 'fib-speed-fan', tool: 'fib-speed-fan' },
+  { type: 'tool', id: 'fib-trend-time', label: 'Trend-based fib time', icon: 'fib-trend-time', tool: 'fib-trend-time' },
+  { type: 'tool', id: 'fib-circles', label: 'Fib circles', icon: 'fib-circles', tool: 'fib-circles' },
+  { type: 'tool', id: 'fib-spiral', label: 'Fib spiral', icon: 'fib-spiral', tool: 'fib-spiral' },
+  { type: 'tool', id: 'fib-arcs', label: 'Fib speed resistance arcs', icon: 'fib-arcs', tool: 'fib-arcs' },
+  { type: 'tool', id: 'fib-wedge', label: 'Fib wedge', icon: 'fib-wedge', tool: 'fib-wedge' },
+];
+const FIB_TOOL_ICONS: Record<string, ReactNode> = {
+  'fib-retracement': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" d="M4 6.5h20M4 14h20M4 21.5h20" />
+      <path stroke="currentColor" strokeWidth="1.4" strokeDasharray="2.6 2.4" d="M5 21.5 23 6.5" />
+    </svg>
+  ),
+  'fib-extension': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m4 21 7-11 5 6" />
+      <path stroke="currentColor" strokeWidth="2" d="M15 10.5h9M15 5.5h9" />
+    </svg>
+  ),
+  'fib-channel': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" d="M3 17 17 3M7 23 21 9M11 25 25 11" />
+    </svg>
+  ),
+  'fib-time-zone': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" d="M4.5 4v20M9.5 4v20M16 4v20M24 4v20" />
+    </svg>
+  ),
+  'fib-speed-fan': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M4.5 23.5V4.5M4.5 23.5h19M4.5 23.5 23.5 4.5M4.5 23.5l19-9.5M4.5 23.5 14 4.5" />
+    </svg>
+  ),
+  'fib-trend-time': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m3.5 21 7.5-12 4 5" />
+      <path stroke="currentColor" strokeWidth="2" d="M18 4v20M24 4v20" />
+    </svg>
+  ),
+  'fib-circles': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <circle cx="14" cy="14" r="10" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="14" cy="14" r="5" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="14" cy="14" r="1.4" fill="currentColor" />
+    </svg>
+  ),
+  'fib-spiral': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path
+        stroke="currentColor"
+        strokeWidth="1.6"
+        d="M14.5 13a2 2 0 0 1 2 2 3.4 3.4 0 0 1-3.4 3.4A5.5 5.5 0 0 1 7.6 13 8.4 8.4 0 0 1 16 4.6 9.4 9.4 0 0 1 25.4 14c0 6-4.8 10.4-10.9 10.4"
+      />
+    </svg>
+  ),
+  'fib-arcs': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M2.5 22.5h23" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M8.5 22.5a5.5 5.5 0 0 1 11 0M4 22.5a10 10 0 0 1 20 0" />
+    </svg>
+  ),
+  'fib-wedge': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M4 23.5 23 5M4 23.5 25 17" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M13.5 14.3a13 13 0 0 1 6.3 5.5" />
+    </svg>
+  ),
+};
 const DRAWING_TOOL_SHORTCUTS = LINE_TOOL_MENU_ENTRIES.reduce<Record<string, DrawingToolId>>((shortcuts, entry) => {
   if (entry.type === 'tool' && !entry.disabled && entry.shortcut && entry.tool) {
     shortcuts[entry.shortcut.toLowerCase()] = entry.tool;
@@ -2076,6 +2236,7 @@ const cloneDrawingAnchors = (anchors: ChartDrawingAnchor[]) =>
 const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
   ...drawing,
   anchors: cloneDrawingAnchors(drawing.anchors),
+  fibLevels: drawing.fibLevels.map((level) => ({ ...level })),
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   value === 'trend-line' ||
@@ -2090,7 +2251,32 @@ const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   value === 'parallel-channel' ||
   value === 'regression-trend' ||
   value === 'flat-top-bottom' ||
-  value === 'disjoint-channel';
+  value === 'disjoint-channel' ||
+  value === 'fib-retracement' ||
+  value === 'fib-extension' ||
+  value === 'fib-channel' ||
+  value === 'fib-time-zone' ||
+  value === 'fib-speed-fan' ||
+  value === 'fib-trend-time' ||
+  value === 'fib-circles' ||
+  value === 'fib-spiral' ||
+  value === 'fib-arcs' ||
+  value === 'fib-wedge';
+const isFibDrawingTool = (kind: DrawingToolId) =>
+  kind === 'fib-retracement' ||
+  kind === 'fib-extension' ||
+  kind === 'fib-channel' ||
+  kind === 'fib-time-zone' ||
+  kind === 'fib-speed-fan' ||
+  kind === 'fib-trend-time' ||
+  kind === 'fib-circles' ||
+  kind === 'fib-spiral' ||
+  kind === 'fib-arcs' ||
+  kind === 'fib-wedge';
+const isThreeAnchorFibDrawingTool = (kind: DrawingToolId) =>
+  kind === 'fib-extension' || kind === 'fib-channel' || kind === 'fib-trend-time' || kind === 'fib-wedge';
+const isFibExtendableDrawingTool = (kind: DrawingToolId) =>
+  kind === 'fib-retracement' || kind === 'fib-extension' || kind === 'fib-channel';
 const isOneAnchorDrawingTool = (kind: DrawingToolId) =>
   kind === 'horizontal-line' || kind === 'horizontal-ray' || kind === 'vertical-line' || kind === 'cross-line';
 const isTwoAnchorDrawingTool = (kind: DrawingToolId) =>
@@ -2108,7 +2294,13 @@ const isMultiAnchorDrawingTool = (kind: DrawingToolId) => !isOneAnchorDrawingToo
 const isHorizontalDrawingTool = (kind: DrawingToolId) => kind === 'horizontal-line' || kind === 'horizontal-ray';
 const isVerticalDrawingTool = (kind: DrawingToolId) => kind === 'vertical-line';
 const getRequiredDrawingAnchorCount = (kind: DrawingToolId) =>
-  kind === 'disjoint-channel' ? 4 : isChannelDrawingTool(kind) ? 3 : isTwoAnchorDrawingTool(kind) ? 2 : 1;
+  kind === 'disjoint-channel'
+    ? 4
+    : isChannelDrawingTool(kind) || isThreeAnchorFibDrawingTool(kind)
+      ? 3
+      : isTwoAnchorDrawingTool(kind) || isFibDrawingTool(kind)
+        ? 2
+        : 1;
 const DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX = ['start', 'end', 'third', 'fourth'] as const;
 const getDrawingHitTargetForAnchorIndex = (index: number): DrawingHitTarget | null =>
   DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX[index] ?? null;
@@ -2196,6 +2388,22 @@ const sanitizeDrawingTimeframeVisibility = (visibility: unknown) => {
     return nextVisibility;
   }, {});
 };
+const sanitizeFibLevels = (levels: unknown, kind: DrawingToolId): DrawingFibLevel[] => {
+  if (!isFibDrawingTool(kind)) return [];
+  if (!Array.isArray(levels)) return createDefaultFibLevels(kind);
+
+  const sanitized = levels
+    .filter((level): level is Partial<DrawingFibLevel> => level !== null && typeof level === 'object')
+    .filter((level) => Number.isFinite(level.value))
+    .slice(0, 24)
+    .map((level) => ({
+      value: level.value as number,
+      enabled: level.enabled !== false,
+      color: typeof level.color === 'string' ? level.color : getFibLevelColor(level.value as number),
+    }));
+
+  return sanitized.length > 0 ? sanitized : createDefaultFibLevels(kind);
+};
 const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawing[] => {
   if (!Array.isArray(drawings)) return [];
 
@@ -2259,6 +2467,11 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
           : 'top',
         showMiddlePoint: drawing.showMiddlePoint === true,
         showPriceLabels: drawing.showPriceLabels === true,
+        fibLevels: sanitizeFibLevels(drawing.fibLevels, drawing.kind),
+        fibShowLevelLabels: drawing.fibShowLevelLabels !== false,
+        fibShowPriceLabels: drawing.fibShowPriceLabels !== false,
+        fibBackground: drawing.fibBackground !== false,
+        fibReverse: drawing.fibReverse === true,
         stats: sanitizeDrawingStats(drawing.stats),
         timeframeVisibility: sanitizeDrawingTimeframeVisibility(drawing.timeframeVisibility),
         alertEnabled: drawing.alertEnabled === true,
@@ -2375,6 +2588,8 @@ const getDrawingRenderedSegments = (
 ): DrawingRenderedSegment[] => {
   const start = points[0];
   if (!start) return [];
+
+  if (isFibDrawingTool(drawing.kind)) return [];
 
   const right = chartArea.left + chartArea.width;
   const bottom = chartArea.top + chartArea.height;
@@ -2598,6 +2813,551 @@ const formatCompact = (value: number) => {
     notation: 'compact',
     maximumFractionDigits: 2,
   }).format(value);
+};
+
+interface FibModelPoint {
+  x: number;
+  y: number;
+}
+interface FibModelLabel {
+  text: string;
+  x: number;
+  y: number;
+  align: CanvasTextAlign;
+  baseline: CanvasTextBaseline;
+  color: string;
+}
+interface FibModelLine {
+  start: FibModelPoint;
+  end: FibModelPoint;
+  color: string;
+  dashed?: boolean;
+  muted?: boolean;
+}
+interface FibModelPolygon {
+  points: FibModelPoint[];
+  color: string;
+}
+interface FibModelArc {
+  cx: number;
+  cy: number;
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+  color: string;
+}
+interface FibModelBand {
+  cx: number;
+  cy: number;
+  innerRadius: number;
+  outerRadius: number;
+  startAngle: number;
+  endAngle: number;
+  color: string;
+}
+interface FibModelPolyline {
+  points: FibModelPoint[];
+  color: string;
+}
+interface FibRenderModel {
+  connectors: FibModelLine[];
+  lines: FibModelLine[];
+  polygons: FibModelPolygon[];
+  arcs: FibModelArc[];
+  bands: FibModelBand[];
+  polylines: FibModelPolyline[];
+  labels: FibModelLabel[];
+}
+
+const FIB_GOLDEN_RATIO = (1 + Math.sqrt(5)) / 2;
+const createEmptyFibModel = (): FibRenderModel => ({
+  connectors: [],
+  lines: [],
+  polygons: [],
+  arcs: [],
+  bands: [],
+  polylines: [],
+  labels: [],
+});
+const buildFibLevelLabelText = (drawing: ChartDrawing, value: number, price: number | null) => {
+  if (!drawing.fibShowLevelLabels) return null;
+
+  const valueText = formatFibLevelValue(value);
+  return price !== null && drawing.fibShowPriceLabels ? `${valueText}(${formatPrice(price)})` : valueText;
+};
+const getSortedEnabledFibLevels = (drawing: ChartDrawing) =>
+  drawing.fibLevels.filter((level) => level.enabled).slice().sort((first, second) => first.value - second.value);
+const getFibRenderModel = (
+  drawing: ChartDrawing,
+  points: FibModelPoint[],
+  chartArea: ChartCanvasArea
+): FibRenderModel => {
+  const model = createEmptyFibModel();
+  const first = points[0];
+  const second = points[1];
+  if (!first || !second) return model;
+
+  const chartLeft = chartArea.left;
+  const chartRight = chartArea.left + chartArea.width;
+  const chartTop = chartArea.top;
+  const chartBottom = chartArea.top + chartArea.height;
+  const enabledLevels = getSortedEnabledFibLevels(drawing);
+  const anchors = drawing.anchors;
+  const firstPrice = anchors[0]?.price ?? 0;
+  const secondPrice = anchors[1]?.price ?? 0;
+  const extendLeft = drawing.extend === 'left' || drawing.extend === 'both';
+  const extendRight = drawing.extend === 'right' || drawing.extend === 'both';
+  const pushHorizontalLevelLabel = (text: string | null, xLeft: number, y: number, color: string) => {
+    if (!text) return;
+
+    if (xLeft - chartLeft < 84) {
+      model.labels.push({ text, x: xLeft + 6, y: y - 4, align: 'left', baseline: 'bottom', color });
+    } else {
+      model.labels.push({ text, x: xLeft - 8, y, align: 'right', baseline: 'middle', color });
+    }
+  };
+  const pushHorizontalLevels = (
+    levelOrigin: FibModelPoint,
+    priceOrigin: number,
+    deltaY: number,
+    deltaPrice: number,
+    xLeftRaw: number,
+    xRightRaw: number
+  ) => {
+    const xLeft = extendLeft ? chartLeft : Math.min(xLeftRaw, xRightRaw);
+    const xRight = extendRight ? chartRight : Math.max(xLeftRaw, xRightRaw);
+    const levelLines = enabledLevels.map((level) => ({
+      level,
+      y: levelOrigin.y + deltaY * level.value,
+      price: priceOrigin + deltaPrice * level.value,
+    }));
+
+    levelLines.forEach((line) => {
+      model.lines.push({
+        start: { x: xLeft, y: line.y },
+        end: { x: xRight, y: line.y },
+        color: line.level.color,
+      });
+      pushHorizontalLevelLabel(buildFibLevelLabelText(drawing, line.level.value, line.price), xLeft, line.y, line.level.color);
+    });
+
+    if (drawing.fibBackground) {
+      for (let index = 0; index < levelLines.length - 1; index += 1) {
+        const current = levelLines[index]!;
+        const next = levelLines[index + 1]!;
+        model.polygons.push({
+          points: [
+            { x: xLeft, y: current.y },
+            { x: xRight, y: current.y },
+            { x: xRight, y: next.y },
+            { x: xLeft, y: next.y },
+          ],
+          color: next.level.color,
+        });
+      }
+    }
+  };
+  const pushVerticalLevels = (origin: FibModelPoint, unit: number) => {
+    if (Math.abs(unit) < 0.01) return;
+
+    enabledLevels.forEach((level) => {
+      const x = origin.x + unit * level.value;
+      if (x < chartLeft - 1 || x > chartRight + 1) return;
+
+      model.lines.push({
+        start: { x, y: chartTop },
+        end: { x, y: chartBottom },
+        color: level.color,
+      });
+      if (drawing.fibShowLevelLabels) {
+        model.labels.push({
+          text: formatFibLevelValue(level.value),
+          x: x + 4,
+          y: chartBottom - 6,
+          align: 'left',
+          baseline: 'bottom',
+          color: level.color,
+        });
+      }
+    });
+  };
+
+  if (drawing.kind === 'fib-retracement') {
+    const zeroPoint = drawing.fibReverse ? first : second;
+    const onePoint = drawing.fibReverse ? second : first;
+    const zeroPrice = drawing.fibReverse ? firstPrice : secondPrice;
+    const onePrice = drawing.fibReverse ? secondPrice : firstPrice;
+
+    model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+    pushHorizontalLevels(
+      zeroPoint,
+      zeroPrice,
+      onePoint.y - zeroPoint.y,
+      onePrice - zeroPrice,
+      Math.min(first.x, second.x),
+      Math.max(first.x, second.x)
+    );
+    return model;
+  }
+
+  if (drawing.kind === 'fib-extension') {
+    const third = points[2];
+    const thirdPrice = anchors[2]?.price ?? 0;
+    if (!third) return model;
+
+    const moveStart = drawing.fibReverse ? second : first;
+    const moveEnd = drawing.fibReverse ? first : second;
+    const moveStartPrice = drawing.fibReverse ? secondPrice : firstPrice;
+    const moveEndPrice = drawing.fibReverse ? firstPrice : secondPrice;
+
+    model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+    model.connectors.push({ start: second, end: third, color: drawing.color, dashed: true, muted: true });
+    pushHorizontalLevels(
+      third,
+      thirdPrice,
+      moveEnd.y - moveStart.y,
+      moveEndPrice - moveStartPrice,
+      third.x,
+      third.x + (second.x - first.x)
+    );
+    return model;
+  }
+
+  if (drawing.kind === 'fib-channel') {
+    const third = points[2];
+    if (!third) return model;
+
+    const offset = getProjectedChannelOffset(first, second, third);
+    const levelEnds = enabledLevels.map((level) => {
+      const startPoint = { x: first.x + offset.x * level.value, y: first.y + offset.y * level.value };
+      const endPoint = { x: second.x + offset.x * level.value, y: second.y + offset.y * level.value };
+      return { level, startPoint, endPoint };
+    });
+
+    levelEnds.forEach(({ level, startPoint, endPoint }) => {
+      const renderStart = extendLeft ? getRayBoundaryPoint(endPoint, startPoint, chartArea) : startPoint;
+      const renderEnd = extendRight ? getRayBoundaryPoint(startPoint, endPoint, chartArea) : endPoint;
+      model.lines.push({ start: renderStart, end: renderEnd, color: level.color });
+      if (drawing.fibShowLevelLabels) {
+        const labelPoint = renderStart.x <= renderEnd.x ? renderStart : renderEnd;
+        model.labels.push({
+          text: formatFibLevelValue(level.value),
+          x: Math.max(labelPoint.x - 8, chartLeft + 6),
+          y: labelPoint.y,
+          align: labelPoint.x - 8 <= chartLeft + 6 ? 'left' : 'right',
+          baseline: 'middle',
+          color: level.color,
+        });
+      }
+    });
+
+    if (drawing.fibBackground) {
+      for (let index = 0; index < levelEnds.length - 1; index += 1) {
+        const current = levelEnds[index]!;
+        const next = levelEnds[index + 1]!;
+        const currentStart = extendLeft ? getRayBoundaryPoint(current.endPoint, current.startPoint, chartArea) : current.startPoint;
+        const currentEnd = extendRight ? getRayBoundaryPoint(current.startPoint, current.endPoint, chartArea) : current.endPoint;
+        const nextStart = extendLeft ? getRayBoundaryPoint(next.endPoint, next.startPoint, chartArea) : next.startPoint;
+        const nextEnd = extendRight ? getRayBoundaryPoint(next.startPoint, next.endPoint, chartArea) : next.endPoint;
+        model.polygons.push({
+          points: [currentStart, currentEnd, nextEnd, nextStart],
+          color: next.level.color,
+        });
+      }
+    }
+    return model;
+  }
+
+  if (drawing.kind === 'fib-time-zone') {
+    model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+    pushVerticalLevels(first, second.x - first.x);
+    return model;
+  }
+
+  if (drawing.kind === 'fib-trend-time') {
+    const third = points[2];
+    if (!third) return model;
+
+    model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+    model.connectors.push({ start: second, end: third, color: drawing.color, dashed: true, muted: true });
+    pushVerticalLevels(third, second.x - first.x);
+    return model;
+  }
+
+  if (drawing.kind === 'fib-speed-fan') {
+    const spanX = second.x - first.x;
+    const spanY = second.y - first.y;
+    if (Math.abs(spanX) < 0.01 || Math.abs(spanY) < 0.01) {
+      model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+      return model;
+    }
+
+    const gridColor = FIB_DEFAULT_TREND_COLOR;
+    const yMin = Math.min(first.y, second.y);
+    const yMax = Math.max(first.y, second.y);
+    const xMin = Math.min(first.x, second.x);
+    const xMax = Math.max(first.x, second.x);
+    enabledLevels.forEach((level) => {
+      const x = first.x + spanX * level.value;
+      const y = first.y + spanY * level.value;
+      model.lines.push({ start: { x, y: yMin }, end: { x, y: yMax }, color: gridColor, muted: true });
+      model.lines.push({ start: { x: xMin, y }, end: { x: xMax, y }, color: gridColor, muted: true });
+    });
+
+    const priceFanTargets = enabledLevels.map((level) => ({
+      level,
+      point: { x: second.x, y: first.y + spanY * level.value },
+    }));
+    priceFanTargets.forEach(({ level, point }) => {
+      model.lines.push({ start: first, end: point, color: level.color });
+      if (drawing.fibShowLevelLabels) {
+        model.labels.push({
+          text: formatFibLevelValue(level.value),
+          x: point.x + (spanX >= 0 ? 6 : -6),
+          y: point.y,
+          align: spanX >= 0 ? 'left' : 'right',
+          baseline: 'middle',
+          color: level.color,
+        });
+      }
+    });
+    enabledLevels.forEach((level) => {
+      const point = { x: first.x + spanX * level.value, y: second.y };
+      model.lines.push({ start: first, end: point, color: level.color });
+      if (drawing.fibShowLevelLabels) {
+        model.labels.push({
+          text: formatFibLevelValue(level.value),
+          x: point.x,
+          y: point.y + (spanY >= 0 ? 6 : -6),
+          align: 'center',
+          baseline: spanY >= 0 ? 'top' : 'bottom',
+          color: level.color,
+        });
+      }
+    });
+
+    if (drawing.fibBackground) {
+      for (let index = 0; index < priceFanTargets.length - 1; index += 1) {
+        const current = priceFanTargets[index]!;
+        const next = priceFanTargets[index + 1]!;
+        model.polygons.push({
+          points: [first, current.point, next.point],
+          color: next.level.color,
+        });
+      }
+    }
+    return model;
+  }
+
+  if (drawing.kind === 'fib-circles') {
+    const cx = (first.x + second.x) / 2;
+    const cy = (first.y + second.y) / 2;
+    const baseRadius = Math.hypot(second.x - first.x, second.y - first.y) / 2;
+    if (baseRadius < 0.5) return model;
+
+    model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+    const radii = enabledLevels.map((level) => ({ level, radius: baseRadius * level.value }));
+    radii.forEach(({ level, radius }) => {
+      if (radius <= 0) return;
+
+      model.arcs.push({ cx, cy, radius, startAngle: 0, endAngle: Math.PI * 2, color: level.color });
+      if (drawing.fibShowLevelLabels) {
+        model.labels.push({
+          text: formatFibLevelValue(level.value),
+          x: cx,
+          y: cy + radius + 4,
+          align: 'center',
+          baseline: 'top',
+          color: level.color,
+        });
+      }
+    });
+
+    if (drawing.fibBackground) {
+      for (let index = 0; index < radii.length - 1; index += 1) {
+        const current = radii[index]!;
+        const next = radii[index + 1]!;
+        model.bands.push({
+          cx,
+          cy,
+          innerRadius: Math.max(0, current.radius),
+          outerRadius: next.radius,
+          startAngle: 0,
+          endAngle: Math.PI * 2,
+          color: next.level.color,
+        });
+      }
+    }
+    return model;
+  }
+
+  if (drawing.kind === 'fib-spiral') {
+    const baseRadius = Math.hypot(second.x - first.x, second.y - first.y);
+    model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+    if (baseRadius < 2) return model;
+
+    const baseAngle = Math.atan2(second.y - first.y, second.x - first.x);
+    const rotationDirection = drawing.fibReverse ? -1 : 1;
+    const maxRadius = Math.hypot(chartArea.width, chartArea.height) * 1.2;
+    const spiralPoints: FibModelPoint[] = [];
+    for (let theta = -6 * Math.PI; theta <= 4 * Math.PI; theta += 0.06) {
+      const radius = baseRadius * FIB_GOLDEN_RATIO ** (theta / (Math.PI / 2));
+      if (radius > maxRadius) break;
+
+      spiralPoints.push({
+        x: first.x + Math.cos(baseAngle + rotationDirection * theta) * radius,
+        y: first.y + Math.sin(baseAngle + rotationDirection * theta) * radius,
+      });
+    }
+    model.polylines.push({ points: spiralPoints, color: drawing.color });
+    return model;
+  }
+
+  if (drawing.kind === 'fib-arcs') {
+    const baseRadius = Math.hypot(second.x - first.x, second.y - first.y);
+    if (baseRadius < 0.5) return model;
+
+    model.connectors.push({ start: first, end: second, color: drawing.color, dashed: true, muted: true });
+    const faceAngle = Math.atan2(first.y - second.y, first.x - second.x);
+    const startAngle = faceAngle - Math.PI / 2;
+    const endAngle = faceAngle + Math.PI / 2;
+    const radii = enabledLevels.map((level) => ({ level, radius: baseRadius * level.value }));
+    radii.forEach(({ level, radius }) => {
+      if (radius <= 0) return;
+
+      model.arcs.push({ cx: second.x, cy: second.y, radius, startAngle, endAngle, color: level.color });
+      if (drawing.fibShowLevelLabels) {
+        model.labels.push({
+          text: formatFibLevelValue(level.value),
+          x: second.x + Math.cos(faceAngle) * radius,
+          y: second.y + Math.sin(faceAngle) * radius - 4,
+          align: 'center',
+          baseline: 'bottom',
+          color: level.color,
+        });
+      }
+    });
+
+    if (drawing.fibBackground) {
+      for (let index = 0; index < radii.length - 1; index += 1) {
+        const current = radii[index]!;
+        const next = radii[index + 1]!;
+        model.bands.push({
+          cx: second.x,
+          cy: second.y,
+          innerRadius: Math.max(0, current.radius),
+          outerRadius: next.radius,
+          startAngle,
+          endAngle,
+          color: next.level.color,
+        });
+      }
+    }
+    return model;
+  }
+
+  if (drawing.kind === 'fib-wedge') {
+    const third = points[2];
+    if (!third) return model;
+
+    const radius = Math.hypot(second.x - first.x, second.y - first.y);
+    if (radius < 0.5) return model;
+
+    const firstRayAngle = Math.atan2(second.y - first.y, second.x - first.x);
+    const secondRayAngleRaw = Math.atan2(third.y - first.y, third.x - first.x);
+    let sweep = secondRayAngleRaw - firstRayAngle;
+    while (sweep > Math.PI) sweep -= Math.PI * 2;
+    while (sweep < -Math.PI) sweep += Math.PI * 2;
+    const startAngle = sweep >= 0 ? firstRayAngle : firstRayAngle + sweep;
+    const endAngle = sweep >= 0 ? firstRayAngle + sweep : firstRayAngle;
+
+    model.lines.push({ start: first, end: second, color: drawing.color });
+    model.lines.push({
+      start: first,
+      end: { x: first.x + Math.cos(secondRayAngleRaw) * radius, y: first.y + Math.sin(secondRayAngleRaw) * radius },
+      color: drawing.color,
+    });
+
+    const radii = enabledLevels.map((level) => ({ level, radius: radius * level.value }));
+    radii.forEach((entry) => {
+      if (entry.radius <= 0) return;
+
+      model.arcs.push({
+        cx: first.x,
+        cy: first.y,
+        radius: entry.radius,
+        startAngle,
+        endAngle,
+        color: entry.level.color,
+      });
+      if (drawing.fibShowLevelLabels) {
+        const labelDistance = entry.radius + 8;
+        model.labels.push({
+          text: formatFibLevelValue(entry.level.value),
+          x: first.x + Math.cos(secondRayAngleRaw) * labelDistance,
+          y: first.y + Math.sin(secondRayAngleRaw) * labelDistance,
+          align: 'center',
+          baseline: 'middle',
+          color: entry.level.color,
+        });
+      }
+    });
+
+    if (drawing.fibBackground) {
+      for (let index = 0; index < radii.length - 1; index += 1) {
+        const current = radii[index]!;
+        const next = radii[index + 1]!;
+        model.bands.push({
+          cx: first.x,
+          cy: first.y,
+          innerRadius: Math.max(0, current.radius),
+          outerRadius: next.radius,
+          startAngle,
+          endAngle,
+          color: next.level.color,
+        });
+      }
+    }
+    return model;
+  }
+
+  return model;
+};
+const isAngleWithinFibArc = (angle: number, startAngle: number, endAngle: number) => {
+  const sweep = endAngle - startAngle;
+  if (sweep >= Math.PI * 2 - 0.0001) return true;
+
+  const normalized = ((angle - startAngle) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  return normalized <= sweep;
+};
+const hitTestFibRenderModel = (model: FibRenderModel, x: number, y: number, tolerance: number) => {
+  if (
+    [...model.lines, ...model.connectors].some(
+      (line) => getDistanceToSegment(x, y, line.start, line.end) <= tolerance
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    model.arcs.some((arc) => {
+      const distance = Math.hypot(x - arc.cx, y - arc.cy);
+      if (Math.abs(distance - arc.radius) > tolerance) return false;
+
+      return isAngleWithinFibArc(Math.atan2(y - arc.cy, x - arc.cx), arc.startAngle, arc.endAngle);
+    })
+  ) {
+    return true;
+  }
+
+  return model.polylines.some((polyline) => {
+    for (let index = 0; index < polyline.points.length - 1; index += 1) {
+      if (getDistanceToSegment(x, y, polyline.points[index]!, polyline.points[index + 1]!) <= tolerance) {
+        return true;
+      }
+    }
+    return false;
+  });
 };
 
 const parseCandles = (payload: unknown): Candle[] => {
@@ -3982,6 +4742,7 @@ export default function Home() {
   const [favoriteCursorTools, setFavoriteCursorTools] = useState<Partial<Record<CursorToolId, boolean>>>({});
   const [valuesTooltipOnLongPress, setValuesTooltipOnLongPress] = useState(true);
   const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
+  const [lastFibTool, setLastFibTool] = useState<DrawingToolId>('fib-retracement');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
@@ -4559,6 +5320,30 @@ export default function Home() {
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
       }
 
+      if (
+        event.code === 'KeyF' &&
+        event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        isAuthenticatedRef.current &&
+        !editableTarget
+      ) {
+        setOpenMenu(null);
+        setHeaderPanel(null);
+        setSettingsTarget(null);
+        setMoreTarget(null);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
+        setActiveDrawingMenu(null);
+        setPendingDrawing(null);
+        drawingDragRef.current = createDrawingDragState(activePaneIndexRef.current);
+        setSelectedDrawingId(null);
+        setLastFibTool('fib-retracement');
+        setActiveDrawingTool((current) => (current === 'fib-retracement' ? null : 'fib-retracement'));
+        event.preventDefault();
+        return;
+      }
+
       const drawingShortcutTool = DRAWING_TOOL_SHORTCUTS[event.key.toLowerCase()];
       if (
         drawingShortcutTool &&
@@ -5006,6 +5791,14 @@ export default function Home() {
         }
       }
 
+      if (isFibDrawingTool(drawing.kind)) {
+        const fibModel = getFibRenderModel(drawing, points, chartArea);
+        if (hitTestFibRenderModel(fibModel, x, y, DRAWING_HIT_TOLERANCE)) {
+          return { drawing, target: 'body' };
+        }
+        continue;
+      }
+
       const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
       if (
         renderedSegments.some(
@@ -5145,7 +5938,11 @@ export default function Home() {
     setPendingDrawing(null);
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
     setSelectedDrawingId(null);
-    setLastDrawingTool(tool);
+    if (isFibDrawingTool(tool)) {
+      setLastFibTool(tool);
+    } else {
+      setLastDrawingTool(tool);
+    }
     setActiveDrawingTool((current) => (current === tool ? null : tool));
   };
 
@@ -5184,7 +5981,11 @@ export default function Home() {
       anchors: cloneDrawingAnchors(anchors),
       locked: false,
       visible: true,
-      color: DRAWING_DEFAULT_COLOR,
+      color: isFibDrawingTool(kind)
+        ? kind === 'fib-spiral'
+          ? DRAWING_DEFAULT_COLOR
+          : FIB_DEFAULT_TREND_COLOR
+        : DRAWING_DEFAULT_COLOR,
       opacity: DRAWING_DEFAULT_OPACITY,
       lineWidth: 2,
       lineStyle: DRAWING_DEFAULT_LINE_STYLE,
@@ -5201,6 +6002,11 @@ export default function Home() {
       textVerticalAlignment: 'top',
       showMiddlePoint: kind === 'parallel-channel' || kind === 'regression-trend',
       showPriceLabels: kind === 'horizontal-line' || kind === 'horizontal-ray' || kind === 'cross-line',
+      fibLevels: createDefaultFibLevels(kind),
+      fibShowLevelLabels: true,
+      fibShowPriceLabels: true,
+      fibBackground: true,
+      fibReverse: false,
       stats: defaultStats,
       timeframeVisibility: createDefaultDrawingTimeframeVisibility(),
       alertEnabled: false,
@@ -6278,9 +7084,127 @@ export default function Home() {
       ctx.fillText(text, labelX + paddingX, labelY + paddingY + drawing.textSize, textWidth - paddingX * 2);
       ctx.restore();
     };
+    const drawFibDrawing = (drawing: ChartDrawing, points: Array<{ x: number; y: number }>, selected: boolean) => {
+      const model = getFibRenderModel(drawing, points, chartArea);
+      const fillAlpha = clamp(drawing.opacity * 0.14, 0.04, 0.4);
+
+      model.polygons.forEach((polygon) => {
+        if (polygon.points.length < 3) return;
+
+        ctx.fillStyle = hexToRgba(polygon.color, fillAlpha);
+        ctx.beginPath();
+        polygon.points.forEach((point, index) => {
+          if (index === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        });
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      model.bands.forEach((band) => {
+        if (band.outerRadius <= band.innerRadius) return;
+
+        ctx.fillStyle = hexToRgba(band.color, fillAlpha);
+        ctx.beginPath();
+        ctx.arc(band.cx, band.cy, band.outerRadius, band.startAngle, band.endAngle);
+        ctx.arc(band.cx, band.cy, band.innerRadius, band.endAngle, band.startAngle, true);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      model.connectors.forEach((line) => {
+        ctx.strokeStyle = hexToRgba(line.color, drawing.opacity * 0.62);
+        ctx.lineWidth = Math.max(1, drawing.lineWidth - 1);
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(line.start.x, line.start.y);
+        ctx.lineTo(line.end.x, line.end.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      model.lines.forEach((line) => {
+        ctx.strokeStyle = hexToRgba(line.color, line.muted ? drawing.opacity * 0.38 : drawing.opacity);
+        ctx.lineWidth = line.muted ? 1 : selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        if (line.muted) {
+          ctx.setLineDash([]);
+        } else {
+          applyDrawingLineStyle(drawing);
+        }
+        ctx.beginPath();
+        ctx.moveTo(line.start.x, line.start.y);
+        ctx.lineTo(line.end.x, line.end.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      model.arcs.forEach((arc) => {
+        ctx.strokeStyle = hexToRgba(arc.color, drawing.opacity);
+        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        applyDrawingLineStyle(drawing);
+        ctx.beginPath();
+        ctx.arc(arc.cx, arc.cy, arc.radius, arc.startAngle, arc.endAngle);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      model.polylines.forEach((polyline) => {
+        if (polyline.points.length < 2) return;
+
+        ctx.strokeStyle = hexToRgba(polyline.color, drawing.opacity);
+        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        applyDrawingLineStyle(drawing);
+        ctx.beginPath();
+        polyline.points.forEach((point, index) => {
+          if (index === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      if (model.labels.length > 0) {
+        ctx.save();
+        ctx.font = getCanvasFont(10);
+        model.labels.forEach((label) => {
+          ctx.fillStyle = hexToRgba(label.color, Math.min(1, drawing.opacity + 0.2));
+          ctx.textAlign = label.align;
+          ctx.textBaseline = label.baseline;
+          ctx.fillText(label.text, label.x, label.y);
+        });
+        ctx.restore();
+      }
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+
+      if (drawing.showPriceLabels || selected) {
+        drawing.anchors.forEach((anchor, index) => {
+          const point = points[index];
+          if (!point) return;
+
+          drawingPriceLabels.push({ y: point.y, price: anchor.price, color: drawing.color, selected });
+        });
+      }
+
+      const connectorStart = points[0]!;
+      const connectorEnd = points[1] ?? connectorStart;
+      drawDrawingText(drawing, connectorStart, connectorEnd);
+      drawDrawingStats(drawing, connectorStart, connectorEnd, selected);
+    };
     const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
       const points = drawing.anchors.map(pointForDrawingAnchor);
       if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) return;
+
+      if (isFibDrawingTool(drawing.kind)) {
+        drawFibDrawing(drawing, points, selected);
+        return;
+      }
 
       const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
       const primarySegment = renderedSegments[0];
@@ -6364,7 +7288,11 @@ export default function Home() {
           anchors: [...pendingDrawing.anchors, pendingDrawing.preview],
           locked: false,
           visible: true,
-          color: DRAWING_DEFAULT_COLOR,
+          color: isFibDrawingTool(pendingDrawing.tool)
+            ? pendingDrawing.tool === 'fib-spiral'
+              ? DRAWING_DEFAULT_COLOR
+              : FIB_DEFAULT_TREND_COLOR
+            : DRAWING_DEFAULT_COLOR,
           opacity: DRAWING_DEFAULT_OPACITY,
           lineWidth: 2,
           lineStyle: DRAWING_DEFAULT_LINE_STYLE,
@@ -6381,6 +7309,11 @@ export default function Home() {
           textVerticalAlignment: 'top',
           showMiddlePoint: false,
           showPriceLabels: false,
+          fibLevels: createDefaultFibLevels(pendingDrawing.tool),
+          fibShowLevelLabels: true,
+          fibShowPriceLabels: true,
+          fibBackground: true,
+          fibReverse: false,
           stats: createDefaultDrawingStats(),
           timeframeVisibility: createDefaultDrawingTimeframeVisibility(),
           alertEnabled: false,
@@ -8063,7 +8996,9 @@ export default function Home() {
         data-disabled={entry.disabled === true}
         onClick={handleEntryClick}
       >
-        <span className={`drawing-tool-icon ${entry.icon}`} aria-hidden="true" />
+        <span className={`drawing-tool-icon ${entry.icon}`} aria-hidden="true">
+          {FIB_TOOL_ICONS[entry.icon] ?? null}
+        </span>
         <span>{entry.label}</span>
         {entry.shortcut && <kbd>{entry.shortcut}</kbd>}
       </button>
@@ -8136,7 +9071,10 @@ export default function Home() {
   const renderDrawingToolRail = () => {
     if (!isAuthenticated) return null;
 
-    const visibleLineTool = activeDrawingTool ?? lastDrawingTool;
+    const visibleLineTool =
+      activeDrawingTool !== null && !isFibDrawingTool(activeDrawingTool) ? activeDrawingTool : lastDrawingTool;
+    const visibleFibTool =
+      activeDrawingTool !== null && isFibDrawingTool(activeDrawingTool) ? activeDrawingTool : lastFibTool;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -8191,7 +9129,9 @@ export default function Home() {
             aria-haspopup="menu"
             aria-expanded={activeDrawingMenu === 'line-tools'}
             title={DRAWING_TOOL_LABELS[visibleLineTool]}
-            data-active={activeDrawingMenu === 'line-tools' || activeDrawingTool !== null}
+            data-active={
+              activeDrawingMenu === 'line-tools' || (activeDrawingTool !== null && !isFibDrawingTool(activeDrawingTool))
+            }
             onClick={() => toggleDrawingMenu('line-tools')}
           >
             <span className={`drawing-tool-icon ${visibleLineTool}`} aria-hidden="true" />
@@ -8199,6 +9139,28 @@ export default function Home() {
           {activeDrawingMenu === 'line-tools' && (
             <div className="drawing-tool-menu line-tools-menu" role="menu" aria-label="Trend line tools">
               {LINE_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            </div>
+          )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${DRAWING_TOOL_LABELS[visibleFibTool]} drawing tool group`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'fib-tools'}
+            title={DRAWING_TOOL_LABELS[visibleFibTool]}
+            data-active={
+              activeDrawingMenu === 'fib-tools' || (activeDrawingTool !== null && isFibDrawingTool(activeDrawingTool))
+            }
+            onClick={() => toggleDrawingMenu('fib-tools')}
+          >
+            <span className={`drawing-tool-icon ${visibleFibTool}`} aria-hidden="true">
+              {FIB_TOOL_ICONS[visibleFibTool] ?? null}
+            </span>
+          </button>
+          {activeDrawingMenu === 'fib-tools' && (
+            <div className="drawing-tool-menu line-tools-menu fib-tools-menu" role="menu" aria-label="Fibonacci tools">
+              {FIB_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
             </div>
           )}
         </div>
@@ -8298,27 +9260,31 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  className="drawing-settings-end-button"
-                  aria-label="Toggle left arrow end"
-                  data-active={drawing.leftEnd === 'arrow'}
-                  onClick={() => patchSelectedDrawing({ leftEnd: drawing.leftEnd === 'arrow' ? 'none' : 'arrow' })}
-                >
-                  <span className="drawing-settings-line-end-sample" data-end="left" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="drawing-settings-end-button"
-                  aria-label="Toggle right arrow end"
-                  data-active={drawing.rightEnd === 'arrow'}
-                  onClick={() => patchSelectedDrawing({ rightEnd: drawing.rightEnd === 'arrow' ? 'none' : 'arrow' })}
-                >
-                  <span className="drawing-settings-line-end-sample" data-end="right" aria-hidden="true" />
-                </button>
+                {!isFibDrawingTool(drawing.kind) && (
+                  <>
+                    <button
+                      type="button"
+                      className="drawing-settings-end-button"
+                      aria-label="Toggle left arrow end"
+                      data-active={drawing.leftEnd === 'arrow'}
+                      onClick={() => patchSelectedDrawing({ leftEnd: drawing.leftEnd === 'arrow' ? 'none' : 'arrow' })}
+                    >
+                      <span className="drawing-settings-line-end-sample" data-end="left" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="drawing-settings-end-button"
+                      aria-label="Toggle right arrow end"
+                      data-active={drawing.rightEnd === 'arrow'}
+                      onClick={() => patchSelectedDrawing({ rightEnd: drawing.rightEnd === 'arrow' ? 'none' : 'arrow' })}
+                    >
+                      <span className="drawing-settings-line-end-sample" data-end="right" aria-hidden="true" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-            {drawing.kind === 'trend-line' && (
+            {(drawing.kind === 'trend-line' || isFibExtendableDrawingTool(drawing.kind)) && (
               <label className="drawing-settings-row">
                 <span>Extend</span>
                 <select
@@ -8333,14 +9299,140 @@ export default function Home() {
                 </select>
               </label>
             )}
-            <label className="drawing-settings-checkbox-row">
-              <input
-                type="checkbox"
-                checked={drawing.showMiddlePoint}
-                onChange={(event) => patchSelectedDrawing({ showMiddlePoint: event.target.checked })}
-              />
-              <span>Middle point</span>
-            </label>
+            {isFibDrawingTool(drawing.kind) && (
+              <>
+                {(isFibExtendableDrawingTool(drawing.kind) || drawing.kind === 'fib-spiral') && (
+                  <label className="drawing-settings-checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={drawing.fibReverse}
+                      onChange={(event) => patchSelectedDrawing({ fibReverse: event.target.checked })}
+                    />
+                    <span>{drawing.kind === 'fib-spiral' ? 'Counterclockwise' : 'Reverse'}</span>
+                  </label>
+                )}
+                {drawing.fibLevels.length > 0 && (
+                  <>
+                    <label className="drawing-settings-checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={drawing.fibShowLevelLabels}
+                        onChange={(event) => patchSelectedDrawing({ fibShowLevelLabels: event.target.checked })}
+                      />
+                      <span>Level labels</span>
+                    </label>
+                    {(drawing.kind === 'fib-retracement' || drawing.kind === 'fib-extension') && (
+                      <label className="drawing-settings-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={drawing.fibShowPriceLabels}
+                          onChange={(event) => patchSelectedDrawing({ fibShowPriceLabels: event.target.checked })}
+                        />
+                        <span>Prices in labels</span>
+                      </label>
+                    )}
+                    {drawing.kind !== 'fib-time-zone' && drawing.kind !== 'fib-trend-time' && (
+                      <label className="drawing-settings-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={drawing.fibBackground}
+                          onChange={(event) => patchSelectedDrawing({ fibBackground: event.target.checked })}
+                        />
+                        <span>Background</span>
+                      </label>
+                    )}
+                    <span className="drawing-settings-section-label">Levels</span>
+                    <div className="drawing-settings-fib-levels">
+                      {drawing.fibLevels.map((level, index) => (
+                        <div key={index} className="drawing-settings-fib-level-row">
+                          <input
+                            type="checkbox"
+                            aria-label={`Toggle level ${formatFibLevelValue(level.value)}`}
+                            checked={level.enabled}
+                            onChange={(event) =>
+                              patchSelectedDrawing({
+                                fibLevels: drawing.fibLevels.map((current, currentIndex) =>
+                                  currentIndex === index ? { ...current, enabled: event.target.checked } : current
+                                ),
+                              })
+                            }
+                          />
+                          <input
+                            type="number"
+                            step="0.001"
+                            aria-label={`Level ${index + 1} value`}
+                            value={Number(formatFibLevelValue(level.value))}
+                            onChange={(event) => {
+                              const nextValue = Number(event.target.value);
+                              if (!Number.isFinite(nextValue)) return;
+
+                              patchSelectedDrawing({
+                                fibLevels: drawing.fibLevels.map((current, currentIndex) =>
+                                  currentIndex === index ? { ...current, value: nextValue } : current
+                                ),
+                              });
+                            }}
+                          />
+                          <label className="drawing-settings-color-picker" aria-label={`Level ${index + 1} color`}>
+                            <input
+                              type="color"
+                              value={colorToInputValue(level.color, DRAWING_DEFAULT_COLOR)}
+                              onChange={(event) =>
+                                patchSelectedDrawing({
+                                  fibLevels: drawing.fibLevels.map((current, currentIndex) =>
+                                    currentIndex === index ? { ...current, color: event.target.value } : current
+                                  ),
+                                })
+                              }
+                            />
+                            <span style={{ backgroundColor: level.color }} aria-hidden="true" />
+                          </label>
+                          <button
+                            type="button"
+                            className="drawing-settings-fib-level-remove"
+                            aria-label={`Remove level ${formatFibLevelValue(level.value)}`}
+                            onClick={() =>
+                              patchSelectedDrawing({
+                                fibLevels: drawing.fibLevels.filter((_, currentIndex) => currentIndex !== index),
+                              })
+                            }
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="drawing-settings-fib-level-add"
+                        disabled={drawing.fibLevels.length >= 24}
+                        onClick={() => {
+                          const lastLevel = drawing.fibLevels[drawing.fibLevels.length - 1];
+                          const nextValue = lastLevel ? Number((lastLevel.value + 0.5).toFixed(3)) : 0;
+                          patchSelectedDrawing({
+                            fibLevels: [
+                              ...drawing.fibLevels,
+                              { value: nextValue, enabled: true, color: getFibLevelColor(nextValue) },
+                            ],
+                          });
+                        }}
+                      >
+                        + Add level
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+            {!isFibDrawingTool(drawing.kind) && (
+              <label className="drawing-settings-checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={drawing.showMiddlePoint}
+                  onChange={(event) => patchSelectedDrawing({ showMiddlePoint: event.target.checked })}
+                />
+                <span>Middle point</span>
+              </label>
+            )}
             <label className="drawing-settings-checkbox-row">
               <input
                 type="checkbox"
