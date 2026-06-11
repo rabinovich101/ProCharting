@@ -7949,3 +7949,83 @@ Fix the OHLC instrument legend so minute intervals keep their lowercase unit:
 - Removed generated `.next`, Playwright `test-results`, and
   `playwright-report` artifacts. The unrelated pre-existing deleted TradingView
   JSON files were left untouched.
+
+# TradingView-Style Brushes, Arrows, and Shapes
+
+## Goal
+
+Add the next left-rail drawing tool group for TradingView-style "Brushes,
+Arrows, Shapes" using the ProCharting design language and the existing drawing
+state/rendering system.
+
+## Investigation / Decisions
+
+- TradingView's left rail exposes this as a grouped button whose visible default
+  is `Brush` and whose group label is `Geometric shapes`.
+- The inspected TradingView menu has three sections:
+  - Brushes: `Brush`, `Highlighter`
+  - Arrows: `Arrow marker`, `Arrow`, `Arrow mark up`, `Arrow mark down`
+  - Shapes: `Rectangle`, `Rotated rectangle`, `Path`, `Circle`, `Ellipse`,
+    `Polyline`, `Triangle`, `Arc`, `Curve`, `Double curve`
+- After drawing a brush stroke, TradingView shows a selected-object toolbar with
+  template, color/background, width, settings, remove, and more actions. Our
+  existing selected drawing toolbar already covers the core local equivalents,
+  so the new tools should reuse it.
+- The current implementation keeps drawing state in
+  `TEST/binance-chart-test/app/page.tsx`; adding this family should extend
+  `DrawingToolId`, menu entries, tool classification helpers, pointer placement,
+  hit-testing, and canvas rendering in that same path.
+- Keep this implementation simple: use the current anchor model rather than a
+  new freehand-point storage format. Brush/highlighter use press-and-drag
+  sampled anchors, Path/Polyline use multi-click anchors with Escape or
+  double-click completion, and rectangles, circles, ellipses, arrows, and
+  markers use one/two/three/four anchors based on the visible geometry.
+
+## Checklist
+
+- [x] Add drawing IDs, labels, menu entries, shape icons, shortcut wiring, and
+  last-selected shape state.
+- [x] Add shape classification helpers and anchor-count rules for brushes,
+  arrow tools, and geometric shapes.
+- [x] Implement canvas rendering for brush/highlighter strokes, arrow markers,
+  arrows, rectangles/rotated rectangles, path/polyline, circle/ellipse,
+  triangle, arc, curve, and double curve.
+- [x] Extend hit-testing, dragging, selected handles, pending previews, and
+  selected-toolbar settings to handle the new tool family.
+- [x] Update `ARCHITECTURE.md` with the new drawing group and behavior.
+- [x] Run typecheck/build and browser verification with Playwright/in-app
+  browser.
+- [x] Clean generated verification artifacts.
+
+## Review
+
+- Added a new authenticated left-rail Brushes/Arrows/Shapes group with the
+  inspected TradingView entries: Brush, Highlighter, Arrow marker, Arrow, Arrow
+  mark up/down, Rectangle, Rotated rectangle, Path, Circle, Ellipse, Polyline,
+  Triangle, Arc, Curve, and Double curve.
+- Reused the existing `ChartDrawing` state model, selected-object toolbar,
+  settings dialog, lock/delete, drag, visibility, and saved-layout sanitation
+  paths instead of adding a second drawing model.
+- Brush and Highlighter now sample anchors while dragging; Path and Polyline use
+  variable multi-click anchors with Escape or double-click completion; one-,
+  two-, three-, and four-anchor geometric tools render from shared canvas-space
+  helpers.
+- Added shape hit-testing for markers, arrows, polygons, circles, ellipses, and
+  sampled curves so selected handles and body dragging work through the
+  existing drawing interaction path.
+- Updated `ARCHITECTURE.md` with the new drawing group, anchor model, and
+  shared hit-test/rendering behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Logged-in Playwright smoke on `http://127.0.0.1:3102` with dummy Supabase
+    public env/session, mocked market data, all 16 new menu entries verified,
+    all 16 new tools drawn from the real flyout, Arrow default right arrow
+    verified, Highlighter opacity verified, final drawing count `16`, screenshot
+    inspection, and nonblank canvas check.
+  - In-app Browser opened `http://127.0.0.1:3102` for a signed-out surface
+    check.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Generated `.next`, `test-results`, and `playwright-report` artifacts were
+  removed.

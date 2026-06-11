@@ -207,8 +207,24 @@ type DrawingToolId =
   | 'anchored-volume-profile'
   | 'price-range'
   | 'date-range'
-  | 'date-price-range';
-type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools' | 'forecast-tools';
+  | 'date-price-range'
+  | 'brush'
+  | 'highlighter'
+  | 'arrow-marker'
+  | 'arrow'
+  | 'arrow-mark-up'
+  | 'arrow-mark-down'
+  | 'rectangle'
+  | 'rotated-rectangle'
+  | 'path'
+  | 'circle'
+  | 'ellipse'
+  | 'polyline'
+  | 'triangle'
+  | 'arc'
+  | 'curve'
+  | 'double-curve';
+type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools' | 'forecast-tools' | 'shape-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
@@ -378,6 +394,13 @@ interface DrawingDragState {
   startX: number;
   startY: number;
   startAnchors: ChartDrawingAnchor[];
+}
+
+interface FreehandDrawingState {
+  tool: DrawingToolId;
+  paneIndex: number;
+  anchors: ChartDrawingAnchor[];
+  lastPoint: { x: number; y: number };
 }
 
 interface DrawingHitResult {
@@ -726,6 +749,9 @@ const DRAWING_HANDLE_RADIUS = 4.5;
 const DRAWING_HIT_TOLERANCE = 8;
 const DRAWING_FLOATING_TOOLBAR_HEIGHT = 38;
 const DRAWING_FLOATING_TOOLBAR_MARGIN = 8;
+const FREEHAND_DRAWING_MAX_ANCHORS = 180;
+const VARIABLE_SHAPE_DRAWING_MAX_ANCHORS = 12;
+const FREEHAND_DRAWING_MIN_SAMPLE_DISTANCE = 4;
 const DRAWING_COLOR_SWATCHES = ['#2962ff', '#089981', '#f23645', '#ff9800', '#9c27b0', '#ffffff', '#000000'];
 const DRAWING_LINE_WIDTH_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
 const DRAWING_TEXT_SIZE_OPTIONS = [10, 12, 14, 16, 18, 20] as const;
@@ -887,6 +913,22 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'price-range': 'Price range',
   'date-range': 'Date range',
   'date-price-range': 'Date and price range',
+  brush: 'Brush',
+  highlighter: 'Highlighter',
+  'arrow-marker': 'Arrow marker',
+  arrow: 'Arrow',
+  'arrow-mark-up': 'Arrow mark up',
+  'arrow-mark-down': 'Arrow mark down',
+  rectangle: 'Rectangle',
+  'rotated-rectangle': 'Rotated rectangle',
+  path: 'Path',
+  circle: 'Circle',
+  ellipse: 'Ellipse',
+  polyline: 'Polyline',
+  triangle: 'Triangle',
+  arc: 'Arc',
+  curve: 'Curve',
+  'double-curve': 'Double curve',
 };
 const FIB_DEFAULT_TREND_COLOR = '#787b86';
 const POSITION_RISK_AMOUNT = 250;
@@ -1412,7 +1454,129 @@ const FORECAST_TOOL_ICONS: Record<string, ReactNode> = {
     </svg>
   ),
 };
-const DRAWING_TOOL_SHORTCUTS = LINE_TOOL_MENU_ENTRIES.reduce<Record<string, DrawingToolId>>((shortcuts, entry) => {
+const SHAPE_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
+  { type: 'section', label: 'Brushes' },
+  { type: 'tool', id: 'brush', label: 'Brush', icon: 'brush', tool: 'brush' },
+  { type: 'tool', id: 'highlighter', label: 'Highlighter', icon: 'highlighter', tool: 'highlighter' },
+  { type: 'section', label: 'Arrows' },
+  { type: 'tool', id: 'arrow-marker', label: 'Arrow marker', icon: 'arrow-marker', tool: 'arrow-marker' },
+  { type: 'tool', id: 'arrow', label: 'Arrow', icon: 'arrow', tool: 'arrow' },
+  { type: 'tool', id: 'arrow-mark-up', label: 'Arrow mark up', icon: 'arrow-mark-up', tool: 'arrow-mark-up' },
+  { type: 'tool', id: 'arrow-mark-down', label: 'Arrow mark down', icon: 'arrow-mark-down', tool: 'arrow-mark-down' },
+  { type: 'section', label: 'Shapes' },
+  { type: 'tool', id: 'rectangle', label: 'Rectangle', icon: 'rectangle', tool: 'rectangle' },
+  { type: 'tool', id: 'rotated-rectangle', label: 'Rotated rectangle', icon: 'rotated-rectangle', tool: 'rotated-rectangle' },
+  { type: 'tool', id: 'path', label: 'Path', icon: 'path', tool: 'path' },
+  { type: 'tool', id: 'circle', label: 'Circle', icon: 'circle', tool: 'circle' },
+  { type: 'tool', id: 'ellipse', label: 'Ellipse', icon: 'ellipse', tool: 'ellipse' },
+  { type: 'tool', id: 'polyline', label: 'Polyline', icon: 'polyline', tool: 'polyline' },
+  { type: 'tool', id: 'triangle', label: 'Triangle', icon: 'triangle', tool: 'triangle' },
+  { type: 'tool', id: 'arc', label: 'Arc', icon: 'arc', tool: 'arc' },
+  { type: 'tool', id: 'curve', label: 'Curve', icon: 'curve', tool: 'curve' },
+  { type: 'tool', id: 'double-curve', label: 'Double curve', icon: 'double-curve', tool: 'double-curve' },
+];
+const SHAPE_TOOL_ICONS: Record<string, ReactNode> = {
+  brush: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 20c3-9 8 5 11-4 2-6 6-5 9-9" />
+      <path stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" d="M4 23c4-1 8-1 12 0" />
+    </svg>
+  ),
+  highlighter: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="5" strokeLinecap="round" opacity="0.36" d="M5 19c4-8 8 4 12-4 2-4 4-5 7-7" />
+      <path stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" d="M5 22h13" />
+    </svg>
+  ),
+  'arrow-marker': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path fill="currentColor" d="M14 4l7 12h-4v8h-6v-8H7z" />
+    </svg>
+  ),
+  arrow: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" d="M5 22 22 5M16 5h6v6" />
+    </svg>
+  ),
+  'arrow-mark-up': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path fill="currentColor" d="M14 5 23 19h-6v5h-6v-5H5z" />
+    </svg>
+  ),
+  'arrow-mark-down': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path fill="currentColor" d="M14 23 5 9h6V4h6v5h6z" />
+    </svg>
+  ),
+  rectangle: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <rect x="5" y="7" width="18" height="14" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  ),
+  'rotated-rectangle': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" d="m9 5 15 7-5 11-15-7z" />
+    </svg>
+  ),
+  path: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" d="M4 21c5-14 9 5 13-7 2-6 5-5 7-7" />
+      <circle cx="4" cy="21" r="1.8" fill="currentColor" />
+      <circle cx="17" cy="14" r="1.8" fill="currentColor" />
+      <circle cx="24" cy="7" r="1.8" fill="currentColor" />
+    </svg>
+  ),
+  circle: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <circle cx="14" cy="14" r="9" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="14" cy="14" r="1.8" fill="currentColor" />
+    </svg>
+  ),
+  ellipse: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <ellipse cx="14" cy="14" rx="10" ry="6.5" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  ),
+  polyline: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" d="m4 21 6-11 6 6 8-10" />
+      <circle cx="4" cy="21" r="1.6" fill="currentColor" />
+      <circle cx="10" cy="10" r="1.6" fill="currentColor" />
+      <circle cx="16" cy="16" r="1.6" fill="currentColor" />
+      <circle cx="24" cy="6" r="1.6" fill="currentColor" />
+    </svg>
+  ),
+  triangle: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" d="m14 5 10 18H4z" />
+    </svg>
+  ),
+  arc: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M5 21c2-10 16-10 18 0" />
+      <path stroke="currentColor" strokeWidth="1.2" strokeDasharray="2.5 2" d="M5 21h18" />
+    </svg>
+  ),
+  curve: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M4 21c6-18 14 16 20-10" />
+    </svg>
+  ),
+  'double-curve': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M4 20c5-15 9 11 14-4 2-6 4-7 6-6" />
+      <path stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.55" d="M4 13c5-9 9 8 14-2 2-4 4-5 6-4" />
+    </svg>
+  ),
+};
+const ALL_DRAWING_MENU_ENTRIES = [
+  ...LINE_TOOL_MENU_ENTRIES,
+  ...FIB_TOOL_MENU_ENTRIES,
+  ...PATTERN_TOOL_MENU_ENTRIES,
+  ...FORECAST_TOOL_MENU_ENTRIES,
+  ...SHAPE_TOOL_MENU_ENTRIES,
+];
+const DRAWING_TOOL_SHORTCUTS = ALL_DRAWING_MENU_ENTRIES.reduce<Record<string, DrawingToolId>>((shortcuts, entry) => {
   if (entry.type === 'tool' && !entry.disabled && entry.shortcut && entry.tool) {
     shortcuts[entry.shortcut.toLowerCase()] = entry.tool;
   }
@@ -2595,55 +2759,7 @@ const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
   patternBars: drawing.patternBars?.map((bar) => ({ ...bar })),
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
-  value === 'trend-line' ||
-  value === 'ray' ||
-  value === 'info-line' ||
-  value === 'extended-line' ||
-  value === 'trend-angle' ||
-  value === 'horizontal-line' ||
-  value === 'horizontal-ray' ||
-  value === 'vertical-line' ||
-  value === 'cross-line' ||
-  value === 'parallel-channel' ||
-  value === 'regression-trend' ||
-  value === 'flat-top-bottom' ||
-  value === 'disjoint-channel' ||
-  value === 'fib-retracement' ||
-  value === 'fib-extension' ||
-  value === 'fib-channel' ||
-  value === 'fib-time-zone' ||
-  value === 'fib-speed-fan' ||
-  value === 'fib-trend-time' ||
-  value === 'fib-circles' ||
-  value === 'fib-spiral' ||
-  value === 'fib-arcs' ||
-  value === 'fib-wedge' ||
-  value === 'xabcd-pattern' ||
-  value === 'cypher-pattern' ||
-  value === 'head-and-shoulders' ||
-  value === 'abcd-pattern' ||
-  value === 'triangle-pattern' ||
-  value === 'three-drives-pattern' ||
-  value === 'elliott-impulse-wave' ||
-  value === 'elliott-correction-wave' ||
-  value === 'elliott-triangle-wave' ||
-  value === 'elliott-double-combo-wave' ||
-  value === 'elliott-triple-combo-wave' ||
-  value === 'cyclic-lines' ||
-  value === 'time-cycles' ||
-  value === 'sine-line' ||
-  value === 'long-position' ||
-  value === 'short-position' ||
-  value === 'forecast' ||
-  value === 'bars-pattern' ||
-  value === 'ghost-feed' ||
-  value === 'projection' ||
-  value === 'anchored-vwap' ||
-  value === 'fixed-volume-profile' ||
-  value === 'anchored-volume-profile' ||
-  value === 'price-range' ||
-  value === 'date-range' ||
-  value === 'date-price-range';
+  typeof value === 'string' && Object.prototype.hasOwnProperty.call(DRAWING_TOOL_LABELS, value);
 const isFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' ||
   kind === 'fib-extension' ||
@@ -2691,8 +2807,51 @@ const FORECAST_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
 const GHOST_FEED_MAX_ANCHORS = 16;
 const isForecastDrawingTool = (kind: DrawingToolId) => FORECAST_DRAWING_ANCHOR_COUNTS[kind] !== undefined;
 const isPositionDrawingTool = (kind: DrawingToolId) => kind === 'long-position' || kind === 'short-position';
+const SHAPE_DRAWING_TOOL_IDS: ReadonlySet<DrawingToolId> = new Set([
+  'brush',
+  'highlighter',
+  'arrow-marker',
+  'arrow',
+  'arrow-mark-up',
+  'arrow-mark-down',
+  'rectangle',
+  'rotated-rectangle',
+  'path',
+  'circle',
+  'ellipse',
+  'polyline',
+  'triangle',
+  'arc',
+  'curve',
+  'double-curve',
+]);
+const SHAPE_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
+  'arrow-marker': 1,
+  'arrow-mark-up': 1,
+  'arrow-mark-down': 1,
+  arrow: 2,
+  rectangle: 2,
+  circle: 2,
+  ellipse: 2,
+  'rotated-rectangle': 3,
+  triangle: 3,
+  arc: 3,
+  curve: 3,
+  'double-curve': 4,
+};
+const isShapeDrawingTool = (kind: DrawingToolId) => SHAPE_DRAWING_TOOL_IDS.has(kind);
+const isFreehandDrawingTool = (kind: DrawingToolId) => kind === 'brush' || kind === 'highlighter';
+const isVariableAnchorShapeDrawingTool = (kind: DrawingToolId) => kind === 'path' || kind === 'polyline';
+const isClassicLineDrawingTool = (kind: DrawingToolId) =>
+  !isFibDrawingTool(kind) && !isPatternDrawingTool(kind) && !isForecastDrawingTool(kind) && !isShapeDrawingTool(kind);
 const getMaxDrawingAnchorCount = (kind: DrawingToolId) =>
-  kind === 'ghost-feed' ? GHOST_FEED_MAX_ANCHORS : getRequiredDrawingAnchorCount(kind);
+  kind === 'ghost-feed'
+    ? GHOST_FEED_MAX_ANCHORS
+    : isFreehandDrawingTool(kind)
+      ? FREEHAND_DRAWING_MAX_ANCHORS
+      : isVariableAnchorShapeDrawingTool(kind)
+        ? VARIABLE_SHAPE_DRAWING_MAX_ANCHORS
+        : getRequiredDrawingAnchorCount(kind);
 const PATTERN_POINT_LABELS: Partial<Record<DrawingToolId, Array<string | null>>> = {
   'xabcd-pattern': ['X', 'A', 'B', 'C', 'D'],
   'cypher-pattern': ['X', 'A', 'B', 'C', 'D'],
@@ -2709,6 +2868,7 @@ const PATTERN_POINT_LABELS: Partial<Record<DrawingToolId, Array<string | null>>>
 const isFibExtendableDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' || kind === 'fib-extension' || kind === 'fib-channel';
 const isOneAnchorDrawingTool = (kind: DrawingToolId) =>
+  SHAPE_DRAWING_ANCHOR_COUNTS[kind] === 1 ||
   kind === 'horizontal-line' ||
   kind === 'horizontal-ray' ||
   kind === 'vertical-line' ||
@@ -2730,15 +2890,35 @@ const isMultiAnchorDrawingTool = (kind: DrawingToolId) => !isOneAnchorDrawingToo
 const isHorizontalDrawingTool = (kind: DrawingToolId) => kind === 'horizontal-line' || kind === 'horizontal-ray';
 const isVerticalDrawingTool = (kind: DrawingToolId) => kind === 'vertical-line';
 const getRequiredDrawingAnchorCount = (kind: DrawingToolId) =>
-  PATTERN_DRAWING_ANCHOR_COUNTS[kind] ??
-  FORECAST_DRAWING_ANCHOR_COUNTS[kind] ??
-  (kind === 'disjoint-channel'
-    ? 4
-    : isChannelDrawingTool(kind) || isThreeAnchorFibDrawingTool(kind)
-      ? 3
-      : isTwoAnchorDrawingTool(kind) || isFibDrawingTool(kind)
-        ? 2
-        : 1);
+  SHAPE_DRAWING_ANCHOR_COUNTS[kind] ??
+  (isFreehandDrawingTool(kind) || isVariableAnchorShapeDrawingTool(kind)
+    ? 2
+    : PATTERN_DRAWING_ANCHOR_COUNTS[kind] ??
+      FORECAST_DRAWING_ANCHOR_COUNTS[kind] ??
+      (kind === 'disjoint-channel'
+        ? 4
+        : isChannelDrawingTool(kind) || isThreeAnchorFibDrawingTool(kind)
+          ? 3
+          : isTwoAnchorDrawingTool(kind) || isFibDrawingTool(kind)
+            ? 2
+            : 1));
+const getDefaultDrawingColor = (kind: DrawingToolId) =>
+  isFibDrawingTool(kind)
+    ? kind === 'fib-spiral'
+      ? DRAWING_DEFAULT_COLOR
+      : FIB_DEFAULT_TREND_COLOR
+    : kind === 'highlighter'
+      ? '#fdd835'
+      : kind === 'arrow-mark-up'
+        ? '#089981'
+        : kind === 'arrow-mark-down'
+          ? '#f23645'
+          : DRAWING_DEFAULT_COLOR;
+const getDefaultDrawingOpacity = (kind: DrawingToolId) => (kind === 'highlighter' ? 0.36 : DRAWING_DEFAULT_OPACITY);
+const getDefaultDrawingLineWidth = (kind: DrawingToolId) =>
+  kind === 'highlighter' ? 6 : kind === 'brush' ? 3 : 2;
+const getDefaultDrawingLeftEnd = (_kind: DrawingToolId): DrawingArrowEnd => 'none';
+const getDefaultDrawingRightEnd = (kind: DrawingToolId): DrawingArrowEnd => (kind === 'arrow' ? 'arrow' : 'none');
 const DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX = ['start', 'end', 'third', 'fourth', 'fifth', 'sixth', 'seventh'] as const;
 const getDrawingHitTargetForAnchorIndex = (index: number): DrawingHitTarget | null =>
   DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX[index] ?? null;
@@ -2890,13 +3070,15 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         anchors,
         locked: drawing.locked === true,
         visible: drawing.visible !== false,
-        color: typeof drawing.color === 'string' ? drawing.color : DRAWING_DEFAULT_COLOR,
-        opacity: Number.isFinite(drawing.opacity) ? clamp(drawing.opacity!, 0.1, 1) : DRAWING_DEFAULT_OPACITY,
-        lineWidth: Number.isFinite(drawing.lineWidth) ? clamp(drawing.lineWidth!, 1, 6) : 2,
+        color: typeof drawing.color === 'string' ? drawing.color : getDefaultDrawingColor(drawing.kind),
+        opacity: Number.isFinite(drawing.opacity) ? clamp(drawing.opacity!, 0.1, 1) : getDefaultDrawingOpacity(drawing.kind),
+        lineWidth: Number.isFinite(drawing.lineWidth)
+          ? clamp(drawing.lineWidth!, 1, 6)
+          : getDefaultDrawingLineWidth(drawing.kind),
         lineStyle: isDrawingLineStyle(drawing.lineStyle) ? drawing.lineStyle : DRAWING_DEFAULT_LINE_STYLE,
         extend: isDrawingExtendMode(drawing.extend) ? drawing.extend : 'none',
-        leftEnd: isDrawingArrowEnd(drawing.leftEnd) ? drawing.leftEnd : 'none',
-        rightEnd: isDrawingArrowEnd(drawing.rightEnd) ? drawing.rightEnd : 'none',
+        leftEnd: isDrawingArrowEnd(drawing.leftEnd) ? drawing.leftEnd : getDefaultDrawingLeftEnd(drawing.kind),
+        rightEnd: isDrawingArrowEnd(drawing.rightEnd) ? drawing.rightEnd : getDefaultDrawingRightEnd(drawing.kind),
         text: typeof drawing.text === 'string' ? drawing.text.slice(0, 120) : '',
         showText: drawing.showText === true,
         textColor: typeof drawing.textColor === 'string' ? drawing.textColor : DRAWING_DEFAULT_TEXT_COLOR,
@@ -3318,6 +3500,183 @@ const getProjectedChannelOffset = (
     y: control.y - projectedPoint.y,
   };
 };
+const getPolylineHit = (
+  points: Array<{ x: number; y: number }>,
+  x: number,
+  y: number,
+  tolerance: number
+) => {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index]!;
+    const end = points[index + 1]!;
+    if (getDistanceToSegment(x, y, start, end) <= tolerance) return true;
+  }
+
+  return false;
+};
+const getRectangleCorners = (start: { x: number; y: number }, end: { x: number; y: number }) => [
+  { x: start.x, y: start.y },
+  { x: end.x, y: start.y },
+  { x: end.x, y: end.y },
+  { x: start.x, y: end.y },
+];
+const getRotatedRectangleCorners = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  control: { x: number; y: number }
+) => {
+  const offset = getProjectedChannelOffset(start, end, control);
+  return [
+    start,
+    end,
+    { x: end.x + offset.x, y: end.y + offset.y },
+    { x: start.x + offset.x, y: start.y + offset.y },
+  ];
+};
+const sampleQuadraticCurve = (
+  start: { x: number; y: number },
+  control: { x: number; y: number },
+  end: { x: number; y: number },
+  segments = 32
+): Array<{ x: number; y: number }> => {
+  const points: Array<{ x: number; y: number }> = [];
+  for (let index = 0; index <= segments; index += 1) {
+    const t = index / segments;
+    const inverse = 1 - t;
+    points.push({
+      x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
+      y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
+    });
+  }
+  return points;
+};
+const sampleCubicCurve = (
+  start: { x: number; y: number },
+  controlA: { x: number; y: number },
+  controlB: { x: number; y: number },
+  end: { x: number; y: number },
+  segments = 36
+): Array<{ x: number; y: number }> => {
+  const points: Array<{ x: number; y: number }> = [];
+  for (let index = 0; index <= segments; index += 1) {
+    const t = index / segments;
+    const inverse = 1 - t;
+    points.push({
+      x:
+        inverse * inverse * inverse * start.x +
+        3 * inverse * inverse * t * controlA.x +
+        3 * inverse * t * t * controlB.x +
+        t * t * t * end.x,
+      y:
+        inverse * inverse * inverse * start.y +
+        3 * inverse * inverse * t * controlA.y +
+        3 * inverse * t * t * controlB.y +
+        t * t * t * end.y,
+    });
+  }
+  return points;
+};
+const getShapeCurvePoints = (kind: DrawingToolId, points: Array<{ x: number; y: number }>) => {
+  const [first, second, third, fourth] = points;
+  if (!first || !second) return points;
+
+  if (kind === 'arc' && third) {
+    return sampleQuadraticCurve(first, third, second);
+  }
+
+  if (kind === 'curve' && third) {
+    return sampleQuadraticCurve(first, second, third);
+  }
+
+  if (kind === 'double-curve' && third && fourth) {
+    return sampleCubicCurve(first, second, third, fourth);
+  }
+
+  return points;
+};
+const isPointNearEllipse = (
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+  tolerance: number
+) => {
+  if (radiusX < 1 || radiusY < 1) {
+    return Math.abs(x - centerX) <= Math.max(radiusX, tolerance) && Math.abs(y - centerY) <= Math.max(radiusY, tolerance);
+  }
+
+  const normalizedX = (x - centerX) / radiusX;
+  const normalizedY = (y - centerY) / radiusY;
+  const normalizedDistance = normalizedX * normalizedX + normalizedY * normalizedY;
+  if (normalizedDistance <= 1) return true;
+
+  const edgeDistance = Math.abs(Math.sqrt(normalizedDistance) - 1) * Math.max(radiusX, radiusY);
+  return edgeDistance <= tolerance;
+};
+const hitTestPolygonBody = (
+  polygon: Array<{ x: number; y: number }>,
+  x: number,
+  y: number,
+  tolerance: number
+) => {
+  if (polygon.length < 3) return false;
+  return isPointInPolygon(x, y, polygon) || getPolylineHit([...polygon, polygon[0]!], x, y, tolerance);
+};
+const hitTestShapeDrawingAt = (
+  drawing: ChartDrawing,
+  points: Array<{ x: number; y: number }>,
+  x: number,
+  y: number,
+  tolerance: number
+) => {
+  const [first, second, third] = points;
+  if (!first) return false;
+
+  if (drawing.kind === 'arrow-marker' || drawing.kind === 'arrow-mark-up' || drawing.kind === 'arrow-mark-down') {
+    return Math.hypot(x - first.x, y - first.y) <= Math.max(16, tolerance);
+  }
+
+  if (drawing.kind === 'brush' || drawing.kind === 'highlighter' || drawing.kind === 'path' || drawing.kind === 'polyline') {
+    return getPolylineHit(points, x, y, Math.max(tolerance, drawing.lineWidth * 0.85));
+  }
+
+  if (!second) return false;
+
+  if (drawing.kind === 'arrow') {
+    return getDistanceToSegment(x, y, first, second) <= tolerance;
+  }
+
+  if (drawing.kind === 'rectangle') {
+    return hitTestPolygonBody(getRectangleCorners(first, second), x, y, tolerance);
+  }
+
+  if (drawing.kind === 'rotated-rectangle' && third) {
+    return hitTestPolygonBody(getRotatedRectangleCorners(first, second, third), x, y, tolerance);
+  }
+
+  if (drawing.kind === 'circle') {
+    const radius = Math.hypot(second.x - first.x, second.y - first.y);
+    return Math.hypot(x - first.x, y - first.y) <= radius + tolerance;
+  }
+
+  if (drawing.kind === 'ellipse') {
+    const centerX = (first.x + second.x) / 2;
+    const centerY = (first.y + second.y) / 2;
+    return isPointNearEllipse(x, y, centerX, centerY, Math.abs(second.x - first.x) / 2, Math.abs(second.y - first.y) / 2, tolerance);
+  }
+
+  if (drawing.kind === 'triangle' && third) {
+    return hitTestPolygonBody([first, second, third], x, y, tolerance);
+  }
+
+  if (drawing.kind === 'arc' || drawing.kind === 'curve' || drawing.kind === 'double-curve') {
+    return getPolylineHit(getShapeCurvePoints(drawing.kind, points), x, y, tolerance);
+  }
+
+  return false;
+};
 const getDrawingRenderedSegments = (
   drawing: ChartDrawing,
   points: Array<{ x: number; y: number }>,
@@ -3326,7 +3685,7 @@ const getDrawingRenderedSegments = (
   const start = points[0];
   if (!start) return [];
 
-  if (isFibDrawingTool(drawing.kind) || isPatternDrawingTool(drawing.kind)) return [];
+  if (isFibDrawingTool(drawing.kind) || isPatternDrawingTool(drawing.kind) || isShapeDrawingTool(drawing.kind)) return [];
 
   const right = chartArea.left + chartArea.width;
   const bottom = chartArea.top + chartArea.height;
@@ -5737,6 +6096,7 @@ export default function Home() {
   const dragStateRef = useRef<ChartDragState>(createDragState());
   const touchGestureRef = useRef<ChartTouchGestureState>(createTouchGestureState());
   const drawingDragRef = useRef<DrawingDragState>(createDrawingDragState());
+  const freehandDrawingRef = useRef<FreehandDrawingState | null>(null);
   const drawingToolbarDragRef = useRef<DrawingToolbarDragState | null>(null);
   const drawingsRef = useRef<ChartDrawing[]>([]);
   const selectedDrawingIdRef = useRef<string | null>(null);
@@ -5765,6 +6125,7 @@ export default function Home() {
   const [lastFibTool, setLastFibTool] = useState<DrawingToolId>('fib-retracement');
   const [lastPatternTool, setLastPatternTool] = useState<DrawingToolId>('xabcd-pattern');
   const [lastForecastTool, setLastForecastTool] = useState<DrawingToolId>('long-position');
+  const [lastShapeTool, setLastShapeTool] = useState<DrawingToolId>('brush');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
@@ -6327,10 +6688,19 @@ export default function Home() {
       const editableTarget = isEditableKeyboardTarget(event.target);
 
       if (event.key === 'Escape') {
-        const pendingGhostFeed = pendingDrawingRef.current;
-        if (pendingGhostFeed && pendingGhostFeed.tool === 'ghost-feed' && pendingGhostFeed.anchors.length >= 2) {
+        const pendingEscapedDrawing = pendingDrawingRef.current;
+        if (
+          pendingEscapedDrawing &&
+          (pendingEscapedDrawing.tool === 'ghost-feed' ||
+            isVariableAnchorShapeDrawingTool(pendingEscapedDrawing.tool)) &&
+          pendingEscapedDrawing.anchors.length >= 2
+        ) {
           addCompletedDrawing(
-            createChartDrawing(pendingGhostFeed.paneIndex, pendingGhostFeed.tool, pendingGhostFeed.anchors)
+            createChartDrawing(
+              pendingEscapedDrawing.paneIndex,
+              pendingEscapedDrawing.tool,
+              pendingEscapedDrawing.anchors
+            )
           );
         }
         setOpenMenu(null);
@@ -6346,6 +6716,7 @@ export default function Home() {
         setDrawingToolbarStatus('');
         setPendingDrawing(null);
         setSelectedDrawingId(null);
+        freehandDrawingRef.current = null;
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
       }
 
@@ -6365,6 +6736,7 @@ export default function Home() {
         setDrawingToolbarStatus('');
         setActiveDrawingMenu(null);
         setPendingDrawing(null);
+        freehandDrawingRef.current = null;
         drawingDragRef.current = createDrawingDragState(activePaneIndexRef.current);
         setSelectedDrawingId(null);
         setLastFibTool('fib-retracement');
@@ -6390,9 +6762,20 @@ export default function Home() {
         setDrawingToolbarStatus('');
         setActiveDrawingMenu(null);
         setPendingDrawing(null);
+        freehandDrawingRef.current = null;
         drawingDragRef.current = createDrawingDragState(activePaneIndexRef.current);
         setSelectedDrawingId(null);
-        setLastDrawingTool(drawingShortcutTool);
+        if (isFibDrawingTool(drawingShortcutTool)) {
+          setLastFibTool(drawingShortcutTool);
+        } else if (isPatternDrawingTool(drawingShortcutTool)) {
+          setLastPatternTool(drawingShortcutTool);
+        } else if (isForecastDrawingTool(drawingShortcutTool)) {
+          setLastForecastTool(drawingShortcutTool);
+        } else if (isShapeDrawingTool(drawingShortcutTool)) {
+          setLastShapeTool(drawingShortcutTool);
+        } else {
+          setLastDrawingTool(drawingShortcutTool);
+        }
         setActiveDrawingTool((current) => (current === drawingShortcutTool ? null : drawingShortcutTool));
         event.preventDefault();
         return;
@@ -6990,6 +7373,13 @@ export default function Home() {
         continue;
       }
 
+      if (isShapeDrawingTool(drawing.kind)) {
+        if (hitTestShapeDrawingAt(drawing, points, x, y, DRAWING_HIT_TOLERANCE)) {
+          return { drawing, target: 'body' };
+        }
+        continue;
+      }
+
       const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
       if (
         renderedSegments.some(
@@ -7086,6 +7476,7 @@ export default function Home() {
     setDrawingToolbarStatus('');
     setPendingDrawing(null);
     setSelectedDrawingId(null);
+    freehandDrawingRef.current = null;
     drawingDragRef.current = createDrawingDragState(paneIndex);
   };
   const toggleDrawingMenu = (menu: DrawingMenuId) => {
@@ -7111,6 +7502,7 @@ export default function Home() {
     setDrawingToolbarStatus('');
     setActiveDrawingTool(null);
     setPendingDrawing(null);
+    freehandDrawingRef.current = null;
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
   };
   const selectDrawingTool = (tool: DrawingToolId) => {
@@ -7127,6 +7519,7 @@ export default function Home() {
     setDrawingToolbarStatus('');
     setActiveDrawingMenu(null);
     setPendingDrawing(null);
+    freehandDrawingRef.current = null;
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
     setSelectedDrawingId(null);
     if (isFibDrawingTool(tool)) {
@@ -7135,6 +7528,8 @@ export default function Home() {
       setLastPatternTool(tool);
     } else if (isForecastDrawingTool(tool)) {
       setLastForecastTool(tool);
+    } else if (isShapeDrawingTool(tool)) {
+      setLastShapeTool(tool);
     } else {
       setLastDrawingTool(tool);
     }
@@ -7176,17 +7571,13 @@ export default function Home() {
       anchors: cloneDrawingAnchors(anchors),
       locked: false,
       visible: true,
-      color: isFibDrawingTool(kind)
-        ? kind === 'fib-spiral'
-          ? DRAWING_DEFAULT_COLOR
-          : FIB_DEFAULT_TREND_COLOR
-        : DRAWING_DEFAULT_COLOR,
-      opacity: DRAWING_DEFAULT_OPACITY,
-      lineWidth: 2,
+      color: getDefaultDrawingColor(kind),
+      opacity: getDefaultDrawingOpacity(kind),
+      lineWidth: getDefaultDrawingLineWidth(kind),
       lineStyle: DRAWING_DEFAULT_LINE_STYLE,
       extend: 'none',
-      leftEnd: 'none',
-      rightEnd: 'none',
+      leftEnd: getDefaultDrawingLeftEnd(kind),
+      rightEnd: getDefaultDrawingRightEnd(kind),
       text: '',
       showText: false,
       textColor: DRAWING_DEFAULT_TEXT_COLOR,
@@ -7220,6 +7611,7 @@ export default function Home() {
     setDrawings((current) => [...current, drawing]);
     setSelectedDrawingId(drawing.id);
     setPendingDrawing(null);
+    freehandDrawingRef.current = null;
     setActiveDrawingTool(null);
     setActiveDrawingMenu(null);
     setActiveDrawingToolbarMenu(null);
@@ -7439,7 +7831,18 @@ export default function Home() {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
       if (!anchor) return;
 
-      if (isPositionDrawingTool(activeDrawingTool)) {
+      if (isFreehandDrawingTool(activeDrawingTool)) {
+        freehandDrawingRef.current = {
+          tool: activeDrawingTool,
+          paneIndex,
+          anchors: [anchor],
+          lastPoint: { x, y },
+        };
+        setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: [anchor], preview: anchor });
+        setSelectedDrawingId(null);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
+      } else if (isPositionDrawingTool(activeDrawingTool)) {
         const currentPriceRange = getCurrentPriceRange(paneIndex);
         const visiblePriceSpan = currentPriceRange
           ? currentPriceRange.maxPrice - currentPriceRange.minPrice
@@ -7451,10 +7854,13 @@ export default function Home() {
             createPositionDrawingAnchors(activeDrawingTool, anchor, pane.viewRange.candlesPerView, visiblePriceSpan)
           )
         );
-      } else if (activeDrawingTool === 'ghost-feed') {
+      } else if (activeDrawingTool === 'ghost-feed' || isVariableAnchorShapeDrawingTool(activeDrawingTool)) {
         if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
           const nextAnchors = [...pendingDrawing.anchors, anchor];
-          if ((event.detail >= 2 && nextAnchors.length >= 2) || nextAnchors.length >= GHOST_FEED_MAX_ANCHORS) {
+          if (
+            (event.detail >= 2 && nextAnchors.length >= 2) ||
+            nextAnchors.length >= getMaxDrawingAnchorCount(activeDrawingTool)
+          ) {
             addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, nextAnchors));
           } else {
             setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: nextAnchors, preview: anchor });
@@ -7555,6 +7961,18 @@ export default function Home() {
   };
 
   const handleMouseUp = () => {
+    const freehandDrawing = freehandDrawingRef.current;
+    if (freehandDrawing) {
+      if (freehandDrawing.anchors.length >= getRequiredDrawingAnchorCount(freehandDrawing.tool)) {
+        addCompletedDrawing(
+          createChartDrawing(freehandDrawing.paneIndex, freehandDrawing.tool, freehandDrawing.anchors)
+        );
+      } else {
+        setPendingDrawing(null);
+      }
+      freehandDrawingRef.current = null;
+    }
+
     if (drawingDragRef.current.mode !== 'none') {
       drawingDragRef.current = createDrawingDragState(drawingDragRef.current.paneIndex);
     }
@@ -7577,6 +7995,29 @@ export default function Home() {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const area = getPointerArea(paneIndex, x, y);
+
+    const freehandDrawing = freehandDrawingRef.current;
+    if (isAuthenticated && freehandDrawing && freehandDrawing.paneIndex === paneIndex && area === 'plot') {
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      if (anchor) {
+        const sampleDistance = Math.hypot(x - freehandDrawing.lastPoint.x, y - freehandDrawing.lastPoint.y);
+        if (
+          sampleDistance >= FREEHAND_DRAWING_MIN_SAMPLE_DISTANCE &&
+          freehandDrawing.anchors.length < FREEHAND_DRAWING_MAX_ANCHORS
+        ) {
+          const nextAnchors = [...freehandDrawing.anchors, anchor];
+          freehandDrawingRef.current = {
+            ...freehandDrawing,
+            anchors: nextAnchors,
+            lastPoint: { x, y },
+          };
+          setPendingDrawing({ tool: freehandDrawing.tool, paneIndex, anchors: nextAnchors, preview: anchor });
+        }
+      }
+      updatePaneHoverAtPoint(paneIndex, x, y, area, event.currentTarget);
+      event.preventDefault();
+      return;
+    }
 
     if (
       isAuthenticated &&
@@ -8517,6 +8958,176 @@ export default function Home() {
       drawDrawingText(drawing, connectorStart, connectorEnd);
       drawDrawingStats(drawing, connectorStart, connectorEnd, selected);
     };
+    const drawShapePath = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean,
+      smooth: boolean
+    ) => {
+      if (points.length < 2) return;
+
+      ctx.save();
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      applyDrawingLineStyle(drawing);
+      ctx.beginPath();
+      ctx.moveTo(points[0]!.x, points[0]!.y);
+      if (smooth && points.length > 2) {
+        for (let index = 1; index < points.length - 1; index += 1) {
+          const current = points[index]!;
+          const next = points[index + 1]!;
+          ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+        }
+        const last = points[points.length - 1]!;
+        ctx.lineTo(last.x, last.y);
+      } else {
+        points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    };
+    const drawShapePolygon = (
+      drawing: ChartDrawing,
+      polygon: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      if (polygon.length < 3) return;
+
+      ctx.save();
+      ctx.fillStyle = hexToRgba(drawing.color, clamp(drawing.opacity * 0.12, 0.04, 0.28));
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      applyDrawingLineStyle(drawing);
+      ctx.beginPath();
+      polygon.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    };
+    const drawShapeArrowMarker = (
+      drawing: ChartDrawing,
+      point: { x: number; y: number },
+      selected: boolean,
+      direction: 'up' | 'down'
+    ) => {
+      const height = selected ? 24 : 21;
+      const width = height * 0.75;
+      const sign = direction === 'up' ? 1 : -1;
+
+      ctx.save();
+      ctx.translate(point.x, point.y);
+      ctx.fillStyle = getDrawingStrokeColor(drawing);
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, sign * -height / 2);
+      ctx.lineTo(width / 2, sign * (height * 0.05));
+      ctx.lineTo(width * 0.22, sign * (height * 0.05));
+      ctx.lineTo(width * 0.22, sign * (height / 2));
+      ctx.lineTo(-width * 0.22, sign * (height / 2));
+      ctx.lineTo(-width * 0.22, sign * (height * 0.05));
+      ctx.lineTo(-width / 2, sign * (height * 0.05));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    };
+    const drawShapeDrawing = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      const [first, second, third] = points;
+      if (!first) return;
+
+      if (drawing.kind === 'brush' || drawing.kind === 'highlighter') {
+        drawShapePath(drawing, points, selected, true);
+      } else if (drawing.kind === 'path') {
+        drawShapePath(drawing, points, selected, true);
+      } else if (drawing.kind === 'polyline') {
+        drawShapePath(drawing, points, selected, false);
+      } else if (drawing.kind === 'arrow-marker' || drawing.kind === 'arrow-mark-up') {
+        drawShapeArrowMarker(drawing, first, selected, 'up');
+      } else if (drawing.kind === 'arrow-mark-down') {
+        drawShapeArrowMarker(drawing, first, selected, 'down');
+      } else if (drawing.kind === 'arrow' && second) {
+        ctx.save();
+        ctx.strokeStyle = getDrawingStrokeColor(drawing);
+        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        ctx.lineCap = 'round';
+        applyDrawingLineStyle(drawing);
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(second.x, second.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+        drawDrawingArrowEnd(drawing, first, second, drawing.leftEnd);
+        drawDrawingArrowEnd(drawing, second, first, drawing.rightEnd);
+      } else if (drawing.kind === 'rectangle' && second) {
+        drawShapePolygon(drawing, getRectangleCorners(first, second), selected);
+      } else if (drawing.kind === 'rotated-rectangle' && second && third) {
+        drawShapePolygon(drawing, getRotatedRectangleCorners(first, second, third), selected);
+      } else if (drawing.kind === 'circle' && second) {
+        const radius = Math.hypot(second.x - first.x, second.y - first.y);
+        ctx.save();
+        ctx.fillStyle = hexToRgba(drawing.color, clamp(drawing.opacity * 0.12, 0.04, 0.28));
+        ctx.strokeStyle = getDrawingStrokeColor(drawing);
+        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        applyDrawingLineStyle(drawing);
+        ctx.beginPath();
+        ctx.arc(first.x, first.y, Math.max(1, radius), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      } else if (drawing.kind === 'ellipse' && second) {
+        const centerX = (first.x + second.x) / 2;
+        const centerY = (first.y + second.y) / 2;
+        ctx.save();
+        ctx.fillStyle = hexToRgba(drawing.color, clamp(drawing.opacity * 0.12, 0.04, 0.28));
+        ctx.strokeStyle = getDrawingStrokeColor(drawing);
+        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        applyDrawingLineStyle(drawing);
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, Math.max(1, Math.abs(second.x - first.x) / 2), Math.max(1, Math.abs(second.y - first.y) / 2), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      } else if (drawing.kind === 'triangle' && second && third) {
+        drawShapePolygon(drawing, [first, second, third], selected);
+      } else if (drawing.kind === 'arc' || drawing.kind === 'curve' || drawing.kind === 'double-curve') {
+        drawShapePath(drawing, getShapeCurvePoints(drawing.kind, points), selected, false);
+      }
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+
+      if (drawing.showPriceLabels || selected) {
+        drawing.anchors.forEach((anchor, index) => {
+          const point = points[index];
+          if (!point) return;
+          drawingPriceLabels.push({ y: point.y, price: anchor.price, color: drawing.color, selected });
+        });
+      }
+
+      const connectorStart = first;
+      const connectorEnd = points[points.length - 1] ?? { x: first.x + 1, y: first.y };
+      const textEnd = connectorStart === connectorEnd ? { x: connectorStart.x + 1, y: connectorStart.y } : connectorEnd;
+      drawDrawingText(drawing, connectorStart, textEnd);
+      drawDrawingStats(drawing, connectorStart, textEnd, selected);
+    };
     const forecastPillTextColor = theme === 'dark' ? '#150f23' : '#ffffff';
     const drawForecastPill = (
       lines: string[],
@@ -9187,6 +9798,11 @@ export default function Home() {
         return;
       }
 
+      if (isShapeDrawingTool(drawing.kind)) {
+        drawShapeDrawing(drawing, points, selected);
+        return;
+      }
+
       const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
       const primarySegment = renderedSegments[0];
       if (!primarySegment) return;
@@ -9269,17 +9885,13 @@ export default function Home() {
           anchors: [...pendingDrawing.anchors, pendingDrawing.preview],
           locked: false,
           visible: true,
-          color: isFibDrawingTool(pendingDrawing.tool)
-            ? pendingDrawing.tool === 'fib-spiral'
-              ? DRAWING_DEFAULT_COLOR
-              : FIB_DEFAULT_TREND_COLOR
-            : DRAWING_DEFAULT_COLOR,
-          opacity: DRAWING_DEFAULT_OPACITY,
-          lineWidth: 2,
+          color: getDefaultDrawingColor(pendingDrawing.tool),
+          opacity: getDefaultDrawingOpacity(pendingDrawing.tool),
+          lineWidth: getDefaultDrawingLineWidth(pendingDrawing.tool),
           lineStyle: DRAWING_DEFAULT_LINE_STYLE,
           extend: 'none',
-          leftEnd: 'none',
-          rightEnd: 'none',
+          leftEnd: getDefaultDrawingLeftEnd(pendingDrawing.tool),
+          rightEnd: getDefaultDrawingRightEnd(pendingDrawing.tool),
           text: '',
           showText: false,
           textColor: DRAWING_DEFAULT_TEXT_COLOR,
@@ -10978,7 +11590,11 @@ export default function Home() {
         onClick={handleEntryClick}
       >
         <span className={`drawing-tool-icon ${entry.icon}`} aria-hidden="true">
-          {FIB_TOOL_ICONS[entry.icon] ?? PATTERN_TOOL_ICONS[entry.icon] ?? FORECAST_TOOL_ICONS[entry.icon] ?? null}
+          {FIB_TOOL_ICONS[entry.icon] ??
+            PATTERN_TOOL_ICONS[entry.icon] ??
+            FORECAST_TOOL_ICONS[entry.icon] ??
+            SHAPE_TOOL_ICONS[entry.icon] ??
+            null}
         </span>
         <span>{entry.label}</span>
         {entry.shortcut && <kbd>{entry.shortcut}</kbd>}
@@ -11053,10 +11669,7 @@ export default function Home() {
     if (!isAuthenticated) return null;
 
     const visibleLineTool =
-      activeDrawingTool !== null &&
-      !isFibDrawingTool(activeDrawingTool) &&
-      !isPatternDrawingTool(activeDrawingTool) &&
-      !isForecastDrawingTool(activeDrawingTool)
+      activeDrawingTool !== null && isClassicLineDrawingTool(activeDrawingTool)
         ? activeDrawingTool
         : lastDrawingTool;
     const visibleFibTool =
@@ -11065,6 +11678,8 @@ export default function Home() {
       activeDrawingTool !== null && isPatternDrawingTool(activeDrawingTool) ? activeDrawingTool : lastPatternTool;
     const visibleForecastTool =
       activeDrawingTool !== null && isForecastDrawingTool(activeDrawingTool) ? activeDrawingTool : lastForecastTool;
+    const visibleShapeTool =
+      activeDrawingTool !== null && isShapeDrawingTool(activeDrawingTool) ? activeDrawingTool : lastShapeTool;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -11121,10 +11736,7 @@ export default function Home() {
             title={DRAWING_TOOL_LABELS[visibleLineTool]}
             data-active={
               activeDrawingMenu === 'line-tools' ||
-              (activeDrawingTool !== null &&
-                !isFibDrawingTool(activeDrawingTool) &&
-                !isPatternDrawingTool(activeDrawingTool) &&
-                !isForecastDrawingTool(activeDrawingTool))
+              (activeDrawingTool !== null && isClassicLineDrawingTool(activeDrawingTool))
             }
             onClick={() => toggleDrawingMenu('line-tools')}
           >
@@ -11209,6 +11821,33 @@ export default function Home() {
               aria-label="Forecasting tools"
             >
               {FORECAST_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            </div>
+          )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${DRAWING_TOOL_LABELS[visibleShapeTool]} drawing tool group`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'shape-tools'}
+            title={DRAWING_TOOL_LABELS[visibleShapeTool]}
+            data-active={
+              activeDrawingMenu === 'shape-tools' ||
+              (activeDrawingTool !== null && isShapeDrawingTool(activeDrawingTool))
+            }
+            onClick={() => toggleDrawingMenu('shape-tools')}
+          >
+            <span className={`drawing-tool-icon ${visibleShapeTool}`} aria-hidden="true">
+              {SHAPE_TOOL_ICONS[visibleShapeTool] ?? null}
+            </span>
+          </button>
+          {activeDrawingMenu === 'shape-tools' && (
+            <div
+              className="drawing-tool-menu line-tools-menu shape-tools-menu"
+              role="menu"
+              aria-label="Brushes, arrows, and shapes"
+            >
+              {SHAPE_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
             </div>
           )}
         </div>
@@ -11308,7 +11947,7 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
-                {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && !isForecastDrawingTool(drawing.kind) && (
+                {(isClassicLineDrawingTool(drawing.kind) || drawing.kind === 'arrow') && (
                   <>
                     <button
                       type="button"
@@ -11471,7 +12110,7 @@ export default function Home() {
                 )}
               </>
             )}
-            {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && !isForecastDrawingTool(drawing.kind) && (
+            {isClassicLineDrawingTool(drawing.kind) && (
               <label className="drawing-settings-checkbox-row">
                 <input
                   type="checkbox"
@@ -11929,32 +12568,36 @@ export default function Home() {
                   onChange={(event) => patchSelectedDrawing({ opacity: clamp(Number(event.target.value) / 100, 0.1, 1) })}
                 />
               </label>
-              <label>
-                <span>Left end</span>
-                <select
-                  value={drawing.leftEnd}
-                  onChange={(event) => patchSelectedDrawing({ leftEnd: event.target.value as DrawingArrowEnd })}
-                >
-                  {DRAWING_ARROW_END_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Right end</span>
-                <select
-                  value={drawing.rightEnd}
-                  onChange={(event) => patchSelectedDrawing({ rightEnd: event.target.value as DrawingArrowEnd })}
-                >
-                  {DRAWING_ARROW_END_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {(isClassicLineDrawingTool(drawing.kind) || drawing.kind === 'arrow') && (
+                <>
+                  <label>
+                    <span>Left end</span>
+                    <select
+                      value={drawing.leftEnd}
+                      onChange={(event) => patchSelectedDrawing({ leftEnd: event.target.value as DrawingArrowEnd })}
+                    >
+                      {DRAWING_ARROW_END_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Right end</span>
+                    <select
+                      value={drawing.rightEnd}
+                      onChange={(event) => patchSelectedDrawing({ rightEnd: event.target.value as DrawingArrowEnd })}
+                    >
+                      {DRAWING_ARROW_END_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
             </>
           )}
           {activeDrawingToolbarMenu === 'settings' && (
@@ -11983,14 +12626,16 @@ export default function Home() {
                   onChange={(event) => patchSelectedDrawing({ lineWidth: clamp(Number(event.target.value), 1, 6) })}
                 />
               </label>
-              <label>
-                <span>Middle point</span>
-                <input
-                  type="checkbox"
-                  checked={drawing.showMiddlePoint}
-                  onChange={(event) => patchSelectedDrawing({ showMiddlePoint: event.target.checked })}
-                />
-              </label>
+              {isClassicLineDrawingTool(drawing.kind) && (
+                <label>
+                  <span>Middle point</span>
+                  <input
+                    type="checkbox"
+                    checked={drawing.showMiddlePoint}
+                    onChange={(event) => patchSelectedDrawing({ showMiddlePoint: event.target.checked })}
+                  />
+                </label>
+              )}
               <label>
                 <span>Price labels</span>
                 <input

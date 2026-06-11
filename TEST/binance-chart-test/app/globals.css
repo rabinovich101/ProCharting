@@ -2665,6 +2665,10 @@ summary {
   min-width: 280px;
 }
 
+.shape-tools-menu {
+  min-width: 282px;
+}
+
 .drawing-tool-menu-section {
   color: var(--text-muted);
   display: block;
