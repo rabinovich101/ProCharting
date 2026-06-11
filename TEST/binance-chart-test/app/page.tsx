@@ -195,8 +195,20 @@ type DrawingToolId =
   | 'elliott-triple-combo-wave'
   | 'cyclic-lines'
   | 'time-cycles'
-  | 'sine-line';
-type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools';
+  | 'sine-line'
+  | 'long-position'
+  | 'short-position'
+  | 'forecast'
+  | 'bars-pattern'
+  | 'ghost-feed'
+  | 'projection'
+  | 'anchored-vwap'
+  | 'fixed-volume-profile'
+  | 'anchored-volume-profile'
+  | 'price-range'
+  | 'date-range'
+  | 'date-price-range';
+type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools' | 'forecast-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
@@ -295,6 +307,13 @@ interface ChartDrawingAnchor {
   price: number;
 }
 
+interface DrawingPatternBar {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
 interface DrawingFibLevel {
   value: number;
   enabled: boolean;
@@ -339,6 +358,8 @@ interface ChartDrawing {
   visibility: DrawingVisibilityMode;
   syncInLayout: boolean;
   syncGlobally: boolean;
+  patternBars?: DrawingPatternBar[] | undefined;
+  seed?: number | undefined;
   createdAt: number;
   updatedAt: number;
 }
@@ -854,8 +875,26 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'cyclic-lines': 'Cyclic lines',
   'time-cycles': 'Time cycles',
   'sine-line': 'Sine line',
+  'long-position': 'Long position',
+  'short-position': 'Short position',
+  forecast: 'Position forecast',
+  'bars-pattern': 'Bars pattern',
+  'ghost-feed': 'Ghost feed',
+  projection: 'Sector',
+  'anchored-vwap': 'Anchored VWAP',
+  'fixed-volume-profile': 'Fixed range volume profile',
+  'anchored-volume-profile': 'Anchored volume profile',
+  'price-range': 'Price range',
+  'date-range': 'Date range',
+  'date-price-range': 'Date and price range',
 };
 const FIB_DEFAULT_TREND_COLOR = '#787b86';
+const POSITION_RISK_AMOUNT = 250;
+const POSITION_PRICE_TICK = 0.01;
+const formatPositionQty = (qty: number) => {
+  if (!Number.isFinite(qty) || qty <= 0) return '0';
+  return qty >= 10 ? Math.round(qty).toLocaleString() : Number(qty.toPrecision(4)).toString();
+};
 const FIB_LEVEL_VALUE_COLORS: Record<string, string> = {
   '0': '#787b86',
   '0.236': '#f23645',
@@ -1244,6 +1283,132 @@ const PATTERN_TOOL_ICONS: Record<string, ReactNode> = {
   'sine-line': (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
       <path stroke="currentColor" strokeWidth="1.6" d="M2.5 14c3-7.5 6-7.5 8.5 0s5.5 7.5 8.5 0 4.5-5.5 6-2.5" />
+    </svg>
+  ),
+};
+const FORECAST_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
+  { type: 'section', label: 'Forecasting' },
+  { type: 'tool', id: 'long-position', label: 'Long position', icon: 'long-position', tool: 'long-position' },
+  { type: 'tool', id: 'short-position', label: 'Short position', icon: 'short-position', tool: 'short-position' },
+  { type: 'tool', id: 'forecast', label: 'Position forecast', icon: 'forecast', tool: 'forecast' },
+  { type: 'tool', id: 'bars-pattern', label: 'Bars pattern', icon: 'bars-pattern', tool: 'bars-pattern' },
+  { type: 'tool', id: 'ghost-feed', label: 'Ghost feed', icon: 'ghost-feed', tool: 'ghost-feed' },
+  { type: 'tool', id: 'projection', label: 'Sector', icon: 'projection', tool: 'projection' },
+  { type: 'section', label: 'Volume-based' },
+  { type: 'tool', id: 'anchored-vwap', label: 'Anchored VWAP', icon: 'anchored-vwap', tool: 'anchored-vwap' },
+  {
+    type: 'tool',
+    id: 'fixed-volume-profile',
+    label: 'Fixed range volume profile',
+    icon: 'fixed-volume-profile',
+    tool: 'fixed-volume-profile',
+  },
+  {
+    type: 'tool',
+    id: 'anchored-volume-profile',
+    label: 'Anchored volume profile',
+    icon: 'anchored-volume-profile',
+    tool: 'anchored-volume-profile',
+  },
+  { type: 'section', label: 'Measurers' },
+  { type: 'tool', id: 'price-range', label: 'Price range', icon: 'price-range', tool: 'price-range' },
+  { type: 'tool', id: 'date-range', label: 'Date range', icon: 'date-range', tool: 'date-range' },
+  {
+    type: 'tool',
+    id: 'date-price-range',
+    label: 'Date and price range',
+    icon: 'date-price-range',
+    tool: 'date-price-range',
+  },
+];
+const FORECAST_TOOL_ICONS: Record<string, ReactNode> = {
+  'long-position': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" d="M4 5.5h20M4 22.5h20" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M4 14h6M18 14h6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M14 19V9.6M10.6 12.8 14 9.4l3.4 3.4" />
+    </svg>
+  ),
+  'short-position': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" d="M4 5.5h20M4 22.5h20" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M4 14h6M18 14h6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M14 9v9.4M10.6 15.2 14 18.6l3.4-3.4" />
+    </svg>
+  ),
+  forecast: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <circle cx="5" cy="21.5" r="1.8" fill="currentColor" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M6.8 21c6.2-1.4 12.2-5.4 15.5-13" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M17.6 8.4 22.5 7.6l.9 4.8" />
+    </svg>
+  ),
+  'bars-pattern': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M7 4.5v4M7 17v4.5" />
+      <rect x="5" y="8.5" width="4" height="8.5" stroke="currentColor" strokeWidth="1.6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M14 3v3M14 15v4" />
+      <rect x="12" y="6" width="4" height="9" stroke="currentColor" strokeWidth="1.6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M21 7v4M21 19v4.5" />
+      <rect x="19" y="11" width="4" height="8" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  ),
+  'ghost-feed': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1" strokeDasharray="2.6 2.2" d="M3 18.5 25 8" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M7 9.5V12M7 19v2.5" />
+      <rect x="5" y="12" width="4" height="7" stroke="currentColor" strokeWidth="1.6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M14 6.5V9M14 16v2.5" />
+      <rect x="12" y="9" width="4" height="7" stroke="currentColor" strokeWidth="1.6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M21 3.5V6M21 13v2.5" />
+      <rect x="19" y="6" width="4" height="7" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  ),
+  projection: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M5 23 20.5 5.5M5 23l19.5-6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M20.5 5.5A23.4 23.4 0 0 1 24.5 17" />
+      <circle cx="5" cy="23" r="1.6" fill="currentColor" />
+      <circle cx="20.5" cy="5.5" r="1.6" fill="currentColor" />
+      <circle cx="24.5" cy="17" r="1.6" fill="currentColor" />
+    </svg>
+  ),
+  'anchored-vwap': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M10 6v10M10 20v3M17 4v8M17 16v7" />
+      <circle cx="5" cy="20" r="1.8" fill="currentColor" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M6.8 19.3C11.5 17.5 17.5 13.5 24 8" />
+    </svg>
+  ),
+  'fixed-volume-profile': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M4.5 4v20M23.5 4v20" />
+      <path stroke="currentColor" strokeWidth="2" d="M7.5 9h9M7.5 14h13M7.5 19h6" />
+    </svg>
+  ),
+  'anchored-volume-profile': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <circle cx="5" cy="23" r="1.8" fill="currentColor" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M5 21V4.5" />
+      <path stroke="currentColor" strokeWidth="2" d="M8.5 7.5h10M8.5 12.5h14M8.5 17.5h7" />
+    </svg>
+  ),
+  'price-range': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" d="M5 4.5h18M5 23.5h18" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M14 8v12M10.8 10.6 14 7.4l3.2 3.2M10.8 17.4 14 20.6l3.2-3.2" />
+    </svg>
+  ),
+  'date-range': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="2" d="M4.5 5v18M23.5 5v18" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M8 14h12M10.6 10.8 7.4 14l3.2 3.2M17.4 10.8 20.6 14l-3.2 3.2" />
+    </svg>
+  ),
+  'date-price-range': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <rect x="4.5" y="5.5" width="19" height="17" stroke="currentColor" strokeWidth="1.6" />
+      <path stroke="currentColor" strokeWidth="1.6" d="m8.5 19 10.5-9.5M14.4 9 19.6 8.6l.4 5.2" />
     </svg>
   ),
 };
@@ -2427,6 +2592,7 @@ const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
   ...drawing,
   anchors: cloneDrawingAnchors(drawing.anchors),
   fibLevels: drawing.fibLevels.map((level) => ({ ...level })),
+  patternBars: drawing.patternBars?.map((bar) => ({ ...bar })),
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   value === 'trend-line' ||
@@ -2465,7 +2631,19 @@ const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   value === 'elliott-triple-combo-wave' ||
   value === 'cyclic-lines' ||
   value === 'time-cycles' ||
-  value === 'sine-line';
+  value === 'sine-line' ||
+  value === 'long-position' ||
+  value === 'short-position' ||
+  value === 'forecast' ||
+  value === 'bars-pattern' ||
+  value === 'ghost-feed' ||
+  value === 'projection' ||
+  value === 'anchored-vwap' ||
+  value === 'fixed-volume-profile' ||
+  value === 'anchored-volume-profile' ||
+  value === 'price-range' ||
+  value === 'date-range' ||
+  value === 'date-price-range';
 const isFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' ||
   kind === 'fib-extension' ||
@@ -2496,6 +2674,25 @@ const PATTERN_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
   'sine-line': 2,
 };
 const isPatternDrawingTool = (kind: DrawingToolId) => PATTERN_DRAWING_ANCHOR_COUNTS[kind] !== undefined;
+const FORECAST_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
+  'long-position': 4,
+  'short-position': 4,
+  forecast: 2,
+  'bars-pattern': 2,
+  'ghost-feed': 2,
+  projection: 3,
+  'anchored-vwap': 1,
+  'fixed-volume-profile': 2,
+  'anchored-volume-profile': 1,
+  'price-range': 2,
+  'date-range': 2,
+  'date-price-range': 2,
+};
+const GHOST_FEED_MAX_ANCHORS = 16;
+const isForecastDrawingTool = (kind: DrawingToolId) => FORECAST_DRAWING_ANCHOR_COUNTS[kind] !== undefined;
+const isPositionDrawingTool = (kind: DrawingToolId) => kind === 'long-position' || kind === 'short-position';
+const getMaxDrawingAnchorCount = (kind: DrawingToolId) =>
+  kind === 'ghost-feed' ? GHOST_FEED_MAX_ANCHORS : getRequiredDrawingAnchorCount(kind);
 const PATTERN_POINT_LABELS: Partial<Record<DrawingToolId, Array<string | null>>> = {
   'xabcd-pattern': ['X', 'A', 'B', 'C', 'D'],
   'cypher-pattern': ['X', 'A', 'B', 'C', 'D'],
@@ -2512,7 +2709,12 @@ const PATTERN_POINT_LABELS: Partial<Record<DrawingToolId, Array<string | null>>>
 const isFibExtendableDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' || kind === 'fib-extension' || kind === 'fib-channel';
 const isOneAnchorDrawingTool = (kind: DrawingToolId) =>
-  kind === 'horizontal-line' || kind === 'horizontal-ray' || kind === 'vertical-line' || kind === 'cross-line';
+  kind === 'horizontal-line' ||
+  kind === 'horizontal-ray' ||
+  kind === 'vertical-line' ||
+  kind === 'cross-line' ||
+  kind === 'anchored-vwap' ||
+  kind === 'anchored-volume-profile';
 const isTwoAnchorDrawingTool = (kind: DrawingToolId) =>
   kind === 'trend-line' ||
   kind === 'ray' ||
@@ -2529,6 +2731,7 @@ const isHorizontalDrawingTool = (kind: DrawingToolId) => kind === 'horizontal-li
 const isVerticalDrawingTool = (kind: DrawingToolId) => kind === 'vertical-line';
 const getRequiredDrawingAnchorCount = (kind: DrawingToolId) =>
   PATTERN_DRAWING_ANCHOR_COUNTS[kind] ??
+  FORECAST_DRAWING_ANCHOR_COUNTS[kind] ??
   (kind === 'disjoint-channel'
     ? 4
     : isChannelDrawingTool(kind) || isThreeAnchorFibDrawingTool(kind)
@@ -2666,10 +2869,10 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         return candidate.anchors.length >= requiredAnchors;
       }
     )
-    .map((drawing, index) => {
+    .map((drawing, index): ChartDrawing | null => {
       const requiredAnchors = getRequiredDrawingAnchorCount(drawing.kind);
       const anchors = drawing.anchors
-        .slice(0, requiredAnchors)
+        .slice(0, getMaxDrawingAnchorCount(drawing.kind))
         .filter(
           (anchor) =>
             Number.isFinite(anchor.logicalIndex) &&
@@ -2720,6 +2923,21 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         visibility: isDrawingVisibilityMode(drawing.visibility) ? drawing.visibility : 'all',
         syncInLayout: drawing.syncInLayout === true,
         syncGlobally: drawing.syncGlobally === true,
+        patternBars: Array.isArray(drawing.patternBars)
+          ? drawing.patternBars
+              .filter(
+                (bar): bar is DrawingPatternBar =>
+                  bar !== null &&
+                  typeof bar === 'object' &&
+                  Number.isFinite(bar.open) &&
+                  Number.isFinite(bar.high) &&
+                  Number.isFinite(bar.low) &&
+                  Number.isFinite(bar.close)
+              )
+              .slice(0, 500)
+              .map((bar) => ({ open: bar.open, high: bar.high, low: bar.low, close: bar.close }))
+          : undefined,
+        seed: Number.isFinite(drawing.seed) ? drawing.seed : undefined,
         createdAt: timestamp,
         updatedAt: Number.isFinite(drawing.updatedAt) ? drawing.updatedAt! : timestamp,
       };
@@ -2739,6 +2957,286 @@ const getDistanceToSegment = (
 
   const t = clamp(((x - start.x) * dx + (y - start.y) * dy) / lengthSquared, 0, 1);
   return Math.hypot(x - (start.x + t * dx), y - (start.y + t * dy));
+};
+const isPointInPolygon = (x: number, y: number, polygon: Array<{ x: number; y: number }>) => {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const current = polygon[index]!;
+    const before = polygon[previous]!;
+    if (
+      current.y > y !== before.y > y &&
+      x < ((before.x - current.x) * (y - current.y)) / (before.y - current.y) + current.x
+    ) {
+      inside = !inside;
+    }
+  }
+  return inside;
+};
+const mulberry32 = (seed: number) => {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+interface GhostFeedCandle {
+  logicalIndex: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+const buildGhostFeedCandles = (anchors: ChartDrawingAnchor[], seed: number): GhostFeedCandle[] => {
+  const random = mulberry32(Number.isFinite(seed) ? Math.floor(Math.abs(seed)) : 7);
+  const candles: GhostFeedCandle[] = [];
+  let previousClose: number | null = null;
+
+  for (let segment = 0; segment < anchors.length - 1; segment += 1) {
+    const start = anchors[segment]!;
+    const end = anchors[segment + 1]!;
+    const span = end.logicalIndex - start.logicalIndex;
+    if (span < 0.5) continue;
+
+    const count = Math.max(1, Math.round(span));
+    const step = (end.price - (previousClose ?? start.price)) / count;
+    const amplitude = Math.abs(step) * 0.9 + Math.abs(end.price - start.price) * 0.03;
+    let open = previousClose ?? start.price;
+
+    for (let index = 0; index < count; index += 1) {
+      const close = index === count - 1 ? end.price : open + step * (0.2 + 1.6 * random());
+      const high = Math.max(open, close) + amplitude * random();
+      const low = Math.min(open, close) - amplitude * random();
+      candles.push({
+        logicalIndex: start.logicalIndex + (index / count) * span,
+        open,
+        high,
+        low,
+        close,
+      });
+      open = close;
+    }
+    previousClose = end.price;
+  }
+
+  return candles;
+};
+const captureBarsPatternData = (candles: Candle[], anchors: ChartDrawingAnchor[]): DrawingPatternBar[] => {
+  const [first, second] = anchors;
+  if (!first || !second || candles.length === 0) return [];
+
+  const leftAnchor = first.logicalIndex <= second.logicalIndex ? first : second;
+  const rightAnchor = first.logicalIndex <= second.logicalIndex ? second : first;
+  const startIndex = clamp(Math.round(leftAnchor.logicalIndex), 0, candles.length - 1);
+  const endIndex = clamp(Math.round(rightAnchor.logicalIndex), 0, candles.length - 1);
+  if (endIndex < startIndex) return [];
+
+  const basePrice = leftAnchor.price;
+  return candles.slice(startIndex, Math.min(endIndex + 1, startIndex + 500)).map((candle) => ({
+    open: candle.open - basePrice,
+    high: candle.high - basePrice,
+    low: candle.low - basePrice,
+    close: candle.close - basePrice,
+  }));
+};
+const createPositionDrawingAnchors = (
+  kind: DrawingToolId,
+  anchor: ChartDrawingAnchor,
+  candlesPerView: number,
+  visiblePriceSpan: number
+): ChartDrawingAnchor[] => {
+  const barSpan = Math.max(4, Math.round(candlesPerView * 0.16));
+  const priceDelta = Math.max(visiblePriceSpan * 0.16, Math.abs(anchor.price) * 0.0001);
+  const direction = kind === 'long-position' ? 1 : -1;
+
+  return [
+    { logicalIndex: anchor.logicalIndex, price: anchor.price },
+    { logicalIndex: anchor.logicalIndex + barSpan, price: anchor.price },
+    { logicalIndex: anchor.logicalIndex, price: anchor.price + priceDelta * direction },
+    { logicalIndex: anchor.logicalIndex, price: anchor.price - priceDelta * direction },
+  ];
+};
+const normalizePositionDrawingAnchors = (
+  kind: DrawingToolId,
+  anchors: ChartDrawingAnchor[],
+  draggedIndex: number
+) => {
+  const entry = anchors[0];
+  const entryEnd = anchors[1];
+  const target = anchors[2];
+  const stop = anchors[3];
+  if (!entry || !entryEnd || !target || !stop) return;
+
+  const direction = kind === 'long-position' ? 1 : -1;
+  entryEnd.price = entry.price;
+  entryEnd.logicalIndex = Math.max(entryEnd.logicalIndex, entry.logicalIndex + 1);
+  target.logicalIndex = entry.logicalIndex;
+  stop.logicalIndex = entry.logicalIndex;
+  if (draggedIndex === 2) {
+    target.price = direction === 1 ? Math.max(target.price, entry.price) : Math.min(target.price, entry.price);
+  } else if (draggedIndex === 3) {
+    stop.price = direction === 1 ? Math.min(stop.price, entry.price) : Math.max(stop.price, entry.price);
+  } else {
+    target.price = direction === 1 ? Math.max(target.price, entry.price) : Math.min(target.price, entry.price);
+    stop.price = direction === 1 ? Math.min(stop.price, entry.price) : Math.max(stop.price, entry.price);
+  }
+};
+const sampleForecastCurve = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  segments = 24
+): Array<{ x: number; y: number }> => {
+  const control = { x: start.x + (end.x - start.x) * 0.55, y: start.y };
+  const points: Array<{ x: number; y: number }> = [];
+  for (let index = 0; index <= segments; index += 1) {
+    const t = index / segments;
+    const inverse = 1 - t;
+    points.push({
+      x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
+      y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
+    });
+  }
+  return points;
+};
+const buildProjectionSectorPolygon = (
+  apex: { x: number; y: number },
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  segments = 32
+): Array<{ x: number; y: number }> => {
+  const firstRadius = Math.hypot(first.x - apex.x, first.y - apex.y);
+  const secondRadius = Math.hypot(second.x - apex.x, second.y - apex.y);
+  const firstAngle = Math.atan2(first.y - apex.y, first.x - apex.x);
+  const secondAngle = Math.atan2(second.y - apex.y, second.x - apex.x);
+  let sweep = secondAngle - firstAngle;
+  if (sweep > Math.PI) sweep -= Math.PI * 2;
+  if (sweep < -Math.PI) sweep += Math.PI * 2;
+
+  const polygon: Array<{ x: number; y: number }> = [{ x: apex.x, y: apex.y }];
+  for (let index = 0; index <= segments; index += 1) {
+    const t = index / segments;
+    const angle = firstAngle + sweep * t;
+    const radius = firstRadius + (secondRadius - firstRadius) * t;
+    polygon.push({ x: apex.x + Math.cos(angle) * radius, y: apex.y + Math.sin(angle) * radius });
+  }
+  return polygon;
+};
+const computeAnchoredVwap = (candles: Candle[], anchorIndex: number): Array<{ logicalIndex: number; value: number }> => {
+  const startIndex = clamp(Math.round(anchorIndex), 0, Math.max(0, candles.length - 1));
+  const series: Array<{ logicalIndex: number; value: number }> = [];
+  let cumulativeVolume = 0;
+  let cumulativeTypicalVolume = 0;
+
+  for (let index = startIndex; index < candles.length; index += 1) {
+    const candle = candles[index]!;
+    const typicalPrice = (candle.high + candle.low + candle.close) / 3;
+    const volume = Math.max(0, candle.volume);
+    cumulativeVolume += volume;
+    cumulativeTypicalVolume += typicalPrice * volume;
+    series.push({
+      logicalIndex: index,
+      value: cumulativeVolume > 0 ? cumulativeTypicalVolume / cumulativeVolume : typicalPrice,
+    });
+  }
+  return series;
+};
+interface VolumeProfileRow {
+  priceLow: number;
+  priceHigh: number;
+  upVolume: number;
+  downVolume: number;
+}
+interface VolumeProfileData {
+  rows: VolumeProfileRow[];
+  minPrice: number;
+  maxPrice: number;
+  maxRowVolume: number;
+  totalVolume: number;
+  pocIndex: number;
+  valueAreaLow: number;
+  valueAreaHigh: number;
+}
+const VOLUME_PROFILE_ROW_COUNT = 24;
+const computeVolumeProfile = (candles: Candle[], fromIndex: number, toIndex: number): VolumeProfileData | null => {
+  if (candles.length === 0) return null;
+
+  const startIndex = clamp(Math.round(Math.min(fromIndex, toIndex)), 0, candles.length - 1);
+  const endIndex = clamp(Math.round(Math.max(fromIndex, toIndex)), 0, candles.length - 1);
+  const slice = candles.slice(startIndex, endIndex + 1);
+  if (slice.length === 0) return null;
+
+  let minPrice = Number.POSITIVE_INFINITY;
+  let maxPrice = Number.NEGATIVE_INFINITY;
+  slice.forEach((candle) => {
+    minPrice = Math.min(minPrice, candle.low);
+    maxPrice = Math.max(maxPrice, candle.high);
+  });
+  if (!Number.isFinite(minPrice) || !Number.isFinite(maxPrice)) return null;
+  if (maxPrice - minPrice <= 0) {
+    maxPrice = minPrice + Math.max(Math.abs(minPrice) * 0.001, 0.0001);
+  }
+
+  const rowHeight = (maxPrice - minPrice) / VOLUME_PROFILE_ROW_COUNT;
+  const rows: VolumeProfileRow[] = Array.from({ length: VOLUME_PROFILE_ROW_COUNT }, (_, index) => ({
+    priceLow: minPrice + rowHeight * index,
+    priceHigh: minPrice + rowHeight * (index + 1),
+    upVolume: 0,
+    downVolume: 0,
+  }));
+
+  slice.forEach((candle) => {
+    const span = Math.max(candle.high - candle.low, rowHeight * 0.01);
+    const volume = Math.max(0, candle.volume);
+    const isUp = candle.close >= candle.open;
+    const firstRow = clamp(Math.floor((candle.low - minPrice) / rowHeight), 0, VOLUME_PROFILE_ROW_COUNT - 1);
+    const lastRow = clamp(Math.floor((candle.high - minPrice) / rowHeight), 0, VOLUME_PROFILE_ROW_COUNT - 1);
+    for (let rowIndex = firstRow; rowIndex <= lastRow; rowIndex += 1) {
+      const row = rows[rowIndex]!;
+      const overlap = Math.min(candle.high, row.priceHigh) - Math.max(candle.low, row.priceLow);
+      const portion = volume * clamp(overlap / span, 0, 1);
+      if (isUp) {
+        row.upVolume += portion;
+      } else {
+        row.downVolume += portion;
+      }
+    }
+  });
+
+  let maxRowVolume = 0;
+  let totalVolume = 0;
+  let pocIndex = 0;
+  rows.forEach((row, index) => {
+    const rowTotal = row.upVolume + row.downVolume;
+    totalVolume += rowTotal;
+    if (rowTotal > maxRowVolume) {
+      maxRowVolume = rowTotal;
+      pocIndex = index;
+    }
+  });
+  if (maxRowVolume <= 0) return null;
+
+  let valueAreaLow = pocIndex;
+  let valueAreaHigh = pocIndex;
+  let coveredVolume = rows[pocIndex]!.upVolume + rows[pocIndex]!.downVolume;
+  while (coveredVolume < totalVolume * 0.7 && (valueAreaLow > 0 || valueAreaHigh < rows.length - 1)) {
+    const lowerRow = valueAreaLow > 0 ? rows[valueAreaLow - 1]! : null;
+    const upperRow = valueAreaHigh < rows.length - 1 ? rows[valueAreaHigh + 1]! : null;
+    const lowerTotal = lowerRow ? lowerRow.upVolume + lowerRow.downVolume : -1;
+    const upperTotal = upperRow ? upperRow.upVolume + upperRow.downVolume : -1;
+    if (upperTotal >= lowerTotal && upperRow) {
+      valueAreaHigh += 1;
+      coveredVolume += upperTotal;
+    } else if (lowerRow) {
+      valueAreaLow -= 1;
+      coveredVolume += lowerTotal;
+    } else {
+      break;
+    }
+  }
+
+  return { rows, minPrice, maxPrice, maxRowVolume, totalVolume, pocIndex, valueAreaLow, valueAreaHigh };
 };
 const getRayBoundaryPoint = (
   start: { x: number; y: number },
@@ -5242,6 +5740,7 @@ export default function Home() {
   const drawingToolbarDragRef = useRef<DrawingToolbarDragState | null>(null);
   const drawingsRef = useRef<ChartDrawing[]>([]);
   const selectedDrawingIdRef = useRef<string | null>(null);
+  const pendingDrawingRef = useRef<PendingDrawing | null>(null);
   const activePaneIndexRef = useRef(0);
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
   const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
@@ -5265,6 +5764,7 @@ export default function Home() {
   const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
   const [lastFibTool, setLastFibTool] = useState<DrawingToolId>('fib-retracement');
   const [lastPatternTool, setLastPatternTool] = useState<DrawingToolId>('xabcd-pattern');
+  const [lastForecastTool, setLastForecastTool] = useState<DrawingToolId>('long-position');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
@@ -5369,6 +5869,7 @@ export default function Home() {
   }, [activeIndicators, chartPanes]);
   paneStatesRef.current = chartPanes;
   drawingsRef.current = drawings;
+  pendingDrawingRef.current = pendingDrawing;
   selectedDrawingIdRef.current = selectedDrawingId;
   activePaneIndexRef.current = activePaneIndex;
   const filteredSymbolOptions = useMemo(() => {
@@ -5826,6 +6327,12 @@ export default function Home() {
       const editableTarget = isEditableKeyboardTarget(event.target);
 
       if (event.key === 'Escape') {
+        const pendingGhostFeed = pendingDrawingRef.current;
+        if (pendingGhostFeed && pendingGhostFeed.tool === 'ghost-feed' && pendingGhostFeed.anchors.length >= 2) {
+          addCompletedDrawing(
+            createChartDrawing(pendingGhostFeed.paneIndex, pendingGhostFeed.tool, pendingGhostFeed.anchors)
+          );
+        }
         setOpenMenu(null);
         setHeaderPanel(null);
         setAuthMode(null);
@@ -6284,9 +6791,156 @@ export default function Home() {
     };
   };
 
+  const hitTestForecastDrawingAt = (
+    drawing: ChartDrawing,
+    points: Array<{ x: number; y: number }>,
+    paneIndex: number,
+    x: number,
+    y: number
+  ): boolean => {
+    const tolerance = DRAWING_HIT_TOLERANCE;
+
+    if (isPositionDrawingTool(drawing.kind)) {
+      const [entry, entryEnd, target, stop] = points;
+      if (!entry || !entryEnd || !target || !stop) return false;
+
+      const left = Math.min(entry.x, entryEnd.x);
+      const right = Math.max(entry.x, entryEnd.x);
+      const top = Math.min(target.y, stop.y);
+      const bottom = Math.max(target.y, stop.y);
+      return x >= left - tolerance && x <= right + tolerance && y >= top - tolerance && y <= bottom + tolerance;
+    }
+
+    if (drawing.kind === 'forecast') {
+      const [start, end] = points;
+      if (!start || !end) return false;
+
+      const curve = sampleForecastCurve(start, end);
+      for (let index = 0; index < curve.length - 1; index += 1) {
+        if (getDistanceToSegment(x, y, curve[index]!, curve[index + 1]!) <= tolerance) return true;
+      }
+      return false;
+    }
+
+    if (drawing.kind === 'bars-pattern') {
+      const [start, end] = points;
+      if (!start || !end) return false;
+
+      const bars = drawing.patternBars ?? [];
+      const leftAnchorIndex = drawing.anchors[0]!.logicalIndex <= drawing.anchors[1]!.logicalIndex ? 0 : 1;
+      const baseAnchor = drawing.anchors[leftAnchorIndex]!;
+      let minPrice = baseAnchor.price;
+      let maxPrice = baseAnchor.price;
+      bars.forEach((bar) => {
+        minPrice = Math.min(minPrice, baseAnchor.price + bar.low);
+        maxPrice = Math.max(maxPrice, baseAnchor.price + bar.high);
+      });
+      const topPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: baseAnchor.logicalIndex, price: maxPrice });
+      const bottomPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: baseAnchor.logicalIndex, price: minPrice });
+      if (!topPoint || !bottomPoint) return false;
+
+      const left = Math.min(start.x, end.x);
+      const right = Math.max(start.x, end.x);
+      return x >= left - tolerance && x <= right + tolerance && y >= topPoint.y - tolerance && y <= bottomPoint.y + tolerance;
+    }
+
+    if (drawing.kind === 'ghost-feed') {
+      for (let index = 0; index < points.length - 1; index += 1) {
+        if (getDistanceToSegment(x, y, points[index]!, points[index + 1]!) <= tolerance * 2) return true;
+      }
+      return false;
+    }
+
+    if (drawing.kind === 'projection') {
+      const [apex, first, second] = points;
+      if (!apex || !first || !second) return false;
+
+      const polygon = buildProjectionSectorPolygon(apex, first, second);
+      if (isPointInPolygon(x, y, polygon)) return true;
+      for (let index = 0; index < polygon.length - 1; index += 1) {
+        if (getDistanceToSegment(x, y, polygon[index]!, polygon[index + 1]!) <= tolerance) return true;
+      }
+      return false;
+    }
+
+    if (drawing.kind === 'anchored-vwap') {
+      const anchor = drawing.anchors[0];
+      const paneCandles = paneStatesRef.current[paneIndex]?.candles;
+      if (!anchor || !paneCandles || paneCandles.length === 0) return false;
+
+      const series = computeAnchoredVwap(paneCandles, anchor.logicalIndex);
+      const stride = Math.max(1, Math.floor(series.length / 400));
+      let previous: { x: number; y: number } | null = null;
+      for (let index = 0; index < series.length; index += stride) {
+        const sample = series[index]!;
+        const point = getDrawingPointForAnchor(paneIndex, { logicalIndex: sample.logicalIndex, price: sample.value });
+        if (!point) continue;
+        if (previous && getDistanceToSegment(x, y, previous, point) <= tolerance) return true;
+        previous = point;
+      }
+      return false;
+    }
+
+    if (drawing.kind === 'fixed-volume-profile' || drawing.kind === 'anchored-volume-profile') {
+      const anchor = drawing.anchors[0];
+      const paneCandles = paneStatesRef.current[paneIndex]?.candles;
+      if (!anchor || !paneCandles || paneCandles.length === 0 || points.length === 0) return false;
+
+      const anchoredToEnd = drawing.kind === 'anchored-volume-profile';
+      const secondAnchor = drawing.anchors[1];
+      const toIndex = anchoredToEnd ? paneCandles.length - 1 : secondAnchor?.logicalIndex;
+      if (toIndex === undefined) return false;
+
+      const profile = computeVolumeProfile(paneCandles, anchor.logicalIndex, toIndex);
+      if (!profile) return false;
+
+      const endPoint = anchoredToEnd
+        ? getDrawingPointForAnchor(paneIndex, { logicalIndex: paneCandles.length - 1, price: anchor.price })
+        : points[1];
+      if (!endPoint) return false;
+
+      const topPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: anchor.logicalIndex, price: profile.maxPrice });
+      const bottomPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: anchor.logicalIndex, price: profile.minPrice });
+      if (!topPoint || !bottomPoint) return false;
+
+      const left = Math.min(points[0]!.x, endPoint.x);
+      const right = Math.max(points[0]!.x, endPoint.x);
+      return x >= left - tolerance && x <= right + tolerance && y >= topPoint.y - tolerance && y <= bottomPoint.y + tolerance;
+    }
+
+    if (drawing.kind === 'price-range' || drawing.kind === 'date-range' || drawing.kind === 'date-price-range') {
+      const [start, end] = points;
+      if (!start || !end) return false;
+
+      const left = Math.min(start.x, end.x);
+      const right = Math.max(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const bottom = Math.max(start.y, end.y);
+      return x >= left - tolerance && x <= right + tolerance && y >= top - tolerance && y <= bottom + tolerance;
+    }
+
+    return false;
+  };
+
   const getDrawingHitResult = (paneIndex: number, x: number, y: number): DrawingHitResult | null => {
     const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     if (chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    const selectedDrawing = drawingsRef.current.find(
+      (drawing) => drawing.id === selectedDrawingIdRef.current && drawing.paneIndex === paneIndex
+    );
+    if (selectedDrawing) {
+      const selectedPoints = selectedDrawing.anchors
+        .map((anchor) => getDrawingPointForAnchor(paneIndex, anchor))
+        .filter((point): point is { x: number; y: number } => point !== null);
+      for (let anchorIndex = 0; anchorIndex < selectedPoints.length; anchorIndex += 1) {
+        const point = selectedPoints[anchorIndex]!;
+        const target = getDrawingHitTargetForAnchorIndex(anchorIndex);
+        if (target && Math.hypot(x - point.x, y - point.y) <= DRAWING_HIT_TOLERANCE) {
+          return { drawing: selectedDrawing, target };
+        }
+      }
+    }
 
     const pane = paneStatesRef.current[paneIndex];
     const drawingsForPane = drawingsRef.current
@@ -6324,6 +6978,13 @@ export default function Home() {
       if (isPatternDrawingTool(drawing.kind)) {
         const patternModel = getPatternRenderModel(drawing, points, chartArea);
         if (hitTestPatternRenderModel(patternModel, x, y, DRAWING_HIT_TOLERANCE)) {
+          return { drawing, target: 'body' };
+        }
+        continue;
+      }
+
+      if (isForecastDrawingTool(drawing.kind)) {
+        if (hitTestForecastDrawingAt(drawing, points, paneIndex, x, y)) {
           return { drawing, target: 'body' };
         }
         continue;
@@ -6472,6 +7133,8 @@ export default function Home() {
       setLastFibTool(tool);
     } else if (isPatternDrawingTool(tool)) {
       setLastPatternTool(tool);
+    } else if (isForecastDrawingTool(tool)) {
+      setLastForecastTool(tool);
     } else {
       setLastDrawingTool(tool);
     }
@@ -6548,6 +7211,7 @@ export default function Home() {
       visibility: 'all',
       syncInLayout: false,
       syncGlobally: false,
+      seed: kind === 'ghost-feed' ? Math.floor(Math.random() * 0xffffffff) : undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -6775,12 +7439,42 @@ export default function Home() {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
       if (!anchor) return;
 
-      if (isMultiAnchorDrawingTool(activeDrawingTool)) {
+      if (isPositionDrawingTool(activeDrawingTool)) {
+        const currentPriceRange = getCurrentPriceRange(paneIndex);
+        const visiblePriceSpan = currentPriceRange
+          ? currentPriceRange.maxPrice - currentPriceRange.minPrice
+          : Math.abs(anchor.price) * 0.02;
+        addCompletedDrawing(
+          createChartDrawing(
+            paneIndex,
+            activeDrawingTool,
+            createPositionDrawingAnchors(activeDrawingTool, anchor, pane.viewRange.candlesPerView, visiblePriceSpan)
+          )
+        );
+      } else if (activeDrawingTool === 'ghost-feed') {
+        if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
+          const nextAnchors = [...pendingDrawing.anchors, anchor];
+          if ((event.detail >= 2 && nextAnchors.length >= 2) || nextAnchors.length >= GHOST_FEED_MAX_ANCHORS) {
+            addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, nextAnchors));
+          } else {
+            setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: nextAnchors, preview: anchor });
+          }
+        } else {
+          setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: [anchor], preview: anchor });
+          setSelectedDrawingId(null);
+          setActiveDrawingToolbarMenu(null);
+          setDrawingToolbarStatus('');
+        }
+      } else if (isMultiAnchorDrawingTool(activeDrawingTool)) {
         const requiredAnchorCount = getRequiredDrawingAnchorCount(activeDrawingTool);
         if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
           const nextAnchors = [...pendingDrawing.anchors, anchor];
           if (nextAnchors.length >= requiredAnchorCount) {
-            addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, nextAnchors));
+            const completedDrawing = createChartDrawing(paneIndex, activeDrawingTool, nextAnchors);
+            if (activeDrawingTool === 'bars-pattern') {
+              completedDrawing.patternBars = captureBarsPatternData(pane.candles, nextAnchors);
+            }
+            addCompletedDrawing(completedDrawing);
           } else {
             setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: nextAnchors, preview: anchor });
           }
@@ -6930,6 +7624,9 @@ export default function Home() {
               const anchorIndex = getDrawingAnchorIndexForHitTarget(drawingDrag.mode);
               if (anchorIndex !== null && nextAnchors[anchorIndex]) {
                 nextAnchors[anchorIndex] = currentAnchor;
+                if (isPositionDrawingTool(drawing.kind)) {
+                  normalizePositionDrawingAnchors(drawing.kind, nextAnchors, anchorIndex);
+                }
               }
             }
 
@@ -7820,12 +8517,667 @@ export default function Home() {
       drawDrawingText(drawing, connectorStart, connectorEnd);
       drawDrawingStats(drawing, connectorStart, connectorEnd, selected);
     };
+    const forecastPillTextColor = theme === 'dark' ? '#150f23' : '#ffffff';
+    const drawForecastPill = (
+      lines: string[],
+      centerX: number,
+      edgeY: number,
+      background: string,
+      placement: 'above' | 'below',
+      textColor = forecastPillTextColor
+    ) => {
+      if (lines.length === 0) return null;
+
+      ctx.save();
+      ctx.font = getCanvasFont(11);
+      const paddingX = 8;
+      const paddingY = 5;
+      const lineHeight = 14;
+      const pillWidth = Math.max(...lines.map((line) => ctx.measureText(line).width)) + paddingX * 2;
+      const pillHeight = lines.length * lineHeight + paddingY * 2;
+      const pillX = clamp(centerX - pillWidth / 2, chartArea.left + 4, chartArea.left + chartArea.width - pillWidth - 4);
+      const pillY = placement === 'above' ? edgeY - pillHeight - 6 : edgeY + 6;
+
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(pillX, pillY, pillWidth, pillHeight, 4);
+      } else {
+        ctx.rect(pillX, pillY, pillWidth, pillHeight);
+      }
+      ctx.fillStyle = background;
+      ctx.fill();
+      ctx.fillStyle = textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      lines.forEach((line, index) => {
+        ctx.fillText(line, pillX + pillWidth / 2, pillY + paddingY + lineHeight * index + lineHeight / 2);
+      });
+      ctx.restore();
+
+      return { x: pillX, y: pillY, width: pillWidth, height: pillHeight };
+    };
+    const formatForecastDate = (ms: number) => {
+      const date = new Date(ms);
+      const datePart = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+        date.getDate()
+      ).padStart(2, '0')}`;
+      if (isDailyPlusTimeframe(timeframe)) return datePart;
+
+      return `${datePart} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    };
+    const drawForecastCandle = (
+      centerX: number,
+      bar: { open: number; high: number; low: number; close: number },
+      width: number,
+      bullColor: string,
+      bearColor: string,
+      alpha: number,
+      hollow: boolean
+    ) => {
+      const isBullish = bar.close >= bar.open;
+      const color = isBullish ? bullColor : bearColor;
+      const highY = priceToY(bar.high);
+      const lowY = priceToY(bar.low);
+      const openY = priceToY(bar.open);
+      const closeY = priceToY(bar.close);
+      const bodyTop = Math.min(openY, closeY);
+      const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX, highY);
+      ctx.lineTo(centerX, lowY);
+      ctx.stroke();
+      if (hollow) {
+        ctx.fillStyle = hexToRgba(color.startsWith('#') ? color : DRAWING_DEFAULT_COLOR, 0.24);
+        ctx.fillRect(centerX - width / 2, bodyTop, width, bodyHeight);
+        ctx.strokeRect(centerX - width / 2, bodyTop, width, bodyHeight);
+      } else {
+        ctx.fillStyle = color;
+        ctx.fillRect(centerX - width / 2, bodyTop, width, bodyHeight);
+      }
+      ctx.restore();
+    };
+    const drawPositionDrawing = (drawing: ChartDrawing, points: Array<{ x: number; y: number }>, selected: boolean) => {
+      const [entry, entryEnd, target, stop] = points;
+      const entryAnchor = drawing.anchors[0];
+      const targetAnchor = drawing.anchors[2];
+      const stopAnchor = drawing.anchors[3];
+      if (!entry || !entryEnd || !target || !stop || !entryAnchor || !targetAnchor || !stopAnchor) return;
+
+      const isLong = drawing.kind === 'long-position';
+      const left = Math.min(entry.x, entryEnd.x);
+      const right = Math.max(entry.x, entryEnd.x);
+      const zoneWidth = Math.max(1, right - left);
+
+      ctx.save();
+      ctx.fillStyle = palette.greenSoft;
+      ctx.fillRect(left, Math.min(entry.y, target.y), zoneWidth, Math.max(1, Math.abs(target.y - entry.y)));
+      ctx.fillStyle = palette.redSoft;
+      ctx.fillRect(left, Math.min(entry.y, stop.y), zoneWidth, Math.max(1, Math.abs(stop.y - entry.y)));
+
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      ctx.strokeStyle = hexToRgba(FIB_DEFAULT_TREND_COLOR, Math.min(1, drawing.opacity + 0.1));
+      ctx.beginPath();
+      ctx.moveTo(left, entry.y);
+      ctx.lineTo(right, entry.y);
+      ctx.stroke();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = palette.green;
+      ctx.beginPath();
+      ctx.moveTo(left, target.y);
+      ctx.lineTo(right, target.y);
+      ctx.stroke();
+      ctx.strokeStyle = palette.red;
+      ctx.beginPath();
+      ctx.moveTo(left, stop.y);
+      ctx.lineTo(right, stop.y);
+      ctx.stroke();
+      ctx.restore();
+
+      const targetDelta = Math.abs(targetAnchor.price - entryAnchor.price);
+      const stopDelta = Math.abs(entryAnchor.price - stopAnchor.price);
+      const qty = stopDelta > 0 ? POSITION_RISK_AMOUNT / stopDelta : 0;
+      const ratio = stopDelta > 0 ? targetDelta / stopDelta : 0;
+      const lastClose = candles[candles.length - 1]?.close ?? entryAnchor.price;
+      const openPnl = (lastClose - entryAnchor.price) * qty * (isLong ? 1 : -1);
+      const centerX = (left + right) / 2;
+
+      if (selected) {
+        const targetPercent = entryAnchor.price !== 0 ? (targetDelta / entryAnchor.price) * 100 : 0;
+        const stopPercent = entryAnchor.price !== 0 ? (stopDelta / entryAnchor.price) * 100 : 0;
+        const targetTicks = Math.round(targetDelta / POSITION_PRICE_TICK).toLocaleString();
+        const stopTicks = Math.round(stopDelta / POSITION_PRICE_TICK).toLocaleString();
+        const zoneTop = Math.min(target.y, stop.y);
+        const zoneBottom = Math.max(target.y, stop.y);
+
+        drawForecastPill(
+          [`Target: ${formatPrice(targetDelta)} (${targetPercent.toFixed(2)}%) ${targetTicks}, Amount: ${formatPrice(
+            qty * targetDelta
+          )}`],
+          centerX,
+          isLong ? zoneTop : zoneBottom,
+          palette.green,
+          isLong ? 'above' : 'below'
+        );
+        drawForecastPill(
+          [`Stop: ${formatPrice(stopDelta)} (${stopPercent.toFixed(2)}%) ${stopTicks}, Amount: ${formatPrice(
+            qty * stopDelta
+          )}`],
+          centerX,
+          isLong ? zoneBottom : zoneTop,
+          palette.red,
+          isLong ? 'below' : 'above'
+        );
+        drawForecastPill(
+          [`Open PnL: ${formatPrice(openPnl)}, Qty: ${formatPositionQty(qty)}`, `Risk/reward ratio: ${ratio.toFixed(2)}`],
+          centerX,
+          entry.y,
+          openPnl >= 0 ? palette.green : palette.red,
+          'below'
+        );
+
+        drawingPriceLabels.push({ y: entry.y, price: entryAnchor.price, color: FIB_DEFAULT_TREND_COLOR, selected });
+        drawingPriceLabels.push({ y: target.y, price: targetAnchor.price, color: palette.green, selected });
+        drawingPriceLabels.push({ y: stop.y, price: stopAnchor.price, color: palette.red, selected });
+      }
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawForecastArrowDrawing = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      const [start, end] = points;
+      const startAnchor = drawing.anchors[0];
+      const endAnchor = drawing.anchors[1] ?? startAnchor;
+      if (!start || !end || !startAnchor || !endAnchor) return;
+
+      const curve = sampleForecastCurve(start, end);
+      ctx.save();
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      applyDrawingLineStyle(drawing);
+      ctx.beginPath();
+      curve.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = getDrawingStrokeColor(drawing);
+      [start, end].forEach((point) => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+
+      drawForecastPill(
+        [formatPrice(startAnchor.price), formatForecastDate(timeForIndex(startAnchor.logicalIndex))],
+        start.x,
+        start.y,
+        drawing.color,
+        'below',
+        '#ffffff'
+      );
+
+      const priceDelta = endAnchor.price - startAnchor.price;
+      const percentDelta = startAnchor.price !== 0 ? (priceDelta / startAnchor.price) * 100 : 0;
+      const timeDelta = Math.abs(timeForIndex(endAnchor.logicalIndex) - timeForIndex(startAnchor.logicalIndex));
+      const dayCount = Math.round(timeDelta / 86_400_000);
+      const barCount = Math.round(Math.abs(endAnchor.logicalIndex - startAnchor.logicalIndex));
+      const durationText = dayCount >= 1 ? `${dayCount}d` : `${barCount} bars`;
+      const sign = priceDelta >= 0 ? '' : '-';
+      const targetPill = drawForecastPill(
+        [
+          `${sign}${formatPrice(Math.abs(priceDelta))} (${percentDelta.toFixed(2)}%) in ${durationText}`,
+          `${formatPrice(endAnchor.price)} · ${formatForecastDate(timeForIndex(endAnchor.logicalIndex))}`,
+        ],
+        end.x,
+        end.y,
+        drawing.color,
+        'above',
+        '#ffffff'
+      );
+
+      const lastIndex = candles.length - 1;
+      if (endAnchor.logicalIndex <= lastIndex + 0.0001 && lastIndex >= 0) {
+        const fromIndex = Math.max(0, Math.ceil(Math.min(startAnchor.logicalIndex, endAnchor.logicalIndex)));
+        const toIndex = Math.min(lastIndex, Math.floor(Math.max(startAnchor.logicalIndex, endAnchor.logicalIndex)));
+        const isUp = endAnchor.price >= startAnchor.price;
+        let reached = false;
+        for (let index = fromIndex; index <= toIndex; index += 1) {
+          const candle = candles[index];
+          if (!candle) continue;
+          if (isUp ? candle.high >= endAnchor.price : candle.low <= endAnchor.price) {
+            reached = true;
+            break;
+          }
+        }
+        const badgeEdgeY = (targetPill ? targetPill.y : end.y) - 4;
+        drawForecastPill([reached ? 'SUCCESS' : 'FAILURE'], end.x, badgeEdgeY, reached ? palette.green : palette.red, 'above');
+      }
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawBarsPatternDrawing = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      const [start, end] = points;
+      const firstAnchor = drawing.anchors[0];
+      const secondAnchor = drawing.anchors[1];
+      if (!start || !end || !firstAnchor || !secondAnchor) return;
+
+      const baseAnchor = firstAnchor.logicalIndex <= secondAnchor.logicalIndex ? firstAnchor : secondAnchor;
+      const bars =
+        drawing.patternBars && drawing.patternBars.length > 0
+          ? drawing.patternBars
+          : captureBarsPatternData(candles, drawing.anchors);
+      const leftX = Math.min(start.x, end.x);
+      const rightX = Math.max(start.x, end.x);
+
+      if (bars.length === 0) {
+        ctx.save();
+        ctx.strokeStyle = hexToRgba(drawing.color, drawing.opacity * 0.6);
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        const step = (rightX - leftX) / bars.length;
+        const barWidth = clamp(step * 0.64, 1, 12);
+        bars.forEach((bar, index) => {
+          drawForecastCandle(
+            leftX + step * (index + 0.5),
+            {
+              open: baseAnchor.price + bar.open,
+              high: baseAnchor.price + bar.high,
+              low: baseAnchor.price + bar.low,
+              close: baseAnchor.price + bar.close,
+            },
+            barWidth,
+            drawing.color,
+            drawing.color,
+            Math.min(1, drawing.opacity + 0.1),
+            true
+          );
+        });
+      }
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawGhostFeedDrawing = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      const ghostCandles = buildGhostFeedCandles(drawing.anchors, drawing.seed ?? 7);
+      const ghostWidth = clamp(candleSpacing * 0.64, 1, 12);
+
+      ghostCandles.forEach((bar) => {
+        drawForecastCandle(xForIndex(bar.logicalIndex), bar, ghostWidth, palette.green, palette.red, 0.45, false);
+      });
+
+      ctx.save();
+      ctx.strokeStyle = hexToRgba(FIB_DEFAULT_TREND_COLOR, selected ? 0.9 : 0.55);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.stroke();
+      ctx.restore();
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawProjectionDrawing = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      const [apex, first, second] = points;
+      if (!apex || !first) return;
+
+      ctx.save();
+      if (!second) {
+        ctx.strokeStyle = hexToRgba(drawing.color, drawing.opacity * 0.7);
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(apex.x, apex.y);
+        ctx.lineTo(first.x, first.y);
+        ctx.stroke();
+        ctx.restore();
+        points.forEach((point) => drawDrawingHandle(point, selected));
+        return;
+      }
+
+      const polygon = buildProjectionSectorPolygon(apex, first, second);
+      ctx.fillStyle = hexToRgba(drawing.color, clamp(drawing.opacity * 0.16, 0.05, 0.4));
+      ctx.beginPath();
+      polygon.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      applyDrawingLineStyle(drawing);
+      ctx.beginPath();
+      polygon.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawAnchoredVwapDrawing = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      const anchor = drawing.anchors[0];
+      const anchorPoint = points[0];
+      if (!anchor || !anchorPoint) return;
+
+      const series = computeAnchoredVwap(candles, anchor.logicalIndex);
+      ctx.save();
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      applyDrawingLineStyle(drawing);
+      ctx.beginPath();
+      series.forEach((sample, index) => {
+        const x = xForIndex(sample.logicalIndex);
+        const y = priceToY(sample.value);
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = getDrawingStrokeColor(drawing);
+      ctx.beginPath();
+      ctx.arc(anchorPoint.x, anchorPoint.y, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawVolumeProfileDrawing = (
+      drawing: ChartDrawing,
+      points: Array<{ x: number; y: number }>,
+      selected: boolean
+    ) => {
+      const firstAnchor = drawing.anchors[0];
+      if (!firstAnchor || points.length === 0) return;
+
+      const anchoredToEnd = drawing.kind === 'anchored-volume-profile';
+      const secondAnchor = anchoredToEnd ? null : drawing.anchors[1];
+      if (!anchoredToEnd && !secondAnchor) return;
+
+      const fromIndex = firstAnchor.logicalIndex;
+      const toIndex = anchoredToEnd ? candles.length - 1 : secondAnchor!.logicalIndex;
+      const profile = computeVolumeProfile(candles, fromIndex, toIndex);
+      const leftX = anchoredToEnd
+        ? points[0]!.x
+        : Math.min(points[0]!.x, points[1]!.x);
+      const rightX = anchoredToEnd
+        ? xForIndex(candles.length - 1) + candleSpacing / 2
+        : Math.max(points[0]!.x, points[1]!.x);
+
+      ctx.save();
+      ctx.strokeStyle = hexToRgba(FIB_DEFAULT_TREND_COLOR, 0.7);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(leftX, chartArea.top);
+      ctx.lineTo(leftX, chartArea.top + chartArea.height);
+      if (!anchoredToEnd) {
+        ctx.moveTo(rightX, chartArea.top);
+        ctx.lineTo(rightX, chartArea.top + chartArea.height);
+      }
+      ctx.stroke();
+
+      if (profile && rightX - leftX > 2) {
+        const topY = priceToY(profile.maxPrice);
+        const bottomY = priceToY(profile.minPrice);
+        if (!anchoredToEnd) {
+          ctx.strokeStyle = hexToRgba(drawing.color, 0.35);
+          ctx.strokeRect(leftX, topY, rightX - leftX, bottomY - topY);
+        }
+
+        profile.rows.forEach((row, index) => {
+          const rowTotal = row.upVolume + row.downVolume;
+          if (rowTotal <= 0) return;
+
+          const rowTop = priceToY(row.priceHigh);
+          const rowBottom = priceToY(row.priceLow);
+          const rowHeight = Math.max(1, rowBottom - rowTop - 1);
+          const rowWidth = (rowTotal / profile.maxRowVolume) * (rightX - leftX);
+          const upWidth = rowWidth * (row.upVolume / rowTotal);
+          const inValueArea = index >= profile.valueAreaLow && index <= profile.valueAreaHigh;
+          const alpha = inValueArea ? 0.5 : 0.24;
+
+          ctx.fillStyle = hexToRgba(palette.green, alpha);
+          ctx.fillRect(leftX, rowTop, upWidth, rowHeight);
+          ctx.fillStyle = hexToRgba(palette.red, alpha);
+          ctx.fillRect(leftX + upWidth, rowTop, rowWidth - upWidth, rowHeight);
+        });
+
+        const pocRow = profile.rows[profile.pocIndex]!;
+        const pocY = priceToY((pocRow.priceLow + pocRow.priceHigh) / 2);
+        ctx.strokeStyle = palette.ma;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(leftX, pocY);
+        ctx.lineTo(rightX, pocY);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawMeasureArrowHead = (
+      tip: { x: number; y: number },
+      angle: number,
+      color: string
+    ) => {
+      const size = 8;
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - Math.cos(angle - Math.PI / 6) * size, tip.y - Math.sin(angle - Math.PI / 6) * size);
+      ctx.lineTo(tip.x - Math.cos(angle + Math.PI / 6) * size, tip.y - Math.sin(angle + Math.PI / 6) * size);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+    const drawMeasureLabel = (lines: string[], centerX: number, edgeY: number, placement: 'above' | 'below', color: string) => {
+      if (lines.length === 0) return;
+
+      ctx.save();
+      ctx.font = getCanvasFont(11);
+      const paddingX = 9;
+      const paddingY = 6;
+      const lineHeight = 15;
+      const labelWidth = Math.max(...lines.map((line) => ctx.measureText(line).width)) + paddingX * 2;
+      const labelHeight = lines.length * lineHeight + paddingY * 2;
+      const labelX = clamp(centerX - labelWidth / 2, chartArea.left + 4, chartArea.left + chartArea.width - labelWidth - 4);
+      const labelY = clamp(
+        placement === 'above' ? edgeY - labelHeight - 8 : edgeY + 8,
+        chartArea.top + 4,
+        chartArea.top + chartArea.height - labelHeight - 4
+      );
+
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 4);
+      } else {
+        ctx.rect(labelX, labelY, labelWidth, labelHeight);
+      }
+      ctx.fillStyle = theme === 'dark' ? 'rgba(15, 23, 42, 0.86)' : 'rgba(255, 255, 255, 0.94)';
+      ctx.fill();
+      ctx.strokeStyle = hexToRgba(color, 0.72);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = theme === 'dark' ? '#f8fafc' : '#1f2937';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      lines.forEach((line, index) => {
+        ctx.fillText(line, labelX + labelWidth / 2, labelY + paddingY + lineHeight * index + lineHeight / 2);
+      });
+      ctx.restore();
+    };
+    const drawMeasureDrawing = (drawing: ChartDrawing, points: Array<{ x: number; y: number }>, selected: boolean) => {
+      const [start, end] = points;
+      const startAnchor = drawing.anchors[0];
+      const endAnchor = drawing.anchors[1];
+      if (!start || !end || !startAnchor || !endAnchor) return;
+
+      const left = Math.min(start.x, end.x);
+      const right = Math.max(start.x, end.x);
+      const top = Math.min(start.y, end.y);
+      const bottom = Math.max(start.y, end.y);
+      const centerX = (left + right) / 2;
+      const centerY = (top + bottom) / 2;
+      const strokeColor = getDrawingStrokeColor(drawing);
+
+      ctx.save();
+      ctx.fillStyle = hexToRgba(drawing.color, 0.12);
+      ctx.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+      applyDrawingLineStyle(drawing);
+
+      if (drawing.kind === 'price-range' || drawing.kind === 'date-price-range') {
+        if (drawing.kind === 'price-range') {
+          ctx.beginPath();
+          ctx.moveTo(left, start.y);
+          ctx.lineTo(right, start.y);
+          ctx.moveTo(left, end.y);
+          ctx.lineTo(right, end.y);
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.moveTo(centerX, start.y);
+        ctx.lineTo(centerX, end.y);
+        ctx.stroke();
+        drawMeasureArrowHead({ x: centerX, y: end.y }, end.y >= start.y ? Math.PI / 2 : -Math.PI / 2, strokeColor);
+      }
+      if (drawing.kind === 'date-range' || drawing.kind === 'date-price-range') {
+        if (drawing.kind === 'date-range') {
+          ctx.beginPath();
+          ctx.moveTo(start.x, top);
+          ctx.lineTo(start.x, bottom);
+          ctx.moveTo(end.x, top);
+          ctx.lineTo(end.x, bottom);
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.moveTo(start.x, centerY);
+        ctx.lineTo(end.x, centerY);
+        ctx.stroke();
+        drawMeasureArrowHead({ x: end.x, y: centerY }, end.x >= start.x ? 0 : Math.PI, strokeColor);
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      const priceDelta = endAnchor.price - startAnchor.price;
+      const percentDelta = startAnchor.price !== 0 ? (priceDelta / startAnchor.price) * 100 : 0;
+      const ticks = Math.round(Math.abs(priceDelta) / POSITION_PRICE_TICK).toLocaleString();
+      const priceSign = priceDelta >= 0 ? '' : '-';
+      const barsDelta = Math.round(Math.abs(endAnchor.logicalIndex - startAnchor.logicalIndex));
+      const timeDelta = Math.abs(timeForIndex(endAnchor.logicalIndex) - timeForIndex(startAnchor.logicalIndex));
+      const dayCount = Math.floor(timeDelta / 86_400_000);
+      const hourCount = Math.floor((timeDelta % 86_400_000) / 3_600_000);
+      const minuteCount = Math.round((timeDelta % 3_600_000) / 60_000);
+      const durationText =
+        dayCount >= 1 ? `${dayCount}d` : hourCount >= 1 ? `${hourCount}h ${minuteCount}m` : `${minuteCount}m`;
+      const volumeFrom = clamp(Math.ceil(Math.min(startAnchor.logicalIndex, endAnchor.logicalIndex)), 0, candles.length - 1);
+      const volumeTo = clamp(Math.floor(Math.max(startAnchor.logicalIndex, endAnchor.logicalIndex)), 0, candles.length - 1);
+      let rangeVolume = 0;
+      for (let index = volumeFrom; index <= volumeTo; index += 1) {
+        rangeVolume += candles[index]?.volume ?? 0;
+      }
+
+      const priceLine = `${priceSign}${formatPrice(Math.abs(priceDelta))} (${percentDelta.toFixed(2)}%) ${ticks}`;
+      const dateLine = `${barsDelta} bars, ${durationText}`;
+      const volumeLine = `Vol ${formatCompact(rangeVolume)}`;
+      const labelLines =
+        drawing.kind === 'price-range'
+          ? [priceLine]
+          : drawing.kind === 'date-range'
+            ? [dateLine, volumeLine]
+            : [priceLine, dateLine, volumeLine];
+      const placement: 'above' | 'below' = end.y <= start.y ? 'above' : 'below';
+      drawMeasureLabel(labelLines, centerX, placement === 'above' ? top : bottom, placement, drawing.color);
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
+    const drawForecastDrawing = (drawing: ChartDrawing, points: Array<{ x: number; y: number }>, selected: boolean) => {
+      if (isPositionDrawingTool(drawing.kind)) {
+        drawPositionDrawing(drawing, points, selected);
+      } else if (drawing.kind === 'forecast') {
+        drawForecastArrowDrawing(drawing, points, selected);
+      } else if (drawing.kind === 'bars-pattern') {
+        drawBarsPatternDrawing(drawing, points, selected);
+      } else if (drawing.kind === 'ghost-feed') {
+        drawGhostFeedDrawing(drawing, points, selected);
+      } else if (drawing.kind === 'projection') {
+        drawProjectionDrawing(drawing, points, selected);
+      } else if (drawing.kind === 'anchored-vwap') {
+        drawAnchoredVwapDrawing(drawing, points, selected);
+      } else if (drawing.kind === 'fixed-volume-profile' || drawing.kind === 'anchored-volume-profile') {
+        drawVolumeProfileDrawing(drawing, points, selected);
+      } else if (
+        drawing.kind === 'price-range' ||
+        drawing.kind === 'date-range' ||
+        drawing.kind === 'date-price-range'
+      ) {
+        drawMeasureDrawing(drawing, points, selected);
+      }
+    };
     const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
       const points = drawing.anchors.map(pointForDrawingAnchor);
       if (isPatternDrawingTool(drawing.kind)) {
         if (points.length < 2) return;
 
         drawPatternDrawing(drawing, points, selected);
+        return;
+      }
+      if (isForecastDrawingTool(drawing.kind)) {
+        if (points.length < Math.min(2, getRequiredDrawingAnchorCount(drawing.kind))) return;
+
+        drawForecastDrawing(drawing, points, selected);
         return;
       }
       if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) return;
@@ -9626,7 +10978,7 @@ export default function Home() {
         onClick={handleEntryClick}
       >
         <span className={`drawing-tool-icon ${entry.icon}`} aria-hidden="true">
-          {FIB_TOOL_ICONS[entry.icon] ?? PATTERN_TOOL_ICONS[entry.icon] ?? null}
+          {FIB_TOOL_ICONS[entry.icon] ?? PATTERN_TOOL_ICONS[entry.icon] ?? FORECAST_TOOL_ICONS[entry.icon] ?? null}
         </span>
         <span>{entry.label}</span>
         {entry.shortcut && <kbd>{entry.shortcut}</kbd>}
@@ -9701,13 +11053,18 @@ export default function Home() {
     if (!isAuthenticated) return null;
 
     const visibleLineTool =
-      activeDrawingTool !== null && !isFibDrawingTool(activeDrawingTool) && !isPatternDrawingTool(activeDrawingTool)
+      activeDrawingTool !== null &&
+      !isFibDrawingTool(activeDrawingTool) &&
+      !isPatternDrawingTool(activeDrawingTool) &&
+      !isForecastDrawingTool(activeDrawingTool)
         ? activeDrawingTool
         : lastDrawingTool;
     const visibleFibTool =
       activeDrawingTool !== null && isFibDrawingTool(activeDrawingTool) ? activeDrawingTool : lastFibTool;
     const visiblePatternTool =
       activeDrawingTool !== null && isPatternDrawingTool(activeDrawingTool) ? activeDrawingTool : lastPatternTool;
+    const visibleForecastTool =
+      activeDrawingTool !== null && isForecastDrawingTool(activeDrawingTool) ? activeDrawingTool : lastForecastTool;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -9766,7 +11123,8 @@ export default function Home() {
               activeDrawingMenu === 'line-tools' ||
               (activeDrawingTool !== null &&
                 !isFibDrawingTool(activeDrawingTool) &&
-                !isPatternDrawingTool(activeDrawingTool))
+                !isPatternDrawingTool(activeDrawingTool) &&
+                !isForecastDrawingTool(activeDrawingTool))
             }
             onClick={() => toggleDrawingMenu('line-tools')}
           >
@@ -9824,6 +11182,33 @@ export default function Home() {
               aria-label="Chart pattern tools"
             >
               {PATTERN_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            </div>
+          )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${DRAWING_TOOL_LABELS[visibleForecastTool]} drawing tool group`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'forecast-tools'}
+            title={DRAWING_TOOL_LABELS[visibleForecastTool]}
+            data-active={
+              activeDrawingMenu === 'forecast-tools' ||
+              (activeDrawingTool !== null && isForecastDrawingTool(activeDrawingTool))
+            }
+            onClick={() => toggleDrawingMenu('forecast-tools')}
+          >
+            <span className={`drawing-tool-icon ${visibleForecastTool}`} aria-hidden="true">
+              {FORECAST_TOOL_ICONS[visibleForecastTool] ?? null}
+            </span>
+          </button>
+          {activeDrawingMenu === 'forecast-tools' && (
+            <div
+              className="drawing-tool-menu line-tools-menu forecast-tools-menu"
+              role="menu"
+              aria-label="Forecasting tools"
+            >
+              {FORECAST_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
             </div>
           )}
         </div>
@@ -9923,7 +11308,7 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
-                {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && (
+                {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && !isForecastDrawingTool(drawing.kind) && (
                   <>
                     <button
                       type="button"
@@ -10086,7 +11471,7 @@ export default function Home() {
                 )}
               </>
             )}
-            {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && (
+            {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && !isForecastDrawingTool(drawing.kind) && (
               <label className="drawing-settings-checkbox-row">
                 <input
                   type="checkbox"
