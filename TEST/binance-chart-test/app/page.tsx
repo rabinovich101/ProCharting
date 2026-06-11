@@ -1490,7 +1490,7 @@ const SHAPE_TOOL_ICONS: Record<string, ReactNode> = {
   ),
   'arrow-marker': (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
-      <path fill="currentColor" d="M14 4l7 12h-4v8h-6v-8H7z" />
+      <path fill="currentColor" d="M3.6 6.4 12.4 18.8 9.9 21.3 22 22 21.3 9.9 18.8 12.4 6.4 3.6Z" />
     </svg>
   ),
   arrow: (
@@ -2826,22 +2826,24 @@ const SHAPE_DRAWING_TOOL_IDS: ReadonlySet<DrawingToolId> = new Set([
   'double-curve',
 ]);
 const SHAPE_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
-  'arrow-marker': 1,
   'arrow-mark-up': 1,
   'arrow-mark-down': 1,
+  'arrow-marker': 2,
   arrow: 2,
   rectangle: 2,
   circle: 2,
-  ellipse: 2,
+  curve: 2,
+  'double-curve': 2,
+  ellipse: 3,
   'rotated-rectangle': 3,
   triangle: 3,
   arc: 3,
-  curve: 3,
-  'double-curve': 4,
 };
 const isShapeDrawingTool = (kind: DrawingToolId) => SHAPE_DRAWING_TOOL_IDS.has(kind);
 const isFreehandDrawingTool = (kind: DrawingToolId) => kind === 'brush' || kind === 'highlighter';
 const isVariableAnchorShapeDrawingTool = (kind: DrawingToolId) => kind === 'path' || kind === 'polyline';
+// Curve tools complete after two clicks; their bend handles are appended automatically and dragged afterwards.
+const isAutoControlCurveDrawingTool = (kind: DrawingToolId) => kind === 'curve' || kind === 'double-curve';
 const isClassicLineDrawingTool = (kind: DrawingToolId) =>
   !isFibDrawingTool(kind) && !isPatternDrawingTool(kind) && !isForecastDrawingTool(kind) && !isShapeDrawingTool(kind);
 const getMaxDrawingAnchorCount = (kind: DrawingToolId) =>
@@ -2850,8 +2852,12 @@ const getMaxDrawingAnchorCount = (kind: DrawingToolId) =>
     : isFreehandDrawingTool(kind)
       ? FREEHAND_DRAWING_MAX_ANCHORS
       : isVariableAnchorShapeDrawingTool(kind)
-        ? VARIABLE_SHAPE_DRAWING_MAX_ANCHORS
-        : getRequiredDrawingAnchorCount(kind);
+        ? VARIABLE_SHAPE_DRAWING_MAX_ANCHORS + 1
+        : kind === 'curve'
+          ? 3
+          : kind === 'double-curve'
+            ? 4
+            : getRequiredDrawingAnchorCount(kind);
 const PATTERN_POINT_LABELS: Partial<Record<DrawingToolId, Array<string | null>>> = {
   'xabcd-pattern': ['X', 'A', 'B', 'C', 'D'],
   'cypher-pattern': ['X', 'A', 'B', 'C', 'D'],
@@ -2902,21 +2908,33 @@ const getRequiredDrawingAnchorCount = (kind: DrawingToolId) =>
           : isTwoAnchorDrawingTool(kind) || isFibDrawingTool(kind)
             ? 2
             : 1));
+const SHAPE_TOOL_DEFAULT_COLORS: Partial<Record<DrawingToolId, string>> = {
+  brush: '#2962ff',
+  highlighter: '#f23645',
+  'arrow-marker': '#2962ff',
+  arrow: '#2962ff',
+  'arrow-mark-up': '#089981',
+  'arrow-mark-down': '#f23645',
+  rectangle: '#9c27b0',
+  'rotated-rectangle': '#089981',
+  path: '#2962ff',
+  circle: '#ff9800',
+  ellipse: '#f23645',
+  polyline: '#00bcd4',
+  triangle: '#089981',
+  arc: '#e91e63',
+  curve: '#2962ff',
+  'double-curve': '#9c27b0',
+};
 const getDefaultDrawingColor = (kind: DrawingToolId) =>
   isFibDrawingTool(kind)
     ? kind === 'fib-spiral'
       ? DRAWING_DEFAULT_COLOR
       : FIB_DEFAULT_TREND_COLOR
-    : kind === 'highlighter'
-      ? '#fdd835'
-      : kind === 'arrow-mark-up'
-        ? '#089981'
-        : kind === 'arrow-mark-down'
-          ? '#f23645'
-          : DRAWING_DEFAULT_COLOR;
-const getDefaultDrawingOpacity = (kind: DrawingToolId) => (kind === 'highlighter' ? 0.36 : DRAWING_DEFAULT_OPACITY);
+    : SHAPE_TOOL_DEFAULT_COLORS[kind] ?? DRAWING_DEFAULT_COLOR;
+const getDefaultDrawingOpacity = (kind: DrawingToolId) => (kind === 'highlighter' ? 0.3 : DRAWING_DEFAULT_OPACITY);
 const getDefaultDrawingLineWidth = (kind: DrawingToolId) =>
-  kind === 'highlighter' ? 6 : kind === 'brush' ? 3 : 2;
+  kind === 'highlighter' ? 20 : kind === 'brush' ? 3 : 2;
 const getDefaultDrawingLeftEnd = (_kind: DrawingToolId): DrawingArrowEnd => 'none';
 const getDefaultDrawingRightEnd = (kind: DrawingToolId): DrawingArrowEnd => (kind === 'arrow' ? 'arrow' : 'none');
 const DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX = ['start', 'end', 'third', 'fourth', 'fifth', 'sixth', 'seventh'] as const;
@@ -3073,7 +3091,7 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         color: typeof drawing.color === 'string' ? drawing.color : getDefaultDrawingColor(drawing.kind),
         opacity: Number.isFinite(drawing.opacity) ? clamp(drawing.opacity!, 0.1, 1) : getDefaultDrawingOpacity(drawing.kind),
         lineWidth: Number.isFinite(drawing.lineWidth)
-          ? clamp(drawing.lineWidth!, 1, 6)
+          ? clamp(drawing.lineWidth!, 1, isFreehandDrawingTool(drawing.kind) ? 24 : 6)
           : getDefaultDrawingLineWidth(drawing.kind),
         lineStyle: isDrawingLineStyle(drawing.lineStyle) ? drawing.lineStyle : DRAWING_DEFAULT_LINE_STYLE,
         extend: isDrawingExtendMode(drawing.extend) ? drawing.extend : 'none',
@@ -3576,23 +3594,144 @@ const sampleCubicCurve = (
   }
   return points;
 };
+const getPointAlongWithPerpOffset = (
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  t: number,
+  offsetRatio: number
+) => {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const perpX = -dy / length;
+  const perpY = dx / length;
+  return {
+    x: start.x + dx * t + perpX * offsetRatio * length,
+    y: start.y + dy * t + perpY * offsetRatio * length,
+  };
+};
+// Default bend handles used while previewing and when a curve completes after its two clicks.
+const getDefaultShapeCurveControls = (
+  kind: DrawingToolId,
+  start: { x: number; y: number },
+  end: { x: number; y: number }
+) =>
+  kind === 'double-curve'
+    ? [
+        getPointAlongWithPerpOffset(start, end, 1 / 3, 0.18),
+        getPointAlongWithPerpOffset(start, end, 2 / 3, -0.18),
+      ]
+    : [getPointAlongWithPerpOffset(start, end, 0.5, 0.18)];
+// Quadratic curve that PASSES THROUGH the apex point (apex = point on curve at t=0.5).
+const sampleQuadraticThroughPoints = (
+  start: { x: number; y: number },
+  apex: { x: number; y: number },
+  end: { x: number; y: number }
+) =>
+  sampleQuadraticCurve(
+    start,
+    { x: 2 * apex.x - (start.x + end.x) / 2, y: 2 * apex.y - (start.y + end.y) / 2 },
+    end
+  );
+// Cubic curve that passes through two on-curve handles at t=1/3 and t=2/3.
+const sampleCubicThroughPoints = (
+  start: { x: number; y: number },
+  handleA: { x: number; y: number },
+  handleB: { x: number; y: number },
+  end: { x: number; y: number }
+) =>
+  sampleCubicCurve(
+    start,
+    {
+      x: (-5 * start.x + 18 * handleA.x - 9 * handleB.x + 2 * end.x) / 6,
+      y: (-5 * start.y + 18 * handleA.y - 9 * handleB.y + 2 * end.y) / 6,
+    },
+    {
+      x: (2 * start.x - 9 * handleA.x + 18 * handleB.x - 5 * end.x) / 6,
+      y: (2 * start.y - 9 * handleA.y + 18 * handleB.y - 5 * end.y) / 6,
+    },
+    end
+  );
 const getShapeCurvePoints = (kind: DrawingToolId, points: Array<{ x: number; y: number }>) => {
   const [first, second, third, fourth] = points;
   if (!first || !second) return points;
 
-  if (kind === 'arc' && third) {
-    return sampleQuadraticCurve(first, third, second);
+  if (kind === 'arc') {
+    return third ? sampleQuadraticThroughPoints(first, third, second) : points;
   }
 
-  if (kind === 'curve' && third) {
-    return sampleQuadraticCurve(first, second, third);
+  if (kind === 'curve') {
+    const apex = third ?? getDefaultShapeCurveControls(kind, first, second)[0]!;
+    return sampleQuadraticThroughPoints(first, apex, second);
   }
 
-  if (kind === 'double-curve' && third && fourth) {
-    return sampleCubicCurve(first, second, third, fourth);
+  if (kind === 'double-curve') {
+    const defaults = getDefaultShapeCurveControls(kind, first, second);
+    const handleA = third ?? defaults[0]!;
+    const handleB = fourth ?? defaults[1]!;
+    return sampleCubicThroughPoints(first, handleA, handleB, second);
   }
 
   return points;
+};
+const getArrowMarkerPolygon = (
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  lineWidth: number
+) => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 2) return null;
+
+  const dirX = dx / length;
+  const dirY = dy / length;
+  const perpX = -dirY;
+  const perpY = dirX;
+  const headLength = clamp(length * 0.42, 8, 18 + lineWidth * 6);
+  const tailHalfWidth = Math.max(2, lineWidth * 1.1);
+  const baseHalfWidth = Math.max(5.5, lineWidth * 2.8);
+  const headHalfWidth = baseHalfWidth * 1.9;
+  const baseX = to.x - dirX * headLength;
+  const baseY = to.y - dirY * headLength;
+
+  return [
+    { x: from.x + perpX * tailHalfWidth, y: from.y + perpY * tailHalfWidth },
+    { x: baseX + perpX * baseHalfWidth, y: baseY + perpY * baseHalfWidth },
+    { x: baseX + perpX * headHalfWidth, y: baseY + perpY * headHalfWidth },
+    { x: to.x, y: to.y },
+    { x: baseX - perpX * headHalfWidth, y: baseY - perpY * headHalfWidth },
+    { x: baseX - perpX * baseHalfWidth, y: baseY - perpY * baseHalfWidth },
+    { x: from.x - perpX * tailHalfWidth, y: from.y - perpY * tailHalfWidth },
+  ];
+};
+// Ellipse: first two anchors are the ends of the major axis, third sets the perpendicular radius.
+const getEllipseGeometry = (
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  third: { x: number; y: number } | undefined
+) => {
+  const centerX = (first.x + second.x) / 2;
+  const centerY = (first.y + second.y) / 2;
+  const radiusX = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y) / 2);
+  const rotation = Math.atan2(second.y - first.y, second.x - first.x);
+  let radiusY = 1;
+  if (third) {
+    const length = Math.hypot(second.x - first.x, second.y - first.y) || 1;
+    radiusY = Math.max(
+      1,
+      Math.abs(
+        ((second.x - first.x) * (first.y - third.y) - (second.y - first.y) * (first.x - third.x)) / length
+      )
+    );
+  }
+  return { centerX, centerY, radiusX, radiusY, rotation };
+};
+const arePolylinePointsClosed = (points: Array<{ x: number; y: number }>) => {
+  if (points.length < 4) return false;
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  return Math.hypot(last.x - first.x, last.y - first.y) <= 1.5;
 };
 const isPointNearEllipse = (
   x: number,
@@ -3634,15 +3773,33 @@ const hitTestShapeDrawingAt = (
   const [first, second, third] = points;
   if (!first) return false;
 
-  if (drawing.kind === 'arrow-marker' || drawing.kind === 'arrow-mark-up' || drawing.kind === 'arrow-mark-down') {
-    return Math.hypot(x - first.x, y - first.y) <= Math.max(16, tolerance);
+  if (drawing.kind === 'arrow-mark-up' || drawing.kind === 'arrow-mark-down') {
+    const sign = drawing.kind === 'arrow-mark-up' ? 1 : -1;
+    const top = sign === 1 ? first.y - tolerance : first.y - 22 - tolerance;
+    const bottom = sign === 1 ? first.y + 22 + tolerance : first.y + tolerance;
+    return Math.abs(x - first.x) <= 11 + tolerance && y >= top && y <= bottom;
   }
 
-  if (drawing.kind === 'brush' || drawing.kind === 'highlighter' || drawing.kind === 'path' || drawing.kind === 'polyline') {
+  if (drawing.kind === 'brush' || drawing.kind === 'highlighter') {
     return getPolylineHit(points, x, y, Math.max(tolerance, drawing.lineWidth * 0.85));
   }
 
+  if (drawing.kind === 'path') {
+    return getPolylineHit(points, x, y, tolerance);
+  }
+
+  if (drawing.kind === 'polyline') {
+    return arePolylinePointsClosed(points)
+      ? hitTestPolygonBody(points.slice(0, -1), x, y, tolerance)
+      : getPolylineHit(points, x, y, tolerance);
+  }
+
   if (!second) return false;
+
+  if (drawing.kind === 'arrow-marker') {
+    const polygon = getArrowMarkerPolygon(first, second, drawing.lineWidth);
+    return polygon ? hitTestPolygonBody(polygon, x, y, tolerance) : Math.hypot(x - first.x, y - first.y) <= tolerance;
+  }
 
   if (drawing.kind === 'arrow') {
     return getDistanceToSegment(x, y, first, second) <= tolerance;
@@ -3652,7 +3809,8 @@ const hitTestShapeDrawingAt = (
     return hitTestPolygonBody(getRectangleCorners(first, second), x, y, tolerance);
   }
 
-  if (drawing.kind === 'rotated-rectangle' && third) {
+  if (drawing.kind === 'rotated-rectangle') {
+    if (!third) return getDistanceToSegment(x, y, first, second) <= tolerance;
     return hitTestPolygonBody(getRotatedRectangleCorners(first, second, third), x, y, tolerance);
   }
 
@@ -3662,16 +3820,29 @@ const hitTestShapeDrawingAt = (
   }
 
   if (drawing.kind === 'ellipse') {
-    const centerX = (first.x + second.x) / 2;
-    const centerY = (first.y + second.y) / 2;
-    return isPointNearEllipse(x, y, centerX, centerY, Math.abs(second.x - first.x) / 2, Math.abs(second.y - first.y) / 2, tolerance);
+    if (!third) return getDistanceToSegment(x, y, first, second) <= tolerance;
+    const { centerX, centerY, radiusX, radiusY, rotation } = getEllipseGeometry(first, second, third);
+    const cos = Math.cos(-rotation);
+    const sin = Math.sin(-rotation);
+    const localX = (x - centerX) * cos - (y - centerY) * sin;
+    const localY = (x - centerX) * sin + (y - centerY) * cos;
+    return isPointNearEllipse(localX + centerX, localY + centerY, centerX, centerY, radiusX, radiusY, tolerance);
   }
 
-  if (drawing.kind === 'triangle' && third) {
+  if (drawing.kind === 'triangle') {
+    if (!third) return getDistanceToSegment(x, y, first, second) <= tolerance;
     return hitTestPolygonBody([first, second, third], x, y, tolerance);
   }
 
-  if (drawing.kind === 'arc' || drawing.kind === 'curve' || drawing.kind === 'double-curve') {
+  if (drawing.kind === 'arc') {
+    const curvePoints = getShapeCurvePoints(drawing.kind, points);
+    if (third && curvePoints.length > 2) {
+      return hitTestPolygonBody(curvePoints, x, y, tolerance);
+    }
+    return getPolylineHit(curvePoints, x, y, tolerance);
+  }
+
+  if (drawing.kind === 'curve' || drawing.kind === 'double-curve') {
     return getPolylineHit(getShapeCurvePoints(drawing.kind, points), x, y, tolerance);
   }
 
@@ -7856,6 +8027,18 @@ export default function Home() {
         );
       } else if (activeDrawingTool === 'ghost-feed' || isVariableAnchorShapeDrawingTool(activeDrawingTool)) {
         if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
+          // Polyline closes (and fills) when the user clicks back on the first point.
+          if (activeDrawingTool === 'polyline' && pendingDrawing.anchors.length >= 3) {
+            const firstAnchor = pendingDrawing.anchors[0]!;
+            const firstPoint = getDrawingPointForAnchor(paneIndex, firstAnchor);
+            if (firstPoint && Math.hypot(x - firstPoint.x, y - firstPoint.y) <= DRAWING_HIT_TOLERANCE) {
+              addCompletedDrawing(
+                createChartDrawing(paneIndex, activeDrawingTool, [...pendingDrawing.anchors, { ...firstAnchor }])
+              );
+              event.preventDefault();
+              return;
+            }
+          }
           const nextAnchors = [...pendingDrawing.anchors, anchor];
           if (
             (event.detail >= 2 && nextAnchors.length >= 2) ||
@@ -7876,6 +8059,18 @@ export default function Home() {
         if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
           const nextAnchors = [...pendingDrawing.anchors, anchor];
           if (nextAnchors.length >= requiredAnchorCount) {
+            // Curve tools finish on the second click; their bend anchors are derived
+            // from the default bow so they can be dragged afterwards (TradingView behavior).
+            if (isAutoControlCurveDrawingTool(activeDrawingTool) && nextAnchors.length === 2) {
+              const startPoint = getDrawingPointForAnchor(paneIndex, nextAnchors[0]!);
+              const endPoint = getDrawingPointForAnchor(paneIndex, nextAnchors[1]!);
+              if (startPoint && endPoint) {
+                getDefaultShapeCurveControls(activeDrawingTool, startPoint, endPoint).forEach((controlPoint) => {
+                  const controlAnchor = getDrawingAnchorAtPoint(paneIndex, controlPoint.x, controlPoint.y);
+                  if (controlAnchor) nextAnchors.push(controlAnchor);
+                });
+              }
+            }
             const completedDrawing = createChartDrawing(paneIndex, activeDrawingTool, nextAnchors);
             if (activeDrawingTool === 'bars-pattern') {
               completedDrawing.patternBars = captureBarsPatternData(pane.candles, nextAnchors);
@@ -8067,6 +8262,20 @@ export default function Home() {
                 nextAnchors[anchorIndex] = currentAnchor;
                 if (isPositionDrawingTool(drawing.kind)) {
                   normalizePositionDrawingAnchors(drawing.kind, nextAnchors, anchorIndex);
+                }
+                // A closed polyline keeps its duplicated closing anchor glued to the first one.
+                if (drawing.kind === 'polyline' && anchorIndex === 0 && nextAnchors.length >= 4) {
+                  const lastIndex = nextAnchors.length - 1;
+                  const startFirst = drawingDrag.startAnchors[0];
+                  const startLast = drawingDrag.startAnchors[lastIndex];
+                  if (
+                    startFirst &&
+                    startLast &&
+                    startFirst.price === startLast.price &&
+                    startFirst.logicalIndex === startLast.logicalIndex
+                  ) {
+                    nextAnchors[lastIndex] = { ...currentAnchor };
+                  }
                 }
               }
             }
@@ -8958,11 +9167,14 @@ export default function Home() {
       drawDrawingText(drawing, connectorStart, connectorEnd);
       drawDrawingStats(drawing, connectorStart, connectorEnd, selected);
     };
+    const getShapeFillStyle = (drawing: ChartDrawing) =>
+      hexToRgba(drawing.color, clamp(drawing.opacity * 0.2, 0.05, 0.4));
     const drawShapePath = (
       drawing: ChartDrawing,
       points: Array<{ x: number; y: number }>,
       selected: boolean,
-      smooth: boolean
+      smooth: boolean,
+      arrowEnd = false
     ) => {
       if (points.length < 2) return;
 
@@ -8988,6 +9200,12 @@ export default function Home() {
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
+
+      if (arrowEnd) {
+        const tip = points[points.length - 1]!;
+        const tail = points[points.length - 2]!;
+        drawDrawingArrowEnd(drawing, tip, tail, 'arrow');
+      }
     };
     const drawShapePolygon = (
       drawing: ChartDrawing,
@@ -8997,7 +9215,7 @@ export default function Home() {
       if (polygon.length < 3) return;
 
       ctx.save();
-      ctx.fillStyle = hexToRgba(drawing.color, clamp(drawing.opacity * 0.12, 0.04, 0.28));
+      ctx.fillStyle = getShapeFillStyle(drawing);
       ctx.strokeStyle = getDrawingStrokeColor(drawing);
       ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
       applyDrawingLineStyle(drawing);
@@ -9015,14 +9233,15 @@ export default function Home() {
       ctx.setLineDash([]);
       ctx.restore();
     };
-    const drawShapeArrowMarker = (
+    // Arrow mark glyph: the TIP sits exactly at the anchor (up arrow hangs below it, down arrow sits above it).
+    const drawShapeArrowMarkGlyph = (
       drawing: ChartDrawing,
       point: { x: number; y: number },
       selected: boolean,
       direction: 'up' | 'down'
     ) => {
-      const height = selected ? 24 : 21;
-      const width = height * 0.75;
+      const height = selected ? 22 : 20;
+      const width = height * 0.78;
       const sign = direction === 'up' ? 1 : -1;
 
       ctx.save();
@@ -9030,14 +9249,43 @@ export default function Home() {
       ctx.fillStyle = getDrawingStrokeColor(drawing);
       ctx.strokeStyle = getDrawingStrokeColor(drawing);
       ctx.lineWidth = 1;
+      ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(0, sign * -height / 2);
-      ctx.lineTo(width / 2, sign * (height * 0.05));
-      ctx.lineTo(width * 0.22, sign * (height * 0.05));
-      ctx.lineTo(width * 0.22, sign * (height / 2));
-      ctx.lineTo(-width * 0.22, sign * (height / 2));
-      ctx.lineTo(-width * 0.22, sign * (height * 0.05));
-      ctx.lineTo(-width / 2, sign * (height * 0.05));
+      ctx.moveTo(0, 0);
+      ctx.lineTo(sign * (width / 2), sign * (height * 0.45));
+      ctx.lineTo(sign * (width * 0.2), sign * (height * 0.45));
+      ctx.lineTo(sign * (width * 0.2), sign * height);
+      ctx.lineTo(sign * (-width * 0.2), sign * height);
+      ctx.lineTo(sign * (-width * 0.2), sign * (height * 0.45));
+      ctx.lineTo(sign * (-width / 2), sign * (height * 0.45));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    };
+    // Arrow marker: fat solid tapered arrow from the first anchor to the second.
+    const drawShapeArrowMarkerArrow = (
+      drawing: ChartDrawing,
+      from: { x: number; y: number },
+      to: { x: number; y: number },
+      selected: boolean
+    ) => {
+      const polygon = getArrowMarkerPolygon(from, to, selected ? drawing.lineWidth + 0.6 : drawing.lineWidth);
+      if (!polygon) return;
+
+      ctx.save();
+      ctx.fillStyle = getDrawingStrokeColor(drawing);
+      ctx.strokeStyle = getDrawingStrokeColor(drawing);
+      ctx.lineWidth = 1;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      polygon.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -9051,38 +9299,52 @@ export default function Home() {
       const [first, second, third] = points;
       if (!first) return;
 
-      if (drawing.kind === 'brush' || drawing.kind === 'highlighter') {
-        drawShapePath(drawing, points, selected, true);
-      } else if (drawing.kind === 'path') {
-        drawShapePath(drawing, points, selected, true);
-      } else if (drawing.kind === 'polyline') {
-        drawShapePath(drawing, points, selected, false);
-      } else if (drawing.kind === 'arrow-marker' || drawing.kind === 'arrow-mark-up') {
-        drawShapeArrowMarker(drawing, first, selected, 'up');
-      } else if (drawing.kind === 'arrow-mark-down') {
-        drawShapeArrowMarker(drawing, first, selected, 'down');
-      } else if (drawing.kind === 'arrow' && second) {
+      const drawSegmentPreview = (from: { x: number; y: number }, to: { x: number; y: number }) => {
         ctx.save();
         ctx.strokeStyle = getDrawingStrokeColor(drawing);
         ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
         ctx.lineCap = 'round';
         applyDrawingLineStyle(drawing);
         ctx.beginPath();
-        ctx.moveTo(first.x, first.y);
-        ctx.lineTo(second.x, second.y);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.restore();
+      };
+
+      if (drawing.kind === 'brush' || drawing.kind === 'highlighter') {
+        drawShapePath(drawing, points, selected, true);
+      } else if (drawing.kind === 'path') {
+        drawShapePath(drawing, points, selected, false, true);
+      } else if (drawing.kind === 'polyline') {
+        if (arePolylinePointsClosed(points)) {
+          drawShapePolygon(drawing, points.slice(0, -1), selected);
+        } else {
+          drawShapePath(drawing, points, selected, false);
+        }
+      } else if (drawing.kind === 'arrow-mark-up') {
+        drawShapeArrowMarkGlyph(drawing, first, selected, 'up');
+      } else if (drawing.kind === 'arrow-mark-down') {
+        drawShapeArrowMarkGlyph(drawing, first, selected, 'down');
+      } else if (drawing.kind === 'arrow-marker' && second) {
+        drawShapeArrowMarkerArrow(drawing, first, second, selected);
+      } else if (drawing.kind === 'arrow' && second) {
+        drawSegmentPreview(first, second);
         drawDrawingArrowEnd(drawing, first, second, drawing.leftEnd);
         drawDrawingArrowEnd(drawing, second, first, drawing.rightEnd);
       } else if (drawing.kind === 'rectangle' && second) {
         drawShapePolygon(drawing, getRectangleCorners(first, second), selected);
-      } else if (drawing.kind === 'rotated-rectangle' && second && third) {
-        drawShapePolygon(drawing, getRotatedRectangleCorners(first, second, third), selected);
+      } else if (drawing.kind === 'rotated-rectangle' && second) {
+        if (third) {
+          drawShapePolygon(drawing, getRotatedRectangleCorners(first, second, third), selected);
+        } else {
+          drawSegmentPreview(first, second);
+        }
       } else if (drawing.kind === 'circle' && second) {
         const radius = Math.hypot(second.x - first.x, second.y - first.y);
         ctx.save();
-        ctx.fillStyle = hexToRgba(drawing.color, clamp(drawing.opacity * 0.12, 0.04, 0.28));
+        ctx.fillStyle = getShapeFillStyle(drawing);
         ctx.strokeStyle = getDrawingStrokeColor(drawing);
         ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
         applyDrawingLineStyle(drawing);
@@ -9093,28 +9355,61 @@ export default function Home() {
         ctx.setLineDash([]);
         ctx.restore();
       } else if (drawing.kind === 'ellipse' && second) {
-        const centerX = (first.x + second.x) / 2;
-        const centerY = (first.y + second.y) / 2;
-        ctx.save();
-        ctx.fillStyle = hexToRgba(drawing.color, clamp(drawing.opacity * 0.12, 0.04, 0.28));
-        ctx.strokeStyle = getDrawingStrokeColor(drawing);
-        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
-        applyDrawingLineStyle(drawing);
-        ctx.beginPath();
-        ctx.ellipse(centerX, centerY, Math.max(1, Math.abs(second.x - first.x) / 2), Math.max(1, Math.abs(second.y - first.y) / 2), 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
-      } else if (drawing.kind === 'triangle' && second && third) {
-        drawShapePolygon(drawing, [first, second, third], selected);
-      } else if (drawing.kind === 'arc' || drawing.kind === 'curve' || drawing.kind === 'double-curve') {
+        if (third) {
+          const { centerX, centerY, radiusX, radiusY, rotation } = getEllipseGeometry(first, second, third);
+          ctx.save();
+          ctx.fillStyle = getShapeFillStyle(drawing);
+          ctx.strokeStyle = getDrawingStrokeColor(drawing);
+          ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+          applyDrawingLineStyle(drawing);
+          ctx.beginPath();
+          ctx.ellipse(centerX, centerY, radiusX, radiusY, rotation, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        } else {
+          drawSegmentPreview(first, second);
+        }
+      } else if (drawing.kind === 'triangle' && second) {
+        if (third) {
+          drawShapePolygon(drawing, [first, second, third], selected);
+        } else {
+          drawSegmentPreview(first, second);
+        }
+      } else if (drawing.kind === 'arc' && second) {
+        if (third) {
+          const curvePoints = getShapeCurvePoints(drawing.kind, points);
+          ctx.save();
+          ctx.fillStyle = getShapeFillStyle(drawing);
+          ctx.beginPath();
+          curvePoints.forEach((point, index) => {
+            if (index === 0) {
+              ctx.moveTo(point.x, point.y);
+            } else {
+              ctx.lineTo(point.x, point.y);
+            }
+          });
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          drawShapePath(drawing, curvePoints, selected, false);
+        } else {
+          drawSegmentPreview(first, second);
+        }
+      } else if ((drawing.kind === 'curve' || drawing.kind === 'double-curve') && second) {
         drawShapePath(drawing, getShapeCurvePoints(drawing.kind, points), selected, false);
       }
 
-      points.forEach((point) => drawDrawingHandle(point, selected));
+      if (isFreehandDrawingTool(drawing.kind)) {
+        drawDrawingHandle(first, selected);
+        const last = points[points.length - 1];
+        if (last && last !== first) drawDrawingHandle(last, selected);
+      } else {
+        points.forEach((point) => drawDrawingHandle(point, selected));
+      }
 
-      if (drawing.showPriceLabels || selected) {
+      if (drawing.showPriceLabels && !isFreehandDrawingTool(drawing.kind)) {
         drawing.anchors.forEach((anchor, index) => {
           const point = points[index];
           if (!point) return;
@@ -9791,15 +10086,18 @@ export default function Home() {
         drawForecastDrawing(drawing, points, selected);
         return;
       }
+      if (isShapeDrawingTool(drawing.kind)) {
+        // Shape tools render stage previews (e.g. the baseline of an ellipse) before all anchors exist.
+        if (points.length < Math.min(2, getRequiredDrawingAnchorCount(drawing.kind))) return;
+
+        drawShapeDrawing(drawing, points, selected);
+        return;
+      }
+
       if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) return;
 
       if (isFibDrawingTool(drawing.kind)) {
         drawFibDrawing(drawing, points, selected);
-        return;
-      }
-
-      if (isShapeDrawingTool(drawing.kind)) {
-        drawShapeDrawing(drawing, points, selected);
         return;
       }
 
