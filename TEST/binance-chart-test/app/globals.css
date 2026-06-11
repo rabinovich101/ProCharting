@@ -2657,6 +2657,10 @@ summary {
   min-width: 280px;
 }
 
+.pattern-tools-menu {
+  min-width: 300px;
+}
+
 .drawing-tool-menu-section {
   color: var(--text-muted);
   display: block;

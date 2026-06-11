@@ -181,8 +181,22 @@ type DrawingToolId =
   | 'fib-circles'
   | 'fib-spiral'
   | 'fib-arcs'
-  | 'fib-wedge';
-type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools';
+  | 'fib-wedge'
+  | 'xabcd-pattern'
+  | 'cypher-pattern'
+  | 'head-and-shoulders'
+  | 'abcd-pattern'
+  | 'triangle-pattern'
+  | 'three-drives-pattern'
+  | 'elliott-impulse-wave'
+  | 'elliott-correction-wave'
+  | 'elliott-triangle-wave'
+  | 'elliott-double-combo-wave'
+  | 'elliott-triple-combo-wave'
+  | 'cyclic-lines'
+  | 'time-cycles'
+  | 'sine-line';
+type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
@@ -204,7 +218,7 @@ type DrawingStatsSelectValue =
   | 'all';
 type DrawingAlertCondition = 'crossing' | 'crossing-up' | 'crossing-down' | 'greater-than' | 'less-than';
 type DrawingAlertFrequency = 'only-once' | 'once-per-bar' | 'once-per-bar-close';
-type DrawingDragMode = 'none' | 'body' | 'start' | 'end' | 'third' | 'fourth';
+type DrawingDragMode = 'none' | 'body' | 'start' | 'end' | 'third' | 'fourth' | 'fifth' | 'sixth' | 'seventh';
 type DrawingHitTarget = Exclude<DrawingDragMode, 'none'>;
 type DrawingHoverTarget = DrawingHitTarget | null;
 type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
@@ -826,6 +840,20 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'fib-spiral': 'Fib spiral',
   'fib-arcs': 'Fib speed resistance arcs',
   'fib-wedge': 'Fib wedge',
+  'xabcd-pattern': 'XABCD pattern',
+  'cypher-pattern': 'Cypher pattern',
+  'head-and-shoulders': 'Head and shoulders',
+  'abcd-pattern': 'ABCD pattern',
+  'triangle-pattern': 'Triangle pattern',
+  'three-drives-pattern': 'Three drives pattern',
+  'elliott-impulse-wave': 'Elliott impulse wave (12345)',
+  'elliott-correction-wave': 'Elliott correction wave (ABC)',
+  'elliott-triangle-wave': 'Elliott triangle wave (ABCDE)',
+  'elliott-double-combo-wave': 'Elliott double combo wave (WXY)',
+  'elliott-triple-combo-wave': 'Elliott triple combo wave (WXYXZ)',
+  'cyclic-lines': 'Cyclic lines',
+  'time-cycles': 'Time cycles',
+  'sine-line': 'Sine line',
 };
 const FIB_DEFAULT_TREND_COLOR = '#787b86';
 const FIB_LEVEL_VALUE_COLORS: Record<string, string> = {
@@ -1054,6 +1082,168 @@ const FIB_TOOL_ICONS: Record<string, ReactNode> = {
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
       <path stroke="currentColor" strokeWidth="1.6" d="M4 23.5 23 5M4 23.5 25 17" />
       <path stroke="currentColor" strokeWidth="1.6" d="M13.5 14.3a13 13 0 0 1 6.3 5.5" />
+    </svg>
+  ),
+};
+const PATTERN_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
+  { type: 'section', label: 'Patterns' },
+  { type: 'tool', id: 'xabcd-pattern', label: 'XABCD pattern', icon: 'xabcd-pattern', tool: 'xabcd-pattern' },
+  { type: 'tool', id: 'cypher-pattern', label: 'Cypher pattern', icon: 'cypher-pattern', tool: 'cypher-pattern' },
+  {
+    type: 'tool',
+    id: 'head-and-shoulders',
+    label: 'Head and shoulders',
+    icon: 'head-and-shoulders',
+    tool: 'head-and-shoulders',
+  },
+  { type: 'tool', id: 'abcd-pattern', label: 'ABCD pattern', icon: 'abcd-pattern', tool: 'abcd-pattern' },
+  { type: 'tool', id: 'triangle-pattern', label: 'Triangle pattern', icon: 'triangle-pattern', tool: 'triangle-pattern' },
+  {
+    type: 'tool',
+    id: 'three-drives-pattern',
+    label: 'Three drives pattern',
+    icon: 'three-drives-pattern',
+    tool: 'three-drives-pattern',
+  },
+  { type: 'section', label: 'Elliott waves' },
+  {
+    type: 'tool',
+    id: 'elliott-impulse-wave',
+    label: 'Elliott impulse wave (12345)',
+    icon: 'elliott-impulse-wave',
+    tool: 'elliott-impulse-wave',
+  },
+  {
+    type: 'tool',
+    id: 'elliott-correction-wave',
+    label: 'Elliott correction wave (ABC)',
+    icon: 'elliott-correction-wave',
+    tool: 'elliott-correction-wave',
+  },
+  {
+    type: 'tool',
+    id: 'elliott-triangle-wave',
+    label: 'Elliott triangle wave (ABCDE)',
+    icon: 'elliott-triangle-wave',
+    tool: 'elliott-triangle-wave',
+  },
+  {
+    type: 'tool',
+    id: 'elliott-double-combo-wave',
+    label: 'Elliott double combo wave (WXY)',
+    icon: 'elliott-double-combo-wave',
+    tool: 'elliott-double-combo-wave',
+  },
+  {
+    type: 'tool',
+    id: 'elliott-triple-combo-wave',
+    label: 'Elliott triple combo wave (WXYXZ)',
+    icon: 'elliott-triple-combo-wave',
+    tool: 'elliott-triple-combo-wave',
+  },
+  { type: 'section', label: 'Cycles' },
+  { type: 'tool', id: 'cyclic-lines', label: 'Cyclic lines', icon: 'cyclic-lines', tool: 'cyclic-lines' },
+  { type: 'tool', id: 'time-cycles', label: 'Time cycles', icon: 'time-cycles', tool: 'time-cycles' },
+  { type: 'tool', id: 'sine-line', label: 'Sine line', icon: 'sine-line', tool: 'sine-line' },
+];
+const PATTERN_TOOL_ICONS: Record<string, ReactNode> = {
+  'xabcd-pattern': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m3.5 22 5-14 5.5 9.5L19.5 6l5 15.5" />
+      <path stroke="currentColor" strokeWidth="1" strokeDasharray="2.4 2" d="M3.5 22 14 17.5l10.5 4" />
+      <circle cx="3.5" cy="22" r="1.6" fill="currentColor" />
+      <circle cx="8.5" cy="8" r="1.6" fill="currentColor" />
+      <circle cx="14" cy="17.5" r="1.6" fill="currentColor" />
+      <circle cx="19.5" cy="6" r="1.6" fill="currentColor" />
+      <circle cx="24.5" cy="21.5" r="1.6" fill="currentColor" />
+    </svg>
+  ),
+  'cypher-pattern': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m3.5 19.5 5.5-13 5 9 6-11 4.5 17" />
+      <path stroke="currentColor" strokeWidth="1" strokeDasharray="2.4 2" d="m3.5 19.5 10.5-4M9 6.5l15.5 15" />
+      <circle cx="3.5" cy="19.5" r="1.6" fill="currentColor" />
+      <circle cx="9" cy="6.5" r="1.6" fill="currentColor" />
+      <circle cx="14" cy="15.5" r="1.6" fill="currentColor" />
+      <circle cx="20" cy="4.5" r="1.6" fill="currentColor" />
+      <circle cx="24.5" cy="21.5" r="1.6" fill="currentColor" />
+    </svg>
+  ),
+  'head-and-shoulders': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m2.5 23 3.5-9 3.5 6 4.5-15 4.5 15 3.5-6 3.5 9" />
+      <path stroke="currentColor" strokeWidth="1" strokeDasharray="2.4 2" d="M2 19h24" />
+    </svg>
+  ),
+  'abcd-pattern': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m4 21.5 6-13M17.5 18.5l6.5-13" />
+      <path stroke="currentColor" strokeWidth="1" strokeDasharray="2.4 2" d="m10 8.5 7.5 10" />
+      <circle cx="4" cy="21.5" r="1.6" fill="currentColor" />
+      <circle cx="10" cy="8.5" r="1.6" fill="currentColor" />
+      <circle cx="17.5" cy="18.5" r="1.6" fill="currentColor" />
+      <circle cx="24" cy="5.5" r="1.6" fill="currentColor" />
+    </svg>
+  ),
+  'triangle-pattern': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m3 6 22 8.5M3 23l22-8.5" />
+      <path stroke="currentColor" strokeWidth="1" strokeDasharray="2.4 2" d="m6.5 7.5 4 13 5-9.5 4.5 6.5" />
+    </svg>
+  ),
+  'three-drives-pattern': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m2.5 24 5-11 3 5.5 4.5-10 3 5.5L23 3.5l2.5 5" />
+      <circle cx="7.5" cy="13" r="1.5" fill="currentColor" />
+      <circle cx="15" cy="8.5" r="1.5" fill="currentColor" />
+      <circle cx="23" cy="3.5" r="1.5" fill="currentColor" />
+    </svg>
+  ),
+  'elliott-impulse-wave': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m2.5 24 5-9.5 3 4.5 5.5-10.5 3 4.5 5.5-10" />
+      <text x="22" y="25" fill="currentColor" fontSize="9" fontFamily="sans-serif">5</text>
+    </svg>
+  ),
+  'elliott-correction-wave': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m3 19.5 6-13 4 8 7-11" />
+      <text x="16" y="25" fill="currentColor" fontSize="9" fontFamily="sans-serif">abc</text>
+    </svg>
+  ),
+  'elliott-triangle-wave': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m2.5 17 4.5-11 4 9.5L15.5 7l3.5 7.5 3.5-6" />
+      <text x="13" y="25" fill="currentColor" fontSize="9" fontFamily="sans-serif">abcde</text>
+    </svg>
+  ),
+  'elliott-double-combo-wave': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m3 20 6.5-13 4.5 9 7.5-12" />
+      <text x="15" y="25" fill="currentColor" fontSize="9" fontFamily="sans-serif">wxy</text>
+    </svg>
+  ),
+  'elliott-triple-combo-wave': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="m2.5 19 4.5-9.5 3.5 6.5 4.5-9 3.5 6.5 5-9.5" />
+      <text x="11" y="25" fill="currentColor" fontSize="9" fontFamily="sans-serif">wxyxz</text>
+    </svg>
+  ),
+  'cyclic-lines': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M5 4v20M14 4v20M23 4v20" />
+      <path stroke="currentColor" strokeWidth="1" strokeDasharray="2.4 2" d="M5 9a9 4.5 0 0 1 9 0M14 9a9 4.5 0 0 1 9 0" />
+    </svg>
+  ),
+  'time-cycles': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M2.5 21.5h23" />
+      <path stroke="currentColor" strokeWidth="1.6" d="M3.5 21.5a5.25 5.25 0 0 1 10.5 0M14 21.5a5.25 5.25 0 0 1 10.5 0" />
+    </svg>
+  ),
+  'sine-line': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path stroke="currentColor" strokeWidth="1.6" d="M2.5 14c3-7.5 6-7.5 8.5 0s5.5 7.5 8.5 0 4.5-5.5 6-2.5" />
     </svg>
   ),
 };
@@ -2261,7 +2451,21 @@ const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   value === 'fib-circles' ||
   value === 'fib-spiral' ||
   value === 'fib-arcs' ||
-  value === 'fib-wedge';
+  value === 'fib-wedge' ||
+  value === 'xabcd-pattern' ||
+  value === 'cypher-pattern' ||
+  value === 'head-and-shoulders' ||
+  value === 'abcd-pattern' ||
+  value === 'triangle-pattern' ||
+  value === 'three-drives-pattern' ||
+  value === 'elliott-impulse-wave' ||
+  value === 'elliott-correction-wave' ||
+  value === 'elliott-triangle-wave' ||
+  value === 'elliott-double-combo-wave' ||
+  value === 'elliott-triple-combo-wave' ||
+  value === 'cyclic-lines' ||
+  value === 'time-cycles' ||
+  value === 'sine-line';
 const isFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' ||
   kind === 'fib-extension' ||
@@ -2275,6 +2479,36 @@ const isFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-wedge';
 const isThreeAnchorFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-extension' || kind === 'fib-channel' || kind === 'fib-trend-time' || kind === 'fib-wedge';
+const PATTERN_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
+  'xabcd-pattern': 5,
+  'cypher-pattern': 5,
+  'head-and-shoulders': 7,
+  'abcd-pattern': 4,
+  'triangle-pattern': 4,
+  'three-drives-pattern': 7,
+  'elliott-impulse-wave': 6,
+  'elliott-correction-wave': 4,
+  'elliott-triangle-wave': 6,
+  'elliott-double-combo-wave': 4,
+  'elliott-triple-combo-wave': 6,
+  'cyclic-lines': 2,
+  'time-cycles': 2,
+  'sine-line': 2,
+};
+const isPatternDrawingTool = (kind: DrawingToolId) => PATTERN_DRAWING_ANCHOR_COUNTS[kind] !== undefined;
+const PATTERN_POINT_LABELS: Partial<Record<DrawingToolId, Array<string | null>>> = {
+  'xabcd-pattern': ['X', 'A', 'B', 'C', 'D'],
+  'cypher-pattern': ['X', 'A', 'B', 'C', 'D'],
+  'head-and-shoulders': [null, 'Left Shoulder', null, 'Head', null, 'Right Shoulder', null],
+  'abcd-pattern': ['A', 'B', 'C', 'D'],
+  'triangle-pattern': ['A', 'B', 'C', 'D'],
+  'three-drives-pattern': [null, '1', 'A', '2', 'B', '3', 'C'],
+  'elliott-impulse-wave': ['(0)', '(1)', '(2)', '(3)', '(4)', '(5)'],
+  'elliott-correction-wave': ['(0)', '(A)', '(B)', '(C)'],
+  'elliott-triangle-wave': ['(0)', '(A)', '(B)', '(C)', '(D)', '(E)'],
+  'elliott-double-combo-wave': ['(0)', '(W)', '(X)', '(Y)'],
+  'elliott-triple-combo-wave': ['(0)', '(W)', '(X)', '(Y)', '(X)', '(Z)'],
+};
 const isFibExtendableDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' || kind === 'fib-extension' || kind === 'fib-channel';
 const isOneAnchorDrawingTool = (kind: DrawingToolId) =>
@@ -2294,18 +2528,23 @@ const isMultiAnchorDrawingTool = (kind: DrawingToolId) => !isOneAnchorDrawingToo
 const isHorizontalDrawingTool = (kind: DrawingToolId) => kind === 'horizontal-line' || kind === 'horizontal-ray';
 const isVerticalDrawingTool = (kind: DrawingToolId) => kind === 'vertical-line';
 const getRequiredDrawingAnchorCount = (kind: DrawingToolId) =>
-  kind === 'disjoint-channel'
+  PATTERN_DRAWING_ANCHOR_COUNTS[kind] ??
+  (kind === 'disjoint-channel'
     ? 4
     : isChannelDrawingTool(kind) || isThreeAnchorFibDrawingTool(kind)
       ? 3
       : isTwoAnchorDrawingTool(kind) || isFibDrawingTool(kind)
         ? 2
-        : 1;
-const DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX = ['start', 'end', 'third', 'fourth'] as const;
+        : 1);
+const DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX = ['start', 'end', 'third', 'fourth', 'fifth', 'sixth', 'seventh'] as const;
 const getDrawingHitTargetForAnchorIndex = (index: number): DrawingHitTarget | null =>
   DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX[index] ?? null;
-const getDrawingAnchorIndexForHitTarget = (target: DrawingDragMode) =>
-  target === 'start' ? 0 : target === 'end' ? 1 : target === 'third' ? 2 : target === 'fourth' ? 3 : null;
+const getDrawingAnchorIndexForHitTarget = (target: DrawingDragMode) => {
+  const index = DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX.indexOf(
+    target as (typeof DRAWING_HIT_TARGETS_BY_ANCHOR_INDEX)[number]
+  );
+  return index >= 0 ? index : null;
+};
 const isDrawingLineStyle = (value: unknown): value is DrawingLineStyle =>
   value === 'solid' || value === 'dashed' || value === 'dotted';
 const isDrawingExtendMode = (value: unknown): value is DrawingExtendMode =>
@@ -2589,7 +2828,7 @@ const getDrawingRenderedSegments = (
   const start = points[0];
   if (!start) return [];
 
-  if (isFibDrawingTool(drawing.kind)) return [];
+  if (isFibDrawingTool(drawing.kind) || isPatternDrawingTool(drawing.kind)) return [];
 
   const right = chartArea.left + chartArea.width;
   const bottom = chartArea.top + chartArea.height;
@@ -3336,6 +3575,288 @@ const hitTestFibRenderModel = (model: FibRenderModel, x: number, y: number, tole
       (line) => getDistanceToSegment(x, y, line.start, line.end) <= tolerance
     )
   ) {
+    return true;
+  }
+
+  if (
+    model.arcs.some((arc) => {
+      const distance = Math.hypot(x - arc.cx, y - arc.cy);
+      if (Math.abs(distance - arc.radius) > tolerance) return false;
+
+      return isAngleWithinFibArc(Math.atan2(y - arc.cy, x - arc.cx), arc.startAngle, arc.endAngle);
+    })
+  ) {
+    return true;
+  }
+
+  return model.polylines.some((polyline) => {
+    for (let index = 0; index < polyline.points.length - 1; index += 1) {
+      if (getDistanceToSegment(x, y, polyline.points[index]!, polyline.points[index + 1]!) <= tolerance) {
+        return true;
+      }
+    }
+    return false;
+  });
+};
+
+interface PatternModelPolyline extends FibModelPolyline {
+  muted?: boolean;
+}
+interface PatternRenderModel {
+  lines: FibModelLine[];
+  polygons: FibModelPolygon[];
+  arcs: FibModelArc[];
+  polylines: PatternModelPolyline[];
+  labels: FibModelLabel[];
+}
+
+const PATTERN_CYCLE_REPEAT_LIMIT = 400;
+const formatPatternRatio = (numerator: number, denominator: number): string | null => {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator)) return null;
+  if (Math.abs(denominator) < 1e-9) return null;
+
+  const ratio = Math.abs(numerator) / Math.abs(denominator);
+  if (!Number.isFinite(ratio)) return null;
+
+  return String(Math.round(ratio * 1000) / 1000);
+};
+const getPatternRenderModel = (
+  drawing: ChartDrawing,
+  points: FibModelPoint[],
+  chartArea: ChartCanvasArea
+): PatternRenderModel => {
+  const model: PatternRenderModel = { lines: [], polygons: [], arcs: [], polylines: [], labels: [] };
+  const color = drawing.color;
+  const anchors = drawing.anchors;
+  const chartLeft = chartArea.left;
+  const chartRight = chartArea.left + chartArea.width;
+  const chartTop = chartArea.top;
+  const chartBottom = chartArea.top + chartArea.height;
+  const first = points[0];
+  const second = points[1];
+  if (!first) return model;
+
+  const pushPointLabel = (index: number, text: string | null | undefined) => {
+    const point = points[index];
+    if (!point || !text) return;
+
+    const previous = points[index - 1];
+    const next = points[index + 1];
+    const neighborYs = [previous?.y, next?.y].filter((value): value is number => Number.isFinite(value));
+    const above =
+      neighborYs.length > 0
+        ? neighborYs.reduce((sum, value) => sum + value, 0) / neighborYs.length >= point.y
+        : true;
+    model.labels.push({
+      text,
+      x: point.x,
+      y: above ? point.y - 9 : point.y + 9,
+      align: 'center',
+      baseline: above ? 'bottom' : 'top',
+      color,
+    });
+  };
+  const pushPointLabels = () => {
+    const labels = PATTERN_POINT_LABELS[drawing.kind];
+    if (!labels) return;
+
+    labels.forEach((text, index) => pushPointLabel(index, text));
+  };
+  const pushZigzag = (zigzagPoints: FibModelPoint[], muted = false) => {
+    if (zigzagPoints.length < 2) return;
+
+    model.polylines.push({ points: zigzagPoints, color, muted });
+  };
+  const pushRatioLabel = (
+    start: FibModelPoint,
+    end: FibModelPoint,
+    numerator: number | null,
+    denominator: number | null
+  ) => {
+    if (numerator === null || denominator === null) return;
+
+    const text = formatPatternRatio(numerator, denominator);
+    if (!text) return;
+
+    model.labels.push({
+      text,
+      x: (start.x + end.x) / 2,
+      y: (start.y + end.y) / 2 - 5,
+      align: 'center',
+      baseline: 'bottom',
+      color,
+    });
+  };
+  const priceDelta = (firstIndex: number, secondIndex: number): number | null => {
+    const firstAnchor = anchors[firstIndex];
+    const secondAnchor = anchors[secondIndex];
+    if (!firstAnchor || !secondAnchor) return null;
+
+    return secondAnchor.price - firstAnchor.price;
+  };
+
+  switch (drawing.kind) {
+    case 'xabcd-pattern':
+    case 'cypher-pattern': {
+      pushZigzag(points.slice(0, 5));
+      const [pointX, pointA, pointB, pointC, pointD] = points;
+      if (pointX && pointA && pointB) {
+        model.lines.push({ start: pointX, end: pointB, color, dashed: true });
+        model.polygons.push({ points: [pointX, pointA, pointB], color });
+        pushRatioLabel(pointX, pointB, priceDelta(1, 2), priceDelta(0, 1));
+      }
+      if (pointB && pointC && pointD) {
+        model.lines.push({ start: pointB, end: pointD, color, dashed: true });
+        model.polygons.push({ points: [pointB, pointC, pointD], color });
+        pushRatioLabel(pointB, pointD, priceDelta(3, 4), priceDelta(2, 3));
+      }
+      pushPointLabels();
+      break;
+    }
+    case 'abcd-pattern': {
+      const [pointA, pointB, pointC, pointD] = points;
+      if (pointA && pointB) model.lines.push({ start: pointA, end: pointB, color });
+      if (pointB && pointC) {
+        model.lines.push({ start: pointB, end: pointC, color, dashed: true });
+        pushRatioLabel(pointB, pointC, priceDelta(1, 2), priceDelta(0, 1));
+      }
+      if (pointC && pointD) model.lines.push({ start: pointC, end: pointD, color });
+      pushPointLabels();
+      break;
+    }
+    case 'triangle-pattern': {
+      const [pointA, pointB, pointC, pointD] = points;
+      if (pointA && pointB && pointC && pointD) {
+        const minX = Math.min(pointA.x, pointB.x, pointC.x, pointD.x);
+        const maxX = Math.max(pointA.x, pointB.x, pointC.x, pointD.x);
+        const lineYAt = (start: FibModelPoint, end: FibModelPoint, x: number) => {
+          const run = end.x - start.x;
+          if (Math.abs(run) < 0.01) return start.y;
+
+          return start.y + ((end.y - start.y) / run) * (x - start.x);
+        };
+        const upperStart = { x: minX, y: lineYAt(pointA, pointC, minX) };
+        const upperEnd = { x: maxX, y: lineYAt(pointA, pointC, maxX) };
+        const lowerStart = { x: minX, y: lineYAt(pointB, pointD, minX) };
+        const lowerEnd = { x: maxX, y: lineYAt(pointB, pointD, maxX) };
+        model.polygons.push({ points: [upperStart, upperEnd, lowerEnd, lowerStart], color });
+        model.lines.push({ start: upperStart, end: upperEnd, color });
+        model.lines.push({ start: lowerStart, end: lowerEnd, color });
+        pushZigzag(points.slice(0, 4), true);
+      } else {
+        pushZigzag(points.slice(0, 4));
+      }
+      pushPointLabels();
+      break;
+    }
+    case 'three-drives-pattern': {
+      pushZigzag(points.slice(0, 7));
+      pushPointLabels();
+      break;
+    }
+    case 'head-and-shoulders': {
+      pushZigzag(points.slice(0, 7));
+      const leftTrough = points[2];
+      const rightTrough = points[4];
+      if (leftTrough && rightTrough) {
+        const minX = Math.min(...points.map((point) => point.x));
+        const maxX = Math.max(...points.map((point) => point.x));
+        const run = rightTrough.x - leftTrough.x;
+        const slope = Math.abs(run) < 0.01 ? 0 : (rightTrough.y - leftTrough.y) / run;
+        const neckYAt = (x: number) => leftTrough.y + slope * (x - leftTrough.x);
+        model.lines.push({
+          start: { x: minX, y: neckYAt(minX) },
+          end: { x: maxX, y: neckYAt(maxX) },
+          color,
+          dashed: true,
+        });
+        if (points.length >= 7) {
+          model.polygons.push({ points: points.slice(0, 7), color });
+        }
+      }
+      pushPointLabels();
+      break;
+    }
+    case 'elliott-impulse-wave':
+    case 'elliott-correction-wave':
+    case 'elliott-triangle-wave':
+    case 'elliott-double-combo-wave':
+    case 'elliott-triple-combo-wave': {
+      pushZigzag(points.slice(0, getRequiredDrawingAnchorCount(drawing.kind)));
+      pushPointLabels();
+      break;
+    }
+    case 'cyclic-lines': {
+      if (!second) {
+        model.lines.push({ start: { x: first.x, y: chartTop }, end: { x: first.x, y: chartBottom }, color });
+        break;
+      }
+
+      const interval = second.x - first.x;
+      if (Math.abs(interval) < 2) {
+        model.lines.push({ start: { x: first.x, y: chartTop }, end: { x: first.x, y: chartBottom }, color });
+        break;
+      }
+
+      const step = Math.abs(interval);
+      const startX = Math.min(first.x, second.x);
+      for (let index = 0; index < PATTERN_CYCLE_REPEAT_LIMIT; index += 1) {
+        const x = startX + step * index;
+        if (x > chartRight) break;
+        if (x < chartLeft) continue;
+
+        model.lines.push({ start: { x, y: chartTop }, end: { x, y: chartBottom }, color });
+      }
+      break;
+    }
+    case 'time-cycles': {
+      if (!second) break;
+
+      const width = Math.abs(second.x - first.x);
+      if (width < 4) break;
+
+      const baselineY = first.y;
+      const startX = Math.min(first.x, second.x);
+      for (let index = 0; index < PATTERN_CYCLE_REPEAT_LIMIT; index += 1) {
+        const segmentLeft = startX + width * index;
+        if (segmentLeft > chartRight) break;
+        if (segmentLeft + width < chartLeft) continue;
+
+        model.arcs.push({
+          cx: segmentLeft + width / 2,
+          cy: baselineY,
+          radius: width / 2,
+          startAngle: Math.PI,
+          endAngle: Math.PI * 2,
+          color,
+        });
+      }
+      break;
+    }
+    case 'sine-line': {
+      if (!second) break;
+
+      const halfPeriod = second.x - first.x;
+      if (Math.abs(halfPeriod) < 2) break;
+
+      const midY = (first.y + second.y) / 2;
+      const amplitude = (first.y - second.y) / 2;
+      const sampleStep = 3;
+      const wavePoints: FibModelPoint[] = [];
+      for (let x = chartLeft; x <= chartRight; x += sampleStep) {
+        wavePoints.push({ x, y: midY + amplitude * Math.cos((Math.PI * (x - first.x)) / halfPeriod) });
+      }
+      model.polylines.push({ points: wavePoints, color });
+      break;
+    }
+    default:
+      break;
+  }
+
+  return model;
+};
+const hitTestPatternRenderModel = (model: PatternRenderModel, x: number, y: number, tolerance: number) => {
+  if (model.lines.some((line) => getDistanceToSegment(x, y, line.start, line.end) <= tolerance)) {
     return true;
   }
 
@@ -4743,6 +5264,7 @@ export default function Home() {
   const [valuesTooltipOnLongPress, setValuesTooltipOnLongPress] = useState(true);
   const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
   const [lastFibTool, setLastFibTool] = useState<DrawingToolId>('fib-retracement');
+  const [lastPatternTool, setLastPatternTool] = useState<DrawingToolId>('xabcd-pattern');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
@@ -5799,6 +6321,14 @@ export default function Home() {
         continue;
       }
 
+      if (isPatternDrawingTool(drawing.kind)) {
+        const patternModel = getPatternRenderModel(drawing, points, chartArea);
+        if (hitTestPatternRenderModel(patternModel, x, y, DRAWING_HIT_TOLERANCE)) {
+          return { drawing, target: 'body' };
+        }
+        continue;
+      }
+
       const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
       if (
         renderedSegments.some(
@@ -5940,6 +6470,8 @@ export default function Home() {
     setSelectedDrawingId(null);
     if (isFibDrawingTool(tool)) {
       setLastFibTool(tool);
+    } else if (isPatternDrawingTool(tool)) {
+      setLastPatternTool(tool);
     } else {
       setLastDrawingTool(tool);
     }
@@ -7197,8 +7729,105 @@ export default function Home() {
       drawDrawingText(drawing, connectorStart, connectorEnd);
       drawDrawingStats(drawing, connectorStart, connectorEnd, selected);
     };
+    const drawPatternDrawing = (drawing: ChartDrawing, points: Array<{ x: number; y: number }>, selected: boolean) => {
+      const model = getPatternRenderModel(drawing, points, chartArea);
+      const fillAlpha = clamp(drawing.opacity * 0.16, 0.05, 0.4);
+
+      model.polygons.forEach((polygon) => {
+        if (polygon.points.length < 3) return;
+
+        ctx.fillStyle = hexToRgba(polygon.color, fillAlpha);
+        ctx.beginPath();
+        polygon.points.forEach((point, index) => {
+          if (index === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        });
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      model.lines.forEach((line) => {
+        ctx.strokeStyle = hexToRgba(line.color, line.dashed ? drawing.opacity * 0.72 : drawing.opacity);
+        ctx.lineWidth = line.dashed ? Math.max(1, drawing.lineWidth - 1) : selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        if (line.dashed) {
+          ctx.setLineDash([5, 4]);
+        } else {
+          applyDrawingLineStyle(drawing);
+        }
+        ctx.beginPath();
+        ctx.moveTo(line.start.x, line.start.y);
+        ctx.lineTo(line.end.x, line.end.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      model.arcs.forEach((arc) => {
+        ctx.strokeStyle = hexToRgba(arc.color, drawing.opacity);
+        ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        applyDrawingLineStyle(drawing);
+        ctx.beginPath();
+        ctx.arc(arc.cx, arc.cy, arc.radius, arc.startAngle, arc.endAngle);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      model.polylines.forEach((polyline) => {
+        if (polyline.points.length < 2) return;
+
+        ctx.strokeStyle = hexToRgba(polyline.color, polyline.muted ? drawing.opacity * 0.4 : drawing.opacity);
+        ctx.lineWidth = polyline.muted ? 1 : selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
+        applyDrawingLineStyle(drawing);
+        ctx.beginPath();
+        polyline.points.forEach((point, index) => {
+          if (index === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else {
+            ctx.lineTo(point.x, point.y);
+          }
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      if (model.labels.length > 0) {
+        ctx.save();
+        ctx.font = getCanvasFont(10);
+        model.labels.forEach((label) => {
+          ctx.fillStyle = hexToRgba(label.color, Math.min(1, drawing.opacity + 0.2));
+          ctx.textAlign = label.align;
+          ctx.textBaseline = label.baseline;
+          ctx.fillText(label.text, label.x, label.y);
+        });
+        ctx.restore();
+      }
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+
+      if (drawing.showPriceLabels || selected) {
+        drawing.anchors.forEach((anchor, index) => {
+          const point = points[index];
+          if (!point) return;
+
+          drawingPriceLabels.push({ y: point.y, price: anchor.price, color: drawing.color, selected });
+        });
+      }
+
+      const connectorStart = points[0]!;
+      const connectorEnd = points[points.length - 1] ?? connectorStart;
+      drawDrawingText(drawing, connectorStart, connectorEnd);
+      drawDrawingStats(drawing, connectorStart, connectorEnd, selected);
+    };
     const drawDrawing = (drawing: ChartDrawing, selected: boolean) => {
       const points = drawing.anchors.map(pointForDrawingAnchor);
+      if (isPatternDrawingTool(drawing.kind)) {
+        if (points.length < 2) return;
+
+        drawPatternDrawing(drawing, points, selected);
+        return;
+      }
       if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) return;
 
       if (isFibDrawingTool(drawing.kind)) {
@@ -8997,7 +9626,7 @@ export default function Home() {
         onClick={handleEntryClick}
       >
         <span className={`drawing-tool-icon ${entry.icon}`} aria-hidden="true">
-          {FIB_TOOL_ICONS[entry.icon] ?? null}
+          {FIB_TOOL_ICONS[entry.icon] ?? PATTERN_TOOL_ICONS[entry.icon] ?? null}
         </span>
         <span>{entry.label}</span>
         {entry.shortcut && <kbd>{entry.shortcut}</kbd>}
@@ -9072,9 +9701,13 @@ export default function Home() {
     if (!isAuthenticated) return null;
 
     const visibleLineTool =
-      activeDrawingTool !== null && !isFibDrawingTool(activeDrawingTool) ? activeDrawingTool : lastDrawingTool;
+      activeDrawingTool !== null && !isFibDrawingTool(activeDrawingTool) && !isPatternDrawingTool(activeDrawingTool)
+        ? activeDrawingTool
+        : lastDrawingTool;
     const visibleFibTool =
       activeDrawingTool !== null && isFibDrawingTool(activeDrawingTool) ? activeDrawingTool : lastFibTool;
+    const visiblePatternTool =
+      activeDrawingTool !== null && isPatternDrawingTool(activeDrawingTool) ? activeDrawingTool : lastPatternTool;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -9130,7 +9763,10 @@ export default function Home() {
             aria-expanded={activeDrawingMenu === 'line-tools'}
             title={DRAWING_TOOL_LABELS[visibleLineTool]}
             data-active={
-              activeDrawingMenu === 'line-tools' || (activeDrawingTool !== null && !isFibDrawingTool(activeDrawingTool))
+              activeDrawingMenu === 'line-tools' ||
+              (activeDrawingTool !== null &&
+                !isFibDrawingTool(activeDrawingTool) &&
+                !isPatternDrawingTool(activeDrawingTool))
             }
             onClick={() => toggleDrawingMenu('line-tools')}
           >
@@ -9161,6 +9797,33 @@ export default function Home() {
           {activeDrawingMenu === 'fib-tools' && (
             <div className="drawing-tool-menu line-tools-menu fib-tools-menu" role="menu" aria-label="Fibonacci tools">
               {FIB_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            </div>
+          )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${DRAWING_TOOL_LABELS[visiblePatternTool]} drawing tool group`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'pattern-tools'}
+            title={DRAWING_TOOL_LABELS[visiblePatternTool]}
+            data-active={
+              activeDrawingMenu === 'pattern-tools' ||
+              (activeDrawingTool !== null && isPatternDrawingTool(activeDrawingTool))
+            }
+            onClick={() => toggleDrawingMenu('pattern-tools')}
+          >
+            <span className={`drawing-tool-icon ${visiblePatternTool}`} aria-hidden="true">
+              {PATTERN_TOOL_ICONS[visiblePatternTool] ?? null}
+            </span>
+          </button>
+          {activeDrawingMenu === 'pattern-tools' && (
+            <div
+              className="drawing-tool-menu line-tools-menu pattern-tools-menu"
+              role="menu"
+              aria-label="Chart pattern tools"
+            >
+              {PATTERN_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
             </div>
           )}
         </div>
@@ -9260,7 +9923,7 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
-                {!isFibDrawingTool(drawing.kind) && (
+                {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && (
                   <>
                     <button
                       type="button"
@@ -9423,7 +10086,7 @@ export default function Home() {
                 )}
               </>
             )}
-            {!isFibDrawingTool(drawing.kind) && (
+            {!isFibDrawingTool(drawing.kind) && !isPatternDrawingTool(drawing.kind) && (
               <label className="drawing-settings-checkbox-row">
                 <input
                   type="checkbox"
