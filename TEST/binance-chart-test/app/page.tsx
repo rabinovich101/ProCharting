@@ -223,8 +223,21 @@ type DrawingToolId =
   | 'triangle'
   | 'arc'
   | 'curve'
-  | 'double-curve';
-type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools' | 'forecast-tools' | 'shape-tools';
+  | 'double-curve'
+  | 'text'
+  | 'note'
+  | 'price-note'
+  | 'pin'
+  | 'table'
+  | 'callout'
+  | 'comment'
+  | 'price-label'
+  | 'signpost'
+  | 'flag-mark'
+  | 'image'
+  | 'post'
+  | 'idea';
+type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools' | 'forecast-tools' | 'shape-tools' | 'text-tools';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
@@ -376,8 +389,29 @@ interface ChartDrawing {
   syncGlobally: boolean;
   patternBars?: DrawingPatternBar[] | undefined;
   seed?: number | undefined;
+  tableRows?: number | undefined;
+  tableCols?: number | undefined;
+  tableCells?: string[][] | undefined;
+  imageSrc?: string | undefined;
+  contentUrl?: string | undefined;
+  contentMeta?: string | undefined;
   createdAt: number;
   updatedAt: number;
+}
+
+interface DrawingTextEditorState {
+  drawingId: string;
+  paneIndex: number;
+  cellRow?: number;
+  cellCol?: number;
+}
+
+interface ContentToolDialogState {
+  kind: 'image' | 'post' | 'idea';
+  paneIndex: number;
+  anchor: ChartDrawingAnchor;
+  x: number;
+  y: number;
 }
 
 interface PendingDrawing {
@@ -929,6 +963,19 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   arc: 'Arc',
   curve: 'Curve',
   'double-curve': 'Double curve',
+  text: 'Text',
+  note: 'Note',
+  'price-note': 'Price note',
+  pin: 'Pin',
+  table: 'Table',
+  callout: 'Callout',
+  comment: 'Comment',
+  'price-label': 'Price label',
+  signpost: 'Signpost',
+  'flag-mark': 'Flag mark',
+  image: 'Image',
+  post: 'Post',
+  idea: 'Idea',
 };
 const FIB_DEFAULT_TREND_COLOR = '#787b86';
 const POSITION_RISK_AMOUNT = 250;
@@ -1569,12 +1616,152 @@ const SHAPE_TOOL_ICONS: Record<string, ReactNode> = {
     </svg>
   ),
 };
+const TEXT_TOOL_MENU_ENTRIES: DrawingMenuEntry[] = [
+  { type: 'section', label: 'Text and notes' },
+  { type: 'tool', id: 'text', label: 'Text', icon: 'text', tool: 'text' },
+  { type: 'tool', id: 'note', label: 'Note', icon: 'note', tool: 'note' },
+  { type: 'tool', id: 'price-note', label: 'Price note', icon: 'price-note', tool: 'price-note' },
+  { type: 'tool', id: 'pin', label: 'Pin', icon: 'pin', tool: 'pin' },
+  { type: 'tool', id: 'table', label: 'Table', icon: 'table', tool: 'table' },
+  { type: 'tool', id: 'callout', label: 'Callout', icon: 'callout', tool: 'callout' },
+  { type: 'tool', id: 'comment', label: 'Comment', icon: 'comment', tool: 'comment' },
+  { type: 'tool', id: 'price-label', label: 'Price label', icon: 'price-label', tool: 'price-label' },
+  { type: 'tool', id: 'signpost', label: 'Signpost', icon: 'signpost', tool: 'signpost' },
+  { type: 'tool', id: 'flag-mark', label: 'Flag mark', icon: 'flag-mark', tool: 'flag-mark' },
+  { type: 'section', label: 'Content' },
+  { type: 'tool', id: 'image', label: 'Image', icon: 'image', tool: 'image' },
+  { type: 'tool', id: 'post', label: 'Post', icon: 'post', tool: 'post' },
+  { type: 'tool', id: 'idea', label: 'Idea', icon: 'idea', tool: 'idea' },
+];
+const TEXT_TOOL_ICONS: Record<string, ReactNode> = {
+  text: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        d="M8 6.5c0-.28.22-.5.5-.5H14v16h-2v1h5v-1h-2V6h5.5c.28 0 .5.22.5.5V9h1V6.5c0-.83-.67-1.5-1.5-1.5h-12C7.67 5 7 5.67 7 6.5V9h1V6.5Z"
+      />
+    </svg>
+  ),
+  note: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M5 3h17v13H5V3Zm8 14H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h17a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-8v4.05a2.5 2.5 0 1 1-1 0V17Zm.5 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM14 5h3a1 1 0 0 1 1 1v2h-1V6h-3v7h2v1h-5v-1h2V6h-3v2H9V6a1 1 0 0 1 1-1h4Z"
+      />
+    </svg>
+  ),
+  'price-note': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M22 3H5v13h17V3ZM5 17h8v4.05a2.5 2.5 0 1 0 1 0V17h8a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1Zm10 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM13 4h1v1h.5A2.5 2.5 0 0 1 17 7.5V8h-1v-.5c0-.83-.67-1.5-1.5-1.5H14v3h.5a2.5 2.5 0 0 1 0 5H14v1h-1v-1h-.5a2.5 2.5 0 0 1-2.5-2.5V11h1v.5c0 .83.67 1.5 1.5 1.5h.5v-3h-.5a2.5 2.5 0 0 1 0-5h.5V4Zm0 2h-.5a1.5 1.5 0 0 0 0 3h.5V6Zm1 4v3h.5a1.5 1.5 0 0 0 0-3H14Z"
+      />
+    </svg>
+  ),
+  pin: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M21 11.25c0 1.97-1.03 4.2-2.6 6.53a67.74 67.74 0 0 1-4.23 5.45l-.17.2-.17-.2a67.74 67.74 0 0 1-4.23-5.45C8.03 15.44 7 13.22 7 11.25A7.13 7.13 0 0 1 14 4c3.84 0 7 3.22 7 7.25Zm-6.07 12.63-.28.34L14 25l-.65-.78-.28-.34C9.9 20.06 6 15.4 6 11.25A8.13 8.13 0 0 1 14 3c4.42 0 8 3.7 8 8.25 0 4.14-3.89 8.81-7.07 12.63ZM17 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm1 0a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
+      />
+    </svg>
+  ),
+  table: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M4 5a1 1 0 0 0-1 1v17a1 1 0 0 0 1 1h20a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H4Zm0 1h5v5H4V6Zm0 12v5h5v-5H4Zm6 0v5h14v-5H10Zm14-1v-5H10v5h14ZM9 17H4v-5h5v5Zm1-6V6h14v5H10Z"
+      />
+    </svg>
+  ),
+  callout: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        fillRule="nonzero"
+        d="M6 21.586l3.586-3.586h13.407c.004 0 .007-11.993.007-11.993 0-.007-17-.007-17-.007v15.586zm-1 2.414v-18.005c0-.549.451-.995.995-.995h17.01c.549 0 .995.45.995 1.007v11.986c0 .556-.45 1.007-1.007 1.007h-12.993l-5 5z"
+      />
+    </svg>
+  ),
+  comment: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path
+        fill="currentColor"
+        fillRule="nonzero"
+        d="M12 8C8.68629 8 6 10.6863 6 14V20H18C21.3137 20 24 17.3137 24 14C24 10.6863 21.3137 8 18 8H12ZM5 14C5 10.134 8.13401 7 12 7H18C21.866 7 25 10.134 25 14C25 17.866 21.866 21 18 21H6C5.44772 21 5 20.5523 5 20V14Z"
+      />
+    </svg>
+  ),
+  'price-label': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <g fill="currentColor" fillRule="nonzero">
+        <path d="M6.995 5c.008 0 .005 15.5.005 15.5h-1v-15.493c0-.556.451-1.007.995-1.007h17.01c.549 0 .995.45.995 1.007v11.986c0 .556-.45 1.007-1.007 1.007h-12.993l-3.104 3.104-.707-.707 3.397-3.397h13.407c.004 0 .007-11.993.007-11.993 0-.007-17.005-.007-17.005-.007z" />
+        <path d="M6.5 24c.828 0 1.5-.672 1.5-1.5s-.672-1.5-1.5-1.5-1.5.672-1.5 1.5.672 1.5 1.5 1.5zm0 1c-1.381 0-2.5-1.119-2.5-2.5s1.119-2.5 2.5-2.5 2.5 1.119 2.5 2.5-1.119 2.5-2.5 2.5z" />
+      </g>
+    </svg>
+  ),
+  signpost: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <g fill="currentColor" fillRule="nonzero">
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M14.48 5.46a.5.5 0 0 0-.96 0l-.98 3.03a.5.5 0 0 1-.47.35H8.88a.5.5 0 0 0-.3.9l2.58 1.87a.5.5 0 0 1 .18.56l-.98 3.03a.5.5 0 0 0 .77.56l2.58-1.87a.5.5 0 0 1 .58 0l2.58 1.87c.4.28.92-.1.77-.56l-.98-3.03a.5.5 0 0 1 .18-.56l2.57-1.87a.5.5 0 0 0-.3-.9h-3.18a.5.5 0 0 1-.47-.35l-.98-3.03zM14 7.24l-.5 1.56a1.5 1.5 0 0 1-1.43 1.04h-1.65l1.33.96c.53.39.75 1.06.55 1.68l-.51 1.57 1.33-.97a1.5 1.5 0 0 1 1.76 0l1.33.97-.5-1.57c-.2-.62.01-1.3.54-1.68l1.33-.96h-1.65a1.5 1.5 0 0 1-1.42-1.04L14 7.24z"
+        />
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M15 20.95a10 10 0 1 0-1 .05v6h1v-6.05zM14 20a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"
+        />
+      </g>
+    </svg>
+  ),
+  'flag-mark': (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        fillRule="nonzero"
+        d="M7.382 16h14.483l-4.167-5 4.167-5h-15.865v12.764l1.382-2.764zm-2.382 7v-18h19l-5 6 5 6h-16l-3 6z"
+      />
+    </svg>
+  ),
+  image: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M21 5H7a3 3 0 0 0-3 3v12q0 .71.3 1.32l5.31-6.63.38-.48.4.47 2.6 3.15 4.61-6.13.4-.53.4.53 5.6 7.32V8a3 3 0 0 0-3-3m2.94 15.6L18 12.82l-4.36 5.8 3.6 4.37H21a3 3 0 0 0 2.94-2.4m-8 2.4-3.33-4.04-2.6-3.17-5.1 6.37c.54.52 1.28.84 2.09.84zM7 4a4 4 0 0 0-4 4v12a4 4 0 0 0 4 4h14a4 4 0 0 0 4-4V8a4 4 0 0 0-4-4zm3 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2m0 1a2 2 0 1 0 0-4 2 2 0 0 0 0 4"
+      />
+    </svg>
+  ),
+  post: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="m22.3 22 .7 1h-5.35l-4.95-7.04L6.54 23H5.2l6.9-7.88L5.71 6 5 5h5.35l4.73 6.73L20.96 5h1.33l-6.62 7.57L22.3 22Zm-8.92-6.82-.6-.84L6.94 6h2.9l11.24 16h-2.9l-4.79-6.82Z"
+      />
+    </svg>
+  ),
+  idea: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+      <path
+        fill="currentColor"
+        d="M9.5 21H9h.5zm8 0H17h.5zm-6-10H11v1h.5v-1zm4 1h.5v-1h-.5v1zm-6 7.5h.5-.5zm8 0h.5-.5zm.29-1.59A7.97 7.97 0 0 0 21 11.5h-1a6.97 6.97 0 0 1-2.79 5.59l.58.82zM21 11.5A7.5 7.5 0 0 0 13.5 4v1a6.5 6.5 0 0 1 6.5 6.5h1zM13.5 4A7.5 7.5 0 0 0 6 11.5h1A6.5 6.5 0 0 1 13.5 5V4zM6 11.5a7.98 7.98 0 0 0 3.21 6.41l.57-.82A6.98 6.98 0 0 1 7 11.5H6zM9 21a1 1 0 0 0 1 1v-1H9zm8 1a1 1 0 0 0 1-1h-1v1zm-6-.5V23h1v-1.5h-1zm0 1.5a1 1 0 0 0 1 1v-1h-1zm1 1h3v-1h-3v1zm3 0a1 1 0 0 0 1-1h-1v1zm1-1v-1.5h-1V23h1zm-3-11.5v6h1v-6h-1zm-4 6v2h1v-2H9zm0 2V21h1v-1.5H9zm9 1.5v-1.5h-1V21h1zm0-1.5v-2h-1v2h1zM9.5 18h4v-1h-4v1zm4 0h4v-1h-4v1zm-2-6h2v-1h-2v1zm2 0h2v-1h-2v1zM10 22h1.5v-1H10v1zm1.5 0h4v-1h-4v1zm4 0H17v-1h-1.5v1z"
+      />
+    </svg>
+  ),
+};
 const ALL_DRAWING_MENU_ENTRIES = [
   ...LINE_TOOL_MENU_ENTRIES,
   ...FIB_TOOL_MENU_ENTRIES,
   ...PATTERN_TOOL_MENU_ENTRIES,
   ...FORECAST_TOOL_MENU_ENTRIES,
   ...SHAPE_TOOL_MENU_ENTRIES,
+  ...TEXT_TOOL_MENU_ENTRIES,
 ];
 const DRAWING_TOOL_SHORTCUTS = ALL_DRAWING_MENU_ENTRIES.reduce<Record<string, DrawingToolId>>((shortcuts, entry) => {
   if (entry.type === 'tool' && !entry.disabled && entry.shortcut && entry.tool) {
@@ -2840,12 +3027,89 @@ const SHAPE_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
   arc: 3,
 };
 const isShapeDrawingTool = (kind: DrawingToolId) => SHAPE_DRAWING_TOOL_IDS.has(kind);
+const TEXT_DRAWING_TOOL_IDS: ReadonlySet<DrawingToolId> = new Set([
+  'text',
+  'note',
+  'price-note',
+  'pin',
+  'table',
+  'callout',
+  'comment',
+  'price-label',
+  'signpost',
+  'flag-mark',
+  'image',
+  'post',
+  'idea',
+]);
+const TEXT_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
+  text: 1,
+  note: 2,
+  'price-note': 2,
+  pin: 1,
+  table: 2,
+  callout: 2,
+  comment: 1,
+  'price-label': 2,
+  signpost: 1,
+  'flag-mark': 1,
+  image: 2,
+  post: 1,
+  idea: 1,
+};
+const isTextDrawingTool = (kind: DrawingToolId) => TEXT_DRAWING_TOOL_IDS.has(kind);
+// Content tools collect their payload (file, link, title) in a dialog before the drawing is created.
+const isContentDrawingTool = (kind: DrawingToolId): kind is 'image' | 'post' | 'idea' =>
+  kind === 'image' || kind === 'post' || kind === 'idea';
+// Tools whose double-click opens the inline text editor.
+const hasInlineTextEditor = (kind: DrawingToolId) =>
+  kind === 'text' ||
+  kind === 'note' ||
+  kind === 'pin' ||
+  kind === 'table' ||
+  kind === 'callout' ||
+  kind === 'comment' ||
+  kind === 'signpost' ||
+  kind === 'idea';
+const CONTENT_IMAGE_MAX_DIMENSION = 1024;
+const CONTENT_IMAGE_MAX_PLACED_WIDTH = 240;
+const CONTENT_IMAGE_MAX_DATA_URL_LENGTH = 2_400_000;
+const textDrawingImageCache = new Map<string, HTMLImageElement>();
+const getTextDrawingImage = (src: string): HTMLImageElement | null => {
+  if (typeof document === 'undefined') return null;
+  let image = textDrawingImageCache.get(src);
+  if (!image) {
+    image = document.createElement('img');
+    image.src = src;
+    textDrawingImageCache.set(src, image);
+  }
+  return image.complete && image.naturalWidth > 0 ? image : null;
+};
+// These tools drop straight into inline text editing once placed (TradingView behavior).
+const isInlineEditTextDrawingTool = (kind: DrawingToolId) =>
+  kind === 'text' || kind === 'callout' || kind === 'comment' || kind === 'signpost' || kind === 'pin';
+// Single-click tools that store a second, independently draggable label anchor.
+const isAutoLabelTextDrawingTool = (kind: DrawingToolId) => kind === 'note' || kind === 'price-label';
+const TEXT_TABLE_DEFAULT_ROWS = 3;
+const TEXT_TABLE_DEFAULT_COLS = 3;
+const TEXT_TABLE_MAX_ROWS = 10;
+const TEXT_TABLE_MAX_COLS = 10;
+const createDefaultTableCells = (rows: number, cols: number): string[][] =>
+  Array.from({ length: rows }, () => Array.from({ length: cols }, () => ''));
+const resizeTableCells = (cells: string[][] | undefined, rows: number, cols: number): string[][] =>
+  Array.from({ length: rows }, (_, rowIndex) =>
+    Array.from({ length: cols }, (_, colIndex) => cells?.[rowIndex]?.[colIndex] ?? '')
+  );
 const isFreehandDrawingTool = (kind: DrawingToolId) => kind === 'brush' || kind === 'highlighter';
 const isVariableAnchorShapeDrawingTool = (kind: DrawingToolId) => kind === 'path' || kind === 'polyline';
 // Curve tools complete after two clicks; their bend handles are appended automatically and dragged afterwards.
 const isAutoControlCurveDrawingTool = (kind: DrawingToolId) => kind === 'curve' || kind === 'double-curve';
 const isClassicLineDrawingTool = (kind: DrawingToolId) =>
-  !isFibDrawingTool(kind) && !isPatternDrawingTool(kind) && !isForecastDrawingTool(kind) && !isShapeDrawingTool(kind);
+  !isFibDrawingTool(kind) &&
+  !isPatternDrawingTool(kind) &&
+  !isForecastDrawingTool(kind) &&
+  !isShapeDrawingTool(kind) &&
+  !isTextDrawingTool(kind);
 const getMaxDrawingAnchorCount = (kind: DrawingToolId) =>
   kind === 'ghost-feed'
     ? GHOST_FEED_MAX_ANCHORS
@@ -2880,7 +3144,15 @@ const isOneAnchorDrawingTool = (kind: DrawingToolId) =>
   kind === 'vertical-line' ||
   kind === 'cross-line' ||
   kind === 'anchored-vwap' ||
-  kind === 'anchored-volume-profile';
+  kind === 'anchored-volume-profile' ||
+  // Single-click text tools; note/price-label derive their label anchor automatically.
+  kind === 'text' ||
+  kind === 'pin' ||
+  kind === 'comment' ||
+  kind === 'signpost' ||
+  kind === 'flag-mark' ||
+  isAutoLabelTextDrawingTool(kind) ||
+  isContentDrawingTool(kind);
 const isTwoAnchorDrawingTool = (kind: DrawingToolId) =>
   kind === 'trend-line' ||
   kind === 'ray' ||
@@ -2897,6 +3169,7 @@ const isHorizontalDrawingTool = (kind: DrawingToolId) => kind === 'horizontal-li
 const isVerticalDrawingTool = (kind: DrawingToolId) => kind === 'vertical-line';
 const getRequiredDrawingAnchorCount = (kind: DrawingToolId) =>
   SHAPE_DRAWING_ANCHOR_COUNTS[kind] ??
+  TEXT_DRAWING_ANCHOR_COUNTS[kind] ??
   (isFreehandDrawingTool(kind) || isVariableAnchorShapeDrawingTool(kind)
     ? 2
     : PATTERN_DRAWING_ANCHOR_COUNTS[kind] ??
@@ -2926,13 +3199,29 @@ const SHAPE_TOOL_DEFAULT_COLORS: Partial<Record<DrawingToolId, string>> = {
   curve: '#2962ff',
   'double-curve': '#9c27b0',
 };
+const TEXT_TOOL_DEFAULT_COLORS: Partial<Record<DrawingToolId, string>> = {
+  text: '#2962ff',
+  note: '#2962ff',
+  'price-note': '#2962ff',
+  pin: '#2962ff',
+  table: '#2962ff',
+  callout: '#00bcd4',
+  comment: '#2962ff',
+  'price-label': '#2962ff',
+  signpost: '#787b86',
+  'flag-mark': '#2962ff',
+  image: '#2962ff',
+  post: '#2962ff',
+  idea: '#2962ff',
+};
 const getDefaultDrawingColor = (kind: DrawingToolId) =>
   isFibDrawingTool(kind)
     ? kind === 'fib-spiral'
       ? DRAWING_DEFAULT_COLOR
       : FIB_DEFAULT_TREND_COLOR
-    : SHAPE_TOOL_DEFAULT_COLORS[kind] ?? DRAWING_DEFAULT_COLOR;
-const getDefaultDrawingOpacity = (kind: DrawingToolId) => (kind === 'highlighter' ? 0.3 : DRAWING_DEFAULT_OPACITY);
+    : SHAPE_TOOL_DEFAULT_COLORS[kind] ?? TEXT_TOOL_DEFAULT_COLORS[kind] ?? DRAWING_DEFAULT_COLOR;
+const getDefaultDrawingOpacity = (kind: DrawingToolId) =>
+  kind === 'highlighter' ? 0.3 : kind === 'callout' ? 0.75 : DRAWING_DEFAULT_OPACITY;
 const getDefaultDrawingLineWidth = (kind: DrawingToolId) =>
   kind === 'highlighter' ? 20 : kind === 'brush' ? 3 : 2;
 const getDefaultDrawingLeftEnd = (_kind: DrawingToolId): DrawingArrowEnd => 'none';
@@ -3097,10 +3386,10 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         extend: isDrawingExtendMode(drawing.extend) ? drawing.extend : 'none',
         leftEnd: isDrawingArrowEnd(drawing.leftEnd) ? drawing.leftEnd : getDefaultDrawingLeftEnd(drawing.kind),
         rightEnd: isDrawingArrowEnd(drawing.rightEnd) ? drawing.rightEnd : getDefaultDrawingRightEnd(drawing.kind),
-        text: typeof drawing.text === 'string' ? drawing.text.slice(0, 120) : '',
-        showText: drawing.showText === true,
+        text: typeof drawing.text === 'string' ? drawing.text.slice(0, isTextDrawingTool(drawing.kind) ? 500 : 120) : '',
+        showText: drawing.showText === true || isTextDrawingTool(drawing.kind),
         textColor: typeof drawing.textColor === 'string' ? drawing.textColor : DRAWING_DEFAULT_TEXT_COLOR,
-        textSize: Number.isFinite(drawing.textSize) ? clamp(drawing.textSize!, 10, 20) : 12,
+        textSize: Number.isFinite(drawing.textSize) ? clamp(drawing.textSize!, 10, 40) : isTextDrawingTool(drawing.kind) ? 14 : 12,
         textBold: drawing.textBold === true,
         textItalic: drawing.textItalic === true,
         textAlignment: isDrawingTextAlignment(drawing.textAlignment) ? drawing.textAlignment : 'center',
@@ -3138,6 +3427,49 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
               .map((bar) => ({ open: bar.open, high: bar.high, low: bar.low, close: bar.close }))
           : undefined,
         seed: Number.isFinite(drawing.seed) ? drawing.seed : undefined,
+        tableRows:
+          drawing.kind === 'table'
+            ? Number.isFinite(drawing.tableRows)
+              ? clamp(Math.round(drawing.tableRows!), 1, TEXT_TABLE_MAX_ROWS)
+              : TEXT_TABLE_DEFAULT_ROWS
+            : undefined,
+        tableCols:
+          drawing.kind === 'table'
+            ? Number.isFinite(drawing.tableCols)
+              ? clamp(Math.round(drawing.tableCols!), 1, TEXT_TABLE_MAX_COLS)
+              : TEXT_TABLE_DEFAULT_COLS
+            : undefined,
+        tableCells:
+          drawing.kind === 'table'
+            ? resizeTableCells(
+                Array.isArray(drawing.tableCells)
+                  ? drawing.tableCells.map((row) =>
+                      Array.isArray(row) ? row.map((cell) => (typeof cell === 'string' ? cell.slice(0, 200) : '')) : []
+                    )
+                  : undefined,
+                Number.isFinite(drawing.tableRows)
+                  ? clamp(Math.round(drawing.tableRows!), 1, TEXT_TABLE_MAX_ROWS)
+                  : TEXT_TABLE_DEFAULT_ROWS,
+                Number.isFinite(drawing.tableCols)
+                  ? clamp(Math.round(drawing.tableCols!), 1, TEXT_TABLE_MAX_COLS)
+                  : TEXT_TABLE_DEFAULT_COLS
+              )
+            : undefined,
+        imageSrc:
+          drawing.kind === 'image' &&
+          typeof drawing.imageSrc === 'string' &&
+          drawing.imageSrc.startsWith('data:image/') &&
+          drawing.imageSrc.length <= CONTENT_IMAGE_MAX_DATA_URL_LENGTH
+            ? drawing.imageSrc
+            : undefined,
+        contentUrl:
+          isContentDrawingTool(drawing.kind) && typeof drawing.contentUrl === 'string'
+            ? drawing.contentUrl.slice(0, 300)
+            : undefined,
+        contentMeta:
+          isContentDrawingTool(drawing.kind) && typeof drawing.contentMeta === 'string'
+            ? drawing.contentMeta.slice(0, 120)
+            : undefined,
         createdAt: timestamp,
         updatedAt: Number.isFinite(drawing.updatedAt) ? drawing.updatedAt! : timestamp,
       };
@@ -4071,6 +4403,617 @@ const formatPrice = (price: number) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+};
+
+const TEXT_DRAWING_FONT_STACK = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const TEXT_DRAWING_CARD_BG = '#ffffff';
+const TEXT_DRAWING_CARD_BORDER = '#d1d4dc';
+const TEXT_DRAWING_CARD_TEXT = '#131722';
+const TEXT_DRAWING_PLACEHOLDER = 'Add text';
+const TEXT_DRAWING_LINE_HEIGHT_RATIO = 1.35;
+const TEXT_DRAWING_MAX_LINE_WIDTH = 400;
+
+let textDrawingMeasureCtx: CanvasRenderingContext2D | null = null;
+const measureTextDrawingWidth = (text: string, font: string) => {
+  if (typeof document === 'undefined') return text.length * 7;
+  if (!textDrawingMeasureCtx) {
+    textDrawingMeasureCtx = document.createElement('canvas').getContext('2d');
+  }
+  if (!textDrawingMeasureCtx) return text.length * 7;
+  textDrawingMeasureCtx.font = font;
+  return textDrawingMeasureCtx.measureText(text).width;
+};
+
+const buildTextDrawingFont = (drawing: ChartDrawing, sizeOverride?: number) =>
+  `${drawing.textItalic ? 'italic ' : ''}${drawing.textBold ? '700' : '400'} ${sizeOverride ?? drawing.textSize}px ${TEXT_DRAWING_FONT_STACK}`;
+
+interface TextDrawingPoint {
+  x: number;
+  y: number;
+}
+
+interface TextDrawingRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface TextDrawingTextBlock {
+  lines: string[];
+  x: number;
+  y: number;
+  lineHeight: number;
+  font: string;
+  color: string;
+  align: 'left' | 'center';
+  placeholder: boolean;
+}
+
+interface TextDrawingRenderModel {
+  boxes: Array<TextDrawingRect & { r: number; fill: string | null; stroke: string | null; strokeWidth?: number; shadow?: boolean }>;
+  polygons: Array<{ points: TextDrawingPoint[]; fill: string | null; stroke: string | null }>;
+  lines: Array<{ start: TextDrawingPoint; end: TextDrawingPoint; color: string; width: number; dash?: number[] }>;
+  circles: Array<{ x: number; y: number; r: number; fill: string | null; stroke: string | null; strokeWidth?: number }>;
+  texts: TextDrawingTextBlock[];
+  gridLines: Array<{ start: TextDrawingPoint; end: TextDrawingPoint }>;
+  hitRects: TextDrawingRect[];
+  hitSegments: Array<{ start: TextDrawingPoint; end: TextDrawingPoint }>;
+  selectionRect: TextDrawingRect | null;
+  editorRect: TextDrawingRect | null;
+  editorTextIndex: number | null;
+  tableCellRects: TextDrawingRect[][] | null;
+}
+
+interface TextDrawingModelOptions {
+  mutedTextColor: string;
+  popupVisible?: boolean;
+  editingCell?: { row: number; col: number } | null;
+}
+
+const splitTextDrawingLines = (text: string) => {
+  const lines = text.replace(/\r/g, '').split('\n');
+  return lines.length > 0 ? lines : [''];
+};
+
+const measureTextDrawingBlock = (lines: string[], font: string, textSize: number) => {
+  const lineHeight = Math.round(textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO);
+  const width = Math.min(
+    TEXT_DRAWING_MAX_LINE_WIDTH,
+    Math.max(...lines.map((line) => measureTextDrawingWidth(line, font)), 8)
+  );
+  return { width, height: lines.length * lineHeight, lineHeight };
+};
+
+const nearestPointOnTextDrawingRect = (rect: TextDrawingRect, point: TextDrawingPoint): TextDrawingPoint => ({
+  x: clamp(point.x, rect.x, rect.x + rect.w),
+  y: clamp(point.y, rect.y, rect.y + rect.h),
+});
+
+const getTextDrawingRenderModel = (
+  drawing: ChartDrawing,
+  points: TextDrawingPoint[],
+  options: TextDrawingModelOptions
+): TextDrawingRenderModel => {
+  const model: TextDrawingRenderModel = {
+    boxes: [],
+    polygons: [],
+    lines: [],
+    circles: [],
+    texts: [],
+    gridLines: [],
+    hitRects: [],
+    hitSegments: [],
+    selectionRect: null,
+    editorRect: null,
+    editorTextIndex: null,
+    tableCellRects: null,
+  };
+  const [p0, p1] = points;
+  if (!p0) return model;
+
+  const font = buildTextDrawingFont(drawing);
+  const rawText = drawing.text;
+  const hasText = rawText.trim().length > 0;
+  const textLines = hasText ? splitTextDrawingLines(rawText) : [TEXT_DRAWING_PLACEHOLDER];
+
+  if (drawing.kind === 'text') {
+    const block = measureTextDrawingBlock(textLines, font, drawing.textSize);
+    const pad = 5;
+    const box: TextDrawingRect = {
+      x: p0.x - pad,
+      y: p0.y - pad,
+      w: block.width + pad * 2,
+      h: block.height + pad * 2,
+    };
+    model.texts.push({
+      lines: textLines,
+      x: p0.x,
+      y: p0.y,
+      lineHeight: block.lineHeight,
+      font,
+      color: hasText ? drawing.textColor : options.mutedTextColor,
+      align: 'left',
+      placeholder: !hasText,
+    });
+    model.hitRects.push(box);
+    model.selectionRect = box;
+    model.editorRect = { x: p0.x, y: p0.y, w: Math.max(block.width, 120), h: block.height };
+    model.editorTextIndex = 0;
+    return model;
+  }
+
+  if (drawing.kind === 'note') {
+    const labelPoint = p1 ?? { x: p0.x + 36, y: p0.y };
+    const block = measureTextDrawingBlock(textLines, font, drawing.textSize);
+    const padX = 9;
+    const padY = 7;
+    const box: TextDrawingRect = {
+      x: labelPoint.x,
+      y: labelPoint.y - block.height / 2 - padY,
+      w: block.width + padX * 2,
+      h: block.height + padY * 2,
+    };
+    model.lines.push({
+      start: p0,
+      end: nearestPointOnTextDrawingRect(box, p0),
+      color: TEXT_DRAWING_CARD_BORDER,
+      width: 1,
+    });
+    model.circles.push({ x: p0.x, y: p0.y, r: 2.4, fill: drawing.color, stroke: null });
+    model.boxes.push({ ...box, r: 4, fill: TEXT_DRAWING_CARD_BG, stroke: TEXT_DRAWING_CARD_BORDER, shadow: true });
+    model.texts.push({
+      lines: textLines,
+      x: box.x + padX,
+      y: box.y + padY,
+      lineHeight: block.lineHeight,
+      font,
+      color: hasText ? drawing.textColor : options.mutedTextColor,
+      align: 'left',
+      placeholder: !hasText,
+    });
+    model.hitRects.push(box);
+    model.hitSegments.push({ start: p0, end: labelPoint });
+    model.selectionRect = box;
+    model.editorRect = { x: box.x + padX, y: box.y + padY, w: Math.max(block.width, 110), h: block.height };
+    model.editorTextIndex = model.texts.length - 1;
+    return model;
+  }
+
+  if (drawing.kind === 'price-note') {
+    const labelPoint = p1 ?? { x: p0.x + 40, y: p0.y - 24 };
+    const priceText = formatPrice(drawing.anchors[0]?.price ?? 0);
+    const userText = rawText.trim().replace(/\s*\n\s*/g, ' ');
+    const pillText = userText.length > 0 ? `${priceText}  ${userText}` : priceText;
+    const pillFont = buildTextDrawingFont(drawing);
+    const textWidth = measureTextDrawingWidth(pillText, pillFont);
+    const padX = 9;
+    const dotRadius = 3;
+    const pillHeight = drawing.textSize + 13;
+    const pill: TextDrawingRect = {
+      x: labelPoint.x,
+      y: labelPoint.y - pillHeight / 2,
+      w: textWidth + padX * 2 + dotRadius * 2 + 6,
+      h: pillHeight,
+    };
+    model.lines.push({
+      start: p0,
+      end: nearestPointOnTextDrawingRect(pill, p0),
+      color: drawing.color,
+      width: 1,
+    });
+    model.circles.push({ x: p0.x, y: p0.y, r: 3, fill: null, stroke: drawing.color, strokeWidth: 1.4 });
+    model.boxes.push({ ...pill, r: 4, fill: drawing.color, stroke: null });
+    model.circles.push({
+      x: pill.x + padX + dotRadius,
+      y: pill.y + pill.h / 2,
+      r: dotRadius,
+      fill: '#ffffff',
+      stroke: null,
+    });
+    model.texts.push({
+      lines: [pillText],
+      x: pill.x + padX + dotRadius * 2 + 6,
+      y: pill.y + (pill.h - drawing.textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO) / 2,
+      lineHeight: Math.round(drawing.textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO),
+      font: pillFont,
+      color: '#ffffff',
+      align: 'left',
+      placeholder: false,
+    });
+    model.hitRects.push(pill);
+    model.hitSegments.push({ start: p0, end: labelPoint });
+    model.selectionRect = pill;
+    return model;
+  }
+
+  if (drawing.kind === 'pin') {
+    const balloonCenter = { x: p0.x, y: p0.y - 13 };
+    const balloonRadius = 9;
+    model.polygons.push({
+      points: [
+        { x: p0.x, y: p0.y },
+        { x: p0.x - 5, y: balloonCenter.y + 6 },
+        { x: p0.x + 5, y: balloonCenter.y + 6 },
+      ],
+      fill: drawing.color,
+      stroke: null,
+    });
+    model.circles.push({ x: balloonCenter.x, y: balloonCenter.y, r: balloonRadius, fill: drawing.color, stroke: null });
+    model.circles.push({ x: balloonCenter.x, y: balloonCenter.y, r: 3, fill: '#ffffff', stroke: null });
+    const balloonBox: TextDrawingRect = {
+      x: balloonCenter.x - balloonRadius,
+      y: balloonCenter.y - balloonRadius,
+      w: balloonRadius * 2,
+      h: balloonRadius * 2 + 13,
+    };
+    model.hitRects.push(balloonBox);
+    model.selectionRect = balloonBox;
+
+    if (options.popupVisible) {
+      const block = measureTextDrawingBlock(textLines, font, drawing.textSize);
+      const padX = 10;
+      const padY = 8;
+      const popup: TextDrawingRect = {
+        x: balloonCenter.x - Math.max(block.width + padX * 2, 130) * 0.3,
+        y: balloonCenter.y - balloonRadius - block.height - padY * 2 - 8,
+        w: Math.max(block.width + padX * 2, 130),
+        h: block.height + padY * 2,
+      };
+      model.boxes.push({ ...popup, r: 6, fill: TEXT_DRAWING_CARD_BG, stroke: TEXT_DRAWING_CARD_BORDER, shadow: true });
+      model.texts.push({
+        lines: textLines,
+        x: popup.x + padX,
+        y: popup.y + padY,
+        lineHeight: block.lineHeight,
+        font,
+        color: hasText ? drawing.textColor : options.mutedTextColor,
+        align: 'left',
+        placeholder: !hasText,
+      });
+      model.hitRects.push(popup);
+      model.editorRect = { x: popup.x + padX, y: popup.y + padY, w: popup.w - padX * 2, h: block.height };
+      model.editorTextIndex = model.texts.length - 1;
+    }
+    return model;
+  }
+
+  if (drawing.kind === 'table') {
+    const corner = p1 ?? { x: p0.x + 160, y: p0.y + 90 };
+    const rect: TextDrawingRect = {
+      x: Math.min(p0.x, corner.x),
+      y: Math.min(p0.y, corner.y),
+      w: Math.max(24, Math.abs(corner.x - p0.x)),
+      h: Math.max(24, Math.abs(corner.y - p0.y)),
+    };
+    const rows = clamp(drawing.tableRows ?? TEXT_TABLE_DEFAULT_ROWS, 1, TEXT_TABLE_MAX_ROWS);
+    const cols = clamp(drawing.tableCols ?? TEXT_TABLE_DEFAULT_COLS, 1, TEXT_TABLE_MAX_COLS);
+    model.boxes.push({ ...rect, r: 2, fill: TEXT_DRAWING_CARD_BG, stroke: TEXT_DRAWING_CARD_BORDER });
+    const cellWidth = rect.w / cols;
+    const cellHeight = rect.h / rows;
+    for (let col = 1; col < cols; col += 1) {
+      model.gridLines.push({
+        start: { x: rect.x + col * cellWidth, y: rect.y },
+        end: { x: rect.x + col * cellWidth, y: rect.y + rect.h },
+      });
+    }
+    for (let row = 1; row < rows; row += 1) {
+      model.gridLines.push({
+        start: { x: rect.x, y: rect.y + row * cellHeight },
+        end: { x: rect.x + rect.w, y: rect.y + row * cellHeight },
+      });
+    }
+    const cellRects: TextDrawingRect[][] = [];
+    const cellPad = 6;
+    for (let row = 0; row < rows; row += 1) {
+      const rowRects: TextDrawingRect[] = [];
+      for (let col = 0; col < cols; col += 1) {
+        const cellRect: TextDrawingRect = {
+          x: rect.x + col * cellWidth,
+          y: rect.y + row * cellHeight,
+          w: cellWidth,
+          h: cellHeight,
+        };
+        rowRects.push(cellRect);
+        const cellText = drawing.tableCells?.[row]?.[col] ?? '';
+        const isEditingCell = options.editingCell?.row === row && options.editingCell?.col === col;
+        if (cellText.trim().length > 0 && !isEditingCell) {
+          model.texts.push({
+            lines: splitTextDrawingLines(cellText),
+            x: cellRect.x + cellPad,
+            y: cellRect.y + cellPad,
+            lineHeight: Math.round(drawing.textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO),
+            font,
+            color: drawing.textColor,
+            align: 'left',
+            placeholder: false,
+          });
+        }
+        if (isEditingCell) {
+          model.editorRect = {
+            x: cellRect.x + cellPad,
+            y: cellRect.y + cellPad,
+            w: cellRect.w - cellPad * 2,
+            h: cellRect.h - cellPad * 2,
+          };
+        }
+      }
+      cellRects.push(rowRects);
+    }
+    model.tableCellRects = cellRects;
+    model.hitRects.push(rect);
+    model.selectionRect = rect;
+    return model;
+  }
+
+  if (drawing.kind === 'callout') {
+    const bubbleCenter = p1 ?? { x: p0.x + 70, y: p0.y - 50 };
+    const block = measureTextDrawingBlock(textLines, font, drawing.textSize);
+    const padX = 12;
+    const padY = 9;
+    const bubble: TextDrawingRect = {
+      x: bubbleCenter.x - Math.max(block.width + padX * 2, 76) / 2,
+      y: bubbleCenter.y - (block.height + padY * 2) / 2,
+      w: Math.max(block.width + padX * 2, 76),
+      h: block.height + padY * 2,
+    };
+    const tailBase = nearestPointOnTextDrawingRect(bubble, p0);
+    const tailDeltaX = p0.x - tailBase.x;
+    const tailDeltaY = p0.y - tailBase.y;
+    const tailLength = Math.hypot(tailDeltaX, tailDeltaY) || 1;
+    const perpX = (-tailDeltaY / tailLength) * 7;
+    const perpY = (tailDeltaX / tailLength) * 7;
+    if (tailLength > 4) {
+      model.polygons.push({
+        points: [
+          { x: p0.x, y: p0.y },
+          { x: tailBase.x + perpX, y: tailBase.y + perpY },
+          { x: tailBase.x - perpX, y: tailBase.y - perpY },
+        ],
+        fill: drawing.color,
+        stroke: null,
+      });
+    }
+    model.boxes.push({
+      ...bubble,
+      r: 6,
+      fill: hexToRgba(drawing.color, drawing.opacity),
+      stroke: drawing.color,
+      strokeWidth: 1,
+    });
+    model.texts.push({
+      lines: textLines,
+      x: bubble.x + bubble.w / 2,
+      y: bubble.y + padY,
+      lineHeight: block.lineHeight,
+      font,
+      color: hasText ? drawing.textColor : 'rgba(255, 255, 255, 0.75)',
+      align: 'center',
+      placeholder: !hasText,
+    });
+    model.hitRects.push(bubble);
+    model.hitSegments.push({ start: p0, end: tailBase });
+    model.circles.push({ x: p0.x, y: p0.y, r: 2.4, fill: drawing.color, stroke: null });
+    model.selectionRect = bubble;
+    model.editorRect = { x: bubble.x + padX, y: bubble.y + padY, w: bubble.w - padX * 2, h: block.height };
+    model.editorTextIndex = model.texts.length - 1;
+    return model;
+  }
+
+  if (drawing.kind === 'comment') {
+    const block = measureTextDrawingBlock(textLines, font, drawing.textSize);
+    const padX = 12;
+    const padY = 8;
+    const pill: TextDrawingRect = {
+      x: p0.x - 6,
+      y: p0.y - 10 - (block.height + padY * 2),
+      w: Math.max(block.width + padX * 2, 60),
+      h: block.height + padY * 2,
+    };
+    model.polygons.push({
+      points: [
+        { x: p0.x, y: p0.y },
+        { x: p0.x + 4, y: pill.y + pill.h - 1 },
+        { x: p0.x + 16, y: pill.y + pill.h - 1 },
+      ],
+      fill: drawing.color,
+      stroke: null,
+    });
+    model.boxes.push({ ...pill, r: Math.min(12, pill.h / 2), fill: drawing.color, stroke: null });
+    model.texts.push({
+      lines: textLines,
+      x: pill.x + padX,
+      y: pill.y + padY,
+      lineHeight: block.lineHeight,
+      font,
+      color: hasText ? drawing.textColor : 'rgba(255, 255, 255, 0.75)',
+      align: 'left',
+      placeholder: !hasText,
+    });
+    model.hitRects.push(pill);
+    model.hitRects.push({ x: p0.x - 4, y: pill.y + pill.h - 2, w: 22, h: p0.y - (pill.y + pill.h) + 4 });
+    model.selectionRect = pill;
+    model.editorRect = { x: pill.x + padX, y: pill.y + padY, w: Math.max(block.width, 90), h: block.height };
+    model.editorTextIndex = model.texts.length - 1;
+    return model;
+  }
+
+  if (drawing.kind === 'price-label') {
+    const labelPoint = p1 ?? { x: p0.x + 34, y: p0.y - 30 };
+    const priceText = formatPrice(drawing.anchors[0]?.price ?? 0);
+    const labelFont = `${drawing.textItalic ? 'italic ' : ''}700 ${drawing.textSize}px ${TEXT_DRAWING_FONT_STACK}`;
+    const textWidth = measureTextDrawingWidth(priceText, labelFont);
+    const padX = 9;
+    const labelHeight = drawing.textSize + 13;
+    const box: TextDrawingRect = {
+      x: labelPoint.x - (textWidth + padX * 2) / 2,
+      y: labelPoint.y - labelHeight / 2,
+      w: textWidth + padX * 2,
+      h: labelHeight,
+    };
+    model.lines.push({
+      start: p0,
+      end: nearestPointOnTextDrawingRect(box, p0),
+      color: drawing.color,
+      width: 1,
+    });
+    model.circles.push({ x: p0.x, y: p0.y, r: 3, fill: null, stroke: drawing.color, strokeWidth: 1.4 });
+    model.boxes.push({ ...box, r: 5, fill: drawing.color, stroke: null });
+    model.texts.push({
+      lines: [priceText],
+      x: box.x + box.w / 2,
+      y: box.y + (box.h - drawing.textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO) / 2,
+      lineHeight: Math.round(drawing.textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO),
+      font: labelFont,
+      color: '#ffffff',
+      align: 'center',
+      placeholder: false,
+    });
+    model.hitRects.push(box);
+    model.hitSegments.push({ start: p0, end: labelPoint });
+    model.selectionRect = box;
+    return model;
+  }
+
+  if (drawing.kind === 'signpost') {
+    const stemTop = { x: p0.x, y: p0.y - 44 };
+    const block = measureTextDrawingBlock(textLines, font, drawing.textSize);
+    const textRect: TextDrawingRect = {
+      x: p0.x - block.width / 2 - 4,
+      y: stemTop.y - block.height - 6,
+      w: block.width + 8,
+      h: block.height + 4,
+    };
+    model.lines.push({ start: p0, end: stemTop, color: drawing.color, width: 1 });
+    model.circles.push({ x: p0.x, y: p0.y, r: 2.4, fill: drawing.color, stroke: null });
+    model.texts.push({
+      lines: textLines,
+      x: p0.x,
+      y: textRect.y + 2,
+      lineHeight: block.lineHeight,
+      font,
+      color: hasText ? drawing.textColor : options.mutedTextColor,
+      align: 'center',
+      placeholder: !hasText,
+    });
+    model.hitRects.push(textRect);
+    model.hitSegments.push({ start: p0, end: stemTop });
+    model.selectionRect = textRect;
+    model.editorRect = { x: textRect.x + 4, y: textRect.y + 2, w: Math.max(block.width, 110), h: block.height };
+    model.editorTextIndex = model.texts.length - 1;
+    return model;
+  }
+
+  if (drawing.kind === 'flag-mark') {
+    const poleTop = { x: p0.x, y: p0.y - 20 };
+    model.lines.push({ start: p0, end: poleTop, color: drawing.color, width: 1.6 });
+    model.polygons.push({
+      points: [
+        { x: p0.x, y: poleTop.y },
+        { x: p0.x + 14, y: poleTop.y + 4.5 },
+        { x: p0.x, y: poleTop.y + 9 },
+      ],
+      fill: drawing.color,
+      stroke: null,
+    });
+    const flagBox: TextDrawingRect = { x: p0.x - 3, y: poleTop.y - 2, w: 19, h: 24 };
+    model.hitRects.push(flagBox);
+    model.selectionRect = flagBox;
+    return model;
+  }
+
+  if (drawing.kind === 'image') {
+    const corner = p1 ?? { x: p0.x + 120, y: p0.y + 90 };
+    const rect: TextDrawingRect = {
+      x: Math.min(p0.x, corner.x),
+      y: Math.min(p0.y, corner.y),
+      w: Math.max(16, Math.abs(corner.x - p0.x)),
+      h: Math.max(16, Math.abs(corner.y - p0.y)),
+    };
+    model.hitRects.push(rect);
+    model.selectionRect = rect;
+    return model;
+  }
+
+  if (drawing.kind === 'post' || drawing.kind === 'idea') {
+    const isIdea = drawing.kind === 'idea';
+    const title = isIdea
+      ? hasText
+        ? splitTextDrawingLines(rawText)[0]!
+        : 'Idea'
+      : drawing.contentMeta && drawing.contentMeta.length > 0
+        ? drawing.contentMeta
+        : 'Post';
+    const subtitle = isIdea
+      ? drawing.contentMeta ?? ''
+      : (drawing.contentUrl ?? '').replace(/^https?:\/\//, '').slice(0, 42);
+    const titleFont = `${drawing.textItalic ? 'italic ' : ''}700 ${drawing.textSize}px ${TEXT_DRAWING_FONT_STACK}`;
+    const subtitleSize = Math.max(10, drawing.textSize - 3);
+    const subtitleFont = `400 ${subtitleSize}px ${TEXT_DRAWING_FONT_STACK}`;
+    const padX = 12;
+    const padY = 9;
+    const glyphWidth = 26;
+    const titleLineHeight = Math.round(drawing.textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO);
+    const subtitleLineHeight = Math.round(subtitleSize * TEXT_DRAWING_LINE_HEIGHT_RATIO);
+    const textWidth = Math.min(
+      260,
+      Math.max(measureTextDrawingWidth(title, titleFont), measureTextDrawingWidth(subtitle, subtitleFont), 64)
+    );
+    const card: TextDrawingRect = {
+      x: p0.x,
+      y: p0.y,
+      w: glyphWidth + textWidth + padX * 2,
+      h: titleLineHeight + (subtitle ? subtitleLineHeight : 0) + padY * 2,
+    };
+    model.boxes.push({ ...card, r: 8, fill: TEXT_DRAWING_CARD_BG, stroke: TEXT_DRAWING_CARD_BORDER, shadow: true });
+    model.texts.push({
+      lines: [isIdea ? '💡' : 'X'],
+      x: card.x + padX,
+      y: card.y + padY + (subtitle ? subtitleLineHeight / 2 : 0),
+      lineHeight: titleLineHeight,
+      font: `700 ${drawing.textSize + 2}px ${TEXT_DRAWING_FONT_STACK}`,
+      color: '#0f1419',
+      align: 'left',
+      placeholder: false,
+    });
+    const titleIndex = model.texts.length;
+    model.texts.push({
+      lines: [title],
+      x: card.x + padX + glyphWidth,
+      y: card.y + padY,
+      lineHeight: titleLineHeight,
+      font: titleFont,
+      color: isIdea && !hasText ? options.mutedTextColor : TEXT_DRAWING_CARD_TEXT,
+      align: 'left',
+      placeholder: isIdea && !hasText,
+    });
+    if (subtitle) {
+      model.texts.push({
+        lines: [subtitle],
+        x: card.x + padX + glyphWidth,
+        y: card.y + padY + titleLineHeight,
+        lineHeight: subtitleLineHeight,
+        font: subtitleFont,
+        color: options.mutedTextColor,
+        align: 'left',
+        placeholder: false,
+      });
+    }
+    model.hitRects.push(card);
+    model.selectionRect = card;
+    if (isIdea) {
+      model.editorRect = {
+        x: card.x + padX + glyphWidth,
+        y: card.y + padY,
+        w: Math.max(textWidth, 110),
+        h: titleLineHeight,
+      };
+      model.editorTextIndex = titleIndex;
+    }
+    return model;
+  }
+
+  return model;
 };
 
 const formatCompact = (value: number) => {
@@ -6272,6 +7215,8 @@ export default function Home() {
   const drawingsRef = useRef<ChartDrawing[]>([]);
   const selectedDrawingIdRef = useRef<string | null>(null);
   const pendingDrawingRef = useRef<PendingDrawing | null>(null);
+  const drawingTextEditorRef = useRef<DrawingTextEditorState | null>(null);
+  const drawingTextEditorInputRef = useRef<HTMLTextAreaElement | null>(null);
   const activePaneIndexRef = useRef(0);
   const indicatorSeriesCacheRef = useRef<PaneIndicatorSeriesCache[]>([]);
   const paneHoverStatesRef = useRef<PaneHoverState[]>([createPaneHoverState()]);
@@ -6297,6 +7242,11 @@ export default function Home() {
   const [lastPatternTool, setLastPatternTool] = useState<DrawingToolId>('xabcd-pattern');
   const [lastForecastTool, setLastForecastTool] = useState<DrawingToolId>('long-position');
   const [lastShapeTool, setLastShapeTool] = useState<DrawingToolId>('brush');
+  const [lastTextTool, setLastTextTool] = useState<DrawingToolId>('text');
+  const [drawingTextEditor, setDrawingTextEditor] = useState<DrawingTextEditorState | null>(null);
+  const [contentToolDialog, setContentToolDialog] = useState<ContentToolDialogState | null>(null);
+  const [contentToolDialogValue, setContentToolDialogValue] = useState('');
+  const [contentToolDialogError, setContentToolDialogError] = useState('');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
@@ -6403,6 +7353,7 @@ export default function Home() {
   drawingsRef.current = drawings;
   pendingDrawingRef.current = pendingDrawing;
   selectedDrawingIdRef.current = selectedDrawingId;
+  drawingTextEditorRef.current = drawingTextEditor;
   activePaneIndexRef.current = activePaneIndex;
   const filteredSymbolOptions = useMemo(() => {
     return SYMBOL_SEARCH_OPTIONS.filter((option) =>
@@ -6887,6 +7838,8 @@ export default function Home() {
         setDrawingToolbarStatus('');
         setPendingDrawing(null);
         setSelectedDrawingId(null);
+        closeDrawingTextEditor();
+        setContentToolDialog(null);
         freehandDrawingRef.current = null;
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
       }
@@ -6944,6 +7897,8 @@ export default function Home() {
           setLastForecastTool(drawingShortcutTool);
         } else if (isShapeDrawingTool(drawingShortcutTool)) {
           setLastShapeTool(drawingShortcutTool);
+        } else if (isTextDrawingTool(drawingShortcutTool)) {
+          setLastTextTool(drawingShortcutTool);
         } else {
           setLastDrawingTool(drawingShortcutTool);
         }
@@ -7345,6 +8300,58 @@ export default function Home() {
     };
   };
 
+  const getTextDrawingModelForHitTest = (drawing: ChartDrawing, points: Array<{ x: number; y: number }>) =>
+    getTextDrawingRenderModel(drawing, points, {
+      mutedTextColor: '#9598a1',
+      popupVisible:
+        selectedDrawingIdRef.current === drawing.id || drawingTextEditorRef.current?.drawingId === drawing.id,
+    });
+
+  const hitTestTextDrawingAt = (
+    drawing: ChartDrawing,
+    points: Array<{ x: number; y: number }>,
+    x: number,
+    y: number,
+    tolerance: number
+  ): boolean => {
+    const model = getTextDrawingModelForHitTest(drawing, points);
+    if (
+      model.hitRects.some(
+        (rect) =>
+          x >= rect.x - tolerance && x <= rect.x + rect.w + tolerance && y >= rect.y - tolerance && y <= rect.y + rect.h + tolerance
+      )
+    ) {
+      return true;
+    }
+    return model.hitSegments.some((segment) => getDistanceToSegment(x, y, segment.start, segment.end) <= tolerance);
+  };
+
+  const getTableCellAtPoint = (
+    drawing: ChartDrawing,
+    paneIndex: number,
+    x: number,
+    y: number
+  ): { row: number; col: number } | null => {
+    if (drawing.kind !== 'table') return null;
+
+    const points = drawing.anchors
+      .map((anchor) => getDrawingPointForAnchor(paneIndex, anchor))
+      .filter((point): point is { x: number; y: number } => point !== null);
+    const model = getTextDrawingModelForHitTest(drawing, points);
+    if (!model.tableCellRects) return null;
+
+    for (let row = 0; row < model.tableCellRects.length; row += 1) {
+      const rowRects = model.tableCellRects[row]!;
+      for (let col = 0; col < rowRects.length; col += 1) {
+        const rect = rowRects[col]!;
+        if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+          return { row, col };
+        }
+      }
+    }
+    return null;
+  };
+
   const hitTestForecastDrawingAt = (
     drawing: ChartDrawing,
     points: Array<{ x: number; y: number }>,
@@ -7551,6 +8558,13 @@ export default function Home() {
         continue;
       }
 
+      if (isTextDrawingTool(drawing.kind)) {
+        if (hitTestTextDrawingAt(drawing, points, x, y, DRAWING_HIT_TOLERANCE)) {
+          return { drawing, target: 'body' };
+        }
+        continue;
+      }
+
       const renderedSegments = getDrawingRenderedSegments(drawing, points, chartArea);
       if (
         renderedSegments.some(
@@ -7647,6 +8661,7 @@ export default function Home() {
     setDrawingToolbarStatus('');
     setPendingDrawing(null);
     setSelectedDrawingId(null);
+    setDrawingTextEditor(null);
     freehandDrawingRef.current = null;
     drawingDragRef.current = createDrawingDragState(paneIndex);
   };
@@ -7701,6 +8716,8 @@ export default function Home() {
       setLastForecastTool(tool);
     } else if (isShapeDrawingTool(tool)) {
       setLastShapeTool(tool);
+    } else if (isTextDrawingTool(tool)) {
+      setLastTextTool(tool);
     } else {
       setLastDrawingTool(tool);
     }
@@ -7721,6 +8738,14 @@ export default function Home() {
     setDrawingToolbarPosition(null);
     setDrawings([]);
   }, [activePaneIndex, isAuthenticated]);
+
+  const getDefaultTextToolTextColor = (kind: DrawingToolId) => {
+    if (kind === 'text') return '#2962ff';
+    // Pin's popup is a light card in both themes, so its text stays dark.
+    if (kind === 'note' || kind === 'table' || kind === 'pin') return TEXT_DRAWING_CARD_TEXT;
+    if (kind === 'signpost') return theme === 'dark' ? '#d1d4dc' : '#131722';
+    return '#ffffff';
+  };
 
   const createChartDrawing = (
     paneIndex: number,
@@ -7750,9 +8775,9 @@ export default function Home() {
       leftEnd: getDefaultDrawingLeftEnd(kind),
       rightEnd: getDefaultDrawingRightEnd(kind),
       text: '',
-      showText: false,
-      textColor: DRAWING_DEFAULT_TEXT_COLOR,
-      textSize: 12,
+      showText: isTextDrawingTool(kind),
+      textColor: isTextDrawingTool(kind) ? getDefaultTextToolTextColor(kind) : DRAWING_DEFAULT_TEXT_COLOR,
+      textSize: isTextDrawingTool(kind) ? 14 : 12,
       textBold: false,
       textItalic: false,
       textAlignment: 'center',
@@ -7774,6 +8799,9 @@ export default function Home() {
       syncInLayout: false,
       syncGlobally: false,
       seed: kind === 'ghost-feed' ? Math.floor(Math.random() * 0xffffffff) : undefined,
+      tableRows: kind === 'table' ? TEXT_TABLE_DEFAULT_ROWS : undefined,
+      tableCols: kind === 'table' ? TEXT_TABLE_DEFAULT_COLS : undefined,
+      tableCells: kind === 'table' ? createDefaultTableCells(TEXT_TABLE_DEFAULT_ROWS, TEXT_TABLE_DEFAULT_COLS) : undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -7787,6 +8815,140 @@ export default function Home() {
     setActiveDrawingMenu(null);
     setActiveDrawingToolbarMenu(null);
     setDrawingToolbarStatus('');
+  };
+  const closeDrawingTextEditor = (commit = true) => {
+    const editor = drawingTextEditorRef.current;
+    if (!editor) return;
+
+    if (commit) {
+      const drawing = drawingsRef.current.find((current) => current.id === editor.drawingId);
+      // TradingView discards a Text drawing committed with no content.
+      if (drawing && drawing.kind === 'text' && drawing.text.trim().length === 0) {
+        setDrawings((current) => current.filter((item) => item.id !== editor.drawingId));
+        setSelectedDrawingId((current) => (current === editor.drawingId ? null : current));
+      }
+    }
+    setDrawingTextEditor(null);
+  };
+  const updateDrawingTextEditorValue = (value: string) => {
+    const editor = drawingTextEditorRef.current;
+    if (!editor) return;
+
+    setDrawings((current) =>
+      current.map((drawing) => {
+        if (drawing.id !== editor.drawingId) return drawing;
+
+        if (drawing.kind === 'table' && editor.cellRow !== undefined && editor.cellCol !== undefined) {
+          const rows = clamp(drawing.tableRows ?? TEXT_TABLE_DEFAULT_ROWS, 1, TEXT_TABLE_MAX_ROWS);
+          const cols = clamp(drawing.tableCols ?? TEXT_TABLE_DEFAULT_COLS, 1, TEXT_TABLE_MAX_COLS);
+          const cells = resizeTableCells(drawing.tableCells, rows, cols);
+          if (cells[editor.cellRow]) cells[editor.cellRow]![editor.cellCol] = value.slice(0, 200);
+          return { ...drawing, tableCells: cells, updatedAt: Date.now() };
+        }
+
+        return { ...drawing, text: value.slice(0, 500), showText: true, updatedAt: Date.now() };
+      })
+    );
+  };
+  const closeContentToolDialog = () => {
+    setContentToolDialog(null);
+    setContentToolDialogValue('');
+    setContentToolDialogError('');
+  };
+  const placeContentDrawing = (
+    request: ContentToolDialogState,
+    updates: Partial<ChartDrawing>,
+    secondPoint?: { x: number; y: number }
+  ) => {
+    const anchors: ChartDrawingAnchor[] = [request.anchor];
+    if (secondPoint) {
+      const second = getDrawingAnchorAtPoint(request.paneIndex, secondPoint.x, secondPoint.y);
+      anchors.push(second ?? { logicalIndex: request.anchor.logicalIndex + 10, price: request.anchor.price });
+    }
+    addCompletedDrawing({ ...createChartDrawing(request.paneIndex, request.kind, anchors), ...updates });
+    closeContentToolDialog();
+  };
+  const submitContentToolDialog = () => {
+    const request = contentToolDialog;
+    if (!request) return;
+
+    const value = contentToolDialogValue.trim();
+    if (request.kind === 'post') {
+      if (!/^https?:\/\/(www\.)?(x\.com|twitter\.com)\/\S+$/i.test(value)) {
+        setContentToolDialogError('Enter a link to an X post, e.g. https://x.com/user/status/123');
+        return;
+      }
+      const handleMatch = value.match(/(?:x\.com|twitter\.com)\/(@?[A-Za-z0-9_]+)/i);
+      placeContentDrawing(request, {
+        contentUrl: value.slice(0, 300),
+        contentMeta: handleMatch ? `@${handleMatch[1]!.replace(/^@/, '')}` : 'Post',
+      });
+      return;
+    }
+    if (request.kind === 'idea') {
+      if (value.length === 0) {
+        setContentToolDialogError('Give your idea a title');
+        return;
+      }
+      const pane = paneStatesRef.current[request.paneIndex];
+      placeContentDrawing(request, {
+        text: value.slice(0, 120),
+        contentMeta: pane ? `${formatSymbol(pane.symbol)} · ${pane.timeframe}` : '',
+      });
+    }
+  };
+  const handleContentImageFile = (file: File | null) => {
+    const request = contentToolDialog;
+    if (!request || !file) return;
+    if (!file.type.startsWith('image/')) {
+      setContentToolDialogError('Choose an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = typeof reader.result === 'string' ? reader.result : null;
+      if (!src) {
+        setContentToolDialogError('Could not read that file');
+        return;
+      }
+      const image = document.createElement('img');
+      image.onload = () => {
+        const naturalWidth = image.naturalWidth;
+        const naturalHeight = image.naturalHeight;
+        if (!naturalWidth || !naturalHeight) {
+          setContentToolDialogError('Could not read that image');
+          return;
+        }
+        let finalSrc = src;
+        const maxDimension = Math.max(naturalWidth, naturalHeight);
+        if (maxDimension > CONTENT_IMAGE_MAX_DIMENSION || src.length > CONTENT_IMAGE_MAX_DATA_URL_LENGTH) {
+          const scale = Math.min(1, CONTENT_IMAGE_MAX_DIMENSION / maxDimension);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(naturalHeight * scale));
+          const context = canvas.getContext('2d');
+          if (context) {
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            finalSrc = canvas.toDataURL('image/png');
+            if (finalSrc.length > CONTENT_IMAGE_MAX_DATA_URL_LENGTH) {
+              finalSrc = canvas.toDataURL('image/jpeg', 0.82);
+            }
+          }
+        }
+        if (finalSrc.length > CONTENT_IMAGE_MAX_DATA_URL_LENGTH) {
+          setContentToolDialogError('That image is too large — try one under 2 MB');
+          return;
+        }
+        const displayWidth = Math.min(CONTENT_IMAGE_MAX_PLACED_WIDTH, naturalWidth);
+        const displayHeight = (displayWidth * naturalHeight) / naturalWidth;
+        placeContentDrawing(request, { imageSrc: finalSrc }, { x: request.x + displayWidth, y: request.y + displayHeight });
+      };
+      image.onerror = () => setContentToolDialogError('Could not read that image');
+      image.src = src;
+    };
+    reader.onerror = () => setContentToolDialogError('Could not read that file');
+    reader.readAsDataURL(file);
   };
   const updateSelectedDrawing = (updater: (drawing: ChartDrawing) => ChartDrawing) => {
     if (!isAuthenticated || !selectedDrawingId) return;
@@ -7986,10 +9148,34 @@ export default function Home() {
     }));
   };
 
+  const createTextToolAnchors = (
+    paneIndex: number,
+    kind: DrawingToolId,
+    anchor: ChartDrawingAnchor
+  ): ChartDrawingAnchor[] => {
+    if (!isAutoLabelTextDrawingTool(kind)) return [anchor];
+
+    const pane = paneStatesRef.current[paneIndex];
+    const priceRange = getCurrentPriceRange(paneIndex);
+    const barsOffset = Math.max(2, (pane?.viewRange.candlesPerView ?? 60) * 0.05);
+    const priceSpan = priceRange ? priceRange.maxPrice - priceRange.minPrice : Math.abs(anchor.price) * 0.02;
+
+    if (kind === 'note') {
+      return [anchor, { logicalIndex: anchor.logicalIndex + barsOffset, price: anchor.price }];
+    }
+
+    // Price label floats up and to the right of its anchor, like TradingView.
+    return [anchor, { logicalIndex: anchor.logicalIndex + barsOffset, price: anchor.price + priceSpan * 0.06 }];
+  };
+
   const handleMouseDown = (paneIndex: number, event: React.MouseEvent<HTMLCanvasElement>) => {
     const pane = paneStatesRef.current[paneIndex];
     setActivePaneIndex(paneIndex);
     if (!pane?.candles.length) return;
+
+    if (drawingTextEditorRef.current) {
+      closeDrawingTextEditor();
+    }
 
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -8001,6 +9187,19 @@ export default function Home() {
     if (area === 'plot' && isAuthenticated && activeDrawingTool) {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
       if (!anchor) return;
+
+      if (isContentDrawingTool(activeDrawingTool)) {
+        // Content tools collect their payload in a dialog before anything lands on the chart.
+        setContentToolDialog({ kind: activeDrawingTool, paneIndex, anchor, x, y });
+        setContentToolDialogValue('');
+        setContentToolDialogError('');
+        setActiveDrawingTool(null);
+        setSelectedDrawingId(null);
+        setActiveDrawingToolbarMenu(null);
+        setDrawingToolbarStatus('');
+        event.preventDefault();
+        return;
+      }
 
       if (isFreehandDrawingTool(activeDrawingTool)) {
         freehandDrawingRef.current = {
@@ -8076,6 +9275,9 @@ export default function Home() {
               completedDrawing.patternBars = captureBarsPatternData(pane.candles, nextAnchors);
             }
             addCompletedDrawing(completedDrawing);
+            if (isInlineEditTextDrawingTool(activeDrawingTool)) {
+              setDrawingTextEditor({ drawingId: completedDrawing.id, paneIndex });
+            }
           } else {
             setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: nextAnchors, preview: anchor });
           }
@@ -8086,7 +9288,15 @@ export default function Home() {
           setDrawingToolbarStatus('');
         }
       } else {
-        addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, [anchor]));
+        const completedDrawing = createChartDrawing(
+          paneIndex,
+          activeDrawingTool,
+          createTextToolAnchors(paneIndex, activeDrawingTool, anchor)
+        );
+        addCompletedDrawing(completedDrawing);
+        if (isInlineEditTextDrawingTool(activeDrawingTool)) {
+          setDrawingTextEditor({ drawingId: completedDrawing.id, paneIndex });
+        }
       }
 
       event.preventDefault();
@@ -8111,6 +9321,20 @@ export default function Home() {
         setDrawingToolbarStatus('');
         setActiveDrawingTool(null);
         setPendingDrawing(null);
+
+        if (event.detail >= 2 && hasInlineTextEditor(drawingHit.drawing.kind) && !drawingHit.drawing.locked) {
+          const cell = getTableCellAtPoint(drawingHit.drawing, paneIndex, x, y);
+          if (drawingHit.drawing.kind !== 'table' || cell) {
+            setDrawingTextEditor({
+              drawingId: drawingHit.drawing.id,
+              paneIndex,
+              ...(cell ? { cellRow: cell.row, cellCol: cell.col } : {}),
+            });
+            drawingDragRef.current = createDrawingDragState(paneIndex);
+            event.preventDefault();
+            return;
+          }
+        }
 
         if (!drawingHit.drawing.locked) {
           drawingDragRef.current = {
@@ -9423,6 +10647,148 @@ export default function Home() {
       drawDrawingText(drawing, connectorStart, textEnd);
       drawDrawingStats(drawing, connectorStart, textEnd, selected);
     };
+    const traceTextDrawingRoundedRect = (rect: { x: number; y: number; w: number; h: number }, radius: number) => {
+      const r = Math.min(radius, rect.w / 2, rect.h / 2);
+      ctx.beginPath();
+      ctx.moveTo(rect.x + r, rect.y);
+      ctx.lineTo(rect.x + rect.w - r, rect.y);
+      ctx.arcTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r, r);
+      ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r);
+      ctx.arcTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h, r);
+      ctx.lineTo(rect.x + r, rect.y + rect.h);
+      ctx.arcTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r, r);
+      ctx.lineTo(rect.x, rect.y + r);
+      ctx.arcTo(rect.x, rect.y, rect.x + r, rect.y, r);
+      ctx.closePath();
+    };
+    const drawTextDrawing = (drawing: ChartDrawing, points: Array<{ x: number; y: number }>, selected: boolean) => {
+      const editor = drawingTextEditor && drawingTextEditor.drawingId === drawing.id ? drawingTextEditor : null;
+      const model = getTextDrawingRenderModel(drawing, points, {
+        mutedTextColor: theme === 'dark' ? '#787b86' : '#9598a1',
+        popupVisible: selected || editor !== null,
+        editingCell:
+          editor && editor.cellRow !== undefined && editor.cellCol !== undefined
+            ? { row: editor.cellRow, col: editor.cellCol }
+            : null,
+      });
+
+      ctx.save();
+      if (drawing.kind === 'image' && model.selectionRect) {
+        const rect = model.selectionRect;
+        const bitmap = drawing.imageSrc ? getTextDrawingImage(drawing.imageSrc) : null;
+        if (bitmap) {
+          ctx.save();
+          ctx.globalAlpha = clamp(drawing.opacity, 0.1, 1);
+          ctx.drawImage(bitmap, rect.x, rect.y, rect.w, rect.h);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = hexToRgba('#787b86', 0.12);
+          ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+          ctx.strokeStyle = TEXT_DRAWING_CARD_BORDER;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+        }
+      }
+      model.lines.forEach((line) => {
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = line.width;
+        ctx.setLineDash(line.dash ?? []);
+        ctx.beginPath();
+        ctx.moveTo(line.start.x, line.start.y);
+        ctx.lineTo(line.end.x, line.end.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+      model.boxes.forEach((box) => {
+        if (box.shadow) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(15, 23, 42, 0.18)';
+          ctx.shadowBlur = 10;
+          ctx.shadowOffsetY = 2;
+        }
+        traceTextDrawingRoundedRect(box, box.r);
+        if (box.fill) {
+          ctx.fillStyle = box.fill;
+          ctx.fill();
+        }
+        if (box.shadow) ctx.restore();
+        if (box.stroke) {
+          traceTextDrawingRoundedRect(box, box.r);
+          ctx.strokeStyle = box.stroke;
+          ctx.lineWidth = box.strokeWidth ?? 1;
+          ctx.stroke();
+        }
+      });
+      if (model.gridLines.length > 0) {
+        ctx.strokeStyle = TEXT_DRAWING_CARD_BORDER;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        model.gridLines.forEach((line) => {
+          ctx.moveTo(line.start.x, line.start.y);
+          ctx.lineTo(line.end.x, line.end.y);
+        });
+        ctx.stroke();
+      }
+      model.polygons.forEach((polygon) => {
+        if (polygon.points.length < 3) return;
+        ctx.beginPath();
+        polygon.points.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.closePath();
+        if (polygon.fill) {
+          ctx.fillStyle = polygon.fill;
+          ctx.fill();
+        }
+        if (polygon.stroke) {
+          ctx.strokeStyle = polygon.stroke;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      });
+      model.circles.forEach((circle) => {
+        ctx.beginPath();
+        ctx.arc(circle.x, circle.y, circle.r, 0, Math.PI * 2);
+        if (circle.fill) {
+          ctx.fillStyle = circle.fill;
+          ctx.fill();
+        }
+        if (circle.stroke) {
+          ctx.strokeStyle = circle.stroke;
+          ctx.lineWidth = circle.strokeWidth ?? 1;
+          ctx.stroke();
+        }
+      });
+      model.texts.forEach((block, index) => {
+        // The inline textarea overlay replaces this block while editing.
+        if (editor && model.editorTextIndex === index) return;
+        if (block.placeholder && !selected && !editor) return;
+        ctx.font = block.font;
+        ctx.fillStyle = block.color;
+        ctx.textAlign = block.align === 'center' ? 'center' : 'left';
+        ctx.textBaseline = 'alphabetic';
+        block.lines.forEach((line, lineIndex) => {
+          ctx.fillText(line, block.x, block.y + lineIndex * block.lineHeight + block.lineHeight * 0.78);
+        });
+        ctx.textAlign = 'left';
+      });
+      if ((selected || editor) && model.selectionRect) {
+        const outline = {
+          x: model.selectionRect.x - 3,
+          y: model.selectionRect.y - 3,
+          w: model.selectionRect.w + 6,
+          h: model.selectionRect.h + 6,
+        };
+        traceTextDrawingRoundedRect(outline, 5);
+        ctx.strokeStyle = DRAWING_DEFAULT_COLOR;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      points.forEach((point) => drawDrawingHandle(point, selected));
+    };
     const forecastPillTextColor = theme === 'dark' ? '#150f23' : '#ffffff';
     const drawForecastPill = (
       lines: string[],
@@ -10094,6 +11460,13 @@ export default function Home() {
         return;
       }
 
+      if (isTextDrawingTool(drawing.kind)) {
+        if (points.length < 1) return;
+
+        drawTextDrawing(drawing, points, selected);
+        return;
+      }
+
       if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) return;
 
       if (isFibDrawingTool(drawing.kind)) {
@@ -10542,6 +11915,7 @@ export default function Home() {
     drawings,
     pendingDrawing,
     selectedDrawingId,
+    drawingTextEditor,
     activeIndicators,
     paneIndicatorSeries,
     showVolume,
@@ -11892,6 +13266,7 @@ export default function Home() {
             PATTERN_TOOL_ICONS[entry.icon] ??
             FORECAST_TOOL_ICONS[entry.icon] ??
             SHAPE_TOOL_ICONS[entry.icon] ??
+            TEXT_TOOL_ICONS[entry.icon] ??
             null}
         </span>
         <span>{entry.label}</span>
@@ -11978,6 +13353,8 @@ export default function Home() {
       activeDrawingTool !== null && isForecastDrawingTool(activeDrawingTool) ? activeDrawingTool : lastForecastTool;
     const visibleShapeTool =
       activeDrawingTool !== null && isShapeDrawingTool(activeDrawingTool) ? activeDrawingTool : lastShapeTool;
+    const visibleTextTool =
+      activeDrawingTool !== null && isTextDrawingTool(activeDrawingTool) ? activeDrawingTool : lastTextTool;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -12149,6 +13526,33 @@ export default function Home() {
             </div>
           )}
         </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${DRAWING_TOOL_LABELS[visibleTextTool]} drawing tool group`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'text-tools'}
+            title={DRAWING_TOOL_LABELS[visibleTextTool]}
+            data-active={
+              activeDrawingMenu === 'text-tools' ||
+              (activeDrawingTool !== null && isTextDrawingTool(activeDrawingTool))
+            }
+            onClick={() => toggleDrawingMenu('text-tools')}
+          >
+            <span className={`drawing-tool-icon ${visibleTextTool}`} aria-hidden="true">
+              {TEXT_TOOL_ICONS[visibleTextTool] ?? null}
+            </span>
+          </button>
+          {activeDrawingMenu === 'text-tools' && (
+            <div
+              className="drawing-tool-menu line-tools-menu text-tools-menu"
+              role="menu"
+              aria-label="Text and notes"
+            >
+              {TEXT_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -12156,6 +13560,12 @@ export default function Home() {
     const drawing = getSelectedDrawingForPane(paneIndex);
     const style = getSelectedDrawingToolbarStyle(paneIndex);
     if (!isAuthenticated || !drawing || !style) return null;
+    const isTextToolDrawing = isTextDrawingTool(drawing.kind);
+    // The plain Text tool has no shape fill — its toolbar color button edits the text color instead.
+    const toolbarColorTargetsText = drawing.kind === 'text';
+    const toolbarColorValue = toolbarColorTargetsText ? drawing.textColor : drawing.color;
+    const patchToolbarColor = (value: string) =>
+      patchSelectedDrawing(toolbarColorTargetsText ? { textColor: value } : { color: value });
     const drawingCoordinatePoints = drawing.anchors;
     const pointOne = drawing.anchors[0];
     const pointTwo = drawing.anchors[1];
@@ -12219,6 +13629,125 @@ export default function Home() {
       </div>
     );
     const renderDrawingSettingsTabPanel = () => {
+      if (activeDrawingSettingsTab === 'style' && isTextToolDrawing) {
+        const tableRows = clamp(drawing.tableRows ?? TEXT_TABLE_DEFAULT_ROWS, 1, TEXT_TABLE_MAX_ROWS);
+        const tableCols = clamp(drawing.tableCols ?? TEXT_TABLE_DEFAULT_COLS, 1, TEXT_TABLE_MAX_COLS);
+        const updateTableSize = (rows: number, cols: number) => {
+          const nextRows = clamp(Math.round(rows), 1, TEXT_TABLE_MAX_ROWS);
+          const nextCols = clamp(Math.round(cols), 1, TEXT_TABLE_MAX_COLS);
+          patchSelectedDrawing({
+            tableRows: nextRows,
+            tableCols: nextCols,
+            tableCells: resizeTableCells(drawing.tableCells, nextRows, nextCols),
+          });
+        };
+
+        return (
+          <div className="drawing-settings-tab-panel">
+            {drawing.kind === 'image' && (
+              <label className="drawing-settings-row">
+                <span>Opacity</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={Math.round(drawing.opacity * 100)}
+                  onChange={(event) =>
+                    patchSelectedDrawing({ opacity: clamp(Number(event.target.value) / 100, 0.1, 1) })
+                  }
+                />
+              </label>
+            )}
+            {drawing.kind === 'post' && (
+              <label className="drawing-settings-row">
+                <span>Post link</span>
+                <input
+                  type="text"
+                  value={drawing.contentUrl ?? ''}
+                  onChange={(event) => {
+                    const nextUrl = event.target.value.slice(0, 300);
+                    const handleMatch = nextUrl.match(/(?:x\.com|twitter\.com)\/(@?[A-Za-z0-9_]+)/i);
+                    patchSelectedDrawing({
+                      contentUrl: nextUrl,
+                      contentMeta: handleMatch ? `@${handleMatch[1]!.replace(/^@/, '')}` : 'Post',
+                    });
+                  }}
+                />
+              </label>
+            )}
+            {drawing.kind !== 'text' && !isContentDrawingTool(drawing.kind) && (
+              <div className="drawing-settings-row">
+                <span>
+                  {drawing.kind === 'signpost'
+                    ? 'Stem color'
+                    : drawing.kind === 'note'
+                      ? 'Accent color'
+                      : drawing.kind === 'flag-mark'
+                        ? 'Flag color'
+                        : 'Background color'}
+                </span>
+                <div className="drawing-settings-inline-controls">
+                  <label className="drawing-settings-color-picker" aria-label="Drawing color">
+                    <input
+                      type="color"
+                      value={colorToInputValue(drawing.color, DRAWING_DEFAULT_COLOR)}
+                      onChange={(event) => patchSelectedDrawing({ color: event.target.value })}
+                    />
+                    <span style={{ backgroundColor: drawing.color }} aria-hidden="true" />
+                  </label>
+                  {drawing.kind === 'callout' && (
+                    <input
+                      type="range"
+                      aria-label="Background opacity"
+                      min="10"
+                      max="100"
+                      value={Math.round(drawing.opacity * 100)}
+                      onChange={(event) =>
+                        patchSelectedDrawing({ opacity: clamp(Number(event.target.value) / 100, 0.1, 1) })
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+            {drawing.kind === 'table' && (
+              <>
+                <label className="drawing-settings-row">
+                  <span>Rows</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={TEXT_TABLE_MAX_ROWS}
+                    value={tableRows}
+                    onChange={(event) => updateTableSize(Number(event.target.value), tableCols)}
+                  />
+                </label>
+                <label className="drawing-settings-row">
+                  <span>Columns</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={TEXT_TABLE_MAX_COLS}
+                    value={tableCols}
+                    onChange={(event) => updateTableSize(tableRows, Number(event.target.value))}
+                  />
+                </label>
+              </>
+            )}
+            {hasInlineTextEditor(drawing.kind) && drawing.kind !== 'table' && (
+              <span className="drawing-settings-section-label">
+                Double-click the drawing on the chart to edit its text inline.
+              </span>
+            )}
+            {drawing.kind === 'table' && (
+              <span className="drawing-settings-section-label">
+                Double-click a cell on the chart to edit its content.
+              </span>
+            )}
+          </div>
+        );
+      }
+
       if (activeDrawingSettingsTab === 'style') {
         return (
           <div className="drawing-settings-tab-panel">
@@ -12705,16 +14234,16 @@ export default function Home() {
           )}
           {activeDrawingToolbarMenu === 'color' && (
             <>
-              <strong>Line color</strong>
-              <div className="drawing-toolbar-swatch-grid" aria-label="Preset line colors">
+              <strong>{toolbarColorTargetsText ? 'Text color' : isTextToolDrawing ? 'Color' : 'Line color'}</strong>
+              <div className="drawing-toolbar-swatch-grid" aria-label="Preset colors">
                 {DRAWING_COLOR_SWATCHES.map((color) => (
                   <button
                     key={color}
                     type="button"
                     className="drawing-toolbar-color-option"
                     aria-label={`Set drawing color ${color}`}
-                    data-active={drawing.color.toLowerCase() === color.toLowerCase()}
-                    onClick={() => patchSelectedDrawing({ color })}
+                    data-active={toolbarColorValue.toLowerCase() === color.toLowerCase()}
+                    onClick={() => patchToolbarColor(color)}
                   >
                     <span style={{ backgroundColor: color }} aria-hidden="true" />
                   </button>
@@ -12724,20 +14253,22 @@ export default function Home() {
                 <span>Custom</span>
                 <input
                   type="color"
-                  value={colorToInputValue(drawing.color, DRAWING_DEFAULT_COLOR)}
-                  onChange={(event) => patchSelectedDrawing({ color: event.target.value })}
+                  value={colorToInputValue(toolbarColorValue, DRAWING_DEFAULT_COLOR)}
+                  onChange={(event) => patchToolbarColor(event.target.value)}
                 />
               </label>
-              <label>
-                <span>Opacity</span>
-                <input
-                  type="range"
-                  min="10"
-                  max="100"
-                  value={Math.round(drawing.opacity * 100)}
-                  onChange={(event) => patchSelectedDrawing({ opacity: clamp(Number(event.target.value) / 100, 0.1, 1) })}
-                />
-              </label>
+              {!toolbarColorTargetsText && (
+                <label>
+                  <span>Opacity</span>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    value={Math.round(drawing.opacity * 100)}
+                    onChange={(event) => patchSelectedDrawing({ opacity: clamp(Number(event.target.value) / 100, 0.1, 1) })}
+                  />
+                </label>
+              )}
             </>
           )}
           {activeDrawingToolbarMenu === 'text' && (
@@ -13317,13 +14848,13 @@ export default function Home() {
         <span className="drawing-toolbar-divider" aria-hidden="true" />
         <button
           type="button"
-          aria-label="Drawing line color"
-          title="Line color"
+          aria-label={toolbarColorTargetsText ? 'Drawing text color' : 'Drawing line color'}
+          title={toolbarColorTargetsText ? 'Text color' : isTextToolDrawing ? 'Color' : 'Line color'}
           aria-expanded={activeDrawingToolbarMenu === 'color'}
           data-active={activeDrawingToolbarMenu === 'color'}
           onClick={() => toggleDrawingToolbarMenu('color')}
         >
-          <span className="drawing-color-swatch" style={{ backgroundColor: drawing.color }} aria-hidden="true" />
+          <span className="drawing-color-swatch" style={{ backgroundColor: toolbarColorValue }} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -13335,28 +14866,32 @@ export default function Home() {
         >
           <Type className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          className="drawing-toolbar-wide-button"
-          aria-label="Drawing line width"
-          title="Line width"
-          aria-expanded={activeDrawingToolbarMenu === 'width'}
-          data-active={activeDrawingToolbarMenu === 'width'}
-          onClick={() => toggleDrawingToolbarMenu('width')}
-        >
-          <span className="drawing-line-sample" data-style={drawing.lineStyle} style={lineSampleStyle} aria-hidden="true" />
-          <span className="drawing-toolbar-value">{drawing.lineWidth}px</span>
-        </button>
-        <button
-          type="button"
-          aria-label="Drawing line style"
-          title="Line style"
-          aria-expanded={activeDrawingToolbarMenu === 'style'}
-          data-active={activeDrawingToolbarMenu === 'style'}
-          onClick={() => toggleDrawingToolbarMenu('style')}
-        >
-          <span className="drawing-line-sample" data-style={drawing.lineStyle} style={lineSampleStyle} aria-hidden="true" />
-        </button>
+        {!isTextToolDrawing && (
+          <button
+            type="button"
+            className="drawing-toolbar-wide-button"
+            aria-label="Drawing line width"
+            title="Line width"
+            aria-expanded={activeDrawingToolbarMenu === 'width'}
+            data-active={activeDrawingToolbarMenu === 'width'}
+            onClick={() => toggleDrawingToolbarMenu('width')}
+          >
+            <span className="drawing-line-sample" data-style={drawing.lineStyle} style={lineSampleStyle} aria-hidden="true" />
+            <span className="drawing-toolbar-value">{drawing.lineWidth}px</span>
+          </button>
+        )}
+        {!isTextToolDrawing && (
+          <button
+            type="button"
+            aria-label="Drawing line style"
+            title="Line style"
+            aria-expanded={activeDrawingToolbarMenu === 'style'}
+            data-active={activeDrawingToolbarMenu === 'style'}
+            onClick={() => toggleDrawingToolbarMenu('style')}
+          >
+            <span className="drawing-line-sample" data-style={drawing.lineStyle} style={lineSampleStyle} aria-hidden="true" />
+          </button>
+        )}
         <button
           type="button"
           aria-label="Drawing settings"
@@ -13367,16 +14902,18 @@ export default function Home() {
         >
           <Settings className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          aria-label="Add alert to drawing"
-          title="Add alert"
-          aria-expanded={activeDrawingToolbarMenu === 'alert'}
-          data-active={activeDrawingToolbarMenu === 'alert' || drawing.alertEnabled}
-          onClick={() => toggleDrawingToolbarMenu('alert')}
-        >
-          <Bell className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
-        </button>
+        {!isTextToolDrawing && (
+          <button
+            type="button"
+            aria-label="Add alert to drawing"
+            title="Add alert"
+            aria-expanded={activeDrawingToolbarMenu === 'alert'}
+            data-active={activeDrawingToolbarMenu === 'alert' || drawing.alertEnabled}
+            onClick={() => toggleDrawingToolbarMenu('alert')}
+          >
+            <Bell className="drawing-toolbar-icon" size={16} strokeWidth={2} aria-hidden="true" />
+          </button>
+        )}
         <button
           type="button"
           aria-label={drawing.locked ? 'Unlock drawing' : 'Lock drawing'}
@@ -13413,6 +14950,131 @@ export default function Home() {
       </div>
     );
   };
+  const renderDrawingTextEditor = (paneIndex: number) => {
+    if (!isAuthenticated || !drawingTextEditor || drawingTextEditor.paneIndex !== paneIndex) return null;
+
+    const drawing = drawings.find((current) => current.id === drawingTextEditor.drawingId);
+    if (!drawing) return null;
+
+    const points = drawing.anchors
+      .map((anchor) => getDrawingPointForAnchor(paneIndex, anchor))
+      .filter((point): point is { x: number; y: number } => point !== null);
+    if (points.length === 0) return null;
+
+    const editingCell =
+      drawingTextEditor.cellRow !== undefined && drawingTextEditor.cellCol !== undefined
+        ? { row: drawingTextEditor.cellRow, col: drawingTextEditor.cellCol }
+        : null;
+    const model = getTextDrawingRenderModel(drawing, points, {
+      mutedTextColor: theme === 'dark' ? '#787b86' : '#9598a1',
+      popupVisible: true,
+      editingCell,
+    });
+    if (!model.editorRect) return null;
+
+    const value = editingCell
+      ? drawing.tableCells?.[editingCell.row]?.[editingCell.col] ?? ''
+      : drawing.text;
+    const lineHeight = Math.round(drawing.textSize * TEXT_DRAWING_LINE_HEIGHT_RATIO);
+    const editorColor = drawing.kind === 'table' ? TEXT_DRAWING_CARD_TEXT : drawing.textColor;
+    const align = drawing.kind === 'callout' || drawing.kind === 'signpost' ? 'center' : 'left';
+    const width = editingCell ? model.editorRect.w : Math.max(model.editorRect.w + 30, 140);
+    const height = editingCell ? model.editorRect.h : model.editorRect.h + lineHeight;
+    const left = align === 'center' && !editingCell ? model.editorRect.x - (width - model.editorRect.w) / 2 : model.editorRect.x;
+
+    return (
+      <textarea
+        ref={drawingTextEditorInputRef}
+        className="drawing-text-editor"
+        aria-label={`${DRAWING_TOOL_LABELS[drawing.kind]} text`}
+        autoFocus
+        spellCheck={false}
+        placeholder={TEXT_DRAWING_PLACEHOLDER}
+        value={value}
+        style={{
+          left,
+          top: model.editorRect.y - 1,
+          width,
+          height,
+          color: editorColor,
+          caretColor: editorColor,
+          fontStyle: drawing.textItalic ? 'italic' : 'normal',
+          fontWeight: drawing.textBold ? 700 : 400,
+          fontSize: drawing.textSize,
+          lineHeight: `${lineHeight}px`,
+          textAlign: align,
+        }}
+        onChange={(event) => updateDrawingTextEditorValue(event.target.value)}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            closeDrawingTextEditor();
+          }
+        }}
+        onBlur={() => closeDrawingTextEditor()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      />
+    );
+  };
+  const renderContentToolDialog = () => {
+    if (!isAuthenticated || !contentToolDialog) return null;
+
+    const kind = contentToolDialog.kind;
+    return (
+      <div className="content-tool-overlay" role="presentation" onMouseDown={closeContentToolDialog}>
+        <div
+          className="content-tool-dialog"
+          role="dialog"
+          aria-label={`Add ${DRAWING_TOOL_LABELS[kind].toLowerCase()}`}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <strong>{kind === 'image' ? 'Add image' : kind === 'post' ? 'Add post' : 'Add idea'}</strong>
+          {kind === 'image' ? (
+            <label className="content-tool-file">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) => handleContentImageFile(event.target.files?.[0] ?? null)}
+              />
+              <span>Choose an image — PNG, JPG or GIF up to ~2 MB. It will be pinned to the spot you clicked.</span>
+            </label>
+          ) : (
+            <label className="content-tool-field">
+              <span>{kind === 'post' ? 'Link to an X post' : 'Idea title'}</span>
+              <input
+                type="text"
+                autoFocus
+                value={contentToolDialogValue}
+                placeholder={kind === 'post' ? 'https://x.com/user/status/…' : 'My trade idea'}
+                onChange={(event) => {
+                  setContentToolDialogValue(event.target.value);
+                  setContentToolDialogError('');
+                }}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === 'Enter') submitContentToolDialog();
+                  if (event.key === 'Escape') closeContentToolDialog();
+                }}
+              />
+            </label>
+          )}
+          {contentToolDialogError && <span className="content-tool-error">{contentToolDialogError}</span>}
+          <div className="content-tool-actions">
+            <button type="button" onClick={closeContentToolDialog}>
+              Cancel
+            </button>
+            {kind !== 'image' && (
+              <button type="button" className="content-tool-add" onClick={submitContentToolDialog}>
+                Add
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
   const renderPaneOverlays = (paneIndex: number, attachLegendRef: boolean) => {
     const pane = chartPanes[paneIndex];
     if (!pane) return null;
@@ -13422,6 +15084,7 @@ export default function Home() {
         {renderInstrumentLegend(paneIndex)}
         {renderIndicatorLegend(paneIndex, attachLegendRef)}
         {renderSelectedDrawingToolbar(paneIndex)}
+        {renderDrawingTextEditor(paneIndex)}
 
         {pane.loading && (
           <div className="chart-overlay">
@@ -14594,6 +16257,7 @@ export default function Home() {
             );
           })}
         </div>
+        {renderContentToolDialog()}
       </section>
     </main>
   );
