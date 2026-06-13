@@ -19,7 +19,7 @@ preserving runtime app assets that are referenced by the chart UI and tests.
 
 - [x] Delete generated design-audit image and screenshot files.
 - [x] Verify no generated design-audit image or screenshot files remain.
-- [ ] Review git status and keep unrelated work untouched.
+- [x] Review git status and keep unrelated work untouched.
 
 ## Review
 
