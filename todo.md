@@ -1,3 +1,40 @@
+# Fix Localhost 3000 Internal Server Error
+
+## Goal
+
+Restore `http://localhost:3000/` so the local chart app loads after the latest
+build and push work.
+
+## Investigation / Decisions
+
+- Port `3000` was owned by an older `next dev --turbopack --hostname 0.0.0.0
+  --port 3000` process running from `TEST/binance-chart-test`.
+- `curl http://localhost:3000/` returned `500 Internal Server Error`.
+- The dev server logs showed missing `.next` development/server manifest files.
+  This happened because the old dev server kept running while `.next` was
+  rebuilt by production build/start checks.
+- No app architecture or source-code change is needed. The fix is operational:
+  stop the stale dev process and start a clean local dev server on port `3000`.
+
+## Checklist
+
+- [x] Stop the stale `next dev` process on port `3000`.
+- [x] Start a clean local server on `http://localhost:3000/`.
+- [x] Verify the page loads by CLI and browser.
+- [x] Add review notes and confirm whether any source changes need commit/push.
+
+## Review
+
+- Stopped the stale `next dev --turbopack --hostname 0.0.0.0 --port 3000`
+  process that was returning `500 Internal Server Error`.
+- Restarted a clean dev server on `http://localhost:3000/` and left it
+  running for local testing.
+- Verified `curl -I http://localhost:3000/` returns `200 OK`.
+- Verified the page opens in the browser as `ProCharting Market Desk`, the
+  Indicators control is present, and browser warning/error logs are clean.
+- No source-code or architecture change was required. This was a stale local
+  dev-server/build-artifact mismatch.
+
 # Enable Indicators Popup Scroll
 
 ## Goal
