@@ -1,0 +1,134 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic "Chart command bar" [ref=e3]:
+      - generic "Chart controls" [ref=e4]:
+        - button "Symbol search" [ref=e6] [cursor=pointer]:
+          - generic [ref=e7]: B
+          - generic [ref=e8]:
+            - generic [ref=e9]: BTCUSDT
+            - generic [ref=e10]: Binance
+          - img [ref=e12]
+        - status "Feed live" [ref=e156]
+        - button "Timeframe" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: 1D
+        - button "Chart type" [ref=e21] [cursor=pointer]
+        - generic [ref=e24]:
+          - button "Indicators, 2 active" [expanded] [ref=e25] [cursor=pointer]:
+            - img [ref=e26]
+            - generic [ref=e30]: Indicators
+            - generic [ref=e31]: "2"
+          - dialog "Indicators, metrics, and strategies" [ref=e242]:
+            - generic [ref=e243]:
+              - strong [ref=e244]: Indicators, metrics, and strategies
+              - button "Close indicators" [ref=e245] [cursor=pointer]
+            - searchbox [active] [ref=e249]
+            - generic [ref=e250]:
+              - generic "Indicator categories" [ref=e251]:
+                - generic [ref=e252]: Personal
+                - button "Favorites" [ref=e253] [cursor=pointer]:
+                  - img [ref=e254]
+                  - text: Favorites
+                - button "My scripts" [disabled] [ref=e256]
+                - generic [ref=e257]: Built-in
+                - button "Technicals" [ref=e258] [cursor=pointer]
+                - button "Fundamentals" [ref=e259] [cursor=pointer]
+              - menu "Favorites indicators" [ref=e260]:
+                - generic [ref=e261]:
+                  - generic [ref=e262]: Indicators
+                  - generic [ref=e263]: Strategies
+                  - generic [ref=e264]: Profiles
+                  - generic [ref=e265]: Patterns
+                - generic [ref=e266]: Script name
+                - generic [ref=e267]:
+                  - img [ref=e268]
+                  - strong [ref=e270]: You have no favorites yet
+                  - generic [ref=e271]: Click the star next to any indicator to add it to your favorites.
+        - button "Indicator templates" [ref=e34] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Create alert" [ref=e40] [cursor=pointer]:
+          - img [ref=e41]
+          - generic [ref=e46]: Alert
+        - button "Bar replay" [ref=e47] [cursor=pointer]:
+          - img [ref=e48]
+          - generic [ref=e51]: Replay
+        - button "Undo" [disabled] [ref=e52]:
+          - img [ref=e53]
+        - button "Redo" [disabled] [ref=e56]:
+          - img [ref=e57]
+        - generic "TradingView desktop header controls" [ref=e60]:
+          - button "Layout setup" [ref=e62] [cursor=pointer]:
+            - img [ref=e63]
+          - button "Save all charts for all symbols and intervals on your layout" [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: Save
+          - button "Manage layouts" [ref=e68] [cursor=pointer]:
+            - img [ref=e69]
+          - button "Quick search" [ref=e71] [cursor=pointer]:
+            - img [ref=e72]
+          - button "Settings" [ref=e75] [cursor=pointer]:
+            - img [ref=e76]
+          - button "Fullscreen mode" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+          - button "Take a snapshot" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+          - button "Trade" [ref=e93] [cursor=pointer]:
+            - generic [ref=e94]: Trade
+          - button "Share your idea with the trade community" [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]: Publish
+          - button "Signed in as cursor-tester@example.com. Sign out" [ref=e98] [cursor=pointer]:
+            - generic [ref=e99]: cursor-tester@example.com
+    - generic [ref=e100]:
+      - toolbar "Drawing tools" [ref=e101]:
+        - button "Cursor tool, Cross" [ref=e104] [cursor=pointer]:
+          - img [ref=e106]
+        - button "Trendline drawing tool group" [ref=e111] [cursor=pointer]
+        - button "Fib retracement drawing tool group" [ref=e114] [cursor=pointer]:
+          - img [ref=e116]
+        - button "XABCD pattern drawing tool group" [ref=e120] [cursor=pointer]:
+          - img [ref=e122]
+        - button "Long position drawing tool group" [ref=e131] [cursor=pointer]:
+          - img [ref=e133]
+        - button "Brush drawing tool group" [ref=e137] [cursor=pointer]:
+          - img [ref=e139]
+        - button "Text drawing tool group" [ref=e143] [cursor=pointer]:
+          - img [ref=e145]
+      - generic [ref=e148]:
+        - generic "BTC/USDT 1d chart pane 1" [ref=e149]
+        - generic "BTC/USDT 1D OHLC legend pane 1":
+          - generic: BTC/USDT 1D
+          - generic:
+            - generic: O
+            - text: 63,626.00
+          - generic:
+            - generic: H
+            - text: 64,394.44
+          - generic:
+            - generic: L
+            - text: 62,829.81
+          - generic:
+            - generic: C
+            - text: 64,282.01
+          - generic: +656.01 (+1.03%)
+        - generic "Active indicators pane 1":
+          - generic "Price indicators pane 1" [ref=e202]:
+            - generic [ref=e204]:
+              - generic [ref=e205]: SMA 20 close
+              - generic [ref=e206]: 68.26K
+              - generic:
+                - button "Hide Moving Average Simple"
+                - button "Settings for Moving Average Simple":
+                  - generic:
+                    - img
+                - button "Remove Moving Average Simple"
+                - button "More actions for Moving Average Simple"
+          - generic "Volume indicators pane 1" [ref=e207]:
+            - generic [ref=e209]:
+              - generic [ref=e210]: Vol · BTC
+              - generic [ref=e211]: 11.69K
+              - generic:
+                - button "Hide Volume"
+                - button "Settings for Volume":
+                  - generic:
+                    - img
+                - button "Remove Volume"
+                - button "More actions for Volume"
+  - alert [ref=e155]

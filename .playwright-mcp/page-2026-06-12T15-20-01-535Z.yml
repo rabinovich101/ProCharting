@@ -1,0 +1,343 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic "Chart command bar" [ref=e3]:
+      - generic "Chart controls" [ref=e4]:
+        - button "Symbol search" [ref=e6] [cursor=pointer]:
+          - generic [ref=e7]: B
+          - generic [ref=e8]:
+            - generic [ref=e9]: BTCUSDT
+            - generic [ref=e10]: Binance
+          - img [ref=e12]
+        - status "Feed live" [ref=e47]
+        - button "Timeframe" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: 1D
+        - button "Chart type" [ref=e21] [cursor=pointer]
+        - generic [ref=e24]:
+          - button "Indicators, 2 active" [expanded] [ref=e25] [cursor=pointer]:
+            - img [ref=e26]
+            - generic [ref=e30]: Indicators
+            - generic [ref=e31]: "2"
+          - dialog "Indicators, metrics, and strategies" [ref=e171]:
+            - generic [ref=e172]:
+              - strong [ref=e173]: Indicators, metrics, and strategies
+              - button "Close indicators" [ref=e174] [cursor=pointer]
+            - searchbox [ref=e178]
+            - generic [ref=e179]:
+              - generic "Indicator categories" [ref=e180]:
+                - generic [ref=e181]: Personal
+                - button "Favorites" [ref=e182] [cursor=pointer]:
+                  - img [ref=e183]
+                  - text: Favorites
+                - button "My scripts" [disabled] [ref=e185]
+                - generic [ref=e186]: Built-in
+                - button "Technicals" [ref=e187] [cursor=pointer]
+                - button "Fundamentals" [active] [ref=e188] [cursor=pointer]
+              - menu "Fundamentals indicators" [ref=e1062]:
+                - generic [ref=e190]:
+                  - generic [ref=e191]: Indicators
+                  - generic [ref=e192]: Strategies
+                  - generic [ref=e193]: Profiles
+                  - generic [ref=e194]: Patterns
+                - generic [ref=e195]: Script name
+                - generic [ref=e1063]: Income statement
+                - generic [ref=e1064]:
+                  - button "Add Total revenue to favorites" [ref=e1065] [cursor=pointer]:
+                    - img [ref=e1066]
+                  - menuitemcheckbox "Total revenue Income statement Revenue" [ref=e1068] [cursor=pointer]:
+                    - generic [ref=e1070]:
+                      - strong [ref=e1071]: Total revenue
+                      - generic [ref=e1072]: Income statement
+                    - generic [ref=e1073]: Revenue
+                - generic [ref=e1074]:
+                  - button "Add Gross profit to favorites" [ref=e1075] [cursor=pointer]:
+                    - img [ref=e1076]
+                  - menuitemcheckbox "Gross profit Income statement Gross profit" [ref=e1078] [cursor=pointer]:
+                    - generic [ref=e1080]:
+                      - strong [ref=e1081]: Gross profit
+                      - generic [ref=e1082]: Income statement
+                    - generic [ref=e1083]: Gross profit
+                - generic [ref=e1084]:
+                  - button "Add Operating income to favorites" [ref=e1085] [cursor=pointer]:
+                    - img [ref=e1086]
+                  - menuitemcheckbox "Operating income Income statement Op income" [ref=e1088] [cursor=pointer]:
+                    - generic [ref=e1090]:
+                      - strong [ref=e1091]: Operating income
+                      - generic [ref=e1092]: Income statement
+                    - generic [ref=e1093]: Op income
+                - generic [ref=e1094]:
+                  - button "Add Net income to favorites" [ref=e1095] [cursor=pointer]:
+                    - img [ref=e1096]
+                  - menuitemcheckbox "Net income Income statement Net income" [ref=e1098] [cursor=pointer]:
+                    - generic [ref=e1100]:
+                      - strong [ref=e1101]: Net income
+                      - generic [ref=e1102]: Income statement
+                    - generic [ref=e1103]: Net income
+                - generic [ref=e1104]:
+                  - button "Add EBITDA to favorites" [ref=e1105] [cursor=pointer]:
+                    - img [ref=e1106]
+                  - menuitemcheckbox "EBITDA Income statement EBITDA" [ref=e1108] [cursor=pointer]:
+                    - generic [ref=e1110]:
+                      - strong [ref=e1111]: EBITDA
+                      - generic [ref=e1112]: Income statement
+                    - generic [ref=e1113]: EBITDA
+                - generic [ref=e1114]:
+                  - button "Add EPS diluted to favorites" [ref=e1115] [cursor=pointer]:
+                    - img [ref=e1116]
+                  - menuitemcheckbox "EPS diluted Income statement EPS" [ref=e1118] [cursor=pointer]:
+                    - generic [ref=e1120]:
+                      - strong [ref=e1121]: EPS diluted
+                      - generic [ref=e1122]: Income statement
+                    - generic [ref=e1123]: EPS
+                - generic [ref=e1124]:
+                  - button "Add Net margin to favorites" [ref=e1125] [cursor=pointer]:
+                    - img [ref=e1126]
+                  - menuitemcheckbox "Net margin Income statement Net margin" [ref=e1128] [cursor=pointer]:
+                    - generic [ref=e1130]:
+                      - strong [ref=e1131]: Net margin
+                      - generic [ref=e1132]: Income statement
+                    - generic [ref=e1133]: Net margin
+                - generic [ref=e1134]: Balance sheet
+                - generic [ref=e1135]:
+                  - button "Add Total assets to favorites" [ref=e1136] [cursor=pointer]:
+                    - img [ref=e1137]
+                  - menuitemcheckbox "Total assets Balance sheet Assets" [ref=e1139] [cursor=pointer]:
+                    - generic [ref=e1141]:
+                      - strong [ref=e1142]: Total assets
+                      - generic [ref=e1143]: Balance sheet
+                    - generic [ref=e1144]: Assets
+                - generic [ref=e1145]:
+                  - button "Add Total liabilities to favorites" [ref=e1146] [cursor=pointer]:
+                    - img [ref=e1147]
+                  - menuitemcheckbox "Total liabilities Balance sheet Liabilities" [ref=e1149] [cursor=pointer]:
+                    - generic [ref=e1151]:
+                      - strong [ref=e1152]: Total liabilities
+                      - generic [ref=e1153]: Balance sheet
+                    - generic [ref=e1154]: Liabilities
+                - generic [ref=e1155]:
+                  - button "Add Total equity to favorites" [ref=e1156] [cursor=pointer]:
+                    - img [ref=e1157]
+                  - menuitemcheckbox "Total equity Balance sheet Equity" [ref=e1159] [cursor=pointer]:
+                    - generic [ref=e1161]:
+                      - strong [ref=e1162]: Total equity
+                      - generic [ref=e1163]: Balance sheet
+                    - generic [ref=e1164]: Equity
+                - generic [ref=e1165]:
+                  - button "Add Total debt to favorites" [ref=e1166] [cursor=pointer]:
+                    - img [ref=e1167]
+                  - menuitemcheckbox "Total debt Balance sheet Debt" [ref=e1169] [cursor=pointer]:
+                    - generic [ref=e1171]:
+                      - strong [ref=e1172]: Total debt
+                      - generic [ref=e1173]: Balance sheet
+                    - generic [ref=e1174]: Debt
+                - generic [ref=e1175]:
+                  - button "Add Cash & equivalents to favorites" [ref=e1176] [cursor=pointer]:
+                    - img [ref=e1177]
+                  - menuitemcheckbox "Cash & equivalents Balance sheet Cash" [ref=e1179] [cursor=pointer]:
+                    - generic [ref=e1181]:
+                      - strong [ref=e1182]: Cash & equivalents
+                      - generic [ref=e1183]: Balance sheet
+                    - generic [ref=e1184]: Cash
+                - generic [ref=e1185]:
+                  - button "Add Current ratio to favorites" [ref=e1186] [cursor=pointer]:
+                    - img [ref=e1187]
+                  - menuitemcheckbox "Current ratio Balance sheet Current ratio" [ref=e1189] [cursor=pointer]:
+                    - generic [ref=e1191]:
+                      - strong [ref=e1192]: Current ratio
+                      - generic [ref=e1193]: Balance sheet
+                    - generic [ref=e1194]: Current ratio
+                - generic [ref=e1195]:
+                  - button "Add Debt to equity ratio to favorites" [ref=e1196] [cursor=pointer]:
+                    - img [ref=e1197]
+                  - menuitemcheckbox "Debt to equity ratio Balance sheet D/E" [ref=e1199] [cursor=pointer]:
+                    - generic [ref=e1201]:
+                      - strong [ref=e1202]: Debt to equity ratio
+                      - generic [ref=e1203]: Balance sheet
+                    - generic [ref=e1204]: D/E
+                - generic [ref=e1205]: Cash flow
+                - generic [ref=e1206]:
+                  - button "Add Free cash flow to favorites" [ref=e1207] [cursor=pointer]:
+                    - img [ref=e1208]
+                  - menuitemcheckbox "Free cash flow Cash flow FCF" [ref=e1210] [cursor=pointer]:
+                    - generic [ref=e1212]:
+                      - strong [ref=e1213]: Free cash flow
+                      - generic [ref=e1214]: Cash flow
+                    - generic [ref=e1215]: FCF
+                - generic [ref=e1216]:
+                  - button "Add Cash from operating activities to favorites" [ref=e1217] [cursor=pointer]:
+                    - img [ref=e1218]
+                  - menuitemcheckbox "Cash from operating activities Cash flow CFO" [ref=e1220] [cursor=pointer]:
+                    - generic [ref=e1222]:
+                      - strong [ref=e1223]: Cash from operating activities
+                      - generic [ref=e1224]: Cash flow
+                    - generic [ref=e1225]: CFO
+                - generic [ref=e1226]:
+                  - button "Add Capital expenditures to favorites" [ref=e1227] [cursor=pointer]:
+                    - img [ref=e1228]
+                  - menuitemcheckbox "Capital expenditures Cash flow CapEx" [ref=e1230] [cursor=pointer]:
+                    - generic [ref=e1232]:
+                      - strong [ref=e1233]: Capital expenditures
+                      - generic [ref=e1234]: Cash flow
+                    - generic [ref=e1235]: CapEx
+                - generic [ref=e1236]: Statistics
+                - generic [ref=e1237]:
+                  - button "Add Market capitalization to favorites" [ref=e1238] [cursor=pointer]:
+                    - img [ref=e1239]
+                  - menuitemcheckbox "Market capitalization Statistics Mkt cap" [ref=e1241] [cursor=pointer]:
+                    - generic [ref=e1243]:
+                      - strong [ref=e1244]: Market capitalization
+                      - generic [ref=e1245]: Statistics
+                    - generic [ref=e1246]: Mkt cap
+                - generic [ref=e1247]:
+                  - button "Add Enterprise value to favorites" [ref=e1248] [cursor=pointer]:
+                    - img [ref=e1249]
+                  - menuitemcheckbox "Enterprise value Statistics EV" [ref=e1251] [cursor=pointer]:
+                    - generic [ref=e1253]:
+                      - strong [ref=e1254]: Enterprise value
+                      - generic [ref=e1255]: Statistics
+                    - generic [ref=e1256]: EV
+                - generic [ref=e1257]:
+                  - button "Add Price to earnings ratio to favorites" [ref=e1258] [cursor=pointer]:
+                    - img [ref=e1259]
+                  - menuitemcheckbox "Price to earnings ratio Statistics P/E" [ref=e1261] [cursor=pointer]:
+                    - generic [ref=e1263]:
+                      - strong [ref=e1264]: Price to earnings ratio
+                      - generic [ref=e1265]: Statistics
+                    - generic [ref=e1266]: P/E
+                - generic [ref=e1267]:
+                  - button "Add Price to sales ratio to favorites" [ref=e1268] [cursor=pointer]:
+                    - img [ref=e1269]
+                  - menuitemcheckbox "Price to sales ratio Statistics P/S" [ref=e1271] [cursor=pointer]:
+                    - generic [ref=e1273]:
+                      - strong [ref=e1274]: Price to sales ratio
+                      - generic [ref=e1275]: Statistics
+                    - generic [ref=e1276]: P/S
+                - generic [ref=e1277]:
+                  - button "Add Price to book ratio to favorites" [ref=e1278] [cursor=pointer]:
+                    - img [ref=e1279]
+                  - menuitemcheckbox "Price to book ratio Statistics P/B" [ref=e1281] [cursor=pointer]:
+                    - generic [ref=e1283]:
+                      - strong [ref=e1284]: Price to book ratio
+                      - generic [ref=e1285]: Statistics
+                    - generic [ref=e1286]: P/B
+                - generic [ref=e1287]:
+                  - button "Add Return on equity to favorites" [ref=e1288] [cursor=pointer]:
+                    - img [ref=e1289]
+                  - menuitemcheckbox "Return on equity Statistics ROE" [ref=e1291] [cursor=pointer]:
+                    - generic [ref=e1293]:
+                      - strong [ref=e1294]: Return on equity
+                      - generic [ref=e1295]: Statistics
+                    - generic [ref=e1296]: ROE
+                - generic [ref=e1297]:
+                  - button "Add Return on assets to favorites" [ref=e1298] [cursor=pointer]:
+                    - img [ref=e1299]
+                  - menuitemcheckbox "Return on assets Statistics ROA" [ref=e1301] [cursor=pointer]:
+                    - generic [ref=e1303]:
+                      - strong [ref=e1304]: Return on assets
+                      - generic [ref=e1305]: Statistics
+                    - generic [ref=e1306]: ROA
+                - generic [ref=e1307]: Dividends
+                - generic [ref=e1308]:
+                  - button "Add Dividends per share to favorites" [ref=e1309] [cursor=pointer]:
+                    - img [ref=e1310]
+                  - menuitemcheckbox "Dividends per share Dividends DPS" [ref=e1312] [cursor=pointer]:
+                    - generic [ref=e1314]:
+                      - strong [ref=e1315]: Dividends per share
+                      - generic [ref=e1316]: Dividends
+                    - generic [ref=e1317]: DPS
+                - generic [ref=e1318]:
+                  - button "Add Dividend yield to favorites" [ref=e1319] [cursor=pointer]:
+                    - img [ref=e1320]
+                  - menuitemcheckbox "Dividend yield Dividends Div yield" [ref=e1322] [cursor=pointer]:
+                    - generic [ref=e1324]:
+                      - strong [ref=e1325]: Dividend yield
+                      - generic [ref=e1326]: Dividends
+                    - generic [ref=e1327]: Div yield
+        - button "Indicator templates" [ref=e49] [cursor=pointer]:
+          - img [ref=e50]
+        - button "Create alert" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - generic [ref=e61]: Alert
+        - button "Bar replay" [ref=e62] [cursor=pointer]:
+          - img [ref=e63]
+          - generic [ref=e66]: Replay
+        - button "Undo" [disabled] [ref=e67]:
+          - img [ref=e68]
+        - button "Redo" [disabled] [ref=e71]:
+          - img [ref=e72]
+        - generic "TradingView desktop header controls" [ref=e75]:
+          - button "Layout setup" [ref=e77] [cursor=pointer]:
+            - img [ref=e78]
+          - button "Save all charts for all symbols and intervals on your layout" [ref=e80] [cursor=pointer]:
+            - generic [ref=e37]: Save
+          - button "Manage layouts" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+          - button "Quick search" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+          - button "Settings" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+          - button "Fullscreen mode" [ref=e96] [cursor=pointer]:
+            - img [ref=e97]
+          - button "Take a snapshot" [ref=e103] [cursor=pointer]:
+            - img [ref=e104]
+          - button "Trade" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: Trade
+          - button "Share your idea with the trade community" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]: Publish
+          - button "Signed in as cursor-tester@example.com. Sign out" [ref=e112] [cursor=pointer]:
+            - generic [ref=e113]: cursor-tester@example.com
+    - generic [ref=e38]:
+      - toolbar "Drawing tools" [ref=e114]:
+        - button "Cursor tool, Cross" [ref=e117] [cursor=pointer]:
+          - img [ref=e119]
+        - button "Trendline drawing tool group" [ref=e124] [cursor=pointer]
+        - button "Fib retracement drawing tool group" [ref=e127] [cursor=pointer]:
+          - img [ref=e129]
+        - button "XABCD pattern drawing tool group" [ref=e133] [cursor=pointer]:
+          - img [ref=e135]
+        - button "Long position drawing tool group" [ref=e144] [cursor=pointer]:
+          - img [ref=e146]
+        - button "Brush drawing tool group" [ref=e150] [cursor=pointer]:
+          - img [ref=e152]
+        - button "Text drawing tool group" [ref=e156] [cursor=pointer]:
+          - img [ref=e158]
+      - generic [ref=e40]:
+        - generic "BTC/USDT 1d chart pane 1" [ref=e41]
+        - generic "BTC/USDT 1D OHLC legend pane 1":
+          - generic: BTC/USDT 1D
+          - generic:
+            - generic: O
+            - text: 63,626.00
+          - generic:
+            - generic: H
+            - text: 64,394.44
+          - generic:
+            - generic: L
+            - text: 62,829.81
+          - generic:
+            - generic: C
+            - text: 64,266.03
+          - generic: +640.03 (+1.01%)
+        - generic "Active indicators pane 1":
+          - generic "Price indicators pane 1" [ref=e160]:
+            - generic [ref=e162]:
+              - generic [ref=e163]: SMA 20 close
+              - generic [ref=e164]: 68.25K
+              - generic:
+                - button "Hide Moving Average Simple"
+                - button "Settings for Moving Average Simple":
+                  - generic:
+                    - img
+                - button "Remove Moving Average Simple"
+                - button "More actions for Moving Average Simple"
+          - generic "Volume indicators pane 1" [ref=e165]:
+            - generic [ref=e167]:
+              - generic [ref=e168]: Vol · BTC
+              - generic [ref=e169]: 11.58K
+              - generic:
+                - button "Hide Volume"
+                - button "Settings for Volume":
+                  - generic:
+                    - img
+                - button "Remove Volume"
+                - button "More actions for Volume"
+  - alert [ref=e170]

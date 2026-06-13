@@ -1,0 +1,25 @@
+- main [ref=e2]:
+  - generic "Chart command bar" [ref=e3]:
+    - generic "Chart controls" [ref=e4]:
+      - button "Symbol search" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: B
+        - generic [ref=e8]:
+          - generic [ref=e9]: BTCUSDT
+          - generic [ref=e10]: Binance
+        - img [ref=e12]
+      - status "Feed connecting" [ref=e14]
+      - button "Timeframe" [ref=e17] [cursor=pointer]:
+        - generic [ref=e18]: 1D
+      - button "Chart type" [ref=e21] [cursor=pointer]
+      - button "Indicators, 2 active" [ref=e25] [cursor=pointer]:
+        - img [ref=e26]
+        - generic [ref=e30]: Indicators
+        - generic [ref=e31]: "2"
+      - generic "Account actions" [ref=e33]:
+        - button "Log in" [ref=e34] [cursor=pointer]:
+          - generic [ref=e35]: Log in
+        - button "Sign up" [ref=e36] [cursor=pointer]:
+          - generic [ref=e37]: Sign up
+  - generic [ref=e40]:
+    - generic "BTC/USDT 1d chart pane 1" [ref=e41]
+    - generic [ref=e46]: Loading market data

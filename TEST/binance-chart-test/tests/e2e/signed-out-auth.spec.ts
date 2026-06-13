@@ -125,44 +125,34 @@ const INDICATOR_SETTINGS_AUDIT: readonly IndicatorSettingsAuditItem[] = [
     defaultActive: true,
   },
   {
-    settingsName: 'Moving Average',
+    settingsName: 'Moving Average Simple',
     expectedLabels: ['Color', 'Length', 'Source'],
     defaultActive: true,
   },
   {
-    menuName: 'Moving Average 200 Long simple moving average SMA',
-    settingsName: 'Moving Average 200',
+    menuName: 'Moving Average Exponential Exponential moving average EMA',
+    settingsName: 'Moving Average Exponential',
     expectedLabels: ['Color', 'Length', 'Source'],
   },
   {
-    menuName: 'Exponential Moving Average Fast exponential moving average EMA',
-    settingsName: 'Exponential Moving Average',
-    expectedLabels: ['Color', 'Length', 'Source'],
-  },
-  {
-    menuName: 'EMA 20 Exponential moving average EMA',
-    settingsName: 'EMA 20',
+    menuName: 'Moving Average Weighted Weighted moving average WMA',
+    settingsName: 'Moving Average Weighted',
     expectedLabels: ['Color', 'Length', 'Source'],
   },
   {
     menuName: 'Bollinger Bands SMA envelope with standard deviation bands BB',
     settingsName: 'Bollinger Bands',
-    expectedLabels: ['Basis color', 'Upper color', 'Lower color', 'Fill color', 'Length', 'Source', 'Std dev'],
+    expectedLabels: ['Basis color', 'Upper color', 'Lower color', 'Fill color', 'Length', 'Source', 'StdDev'],
   },
   {
-    menuName: 'VWAP Session Session volume weighted average price VWAP',
-    settingsName: 'VWAP Session',
+    menuName: 'VWAP Session volume weighted average price VWAP',
+    settingsName: 'VWAP',
     expectedLabels: ['Color', 'Source'],
   },
   {
     menuName: 'Donchian Channels High and low price channels DC',
     settingsName: 'Donchian Channels',
-    expectedLabels: ['Upper color', 'Lower color', 'Basis color', 'Length'],
-  },
-  {
-    menuName: 'Weighted Moving Average Weighted moving average WMA',
-    settingsName: 'Weighted Moving Average',
-    expectedLabels: ['Color', 'Length', 'Source'],
+    expectedLabels: ['Upper color', 'Lower color', 'Basis color', 'Fill color', 'Length'],
   },
   {
     menuName: 'Relative Strength Index Momentum oscillator RSI',
@@ -188,7 +178,7 @@ const INDICATOR_SETTINGS_AUDIT: readonly IndicatorSettingsAuditItem[] = [
   {
     menuName: 'Stochastic Stochastic oscillator Stoch',
     settingsName: 'Stochastic',
-    expectedLabels: ['%K color', '%D color', 'Length', 'Signal'],
+    expectedLabels: ['%K color', '%D color', '%K length', '%K smoothing', '%D smoothing'],
   },
   {
     menuName: 'Momentum Close price momentum Mom',
@@ -196,29 +186,49 @@ const INDICATOR_SETTINGS_AUDIT: readonly IndicatorSettingsAuditItem[] = [
     expectedLabels: ['Color', 'Length', 'Source'],
   },
   {
-    menuName: 'Rate Of Change Percent rate of change ROC',
-    settingsName: 'Rate Of Change',
+    menuName: 'Average True Range Average true range volatility ATR',
+    settingsName: 'Average True Range',
+    expectedLabels: ['Color', 'Length', 'Smoothing'],
+  },
+  {
+    menuName: 'Supertrend ATR trailing stop trend line Supertrend',
+    settingsName: 'Supertrend',
+    expectedLabels: ['Up trend', 'Down trend', 'ATR length', 'Factor'],
+  },
+  {
+    menuName: 'Ichimoku Cloud Cloud with conversion, base, and spans Ichimoku',
+    settingsName: 'Ichimoku Cloud',
+    expectedLabels: [
+      'Conversion line',
+      'Base line',
+      'Lagging span',
+      'Lead 1',
+      'Lead 2',
+      'Conversion line length',
+      'Base line length',
+      'Leading span B length',
+      'Displacement',
+    ],
+  },
+  {
+    menuName: 'Average Directional Index Trend strength from directional movement ADX',
+    settingsName: 'Average Directional Index',
+    expectedLabels: ['Color', 'ADX smoothing', 'DI length'],
+  },
+  {
+    menuName: 'Commodity Channel Index Deviation from typical price average CCI',
+    settingsName: 'Commodity Channel Index',
     expectedLabels: ['Color', 'Length', 'Source'],
   },
   {
-    menuName: 'Accumulation/Distribution Volume accumulation distribution line A/D',
-    settingsName: 'Accumulation/Distribution',
-    expectedLabels: ['Color'],
+    menuName: 'Parabolic SAR Stop and reverse trailing dots SAR',
+    settingsName: 'Parabolic SAR',
+    expectedLabels: ['Color', 'Start', 'Increment', 'Max value'],
   },
   {
-    menuName: 'Average True Range Average true range volatility ATR',
-    settingsName: 'Average True Range',
-    expectedLabels: ['Color', 'Length'],
-  },
-  {
-    menuName: 'Bollinger Bands %b Close position inside Bollinger Bands BB %b',
-    settingsName: 'Bollinger Bands %b',
-    expectedLabels: ['Color', 'Length', 'Source', 'Std dev'],
-  },
-  {
-    menuName: 'Bollinger BandWidth Relative Bollinger Band width BBW',
-    settingsName: 'Bollinger BandWidth',
-    expectedLabels: ['Color', 'Length', 'Source', 'Std dev'],
+    menuName: 'Stochastic RSI Stochastic applied to RSI values Stoch RSI',
+    settingsName: 'Stochastic RSI',
+    expectedLabels: ['%K color', '%D color', 'Stochastic length', 'RSI length', '%K smoothing', '%D smoothing'],
   },
 ];
 
@@ -227,13 +237,15 @@ const addAllMissingAuditIndicators = async (page: Page) => {
   const indicatorsMenu = page.locator('#indicators-menu');
   await expect(indicatorsMenu).toBeVisible();
 
+  let added = 0;
   for (const indicator of INDICATOR_SETTINGS_AUDIT) {
     if (indicator.defaultActive || !indicator.menuName) continue;
 
     await indicatorsMenu.getByRole('menuitemcheckbox', { name: indicator.menuName }).click();
+    added += 1;
   }
 
-  await expect(page.getByRole('button', { name: 'Indicators, 18 active' })).toBeVisible();
+  await expect(page.getByRole('button', { name: `Indicators, ${2 + added} active` })).toBeVisible();
   await page.keyboard.press('Escape');
 };
 
@@ -428,7 +440,9 @@ test.describe('signed-out chart access', () => {
     await page.getByRole('button', { name: 'Indicators, 2 active' }).click();
     const indicatorsMenu = page.locator('#indicators-menu');
     await expect(indicatorsMenu).toBeVisible();
-    await expect(indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Moving Average Simple moving' })).toBeVisible();
+    await expect(
+      indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Moving Average Simple Simple moving average SMA' })
+    ).toBeVisible();
     await expect(
       indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Relative Strength Index Momentum oscillator RSI' })
     ).toBeVisible();

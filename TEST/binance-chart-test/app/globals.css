@@ -1928,6 +1928,105 @@ summary {
   font-size: 11px;
 }
 
+.indicator-category-rail .category-glyph {
+  fill: none;
+  flex: 0 0 auto;
+  height: 14px;
+  margin-right: 7px;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  width: 14px;
+}
+
+.indicator-row {
+  align-items: stretch;
+  display: flex;
+  gap: 2px;
+}
+
+.indicator-row .indicator-menu-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.indicator-fav-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  opacity: 0;
+  outline: 0;
+  padding: 0;
+  width: 28px;
+}
+
+.indicator-fav-toggle svg {
+  fill: none;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  width: 15px;
+}
+
+.indicator-row:hover .indicator-fav-toggle,
+.indicator-fav-toggle:focus-visible,
+.indicator-row[data-favorited="true"] .indicator-fav-toggle {
+  opacity: 1;
+}
+
+.indicator-fav-toggle:hover,
+.indicator-fav-toggle:focus-visible {
+  background: var(--surface-2);
+  color: var(--text-strong);
+}
+
+.indicator-row[data-favorited="true"] .indicator-fav-toggle {
+  color: #fbc02d;
+}
+
+.indicator-row[data-favorited="true"] .indicator-fav-toggle svg {
+  fill: #fbc02d;
+}
+
+.indicator-group-label {
+  margin-top: 11px;
+}
+
+.indicator-favorites-empty {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 56px 18px;
+  text-align: center;
+}
+
+.indicator-favorites-empty svg {
+  fill: none;
+  height: 30px;
+  opacity: 0.55;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  width: 30px;
+}
+
+.indicator-favorites-empty strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 660;
+}
+
+.indicator-favorites-empty small {
+  font-size: 12.5px;
+  max-width: 320px;
+}
+
 .instrument-legend-overlay {
   align-items: center;
   background: color-mix(in srgb, var(--surface-1) 90%, transparent);
@@ -2303,6 +2402,13 @@ summary {
 
 .indicator-settings-panel input[type="color"] {
   padding: 2px;
+}
+
+.indicator-settings-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .indicator-more-panel {

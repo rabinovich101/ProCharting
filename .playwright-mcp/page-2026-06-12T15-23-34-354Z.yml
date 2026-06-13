@@ -1,0 +1,70 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic "Chart command bar" [ref=e3]:
+      - generic "Chart controls" [ref=e4]:
+        - button "Symbol search" [ref=e6] [cursor=pointer]:
+          - generic [ref=e7]: B
+          - generic [ref=e8]:
+            - generic [ref=e9]: BTCUSDT
+            - generic [ref=e10]: Binance
+          - img [ref=e12]
+        - status "Feed connecting" [ref=e14]
+        - button "Timeframe" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: 1D
+        - button "Chart type" [ref=e21] [cursor=pointer]
+        - button "Indicators, 2 active" [ref=e25] [cursor=pointer]:
+          - img [ref=e26]
+          - generic [ref=e30]: Indicators
+          - generic [ref=e31]: "2"
+        - button "Indicator templates" [ref=e34] [cursor=pointer]:
+          - img [ref=e35]
+        - button "Create alert" [ref=e40] [cursor=pointer]:
+          - img [ref=e41]
+          - generic [ref=e46]: Alert
+        - button "Bar replay" [ref=e47] [cursor=pointer]:
+          - img [ref=e48]
+          - generic [ref=e51]: Replay
+        - button "Undo" [disabled] [ref=e52]:
+          - img [ref=e53]
+        - button "Redo" [disabled] [ref=e56]:
+          - img [ref=e57]
+        - generic "TradingView desktop header controls" [ref=e60]:
+          - button "Layout setup" [ref=e62] [cursor=pointer]:
+            - img [ref=e63]
+          - button "Save all charts for all symbols and intervals on your layout" [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: Save
+          - button "Manage layouts" [ref=e68] [cursor=pointer]:
+            - img [ref=e69]
+          - button "Quick search" [ref=e71] [cursor=pointer]:
+            - img [ref=e72]
+          - button "Settings" [ref=e75] [cursor=pointer]:
+            - img [ref=e76]
+          - button "Fullscreen mode" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+          - button "Take a snapshot" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+          - button "Trade" [ref=e93] [cursor=pointer]:
+            - generic [ref=e94]: Trade
+          - button "Share your idea with the trade community" [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]: Publish
+          - button "Signed in as cursor-tester@example.com. Sign out" [ref=e98] [cursor=pointer]:
+            - generic [ref=e99]: cursor-tester@example.com
+    - generic [ref=e100]:
+      - toolbar "Drawing tools" [ref=e101]:
+        - button "Cursor tool, Cross" [ref=e104] [cursor=pointer]:
+          - img [ref=e106]
+        - button "Trendline drawing tool group" [ref=e111] [cursor=pointer]
+        - button "Fib retracement drawing tool group" [ref=e114] [cursor=pointer]:
+          - img [ref=e116]
+        - button "XABCD pattern drawing tool group" [ref=e120] [cursor=pointer]:
+          - img [ref=e122]
+        - button "Long position drawing tool group" [ref=e131] [cursor=pointer]:
+          - img [ref=e133]
+        - button "Brush drawing tool group" [ref=e137] [cursor=pointer]:
+          - img [ref=e139]
+        - button "Text drawing tool group" [ref=e143] [cursor=pointer]:
+          - img [ref=e145]
+      - generic [ref=e148]:
+        - generic "BTC/USDT 1d chart pane 1" [ref=e149]
+        - generic [ref=e154]: Loading market data
+  - alert [ref=e155]

@@ -1,3 +1,36 @@
+# Delete Generated Images And Screenshots
+
+## Goal
+
+Remove generated image and screenshot artifacts from the repository while
+preserving runtime app assets that are referenced by the chart UI and tests.
+
+## Investigation / Decisions
+
+- The repository contains 60 generated PNG evidence files under
+  `TEST/binance-chart-test/design-audit`.
+- The app also contains runtime image assets under
+  `TEST/binance-chart-test/public` and `TEST/binance-chart-test/app/favicon.ico`.
+  `google.svg`, `github.svg`, and `magic.svg` are referenced by app code/tests,
+  so those are not part of this cleanup.
+- No architecture change is needed because this only removes generated artifacts.
+
+## Checklist
+
+- [x] Delete generated design-audit image and screenshot files.
+- [x] Verify no generated design-audit image or screenshot files remain.
+- [ ] Review git status and keep unrelated work untouched.
+
+## Review
+
+- Removed 60 generated design-audit PNG files and cleaned up empty screenshot
+  directories.
+- Verified `TEST/binance-chart-test/design-audit` no longer contains image or
+  screenshot files.
+- Preserved the 9 remaining runtime image assets referenced by the app:
+  `public/cursors/magic.svg`, default `public/*.svg` assets,
+  `public/auth/google.svg`, `public/auth/github.svg`, and `app/favicon.ico`.
+
 # Complete TradingView Line Tool Set
 
 ## Goal

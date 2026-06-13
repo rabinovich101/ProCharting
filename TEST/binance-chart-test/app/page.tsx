@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -13,6 +14,25 @@ import {
   type Ref,
 } from 'react';
 import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
+import {
+  INDICATOR_DEFINITIONS,
+  INDICATOR_MA_TYPE_OPTIONS,
+  INDICATOR_SMOOTHING_OPTIONS,
+  INDICATOR_SOURCE_OPTIONS,
+  computeIndicatorSeries,
+  getIndicatorColorLabel,
+  getIndicatorDefinition,
+  getIndicatorLegendSuffix,
+  getIndicatorSettingLabel,
+  sanitizePeriod,
+  type ActiveIndicator,
+  type IndicatorComputedSeries,
+  type IndicatorDefinition,
+  type IndicatorMaType,
+  type IndicatorSettings,
+  type IndicatorSmoothingType,
+  type IndicatorSource,
+} from '@/lib/indicators';
 import {
   Bell,
   Bookmark,
@@ -262,30 +282,9 @@ type DrawingAlertFrequency = 'only-once' | 'once-per-bar' | 'once-per-bar-close'
 type DrawingDragMode = 'none' | 'body' | 'start' | 'end' | 'third' | 'fourth' | 'fifth' | 'sixth' | 'seventh';
 type DrawingHitTarget = Exclude<DrawingDragMode, 'none'>;
 type DrawingHoverTarget = DrawingHitTarget | null;
-type IndicatorPaneKind = 'price' | 'volume' | 'oscillator';
-type IndicatorSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'hlc3' | 'ohlc4';
-type IndicatorMaType = 'EMA' | 'SMA';
 type AuthMode = 'login' | 'signup';
 type AuthOAuthProvider = 'google' | 'github';
 type UserTrackingEventType = 'session_seen' | 'sign_in' | 'sign_up' | 'token_refreshed' | 'sign_out';
-type IndicatorFormula =
-  | 'volume'
-  | 'sma'
-  | 'ema'
-  | 'wma'
-  | 'bb'
-  | 'vwap'
-  | 'rsi'
-  | 'macd'
-  | 'stochastic'
-  | 'donchian'
-  | 'momentum'
-  | 'roc'
-  | 'adl'
-  | 'atr'
-  | 'bb-percent'
-  | 'bb-width';
-
 interface ChartDragState {
   mode: ChartDragMode;
   paneIndex: number;
@@ -518,63 +517,9 @@ interface MenuOption<T extends string> {
   description?: string;
 }
 
-interface IndicatorSettings {
-  period?: number;
-  fastPeriod?: number;
-  slowPeriod?: number;
-  signalPeriod?: number;
-  stdDev?: number;
-  source?: IndicatorSource;
-  oscillatorMaType?: IndicatorMaType;
-  signalMaType?: IndicatorMaType;
-  color?: string;
-  secondaryColor?: string;
-  tertiaryColor?: string;
-  fillColor?: string;
-  histogramPositiveColor?: string;
-  histogramNegativeColor?: string;
-}
-
-interface IndicatorDefinition {
-  id: string;
-  name: string;
-  shortName: string;
-  description: string;
-  category: 'Volume' | 'Trend' | 'Momentum' | 'Volatility';
-  pane: IndicatorPaneKind;
-  formula: IndicatorFormula;
-  defaults: IndicatorSettings;
-  singleton?: boolean;
-  featured?: boolean;
-}
-
-interface ActiveIndicator {
-  id: string;
-  definitionId: string;
-  visible: boolean;
-  settings: IndicatorSettings;
-}
-
 interface IndicatorLegendTarget {
   indicatorId: string;
   paneIndex: number;
-}
-
-interface IndicatorLineSeries {
-  label: string;
-  color: string;
-  values: Array<number | null>;
-}
-
-interface IndicatorComputedSeries {
-  lines: IndicatorLineSeries[];
-  histogram?: Array<number | null>;
-  histogramPositive?: string;
-  histogramNegative?: string;
-  fillColor?: string;
-  min?: number;
-  max?: number;
-  guideLines?: Array<{ value: number; label?: string }>;
 }
 
 interface IndicatorLegendValue {
@@ -896,6 +841,7 @@ const CURSOR_TOOL_CANVAS_CURSORS: Record<CursorToolId, string> = {
 };
 const CURSOR_TOOLS_WITHOUT_CROSSHAIR: ReadonlySet<CursorToolId> = new Set(['arrow']);
 const CURSOR_FAVORITES_STORAGE_KEY = 'procharting.cursorToolFavorites';
+const INDICATOR_FAVORITES_STORAGE_KEY = 'procharting.indicatorFavorites';
 const VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY = 'procharting.valuesTooltipOnLongPress';
 const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'trend-line': 'Trendline',
@@ -2501,220 +2447,6 @@ const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
   { value: 'area', label: 'Area', description: 'Filled close price line' },
 ];
 
-const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
-  {
-    id: 'volume',
-    name: 'Volume',
-    shortName: 'Vol',
-    description: 'Exchange volume bars',
-    category: 'Volume',
-    pane: 'volume',
-    formula: 'volume',
-    defaults: { color: '#26a69a', secondaryColor: '#ef5350' },
-    singleton: true,
-    featured: true,
-  },
-  {
-    id: 'sma-20',
-    name: 'Moving Average',
-    shortName: 'SMA',
-    description: 'Simple moving average',
-    category: 'Trend',
-    pane: 'price',
-    formula: 'sma',
-    defaults: { period: 20, source: 'close', color: '#f5c84b' },
-    featured: true,
-  },
-  {
-    id: 'sma-200',
-    name: 'Moving Average 200',
-    shortName: 'SMA',
-    description: 'Long simple moving average',
-    category: 'Trend',
-    pane: 'price',
-    formula: 'sma',
-    defaults: { period: 200, source: 'close', color: '#2962ff' },
-    featured: true,
-  },
-  {
-    id: 'ema-7',
-    name: 'Exponential Moving Average',
-    shortName: 'EMA',
-    description: 'Fast exponential moving average',
-    category: 'Trend',
-    pane: 'price',
-    formula: 'ema',
-    defaults: { period: 7, source: 'close', color: '#7e57c2' },
-    featured: true,
-  },
-  {
-    id: 'ema-20',
-    name: 'EMA 20',
-    shortName: 'EMA',
-    description: 'Exponential moving average',
-    category: 'Trend',
-    pane: 'price',
-    formula: 'ema',
-    defaults: { period: 20, source: 'close', color: '#7e57c2' },
-  },
-  {
-    id: 'bb-20',
-    name: 'Bollinger Bands',
-    shortName: 'BB',
-    description: 'SMA envelope with standard deviation bands',
-    category: 'Volatility',
-    pane: 'price',
-    formula: 'bb',
-    defaults: {
-      period: 20,
-      source: 'close',
-      stdDev: 2,
-      color: '#2962ff',
-      secondaryColor: '#f23645',
-      tertiaryColor: '#089981',
-      fillColor: 'rgba(41, 98, 255, 0.08)',
-    },
-    featured: true,
-  },
-  {
-    id: 'vwap-session',
-    name: 'VWAP Session',
-    shortName: 'VWAP',
-    description: 'Session volume weighted average price',
-    category: 'Trend',
-    pane: 'price',
-    formula: 'vwap',
-    defaults: { source: 'hlc3', color: '#ff9800' },
-    singleton: true,
-    featured: true,
-  },
-  {
-    id: 'donchian-20',
-    name: 'Donchian Channels',
-    shortName: 'DC',
-    description: 'High and low price channels',
-    category: 'Volatility',
-    pane: 'price',
-    formula: 'donchian',
-    defaults: { period: 20, color: '#26a69a', secondaryColor: '#ef5350', tertiaryColor: '#7c8da6' },
-  },
-  {
-    id: 'wma-20',
-    name: 'Weighted Moving Average',
-    shortName: 'WMA',
-    description: 'Weighted moving average',
-    category: 'Trend',
-    pane: 'price',
-    formula: 'wma',
-    defaults: { period: 20, source: 'close', color: '#00bcd4' },
-  },
-  {
-    id: 'rsi-14',
-    name: 'Relative Strength Index',
-    shortName: 'RSI',
-    description: 'Momentum oscillator',
-    category: 'Momentum',
-    pane: 'oscillator',
-    formula: 'rsi',
-    defaults: { period: 14, source: 'close', color: '#7e57c2' },
-    featured: true,
-  },
-  {
-    id: 'macd',
-    name: 'MACD',
-    shortName: 'MACD',
-    description: 'Moving average convergence divergence',
-    category: 'Momentum',
-    pane: 'oscillator',
-    formula: 'macd',
-    defaults: {
-      fastPeriod: 12,
-      slowPeriod: 26,
-      signalPeriod: 9,
-      source: 'close',
-      oscillatorMaType: 'EMA',
-      signalMaType: 'EMA',
-      color: '#2962ff',
-      secondaryColor: '#ff6d00',
-      histogramPositiveColor: '#26a69a',
-      histogramNegativeColor: '#ef5350',
-    },
-    featured: true,
-  },
-  {
-    id: 'stochastic',
-    name: 'Stochastic',
-    shortName: 'Stoch',
-    description: 'Stochastic oscillator',
-    category: 'Momentum',
-    pane: 'oscillator',
-    formula: 'stochastic',
-    defaults: { period: 14, signalPeriod: 3, color: '#2962ff', secondaryColor: '#ff6d00' },
-  },
-  {
-    id: 'momentum',
-    name: 'Momentum',
-    shortName: 'Mom',
-    description: 'Close price momentum',
-    category: 'Momentum',
-    pane: 'oscillator',
-    formula: 'momentum',
-    defaults: { period: 10, source: 'close', color: '#00bcd4' },
-  },
-  {
-    id: 'roc',
-    name: 'Rate Of Change',
-    shortName: 'ROC',
-    description: 'Percent rate of change',
-    category: 'Momentum',
-    pane: 'oscillator',
-    formula: 'roc',
-    defaults: { period: 9, source: 'close', color: '#26a69a' },
-  },
-  {
-    id: 'adl',
-    name: 'Accumulation/Distribution',
-    shortName: 'A/D',
-    description: 'Volume accumulation distribution line',
-    category: 'Volume',
-    pane: 'oscillator',
-    formula: 'adl',
-    defaults: { color: '#2962ff' },
-  },
-  {
-    id: 'atr',
-    name: 'Average True Range',
-    shortName: 'ATR',
-    description: 'Average true range volatility',
-    category: 'Volatility',
-    pane: 'oscillator',
-    formula: 'atr',
-    defaults: { period: 14, color: '#ff9800' },
-  },
-  {
-    id: 'bb-percent',
-    name: 'Bollinger Bands %b',
-    shortName: 'BB %b',
-    description: 'Close position inside Bollinger Bands',
-    category: 'Volatility',
-    pane: 'oscillator',
-    formula: 'bb-percent',
-    defaults: { period: 20, source: 'close', stdDev: 2, color: '#2962ff' },
-  },
-  {
-    id: 'bb-width',
-    name: 'Bollinger BandWidth',
-    shortName: 'BBW',
-    description: 'Relative Bollinger Band width',
-    category: 'Volatility',
-    pane: 'oscillator',
-    formula: 'bb-width',
-    defaults: { period: 20, source: 'close', stdDev: 2, color: '#7e57c2' },
-  },
-];
-
-const INDICATOR_SOURCE_OPTIONS: IndicatorSource[] = ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4'];
-const INDICATOR_MA_TYPE_OPTIONS: IndicatorMaType[] = ['EMA', 'SMA'];
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const COLOR_INPUT_FALLBACK = '#2962ff';
 const colorToInputValue = (color: string | undefined, fallback = COLOR_INPUT_FALLBACK) => {
@@ -6085,11 +5817,6 @@ const formatCountdown = (timeframe: string, candleOpenTime: number) => {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 };
 
-const sanitizePeriod = (value: number | undefined, fallback: number, min = 1, max = 500) =>
-  Math.round(clamp(value ?? fallback, min, max));
-
-const getIndicatorDefinition = (definitionId: string) =>
-  INDICATOR_DEFINITIONS.find((definition) => definition.id === definitionId) ?? INDICATOR_DEFINITIONS[0];
 
 const createActiveIndicator = (definitionId: string, suffix = `${Date.now()}`): ActiveIndicator => {
   const definition = getIndicatorDefinition(definitionId);
@@ -6104,7 +5831,10 @@ const createActiveIndicator = (definitionId: string, suffix = `${Date.now()}`): 
 
 const DEFAULT_ACTIVE_INDICATORS: ActiveIndicator[] = [
   createActiveIndicator('volume', 'default'),
-  createActiveIndicator('sma-20', 'default'),
+  {
+    ...createActiveIndicator('sma', 'default'),
+    settings: { period: 20, source: 'close', color: '#f5c84b' },
+  },
 ];
 const createDefaultActiveIndicators = () =>
   DEFAULT_ACTIVE_INDICATORS.map((indicator) => ({
@@ -6131,495 +5861,251 @@ const createDefaultSavedChartLayout = (timestamp = Date.now()): SavedChartLayout
   };
 };
 
-const getSourceValue = (candle: Candle, source: IndicatorSource = 'close') => {
-  switch (source) {
-    case 'open':
-      return candle.open;
-    case 'high':
-      return candle.high;
-    case 'low':
-      return candle.low;
-    case 'hl2':
-      return (candle.high + candle.low) / 2;
-    case 'hlc3':
-      return (candle.high + candle.low + candle.close) / 3;
-    case 'ohlc4':
-      return (candle.open + candle.high + candle.low + candle.close) / 4;
-    case 'close':
-    default:
-      return candle.close;
-  }
-};
-
-const getSourceValues = (candles: Candle[], source: IndicatorSource = 'close') =>
-  candles.map((candle) => getSourceValue(candle, source));
-
-const simpleMovingAverageValues = (values: number[], period: number) => {
-  const result: Array<number | null> = new Array(values.length).fill(null);
-  let rollingSum = 0;
-
-  values.forEach((value, index) => {
-    rollingSum += value;
-
-    if (index >= period) {
-      rollingSum -= values[index - period];
-    }
-
-    if (index >= period - 1) {
-      result[index] = rollingSum / period;
-    }
-  });
-
-  return result;
-};
-
-const simpleMovingAverageNullable = (values: Array<number | null>, period: number) => {
-  const result: Array<number | null> = new Array(values.length).fill(null);
-  const window: number[] = [];
-
-  values.forEach((value, index) => {
-    if (value === null) {
-      window.length = 0;
-      return;
-    }
-
-    window.push(value);
-    if (window.length > period) window.shift();
-    if (window.length === period) {
-      result[index] = window.reduce((sum, item) => sum + item, 0) / period;
-    }
-  });
-
-  return result;
-};
-
-const exponentialMovingAverageValues = (values: number[], period: number) => {
-  const result: Array<number | null> = new Array(values.length).fill(null);
-  const multiplier = 2 / (period + 1);
-  let rollingSum = 0;
-  let previous: number | null = null;
-
-  values.forEach((value, index) => {
-    if (previous === null) {
-      rollingSum += value;
-      if (index === period - 1) {
-        previous = rollingSum / period;
-        result[index] = previous;
-      }
-      return;
-    }
-
-    previous = (value - previous) * multiplier + previous;
-    result[index] = previous;
-  });
-
-  return result;
-};
-
-const exponentialMovingAverageNullable = (values: Array<number | null>, period: number) => {
-  const result: Array<number | null> = new Array(values.length).fill(null);
-  const multiplier = 2 / (period + 1);
-  let rollingSum = 0;
-  let count = 0;
-  let previous: number | null = null;
-
-  values.forEach((value, index) => {
-    if (value === null) return;
-
-    if (previous === null) {
-      rollingSum += value;
-      count += 1;
-      if (count === period) {
-        previous = rollingSum / period;
-        result[index] = previous;
-      }
-      return;
-    }
-
-    previous = (value - previous) * multiplier + previous;
-    result[index] = previous;
-  });
-
-  return result;
-};
-
-const calculateMovingAverageValues = (values: number[], period: number, maType: IndicatorMaType) =>
-  maType === 'SMA' ? simpleMovingAverageValues(values, period) : exponentialMovingAverageValues(values, period);
-
-const calculateMovingAverageNullable = (values: Array<number | null>, period: number, maType: IndicatorMaType) =>
-  maType === 'SMA' ? simpleMovingAverageNullable(values, period) : exponentialMovingAverageNullable(values, period);
-
-const weightedMovingAverageValues = (values: number[], period: number) => {
-  const result: Array<number | null> = new Array(values.length).fill(null);
-  const denominator = (period * (period + 1)) / 2;
-
-  for (let index = period - 1; index < values.length; index += 1) {
-    let weightedSum = 0;
-
-    for (let offset = 0; offset < period; offset += 1) {
-      weightedSum += values[index - offset] * (period - offset);
-    }
-
-    result[index] = weightedSum / denominator;
-  }
-
-  return result;
-};
-
-const calculateBollingerBands = (values: number[], period: number, stdDev: number) => {
-  const basis = simpleMovingAverageValues(values, period);
-  const upper: Array<number | null> = new Array(values.length).fill(null);
-  const lower: Array<number | null> = new Array(values.length).fill(null);
-
-  for (let index = period - 1; index < values.length; index += 1) {
-    const mean = basis[index];
-    if (mean === null) continue;
-
-    let variance = 0;
-    for (let offset = 0; offset < period; offset += 1) {
-      variance += Math.pow(values[index - offset] - mean, 2);
-    }
-
-    const deviation = Math.sqrt(variance / period) * stdDev;
-    upper[index] = mean + deviation;
-    lower[index] = mean - deviation;
-  }
-
-  return { basis, upper, lower };
-};
-
-const calculateVwapValues = (candles: Candle[], source: IndicatorSource) => {
-  const result: Array<number | null> = new Array(candles.length).fill(null);
-  let sessionKey = '';
-  let cumulativePriceVolume = 0;
-  let cumulativeVolume = 0;
-
-  candles.forEach((candle, index) => {
-    const date = new Date(candle.time);
-    const nextSessionKey = `${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}`;
-
-    if (nextSessionKey !== sessionKey) {
-      sessionKey = nextSessionKey;
-      cumulativePriceVolume = 0;
-      cumulativeVolume = 0;
-    }
-
-    cumulativePriceVolume += getSourceValue(candle, source) * candle.volume;
-    cumulativeVolume += candle.volume;
-    result[index] = cumulativeVolume > 0 ? cumulativePriceVolume / cumulativeVolume : null;
-  });
-
-  return result;
-};
-
-const calculateRsiValues = (values: number[], period: number) => {
-  const result: Array<number | null> = new Array(values.length).fill(null);
-  let averageGain = 0;
-  let averageLoss = 0;
-
-  for (let index = 1; index < values.length; index += 1) {
-    const change = values[index] - values[index - 1];
-    const gain = Math.max(change, 0);
-    const loss = Math.max(-change, 0);
-
-    if (index <= period) {
-      averageGain += gain;
-      averageLoss += loss;
-
-      if (index === period) {
-        averageGain /= period;
-        averageLoss /= period;
-      } else {
-        continue;
-      }
-    } else {
-      averageGain = (averageGain * (period - 1) + gain) / period;
-      averageLoss = (averageLoss * (period - 1) + loss) / period;
-    }
-
-    if (averageLoss === 0) {
-      result[index] = 100;
-    } else {
-      const relativeStrength = averageGain / averageLoss;
-      result[index] = 100 - 100 / (1 + relativeStrength);
-    }
-  }
-
-  return result;
-};
-
-const calculateMacdSeries = (
-  values: number[],
-  fastPeriod: number,
-  slowPeriod: number,
-  signalPeriod: number,
-  oscillatorMaType: IndicatorMaType,
-  signalMaType: IndicatorMaType
-) => {
-  const fast = calculateMovingAverageValues(values, fastPeriod, oscillatorMaType);
-  const slow = calculateMovingAverageValues(values, slowPeriod, oscillatorMaType);
-  const macd = values.map((_, index) =>
-    fast[index] !== null && slow[index] !== null ? fast[index]! - slow[index]! : null
-  );
-  const signal = calculateMovingAverageNullable(macd, signalPeriod, signalMaType);
-  const histogram = macd.map((value, index) =>
-    value !== null && signal[index] !== null ? value - signal[index]! : null
-  );
-
-  return { macd, signal, histogram };
-};
-
-const calculateStochasticSeries = (candles: Candle[], period: number, signalPeriod: number) => {
-  const k: Array<number | null> = new Array(candles.length).fill(null);
-
-  for (let index = period - 1; index < candles.length; index += 1) {
-    const window = candles.slice(index - period + 1, index + 1);
-    const highest = Math.max(...window.map((candle) => candle.high));
-    const lowest = Math.min(...window.map((candle) => candle.low));
-    const range = highest - lowest;
-    k[index] = range === 0 ? 50 : ((candles[index].close - lowest) / range) * 100;
-  }
-
-  return { k, d: simpleMovingAverageNullable(k, signalPeriod) };
-};
-
-const calculateDonchianSeries = (candles: Candle[], period: number) => {
-  const upper: Array<number | null> = new Array(candles.length).fill(null);
-  const lower: Array<number | null> = new Array(candles.length).fill(null);
-  const middle: Array<number | null> = new Array(candles.length).fill(null);
-
-  for (let index = period - 1; index < candles.length; index += 1) {
-    const window = candles.slice(index - period + 1, index + 1);
-    const highest = Math.max(...window.map((candle) => candle.high));
-    const lowest = Math.min(...window.map((candle) => candle.low));
-    upper[index] = highest;
-    lower[index] = lowest;
-    middle[index] = (highest + lowest) / 2;
-  }
-
-  return { upper, lower, middle };
-};
-
-const calculateMomentumValues = (values: number[], period: number) =>
-  values.map((value, index) => (index >= period ? value - values[index - period] : null));
-
-const calculateRocValues = (values: number[], period: number) =>
-  values.map((value, index) => {
-    if (index < period || values[index - period] === 0) return null;
-    return ((value - values[index - period]) / values[index - period]) * 100;
-  });
-
-const calculateAccumulationDistributionValues = (candles: Candle[]) => {
-  const result: Array<number | null> = new Array(candles.length).fill(null);
-  let runningTotal = 0;
-
-  candles.forEach((candle, index) => {
-    const range = candle.high - candle.low;
-    const moneyFlowMultiplier = range === 0 ? 0 : ((candle.close - candle.low) - (candle.high - candle.close)) / range;
-    runningTotal += moneyFlowMultiplier * candle.volume;
-    result[index] = runningTotal;
-  });
-
-  return result;
-};
-
-const calculateAtrValues = (candles: Candle[], period: number) => {
-  const trueRanges = candles.map((candle, index) => {
-    const previousClose = candles[index - 1]?.close ?? candle.close;
-    return Math.max(
-      candle.high - candle.low,
-      Math.abs(candle.high - previousClose),
-      Math.abs(candle.low - previousClose)
-    );
-  });
-
-  return simpleMovingAverageValues(trueRanges, period);
-};
-
-const computeIndicatorSeries = (indicator: ActiveIndicator, candles: Candle[]): IndicatorComputedSeries => {
-  const definition = getIndicatorDefinition(indicator.definitionId);
-  const settings = indicator.settings;
-  const source = settings.source ?? definition.defaults.source ?? 'close';
-  const values = getSourceValues(candles, source);
-  const period = sanitizePeriod(settings.period, definition.defaults.period ?? 20);
-  const fastPeriod = sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12);
-  const slowPeriod = sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26);
-  const signalPeriod = sanitizePeriod(
-    settings.signalPeriod,
-    definition.defaults.signalPeriod ?? 9,
-    1,
-    definition.formula === 'macd' ? 50 : 500
-  );
-  const stdDev = clamp(settings.stdDev ?? definition.defaults.stdDev ?? 2, 0.1, 10);
-  const oscillatorMaType = settings.oscillatorMaType ?? definition.defaults.oscillatorMaType ?? 'EMA';
-  const signalMaType = settings.signalMaType ?? definition.defaults.signalMaType ?? 'EMA';
-  const color = settings.color ?? definition.defaults.color ?? '#2962ff';
-  const secondaryColor = settings.secondaryColor ?? definition.defaults.secondaryColor ?? '#ff6d00';
-  const tertiaryColor = settings.tertiaryColor ?? definition.defaults.tertiaryColor ?? '#7c8da6';
-  const histogramPositiveColor =
-    settings.histogramPositiveColor ??
-    definition.defaults.histogramPositiveColor ??
-    settings.tertiaryColor ??
-    definition.defaults.tertiaryColor ??
-    '#26a69a';
-  const histogramNegativeColor =
-    settings.histogramNegativeColor ?? definition.defaults.histogramNegativeColor ?? '#ef5350';
-
-  if (definition.formula === 'sma') {
-    return { lines: [{ label: definition.shortName, color, values: simpleMovingAverageValues(values, period) }] };
-  }
-
-  if (definition.formula === 'ema') {
-    return { lines: [{ label: definition.shortName, color, values: exponentialMovingAverageValues(values, period) }] };
-  }
-
-  if (definition.formula === 'wma') {
-    return { lines: [{ label: definition.shortName, color, values: weightedMovingAverageValues(values, period) }] };
-  }
-
-  if (definition.formula === 'bb') {
-    const bands = calculateBollingerBands(values, period, stdDev);
-    return {
-      fillColor: settings.fillColor ?? definition.defaults.fillColor,
-      lines: [
-        { label: 'Basis', color, values: bands.basis },
-        { label: 'Upper', color: secondaryColor, values: bands.upper },
-        { label: 'Lower', color: tertiaryColor, values: bands.lower },
-      ],
-    };
-  }
-
-  if (definition.formula === 'vwap') {
-    return { lines: [{ label: definition.shortName, color, values: calculateVwapValues(candles, source) }] };
-  }
-
-  if (definition.formula === 'donchian') {
-    const channels = calculateDonchianSeries(candles, period);
-    return {
-      lines: [
-        { label: 'Upper', color, values: channels.upper },
-        { label: 'Lower', color: secondaryColor, values: channels.lower },
-        { label: 'Basis', color: tertiaryColor, values: channels.middle },
-      ],
-    };
-  }
-
-  if (definition.formula === 'rsi') {
-    return {
-      lines: [{ label: definition.shortName, color, values: calculateRsiValues(values, period) }],
-      min: 0,
-      max: 100,
-      guideLines: [{ value: 70 }, { value: 30 }],
-    };
-  }
-
-  if (definition.formula === 'macd') {
-    const macd = calculateMacdSeries(values, fastPeriod, slowPeriod, signalPeriod, oscillatorMaType, signalMaType);
-    return {
-      lines: [
-        { label: 'MACD', color, values: macd.macd },
-        { label: 'Signal', color: secondaryColor, values: macd.signal },
-      ],
-      histogram: macd.histogram,
-      histogramPositive: histogramPositiveColor,
-      histogramNegative: histogramNegativeColor,
-    };
-  }
-
-  if (definition.formula === 'stochastic') {
-    const stochastic = calculateStochasticSeries(candles, period, signalPeriod);
-    return {
-      lines: [
-        { label: '%K', color, values: stochastic.k },
-        { label: '%D', color: secondaryColor, values: stochastic.d },
-      ],
-      min: 0,
-      max: 100,
-      guideLines: [{ value: 80 }, { value: 20 }],
-    };
-  }
-
-  if (definition.formula === 'momentum') {
-    return {
-      lines: [{ label: definition.shortName, color, values: calculateMomentumValues(values, period) }],
-      guideLines: [{ value: 0 }],
-    };
-  }
-
-  if (definition.formula === 'roc') {
-    return {
-      lines: [{ label: definition.shortName, color, values: calculateRocValues(values, period) }],
-      guideLines: [{ value: 0 }],
-    };
-  }
-
-  if (definition.formula === 'adl') {
-    return { lines: [{ label: definition.shortName, color, values: calculateAccumulationDistributionValues(candles) }] };
-  }
-
-  if (definition.formula === 'atr') {
-    return { lines: [{ label: definition.shortName, color, values: calculateAtrValues(candles, period) }] };
-  }
-
-  if (definition.formula === 'bb-percent' || definition.formula === 'bb-width') {
-    const bands = calculateBollingerBands(values, period, stdDev);
-    const lineValues = values.map((value, index) => {
-      const upper = bands.upper[index];
-      const lower = bands.lower[index];
-      const basis = bands.basis[index];
-      if (upper === null || lower === null || basis === null || upper === lower) return null;
-
-      if (definition.formula === 'bb-percent') {
-        return ((value - lower) / (upper - lower)) * 100;
-      }
-
-      return ((upper - lower) / basis) * 100;
-    });
-
-    return {
-      lines: [{ label: definition.shortName, color, values: lineValues }],
-      min: definition.formula === 'bb-percent' ? 0 : undefined,
-      max: definition.formula === 'bb-percent' ? 100 : undefined,
-      guideLines: definition.formula === 'bb-percent' ? [{ value: 80 }, { value: 20 }] : undefined,
-    };
-  }
-
-  return { lines: [] };
-};
 
 const getIndicatorLegendName = (indicator: ActiveIndicator, symbol: string) => {
   const definition = getIndicatorDefinition(indicator.definitionId);
-  const settings = indicator.settings;
-  const source = settings.source ?? definition.defaults.source ?? 'close';
-  const period = sanitizePeriod(settings.period, definition.defaults.period ?? 20);
-  const fastPeriod = sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12);
-  const slowPeriod = sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26);
-  const signalPeriod = sanitizePeriod(
-    settings.signalPeriod,
-    definition.defaults.signalPeriod ?? 9,
-    1,
-    definition.formula === 'macd' ? 50 : 500
-  );
-  const stdDev = clamp(settings.stdDev ?? definition.defaults.stdDev ?? 2, 0.1, 10);
 
   if (definition.formula === 'volume') return `Vol · ${symbol.replace('USDT', '')}`;
-  if (definition.formula === 'bb') return `BB ${period} SMA ${source} ${Number(stdDev.toFixed(2))}`;
-  if (definition.formula === 'macd') return `MACD ${fastPeriod} ${slowPeriod} ${signalPeriod} ${source}`;
   if (definition.formula === 'vwap') return 'VWAP Session';
-  if (definition.formula === 'donchian') return `DC ${period}`;
-  if (definition.formula === 'stochastic') return `Stoch ${period} ${signalPeriod}`;
-  if (definition.formula === 'atr') return `ATR ${period}`;
-  if (definition.defaults.period !== undefined || settings.period !== undefined) {
-    return `${definition.shortName} ${period} ${source}`;
-  }
 
-  return definition.shortName;
+  const suffix = getIndicatorLegendSuffix(definition, indicator.settings);
+  return suffix ? `${definition.shortName} ${suffix}` : definition.shortName;
 };
 
 const formatIndicatorNumber = (value: number | null | undefined) => {
   if (value === null || value === undefined || !Number.isFinite(value)) return '-';
   if (Math.abs(value) >= 1000) return formatCompact(value);
   return value.toFixed(Math.abs(value) < 10 ? 2 : 2);
+};
+
+type IndicatorComputedLine = IndicatorComputedSeries['lines'][number];
+
+const lastDrawableIndex = (computed: IndicatorComputedSeries, candleCount: number, viewEndIndex: number) => {
+  const longestLine = computed.lines.reduce((max, line) => Math.max(max, line.values.length), candleCount);
+  return Math.min(longestLine - 1, Math.ceil(viewEndIndex) - 1);
+};
+
+const drawIndicatorSeriesLine = (
+  ctx: CanvasRenderingContext2D,
+  line: IndicatorComputedLine,
+  startIndex: number,
+  endIndex: number,
+  xForIndex: (index: number) => number,
+  valueToY: (value: number) => number,
+  defaultLineWidth: number
+) => {
+  const style = line.style ?? 'line';
+  const lineWidth = line.lineWidth ?? defaultLineWidth;
+  const firstIndex = Math.max(0, startIndex);
+  const maxIndex = Math.min(endIndex, line.values.length - 1);
+
+  if (style === 'dots' || style === 'cross') {
+    for (let index = firstIndex; index <= maxIndex; index += 1) {
+      const value = line.values[index];
+      if (value === null || value === undefined || !Number.isFinite(value)) continue;
+
+      const x = xForIndex(index);
+      const y = valueToY(value);
+      const pointColor = line.colors?.[index] ?? line.color;
+
+      if (style === 'dots') {
+        ctx.fillStyle = pointColor;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = pointColor;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x - 3, y);
+        ctx.lineTo(x + 3, y);
+        ctx.moveTo(x, y - 3);
+        ctx.lineTo(x, y + 3);
+        ctx.stroke();
+      }
+    }
+    return;
+  }
+
+  let pathColor: string | null = null;
+  let pathPoints: Array<{ x: number; y: number }> = [];
+
+  const flushPath = () => {
+    if (pathColor !== null && pathPoints.length > 1) {
+      ctx.strokeStyle = pathColor;
+      ctx.lineWidth = lineWidth;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      pathPoints.forEach((point, pointIndex) => {
+        if (pointIndex === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.stroke();
+    }
+    pathColor = null;
+    pathPoints = [];
+  };
+
+  for (let index = firstIndex; index <= maxIndex; index += 1) {
+    const value = line.values[index];
+    if (value === null || value === undefined || !Number.isFinite(value)) {
+      if (!line.connectNulls) flushPath();
+      continue;
+    }
+
+    const x = xForIndex(index);
+    const y = valueToY(value);
+    const pointColor = line.colors?.[index] ?? line.color;
+
+    if (pathColor !== null && pointColor !== pathColor) {
+      flushPath();
+    }
+
+    if (pathColor === null) {
+      pathColor = pointColor;
+      pathPoints.push({ x, y });
+      continue;
+    }
+
+    if (style === 'step') {
+      const previous = pathPoints[pathPoints.length - 1];
+      if (previous && previous.y !== y) {
+        pathPoints.push({ x, y: previous.y });
+      }
+    }
+    pathPoints.push({ x, y });
+  }
+
+  flushPath();
+};
+
+const drawIndicatorFills = (
+  ctx: CanvasRenderingContext2D,
+  computed: IndicatorComputedSeries,
+  startIndex: number,
+  endIndex: number,
+  xForIndex: (index: number) => number,
+  valueToY: (value: number) => number
+) => {
+  computed.fills?.forEach((fill) => {
+    const upperLine = computed.lines[fill.upper];
+    const lowerLine = computed.lines[fill.lower];
+    if (!upperLine || !lowerLine) return;
+
+    const firstIndex = Math.max(0, startIndex);
+    const maxIndex = Math.min(endIndex, upperLine.values.length - 1, lowerLine.values.length - 1);
+    let runColor: string | null = null;
+    let topPoints: Array<{ x: number; y: number }> = [];
+    let bottomPoints: Array<{ x: number; y: number }> = [];
+
+    const flushRun = () => {
+      if (runColor !== null && topPoints.length > 1) {
+        ctx.fillStyle = runColor;
+        ctx.beginPath();
+        topPoints.forEach((point, pointIndex) => {
+          if (pointIndex === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        for (let pointIndex = bottomPoints.length - 1; pointIndex >= 0; pointIndex -= 1) {
+          ctx.lineTo(bottomPoints[pointIndex].x, bottomPoints[pointIndex].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      runColor = null;
+      topPoints = [];
+      bottomPoints = [];
+    };
+
+    for (let index = firstIndex; index <= maxIndex; index += 1) {
+      const upperValue = upperLine.values[index];
+      const lowerValue = lowerLine.values[index];
+      if (
+        upperValue === null ||
+        upperValue === undefined ||
+        lowerValue === null ||
+        lowerValue === undefined ||
+        !Number.isFinite(upperValue) ||
+        !Number.isFinite(lowerValue)
+      ) {
+        flushRun();
+        continue;
+      }
+
+      const color = fill.color ?? (upperValue >= lowerValue ? fill.upColor : fill.downColor);
+      if (!color) {
+        flushRun();
+        continue;
+      }
+
+      const top = { x: xForIndex(index), y: valueToY(upperValue) };
+      const bottom = { x: xForIndex(index), y: valueToY(lowerValue) };
+
+      if (runColor !== null && color !== runColor) {
+        topPoints.push(top);
+        bottomPoints.push(bottom);
+        flushRun();
+      }
+
+      if (runColor === null) runColor = color;
+      topPoints.push(top);
+      bottomPoints.push(bottom);
+    }
+
+    flushRun();
+  });
+};
+
+const drawIndicatorMarkers = (
+  ctx: CanvasRenderingContext2D,
+  computed: IndicatorComputedSeries,
+  startIndex: number,
+  endIndex: number,
+  xForIndex: (index: number) => number,
+  priceToY: (price: number) => number,
+  fontSize: number
+) => {
+  computed.markers?.forEach((marker) => {
+    if (marker.index < startIndex || marker.index > endIndex) return;
+
+    const x = xForIndex(marker.index);
+    const baseY = priceToY(marker.price);
+    ctx.fillStyle = marker.color;
+
+    if (marker.shape === 'triangleUp' || marker.shape === 'triangleDown') {
+      const y = marker.position === 'above' ? baseY - 9 : baseY + 9;
+      ctx.beginPath();
+      if (marker.shape === 'triangleUp') {
+        ctx.moveTo(x, y - 3.5);
+        ctx.lineTo(x - 4, y + 3.5);
+        ctx.lineTo(x + 4, y + 3.5);
+      } else {
+        ctx.moveTo(x, y + 3.5);
+        ctx.lineTo(x - 4, y - 3.5);
+        ctx.lineTo(x + 4, y - 3.5);
+      }
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
+
+    if (marker.shape === 'cross') {
+      ctx.strokeStyle = marker.color;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, baseY);
+      ctx.lineTo(x + 4, baseY);
+      ctx.moveTo(x, baseY - 4);
+      ctx.lineTo(x, baseY + 4);
+      ctx.stroke();
+      return;
+    }
+
+    const text = marker.text ?? formatPrice(marker.price);
+    ctx.font = getCanvasFont(Math.max(11, fontSize - 3));
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x, marker.position === 'above' ? baseY - 7 : baseY + 15);
+  });
 };
 
 const getIndicatorLegendValues = ({
@@ -6829,7 +6315,11 @@ interface IndicatorsDropdownProps {
   setOpenMenu: (menu: MenuKey | null) => void;
   activeIndicators: ActiveIndicator[];
   onAddIndicator: (definitionId: string) => void;
+  favoriteIndicatorIds: string[];
+  onToggleFavorite: (definitionId: string) => void;
 }
+
+type IndicatorPickerCategory = 'Favorites' | 'Technicals' | 'Fundamentals';
 
 function IndicatorsDropdown({
   count,
@@ -6837,25 +6327,23 @@ function IndicatorsDropdown({
   setOpenMenu,
   activeIndicators,
   onAddIndicator,
+  favoriteIndicatorIds,
+  onToggleFavorite,
 }: IndicatorsDropdownProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [category, setCategory] = useState<'Favorites' | 'Technicals' | IndicatorDefinition['category']>('Technicals');
+  const [category, setCategory] = useState<IndicatorPickerCategory>('Technicals');
   const isOpen = openMenu === 'indicators';
-  const categories: Array<'Favorites' | 'Technicals' | IndicatorDefinition['category']> = [
-    'Favorites',
-    'Technicals',
-    'Volume',
-    'Trend',
-    'Momentum',
-    'Volatility',
-  ];
+  const favoriteIdSet = useMemo(() => new Set(favoriteIndicatorIds), [favoriteIndicatorIds]);
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const options = INDICATOR_DEFINITIONS.filter((definition) => {
     const matchesCategory =
-      category === 'Technicals' ||
-      (category === 'Favorites' ? definition.featured : definition.category === category);
+      category === 'Favorites'
+        ? favoriteIdSet.has(definition.id)
+        : category === 'Fundamentals'
+          ? definition.category === 'Fundamental'
+          : definition.category !== 'Fundamental';
     const matchesSearch =
       normalizedQuery.length === 0 ||
       definition.name.toLowerCase().includes(normalizedQuery) ||
@@ -6864,6 +6352,11 @@ function IndicatorsDropdown({
 
     return matchesCategory && matchesSearch;
   });
+
+  // Fundamentals stay grouped by statement; other categories are alphabetical like TradingView.
+  if (category !== 'Fundamentals') {
+    options.sort((a, b) => a.name.localeCompare(b.name));
+  }
 
   const closeMenu = () => {
     setOpenMenu(null);
@@ -6967,21 +6460,37 @@ function IndicatorsDropdown({
           <div className="indicator-picker-body">
             <div className="indicator-category-rail" aria-label="Indicator categories">
               <span>Personal</span>
+              <button
+                type="button"
+                className="indicator-category-button"
+                data-active={category === 'Favorites'}
+                onClick={() => setCategory('Favorites')}
+              >
+                <svg className="category-glyph" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M10 2.1l2.39 4.84 5.34.78-3.86 3.77.91 5.32L10 14.3l-4.78 2.51.91-5.32-3.86-3.77 5.34-.78L10 2.1z" />
+                </svg>
+                Favorites
+              </button>
               <button type="button" disabled>
                 My scripts
               </button>
               <span>Built-in</span>
-              {categories.map((nextCategory) => (
-                <button
-                  key={nextCategory}
-                  type="button"
-                  className="indicator-category-button"
-                  data-active={category === nextCategory}
-                  onClick={() => setCategory(nextCategory)}
-                >
-                  {nextCategory}
-                </button>
-              ))}
+              <button
+                type="button"
+                className="indicator-category-button"
+                data-active={category === 'Technicals'}
+                onClick={() => setCategory('Technicals')}
+              >
+                Technicals
+              </button>
+              <button
+                type="button"
+                className="indicator-category-button"
+                data-active={category === 'Fundamentals'}
+                onClick={() => setCategory('Fundamentals')}
+              >
+                Fundamentals
+              </button>
             </div>
 
             <div className="indicator-results" role="menu" aria-label={`${category} indicators`}>
@@ -6992,29 +6501,67 @@ function IndicatorsDropdown({
                 <span>Patterns</span>
               </div>
               <span className="indicator-results-label">Script name</span>
+              {category === 'Favorites' && options.length === 0 && (
+                <div className="indicator-favorites-empty">
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 2.1l2.39 4.84 5.34.78-3.86 3.77.91 5.32L10 14.3l-4.78 2.51.91-5.32-3.86-3.77 5.34-.78L10 2.1z" />
+                  </svg>
+                  <strong>{normalizedQuery.length === 0 ? 'You have no favorites yet' : 'No favorites match your search'}</strong>
+                  <small>Click the star next to any indicator to add it to your favorites.</small>
+                </div>
+              )}
               {options.map((option, index) => {
                 const active = activeIndicators.some((indicator) => indicator.definitionId === option.id);
+                const favorited = favoriteIdSet.has(option.id);
+                const groupLabel =
+                  category === 'Fundamentals' &&
+                  (index === 0 || options[index - 1].description !== option.description)
+                    ? option.description
+                    : null;
 
                 return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={active}
-                    className="toolbar-menu-item indicator-menu-item"
-                    data-active={active}
-                    data-menu-key="indicators"
-                    data-menu-value={option.id}
-                    onClick={() => onAddIndicator(option.id)}
-                    onKeyDown={(event) => handleItemKeyDown(event, option, index)}
-                  >
-                    <span className="menu-check" aria-hidden="true" />
-                    <span className="menu-item-copy">
-                      <strong>{option.name}</strong>
-                      <small>{option.description}</small>
-                    </span>
-                    <span className="indicator-kind">{option.shortName}</span>
-                  </button>
+                  <Fragment key={option.id}>
+                    {groupLabel && <span className="indicator-results-label indicator-group-label">{groupLabel}</span>}
+                    <div className="indicator-row" data-favorited={favorited}>
+                      <button
+                        type="button"
+                        className="indicator-fav-toggle"
+                        aria-label={
+                          favorited
+                            ? `Remove ${option.name} from favorites`
+                            : `Add ${option.name} to favorites`
+                        }
+                        aria-pressed={favorited}
+                        title={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleFavorite(option.id);
+                        }}
+                      >
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="M10 2.1l2.39 4.84 5.34.78-3.86 3.77.91 5.32L10 14.3l-4.78 2.51.91-5.32-3.86-3.77 5.34-.78L10 2.1z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitemcheckbox"
+                        aria-checked={active}
+                        className="toolbar-menu-item indicator-menu-item"
+                        data-active={active}
+                        data-menu-key="indicators"
+                        data-menu-value={option.id}
+                        onClick={() => onAddIndicator(option.id)}
+                        onKeyDown={(event) => handleItemKeyDown(event, option, index)}
+                      >
+                        <span className="menu-check" aria-hidden="true" />
+                        <span className="menu-item-copy">
+                          <strong>{option.name}</strong>
+                          <small>{option.description}</small>
+                        </span>
+                        <span className="indicator-kind">{option.shortName}</span>
+                      </button>
+                    </div>
+                  </Fragment>
                 );
               })}
             </div>
@@ -7236,6 +6783,7 @@ export default function Home() {
   const [theme, setTheme] = useState<ThemeName>(DEFAULT_ACCOUNT_LAYOUT_THEME);
   const [cursorTool, setCursorTool] = useState<CursorToolId>('cross');
   const [favoriteCursorTools, setFavoriteCursorTools] = useState<Partial<Record<CursorToolId, boolean>>>({});
+  const [favoriteIndicatorIds, setFavoriteIndicatorIds] = useState<string[]>([]);
   const [valuesTooltipOnLongPress, setValuesTooltipOnLongPress] = useState(true);
   const [lastDrawingTool, setLastDrawingTool] = useState<DrawingToolId>('trend-line');
   const [lastFibTool, setLastFibTool] = useState<DrawingToolId>('fib-retracement');
@@ -7491,10 +7039,36 @@ export default function Home() {
       if (rawValuesTooltip !== null) {
         setValuesTooltipOnLongPress(rawValuesTooltip === 'true');
       }
+
+      const rawIndicatorFavorites = window.localStorage.getItem(INDICATOR_FAVORITES_STORAGE_KEY);
+      if (rawIndicatorFavorites) {
+        const parsedIndicatorFavorites = JSON.parse(rawIndicatorFavorites) as string[];
+        if (Array.isArray(parsedIndicatorFavorites)) {
+          setFavoriteIndicatorIds(
+            parsedIndicatorFavorites.filter(
+              (id) => typeof id === 'string' && INDICATOR_DEFINITIONS.some((definition) => definition.id === id)
+            )
+          );
+        }
+      }
     } catch {
       setFavoriteCursorTools({});
     }
   }, []);
+
+  const toggleIndicatorFavorite = (definitionId: string) => {
+    setFavoriteIndicatorIds((current) => {
+      const next = current.includes(definitionId)
+        ? current.filter((id) => id !== definitionId)
+        : [...current, definitionId];
+      try {
+        window.localStorage.setItem(INDICATOR_FAVORITES_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // storage unavailable
+      }
+      return next;
+    });
+  };
 
   const toggleCursorToolFavorite = (tool: CursorToolId) => {
     setFavoriteCursorTools((current) => {
@@ -9958,52 +9532,22 @@ export default function Home() {
       const computed = activeIndicatorSeries[indicator.id];
       if (!computed) return;
 
-      const definition = getIndicatorDefinition(indicator.definitionId);
-      const upperLine = computed.lines.find((line) => line.label === 'Upper');
-      const lowerLine = computed.lines.find((line) => line.label === 'Lower');
+      const defaultLineWidth = computed.lines.length > 1 ? 1.25 : 1.7;
+      const endIndex = lastDrawableIndex(computed, candles.length, viewRange.endIndex);
 
-      if (definition.formula === 'bb' && computed.fillColor && upperLine && lowerLine) {
-        const upperPoints = visibleIndexedCandles
-          .map(({ index }) => {
-            const value = upperLine.values[index];
-            return value === null || value === undefined ? null : { x: xForIndex(index), y: priceToY(value) };
-          })
-          .filter((point): point is { x: number; y: number } => point !== null);
-        const lowerPoints = visibleIndexedCandles
-          .map(({ index }) => {
-            const value = lowerLine.values[index];
-            return value === null || value === undefined ? null : { x: xForIndex(index), y: priceToY(value) };
-          })
-          .filter((point): point is { x: number; y: number } => point !== null);
-
-        if (upperPoints.length > 1 && lowerPoints.length > 1) {
-          ctx.fillStyle = computed.fillColor;
-          ctx.beginPath();
-          upperPoints.forEach((point, index) => {
-            if (index === 0) {
-              ctx.moveTo(point.x, point.y);
-            } else {
-              ctx.lineTo(point.x, point.y);
-            }
-          });
-          [...lowerPoints].reverse().forEach((point) => {
-            ctx.lineTo(point.x, point.y);
-          });
-          ctx.closePath();
-          ctx.fill();
-        }
-      }
-
+      drawIndicatorFills(ctx, computed, firstVisibleIndex, endIndex, xForIndex, priceToY);
       computed.lines.forEach((line) => {
-        const points = visibleIndexedCandles
-          .map(({ index }) => {
-            const value = line.values[index];
-            return value === null || value === undefined ? null : { x: xForIndex(index), y: priceToY(value) };
-          })
-          .filter((point): point is { x: number; y: number } => point !== null);
-
-        drawLinePath(ctx, points, line.color, definition.formula === 'bb' ? 1.25 : 1.7);
+        drawIndicatorSeriesLine(ctx, line, firstVisibleIndex, endIndex, xForIndex, priceToY, defaultLineWidth);
       });
+      drawIndicatorMarkers(
+        ctx,
+        computed,
+        firstVisibleIndex,
+        Math.min(candles.length - 1, endIndex),
+        xForIndex,
+        priceToY,
+        axisFontSize
+      );
     });
 
     const currentPriceY = priceToY(latestCandle!.close);
@@ -11657,7 +11201,36 @@ export default function Home() {
         ...(computed.guideLines?.map((guide) => guide.value) ?? []),
       ];
 
-      if (visibleValues.length === 0) return;
+      if (computed.noData || visibleValues.length === 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(pane.left, pane.top, pane.width, pane.height);
+        ctx.clip();
+        ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
+        ctx.fillRect(pane.left, pane.top, pane.width, pane.height);
+
+        if (computed.noData) {
+          ctx.fillStyle = palette.text;
+          ctx.globalAlpha = 0.66;
+          ctx.font = getCanvasFont(indicatorPaneFontSize);
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            'No data available for this symbol',
+            pane.left + pane.width / 2,
+            pane.top + pane.height / 2 + 4
+          );
+          ctx.globalAlpha = 1;
+        }
+        ctx.restore();
+
+        ctx.strokeStyle = palette.axisBorder;
+        ctx.beginPath();
+        ctx.moveTo(pane.left, pane.top);
+        ctx.lineTo(pane.left + pane.width, pane.top);
+        ctx.lineTo(pane.left + pane.width, pane.top + pane.height);
+        ctx.stroke();
+        return;
+      }
 
       const rawMin = computed.min ?? Math.min(...visibleValues);
       const rawMax = computed.max ?? Math.max(...visibleValues);
@@ -11674,6 +11247,13 @@ export default function Home() {
 
       ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
       ctx.fillRect(pane.left, pane.top, pane.width, pane.height);
+
+      if (computed.guideBand) {
+        const bandTop = valueToY(Math.max(computed.guideBand.from, computed.guideBand.to));
+        const bandBottom = valueToY(Math.min(computed.guideBand.from, computed.guideBand.to));
+        ctx.fillStyle = computed.guideBand.color;
+        ctx.fillRect(pane.left, bandTop, pane.width, Math.max(1, bandBottom - bandTop));
+      }
 
       const tickInfo = createPriceTicks(minValue, maxValue, pane.height);
       if (chartSettings.showGridLines) {
@@ -11701,6 +11281,9 @@ export default function Home() {
         ctx.setLineDash([]);
       });
 
+      const paneEndIndex = lastDrawableIndex(computed, candles.length, viewRange.endIndex);
+      drawIndicatorFills(ctx, computed, firstVisibleIndex, paneEndIndex, xForIndex, valueToY);
+
       if (computed.histogram) {
         const zeroY = valueToY(0);
         visibleIndexedCandles.forEach(({ index }) => {
@@ -11709,7 +11292,11 @@ export default function Home() {
 
           const x = xForIndex(index);
           const y = valueToY(value);
-          ctx.fillStyle = value >= 0 ? computed.histogramPositive ?? palette.greenSoft : computed.histogramNegative ?? palette.redSoft;
+          ctx.fillStyle =
+            computed.histogramColors?.[index] ??
+            (value >= 0
+              ? computed.histogramPositive ?? palette.greenSoft
+              : computed.histogramNegative ?? palette.redSoft);
           ctx.fillRect(
             x - candleWidth / 2,
             Math.min(zeroY, y),
@@ -11720,14 +11307,7 @@ export default function Home() {
       }
 
       computed.lines.forEach((line) => {
-        const points = visibleIndexedCandles
-          .map(({ index }) => {
-            const value = line.values[index];
-            return value === null || value === undefined ? null : { x: xForIndex(index), y: valueToY(value) };
-          })
-          .filter((point): point is { x: number; y: number } => point !== null);
-
-        drawLinePath(ctx, points, line.color, 1.35);
+        drawIndicatorSeriesLine(ctx, line, firstVisibleIndex, paneEndIndex, xForIndex, valueToY, 1.35);
       });
 
       ctx.restore();
@@ -11745,7 +11325,10 @@ export default function Home() {
       ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, pane.top + pane.height - 7);
 
       if (definition.formula === 'rsi' || definition.formula === 'stochastic') {
-        ctx.fillText('50.00', rect.width - 8, valueToY(50) + 4);
+        const midLabelY = valueToY(50) + 4;
+        if (midLabelY > pane.top + indicatorPaneFontSize + 10 && midLabelY < pane.top + pane.height - 12) {
+          ctx.fillText('50.00', rect.width - 8, midLabelY);
+        }
       }
     });
 
@@ -12650,52 +12233,47 @@ export default function Home() {
         negativeColor: palette.red,
       });
       const settings = indicator.settings;
-      const canEditPeriod =
-        definition.defaults.period !== undefined ||
-        settings.period !== undefined ||
-        ['sma', 'ema', 'wma', 'rsi', 'stochastic', 'donchian', 'atr', 'momentum', 'roc'].includes(
-          definition.formula
-        );
-      const canEditSource = definition.defaults.source !== undefined || settings.source !== undefined;
-      const canEditDeviation =
-        definition.formula === 'bb' ||
-        definition.formula === 'bb-percent' ||
-        definition.formula === 'bb-width';
+      const defaults = definition.defaults;
+      const isFundamental = definition.formula === 'fundamental';
+      const canEditPeriod = !isFundamental && (defaults.period !== undefined || settings.period !== undefined);
+      const canEditPeriod2 = defaults.period2 !== undefined;
+      const canEditPeriod3 = defaults.period3 !== undefined;
+      const canEditPeriod4 = defaults.period4 !== undefined;
+      const canEditFast = defaults.fastPeriod !== undefined;
+      const canEditSlow = defaults.slowPeriod !== undefined;
+      const canEditSource = defaults.source !== undefined || settings.source !== undefined;
+      const canEditDeviation = defaults.stdDev !== undefined;
+      const canEditMultiplier = defaults.multiplier !== undefined;
+      const canEditPercent = defaults.percent !== undefined;
+      const canEditOffset = defaults.offset !== undefined;
+      const canEditSigma = defaults.sigma !== undefined;
+      const canEditPsar = defaults.startValue !== undefined;
+      const canEditSmoothingType = defaults.smoothingType !== undefined;
       const canEditMacd = definition.formula === 'macd';
-      const canEditSignal = canEditMacd || definition.formula === 'stochastic';
+      const canEditMaType = defaults.oscillatorMaType !== undefined;
+      const canEditSignal = defaults.signalPeriod !== undefined;
       const signalPeriodMax = canEditMacd ? 50 : 200;
-      const primaryColorLabel =
-        definition.formula === 'volume'
-          ? 'Up color'
-          : definition.formula === 'bb'
-            ? 'Basis color'
-            : definition.formula === 'donchian'
-              ? 'Upper color'
-              : definition.formula === 'macd'
-                ? 'MACD color'
-                : definition.formula === 'stochastic'
-                  ? '%K color'
-                  : 'Color';
+      const settingLabel = (field: string) => getIndicatorSettingLabel(definition.formula, field);
+      const primaryColorLabel = getIndicatorColorLabel(definition.formula, 'color') ?? 'Color';
       const secondaryColorLabel =
-        definition.formula === 'volume'
-          ? 'Down color'
-          : definition.formula === 'bb'
-            ? 'Upper color'
-            : definition.formula === 'donchian'
-              ? 'Lower color'
-              : definition.formula === 'macd'
-                ? 'Signal color'
-                : definition.formula === 'stochastic'
-                  ? '%D color'
-                  : null;
+        defaults.secondaryColor !== undefined
+          ? getIndicatorColorLabel(definition.formula, 'secondaryColor') ?? 'Color 2'
+          : null;
       const tertiaryColorLabel =
-        definition.formula === 'bb'
-          ? 'Lower color'
-          : definition.formula === 'donchian'
-            ? 'Basis color'
-            : null;
-      const canEditFillColor = definition.formula === 'bb';
-      const canEditHistogramColors = definition.formula === 'macd';
+        defaults.tertiaryColor !== undefined
+          ? getIndicatorColorLabel(definition.formula, 'tertiaryColor') ?? 'Color 3'
+          : null;
+      const quaternaryColorLabel =
+        defaults.quaternaryColor !== undefined
+          ? getIndicatorColorLabel(definition.formula, 'quaternaryColor') ?? 'Color 4'
+          : null;
+      const quinaryColorLabel =
+        defaults.quinaryColor !== undefined
+          ? getIndicatorColorLabel(definition.formula, 'quinaryColor') ?? 'Color 5'
+          : null;
+      const canEditFillColor = defaults.fillColor !== undefined;
+      const canEditHistogramColors = defaults.histogramPositiveColor !== undefined;
+      const canEditPrimaryColor = !isFundamental && defaults.color !== undefined;
       const visualGroupIndex = visualGroupIds.indexOf(indicator.id);
       const canMoveUp = visualGroupIndex > 0;
       const canMoveDown = visualGroupIndex >= 0 && visualGroupIndex < visualGroupIds.length - 1;
@@ -12781,20 +12359,22 @@ export default function Home() {
 
           {settingsTarget?.indicatorId === indicator.id && settingsTarget.paneIndex === paneIndex && (
             <div className="indicator-settings-panel" role="group" aria-label={`${definition.name} settings`}>
-              <label>
-                <span>{primaryColorLabel}</span>
-                <input
-                  type="color"
-                  value={colorToInputValue(settings.color ?? definition.defaults.color)}
-                  onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
-                />
-              </label>
+              {canEditPrimaryColor && (
+                <label>
+                  <span>{primaryColorLabel}</span>
+                  <input
+                    type="color"
+                    value={colorToInputValue(settings.color ?? defaults.color)}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { color: event.target.value })}
+                  />
+                </label>
+              )}
               {secondaryColorLabel && (
                 <label>
                   <span>{secondaryColorLabel}</span>
                   <input
                     type="color"
-                    value={colorToInputValue(settings.secondaryColor ?? definition.defaults.secondaryColor, '#ff6d00')}
+                    value={colorToInputValue(settings.secondaryColor ?? defaults.secondaryColor, '#ff6d00')}
                     onChange={(event) => updateIndicatorSettings(indicator.id, { secondaryColor: event.target.value })}
                   />
                 </label>
@@ -12804,8 +12384,30 @@ export default function Home() {
                   <span>{tertiaryColorLabel}</span>
                   <input
                     type="color"
-                    value={colorToInputValue(settings.tertiaryColor ?? definition.defaults.tertiaryColor, '#7c8da6')}
+                    value={colorToInputValue(settings.tertiaryColor ?? defaults.tertiaryColor, '#7c8da6')}
                     onChange={(event) => updateIndicatorSettings(indicator.id, { tertiaryColor: event.target.value })}
+                  />
+                </label>
+              )}
+              {quaternaryColorLabel && (
+                <label>
+                  <span>{quaternaryColorLabel}</span>
+                  <input
+                    type="color"
+                    value={colorToInputValue(settings.quaternaryColor ?? defaults.quaternaryColor, '#43a047')}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { quaternaryColor: event.target.value })
+                    }
+                  />
+                </label>
+              )}
+              {quinaryColorLabel && (
+                <label>
+                  <span>{quinaryColorLabel}</span>
+                  <input
+                    type="color"
+                    value={colorToInputValue(settings.quinaryColor ?? defaults.quinaryColor, '#f23645')}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { quinaryColor: event.target.value })}
                   />
                 </label>
               )}
@@ -12814,7 +12416,7 @@ export default function Home() {
                   <span>Fill color</span>
                   <input
                     type="color"
-                    value={colorToInputValue(settings.fillColor ?? definition.defaults.fillColor, '#2962ff')}
+                    value={colorToInputValue(settings.fillColor ?? defaults.fillColor, '#2962ff')}
                     onChange={(event) =>
                       updateIndicatorSettings(indicator.id, { fillColor: hexToRgba(event.target.value, 0.08) })
                     }
@@ -12828,7 +12430,7 @@ export default function Home() {
                     <input
                       type="color"
                       value={colorToInputValue(
-                        settings.histogramPositiveColor ?? definition.defaults.histogramPositiveColor,
+                        settings.histogramPositiveColor ?? defaults.histogramPositiveColor,
                         '#26a69a'
                       )}
                       onChange={(event) =>
@@ -12841,7 +12443,7 @@ export default function Home() {
                     <input
                       type="color"
                       value={colorToInputValue(
-                        settings.histogramNegativeColor ?? definition.defaults.histogramNegativeColor,
+                        settings.histogramNegativeColor ?? defaults.histogramNegativeColor,
                         '#ef5350'
                       )}
                       onChange={(event) =>
@@ -12853,13 +12455,77 @@ export default function Home() {
               )}
               {canEditPeriod && (
                 <label>
-                  <span>Length</span>
+                  <span>{settingLabel('period')}</span>
                   <input
                     type="number"
                     min="1"
                     max="500"
-                    value={sanitizePeriod(settings.period, definition.defaults.period ?? 20)}
+                    value={sanitizePeriod(settings.period, defaults.period ?? 20)}
                     onChange={(event) => updateIndicatorSettings(indicator.id, { period: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditPeriod2 && (
+                <label>
+                  <span>{settingLabel('period2')}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={sanitizePeriod(settings.period2, defaults.period2 ?? 20)}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { period2: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditPeriod3 && (
+                <label>
+                  <span>{settingLabel('period3')}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={sanitizePeriod(settings.period3, defaults.period3 ?? 20)}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { period3: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditPeriod4 && (
+                <label>
+                  <span>{settingLabel('period4')}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={sanitizePeriod(settings.period4, defaults.period4 ?? 20)}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { period4: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditFast && !canEditMacd && (
+                <label>
+                  <span>{settingLabel('fastPeriod')}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={sanitizePeriod(settings.fastPeriod, defaults.fastPeriod ?? 12)}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { fastPeriod: Number(event.target.value) })
+                    }
+                  />
+                </label>
+              )}
+              {canEditSlow && !canEditMacd && (
+                <label>
+                  <span>{settingLabel('slowPeriod')}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={sanitizePeriod(settings.slowPeriod, defaults.slowPeriod ?? 26)}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { slowPeriod: Number(event.target.value) })
+                    }
                   />
                 </label>
               )}
@@ -12867,7 +12533,7 @@ export default function Home() {
                 <label>
                   <span>Source</span>
                   <select
-                    value={settings.source ?? definition.defaults.source ?? 'close'}
+                    value={settings.source ?? defaults.source ?? 'close'}
                     onChange={(event) =>
                       updateIndicatorSettings(indicator.id, { source: event.target.value as IndicatorSource })
                     }
@@ -12882,15 +12548,131 @@ export default function Home() {
               )}
               {canEditDeviation && (
                 <label>
-                  <span>Std dev</span>
+                  <span>{settingLabel('stdDev')}</span>
                   <input
                     type="number"
                     min="0.1"
                     max="10"
                     step="0.1"
-                    value={settings.stdDev ?? definition.defaults.stdDev ?? 2}
+                    value={settings.stdDev ?? defaults.stdDev ?? 2}
                     onChange={(event) => updateIndicatorSettings(indicator.id, { stdDev: Number(event.target.value) })}
                   />
+                </label>
+              )}
+              {canEditMultiplier && (
+                <label>
+                  <span>{settingLabel('multiplier')}</span>
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="100000"
+                    step="0.1"
+                    value={settings.multiplier ?? defaults.multiplier ?? 2}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, { multiplier: Number(event.target.value) })
+                    }
+                  />
+                </label>
+              )}
+              {canEditPercent && (
+                <label>
+                  <span>{settingLabel('percent')}</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    max="100"
+                    step="0.1"
+                    value={settings.percent ?? defaults.percent ?? 10}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { percent: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditOffset && (
+                <label>
+                  <span>{settingLabel('offset')}</span>
+                  <input
+                    type="number"
+                    min="-100"
+                    max="100"
+                    step="0.05"
+                    value={settings.offset ?? defaults.offset ?? 0}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { offset: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditSigma && (
+                <label>
+                  <span>{settingLabel('sigma')}</span>
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="100"
+                    step="0.5"
+                    value={settings.sigma ?? defaults.sigma ?? 6}
+                    onChange={(event) => updateIndicatorSettings(indicator.id, { sigma: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {canEditPsar && (
+                <>
+                  <label>
+                    <span>{settingLabel('startValue')}</span>
+                    <input
+                      type="number"
+                      min="0.001"
+                      max="1"
+                      step="0.01"
+                      value={settings.startValue ?? defaults.startValue ?? 0.02}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, { startValue: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>{settingLabel('increment')}</span>
+                    <input
+                      type="number"
+                      min="0.001"
+                      max="1"
+                      step="0.01"
+                      value={settings.increment ?? defaults.increment ?? 0.02}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, { increment: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>{settingLabel('maxValue')}</span>
+                    <input
+                      type="number"
+                      min="0.01"
+                      max="1"
+                      step="0.01"
+                      value={settings.maxValue ?? defaults.maxValue ?? 0.2}
+                      onChange={(event) =>
+                        updateIndicatorSettings(indicator.id, { maxValue: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+                </>
+              )}
+              {canEditSmoothingType && (
+                <label>
+                  <span>Smoothing</span>
+                  <select
+                    value={settings.smoothingType ?? defaults.smoothingType ?? 'RMA'}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, {
+                        smoothingType: event.target.value as IndicatorSmoothingType,
+                      })
+                    }
+                  >
+                    {INDICATOR_SMOOTHING_OPTIONS.map((smoothingOption) => (
+                      <option key={smoothingOption} value={smoothingOption}>
+                        {smoothingOption}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               )}
               {canEditMacd && (
@@ -12901,7 +12683,7 @@ export default function Home() {
                       type="number"
                       min="1"
                       max="500"
-                      value={sanitizePeriod(settings.fastPeriod, definition.defaults.fastPeriod ?? 12)}
+                      value={sanitizePeriod(settings.fastPeriod, defaults.fastPeriod ?? 12)}
                       onChange={(event) =>
                         updateIndicatorSettings(indicator.id, { fastPeriod: Number(event.target.value) })
                       }
@@ -12913,44 +12695,41 @@ export default function Home() {
                       type="number"
                       min="1"
                       max="500"
-                      value={sanitizePeriod(settings.slowPeriod, definition.defaults.slowPeriod ?? 26)}
+                      value={sanitizePeriod(settings.slowPeriod, defaults.slowPeriod ?? 26)}
                       onChange={(event) =>
                         updateIndicatorSettings(indicator.id, { slowPeriod: Number(event.target.value) })
                       }
                     />
                   </label>
-                  <label>
-                    <span>Oscillator MA type</span>
-                    <select
-                      value={settings.oscillatorMaType ?? definition.defaults.oscillatorMaType ?? 'EMA'}
-                      onChange={(event) =>
-                        updateIndicatorSettings(indicator.id, {
-                          oscillatorMaType: event.target.value as IndicatorMaType,
-                        })
-                      }
-                    >
-                      {INDICATOR_MA_TYPE_OPTIONS.map((maType) => (
-                        <option key={maType} value={maType}>
-                          {maType}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </>
+              )}
+              {canEditMaType && (
+                <label>
+                  <span>{canEditMacd ? 'Oscillator MA type' : 'MA type'}</span>
+                  <select
+                    value={settings.oscillatorMaType ?? defaults.oscillatorMaType ?? 'EMA'}
+                    onChange={(event) =>
+                      updateIndicatorSettings(indicator.id, {
+                        oscillatorMaType: event.target.value as IndicatorMaType,
+                      })
+                    }
+                  >
+                    {INDICATOR_MA_TYPE_OPTIONS.map((maType) => (
+                      <option key={maType} value={maType}>
+                        {maType}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
               {canEditSignal && (
                 <label>
-                  <span>{canEditMacd ? 'Signal smoothing' : 'Signal'}</span>
+                  <span>{canEditMacd ? 'Signal smoothing' : settingLabel('signalPeriod')}</span>
                   <input
                     type="number"
                     min="1"
                     max={signalPeriodMax}
-                    value={sanitizePeriod(
-                      settings.signalPeriod,
-                      definition.defaults.signalPeriod ?? 9,
-                      1,
-                      signalPeriodMax
-                    )}
+                    value={sanitizePeriod(settings.signalPeriod, defaults.signalPeriod ?? 9, 1, signalPeriodMax)}
                     onChange={(event) =>
                       updateIndicatorSettings(indicator.id, { signalPeriod: Number(event.target.value) })
                     }
@@ -12961,7 +12740,7 @@ export default function Home() {
                 <label>
                   <span>Signal line MA type</span>
                   <select
-                    value={settings.signalMaType ?? definition.defaults.signalMaType ?? 'EMA'}
+                    value={settings.signalMaType ?? defaults.signalMaType ?? 'EMA'}
                     onChange={(event) =>
                       updateIndicatorSettings(indicator.id, { signalMaType: event.target.value as IndicatorMaType })
                     }
@@ -12973,6 +12752,11 @@ export default function Home() {
                     ))}
                   </select>
                 </label>
+              )}
+              {isFundamental && (
+                <p className="indicator-settings-note">
+                  Fundamental data is not available for crypto symbols.
+                </p>
               )}
             </div>
           )}
@@ -15183,6 +14967,8 @@ export default function Home() {
             setOpenMenu={setOpenMenu}
             activeIndicators={activeIndicators}
             onAddIndicator={addIndicator}
+            favoriteIndicatorIds={favoriteIndicatorIds}
+            onToggleFavorite={toggleIndicatorFavorite}
           />
 
           {isAuthenticated && (

@@ -1,0 +1,818 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic "Chart command bar" [ref=e3]:
+      - generic "Chart controls" [ref=e4]:
+        - button "Symbol search" [ref=e6] [cursor=pointer]:
+          - generic [ref=e7]: B
+          - generic [ref=e8]:
+            - generic [ref=e9]: BTCUSDT
+            - generic [ref=e10]: Binance
+          - img [ref=e12]
+        - status "Feed live" [ref=e47]
+        - button "Timeframe" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: 1D
+        - button "Chart type" [ref=e21] [cursor=pointer]
+        - generic [ref=e24]:
+          - button "Indicators, 2 active" [expanded] [ref=e25] [cursor=pointer]:
+            - img [ref=e26]
+            - generic [ref=e30]: Indicators
+            - generic [ref=e31]: "2"
+          - dialog "Indicators, metrics, and strategies" [ref=e171]:
+            - generic [ref=e172]:
+              - strong [ref=e173]: Indicators, metrics, and strategies
+              - button "Close indicators" [ref=e174] [cursor=pointer]
+            - searchbox [active] [ref=e178]
+            - generic [ref=e179]:
+              - generic "Indicator categories" [ref=e180]:
+                - generic [ref=e181]: Personal
+                - button "Favorites" [ref=e182] [cursor=pointer]:
+                  - img [ref=e183]
+                  - text: Favorites
+                - button "My scripts" [disabled] [ref=e185]
+                - generic [ref=e186]: Built-in
+                - button "Technicals" [ref=e187] [cursor=pointer]
+                - button "Fundamentals" [ref=e188] [cursor=pointer]
+              - menu "Technicals indicators" [ref=e189]:
+                - generic [ref=e190]:
+                  - generic [ref=e191]: Indicators
+                  - generic [ref=e192]: Strategies
+                  - generic [ref=e193]: Profiles
+                  - generic [ref=e194]: Patterns
+                - generic [ref=e195]: Script name
+                - generic [ref=e196]:
+                  - button "Add 24-hour Volume to favorites" [ref=e197] [cursor=pointer]:
+                    - img [ref=e198]
+                  - menuitemcheckbox "24-hour Volume Rolling 24-hour traded volume in quote currency 24h Vol" [ref=e200] [cursor=pointer]:
+                    - generic [ref=e202]:
+                      - strong [ref=e203]: 24-hour Volume
+                      - generic [ref=e204]: Rolling 24-hour traded volume in quote currency
+                    - generic [ref=e205]: 24h Vol
+                - generic [ref=e206]:
+                  - button "Add Accumulation/Distribution to favorites" [ref=e207] [cursor=pointer]:
+                    - img [ref=e208]
+                  - menuitemcheckbox "Accumulation/Distribution Volume accumulation distribution line A/D" [ref=e210] [cursor=pointer]:
+                    - generic [ref=e212]:
+                      - strong [ref=e213]: Accumulation/Distribution
+                      - generic [ref=e214]: Volume accumulation distribution line
+                    - generic [ref=e215]: A/D
+                - generic [ref=e216]:
+                  - button "Add Accumulative Swing Index to favorites" [ref=e217] [cursor=pointer]:
+                    - img [ref=e218]
+                  - menuitemcheckbox "Accumulative Swing Index Cumulative Wilder swing index ASI" [ref=e220] [cursor=pointer]:
+                    - generic [ref=e222]:
+                      - strong [ref=e223]: Accumulative Swing Index
+                      - generic [ref=e224]: Cumulative Wilder swing index
+                    - generic [ref=e225]: ASI
+                - generic [ref=e226]:
+                  - button "Add Arnaud Legoux Moving Average to favorites" [ref=e227] [cursor=pointer]:
+                    - img [ref=e228]
+                  - menuitemcheckbox "Arnaud Legoux Moving Average Gaussian weighted moving average ALMA" [ref=e230] [cursor=pointer]:
+                    - generic [ref=e232]:
+                      - strong [ref=e233]: Arnaud Legoux Moving Average
+                      - generic [ref=e234]: Gaussian weighted moving average
+                    - generic [ref=e235]: ALMA
+                - generic [ref=e236]:
+                  - button "Add Aroon to favorites" [ref=e237] [cursor=pointer]:
+                    - img [ref=e238]
+                  - menuitemcheckbox "Aroon Bars since highest high and lowest low Aroon" [ref=e240] [cursor=pointer]:
+                    - generic [ref=e242]:
+                      - strong [ref=e243]: Aroon
+                      - generic [ref=e244]: Bars since highest high and lowest low
+                    - generic [ref=e245]: Aroon
+                - generic [ref=e246]:
+                  - button "Add Average Day Range to favorites" [ref=e247] [cursor=pointer]:
+                    - img [ref=e248]
+                  - menuitemcheckbox "Average Day Range Average bar range over the period ADR" [ref=e250] [cursor=pointer]:
+                    - generic [ref=e252]:
+                      - strong [ref=e253]: Average Day Range
+                      - generic [ref=e254]: Average bar range over the period
+                    - generic [ref=e255]: ADR
+                - generic [ref=e256]:
+                  - button "Add Average Directional Index to favorites" [ref=e257] [cursor=pointer]:
+                    - img [ref=e258]
+                  - menuitemcheckbox "Average Directional Index Trend strength from directional movement ADX" [ref=e260] [cursor=pointer]:
+                    - generic [ref=e262]:
+                      - strong [ref=e263]: Average Directional Index
+                      - generic [ref=e264]: Trend strength from directional movement
+                    - generic [ref=e265]: ADX
+                - generic [ref=e266]:
+                  - button "Add Average True Range to favorites" [ref=e267] [cursor=pointer]:
+                    - img [ref=e268]
+                  - menuitemcheckbox "Average True Range Average true range volatility ATR" [ref=e270] [cursor=pointer]:
+                    - generic [ref=e272]:
+                      - strong [ref=e273]: Average True Range
+                      - generic [ref=e274]: Average true range volatility
+                    - generic [ref=e275]: ATR
+                - generic [ref=e276]:
+                  - button "Add Awesome Oscillator to favorites" [ref=e277] [cursor=pointer]:
+                    - img [ref=e278]
+                  - menuitemcheckbox "Awesome Oscillator Median price momentum histogram AO" [ref=e280] [cursor=pointer]:
+                    - generic [ref=e282]:
+                      - strong [ref=e283]: Awesome Oscillator
+                      - generic [ref=e284]: Median price momentum histogram
+                    - generic [ref=e285]: AO
+                - generic [ref=e286]:
+                  - button "Add Balance of Power to favorites" [ref=e287] [cursor=pointer]:
+                    - img [ref=e288]
+                  - menuitemcheckbox "Balance of Power Close versus open strength inside the bar range BOP" [ref=e290] [cursor=pointer]:
+                    - generic [ref=e292]:
+                      - strong [ref=e293]: Balance of Power
+                      - generic [ref=e294]: Close versus open strength inside the bar range
+                    - generic [ref=e295]: BOP
+                - generic [ref=e296]:
+                  - button "Add BBTrend to favorites" [ref=e297] [cursor=pointer]:
+                    - img [ref=e298]
+                  - menuitemcheckbox "BBTrend Bollinger Bands trend strength histogram BBTrend" [ref=e300] [cursor=pointer]:
+                    - generic [ref=e302]:
+                      - strong [ref=e303]: BBTrend
+                      - generic [ref=e304]: Bollinger Bands trend strength histogram
+                    - generic [ref=e305]: BBTrend
+                - generic [ref=e306]:
+                  - button "Add Bollinger Bands to favorites" [ref=e307] [cursor=pointer]:
+                    - img [ref=e308]
+                  - menuitemcheckbox "Bollinger Bands SMA envelope with standard deviation bands BB" [ref=e310] [cursor=pointer]:
+                    - generic [ref=e312]:
+                      - strong [ref=e313]: Bollinger Bands
+                      - generic [ref=e314]: SMA envelope with standard deviation bands
+                    - generic [ref=e315]: BB
+                - generic [ref=e316]:
+                  - button "Add Bollinger Bands %B to favorites" [ref=e317] [cursor=pointer]:
+                    - img [ref=e318]
+                  - menuitemcheckbox "Bollinger Bands %B Close position inside Bollinger Bands BB %B" [ref=e320] [cursor=pointer]:
+                    - generic [ref=e322]:
+                      - strong [ref=e323]: Bollinger Bands %B
+                      - generic [ref=e324]: Close position inside Bollinger Bands
+                    - generic [ref=e325]: BB %B
+                - generic [ref=e326]:
+                  - button "Add Bollinger BandWidth to favorites" [ref=e327] [cursor=pointer]:
+                    - img [ref=e328]
+                  - menuitemcheckbox "Bollinger BandWidth Relative Bollinger Band width BBW" [ref=e330] [cursor=pointer]:
+                    - generic [ref=e332]:
+                      - strong [ref=e333]: Bollinger BandWidth
+                      - generic [ref=e334]: Relative Bollinger Band width
+                    - generic [ref=e335]: BBW
+                - generic [ref=e336]:
+                  - button "Add Bull Bear Power to favorites" [ref=e337] [cursor=pointer]:
+                    - img [ref=e338]
+                  - menuitemcheckbox "Bull Bear Power Combined bull and bear power versus EMA BBP" [ref=e340] [cursor=pointer]:
+                    - generic [ref=e342]:
+                      - strong [ref=e343]: Bull Bear Power
+                      - generic [ref=e344]: Combined bull and bear power versus EMA
+                    - generic [ref=e345]: BBP
+                - generic [ref=e346]:
+                  - button "Add Chaikin Money Flow to favorites" [ref=e347] [cursor=pointer]:
+                    - img [ref=e348]
+                  - menuitemcheckbox "Chaikin Money Flow Volume-weighted accumulation over the period CMF" [ref=e350] [cursor=pointer]:
+                    - generic [ref=e352]:
+                      - strong [ref=e353]: Chaikin Money Flow
+                      - generic [ref=e354]: Volume-weighted accumulation over the period
+                    - generic [ref=e355]: CMF
+                - generic [ref=e356]:
+                  - button "Add Chaikin Oscillator to favorites" [ref=e357] [cursor=pointer]:
+                    - img [ref=e358]
+                  - menuitemcheckbox "Chaikin Oscillator EMA difference of accumulation distribution Chaikin Osc" [ref=e360] [cursor=pointer]:
+                    - generic [ref=e362]:
+                      - strong [ref=e363]: Chaikin Oscillator
+                      - generic [ref=e364]: EMA difference of accumulation distribution
+                    - generic [ref=e365]: Chaikin Osc
+                - generic [ref=e366]:
+                  - button "Add Chande Kroll Stop to favorites" [ref=e367] [cursor=pointer]:
+                    - img [ref=e368]
+                  - menuitemcheckbox "Chande Kroll Stop ATR based long and short stop levels CKS" [ref=e370] [cursor=pointer]:
+                    - generic [ref=e372]:
+                      - strong [ref=e373]: Chande Kroll Stop
+                      - generic [ref=e374]: ATR based long and short stop levels
+                    - generic [ref=e375]: CKS
+                - generic [ref=e376]:
+                  - button "Add Chande Momentum Oscillator to favorites" [ref=e377] [cursor=pointer]:
+                    - img [ref=e378]
+                  - menuitemcheckbox "Chande Momentum Oscillator Momentum of gains versus losses CMO" [ref=e380] [cursor=pointer]:
+                    - generic [ref=e382]:
+                      - strong [ref=e383]: Chande Momentum Oscillator
+                      - generic [ref=e384]: Momentum of gains versus losses
+                    - generic [ref=e385]: CMO
+                - generic [ref=e386]:
+                  - button "Add Chop Zone to favorites" [ref=e387] [cursor=pointer]:
+                    - img [ref=e388]
+                  - menuitemcheckbox "Chop Zone EMA slope angle classification columns CZ" [ref=e390] [cursor=pointer]:
+                    - generic [ref=e392]:
+                      - strong [ref=e393]: Chop Zone
+                      - generic [ref=e394]: EMA slope angle classification columns
+                    - generic [ref=e395]: CZ
+                - generic [ref=e396]:
+                  - button "Add Choppiness Index to favorites" [ref=e397] [cursor=pointer]:
+                    - img [ref=e398]
+                  - menuitemcheckbox "Choppiness Index Trendiness versus sideways chop CHOP" [ref=e400] [cursor=pointer]:
+                    - generic [ref=e402]:
+                      - strong [ref=e403]: Choppiness Index
+                      - generic [ref=e404]: Trendiness versus sideways chop
+                    - generic [ref=e405]: CHOP
+                - generic [ref=e406]:
+                  - button "Add Commodity Channel Index to favorites" [ref=e407] [cursor=pointer]:
+                    - img [ref=e408]
+                  - menuitemcheckbox "Commodity Channel Index Deviation from typical price average CCI" [ref=e410] [cursor=pointer]:
+                    - generic [ref=e412]:
+                      - strong [ref=e413]: Commodity Channel Index
+                      - generic [ref=e414]: Deviation from typical price average
+                    - generic [ref=e415]: CCI
+                - generic [ref=e416]:
+                  - button "Add Connors RSI to favorites" [ref=e417] [cursor=pointer]:
+                    - img [ref=e418]
+                  - menuitemcheckbox "Connors RSI Composite RSI of price, streak, and rank CRSI" [ref=e420] [cursor=pointer]:
+                    - generic [ref=e422]:
+                      - strong [ref=e423]: Connors RSI
+                      - generic [ref=e424]: Composite RSI of price, streak, and rank
+                    - generic [ref=e425]: CRSI
+                - generic [ref=e426]:
+                  - button "Add Coppock Curve to favorites" [ref=e427] [cursor=pointer]:
+                    - img [ref=e428]
+                  - menuitemcheckbox "Coppock Curve Weighted moving average of summed ROCs Coppock" [ref=e430] [cursor=pointer]:
+                    - generic [ref=e432]:
+                      - strong [ref=e433]: Coppock Curve
+                      - generic [ref=e434]: Weighted moving average of summed ROCs
+                    - generic [ref=e435]: Coppock
+                - generic [ref=e436]:
+                  - button "Add Detrended Price Oscillator to favorites" [ref=e437] [cursor=pointer]:
+                    - img [ref=e438]
+                  - menuitemcheckbox "Detrended Price Oscillator Price distance from displaced moving average DPO" [ref=e440] [cursor=pointer]:
+                    - generic [ref=e442]:
+                      - strong [ref=e443]: Detrended Price Oscillator
+                      - generic [ref=e444]: Price distance from displaced moving average
+                    - generic [ref=e445]: DPO
+                - generic [ref=e446]:
+                  - button "Add Directional Movement Index to favorites" [ref=e447] [cursor=pointer]:
+                    - img [ref=e448]
+                  - menuitemcheckbox "Directional Movement Index Directional movement with ADX DMI" [ref=e450] [cursor=pointer]:
+                    - generic [ref=e452]:
+                      - strong [ref=e453]: Directional Movement Index
+                      - generic [ref=e454]: Directional movement with ADX
+                    - generic [ref=e455]: DMI
+                - generic [ref=e456]:
+                  - button "Add Donchian Channels to favorites" [ref=e457] [cursor=pointer]:
+                    - img [ref=e458]
+                  - menuitemcheckbox "Donchian Channels High and low price channels DC" [ref=e460] [cursor=pointer]:
+                    - generic [ref=e462]:
+                      - strong [ref=e463]: Donchian Channels
+                      - generic [ref=e464]: High and low price channels
+                    - generic [ref=e465]: DC
+                - generic [ref=e466]:
+                  - button "Add Double EMA to favorites" [ref=e467] [cursor=pointer]:
+                    - img [ref=e468]
+                  - menuitemcheckbox "Double EMA Double exponential moving average DEMA" [ref=e470] [cursor=pointer]:
+                    - generic [ref=e472]:
+                      - strong [ref=e473]: Double EMA
+                      - generic [ref=e474]: Double exponential moving average
+                    - generic [ref=e475]: DEMA
+                - generic [ref=e476]:
+                  - button "Add Ease of Movement to favorites" [ref=e477] [cursor=pointer]:
+                    - img [ref=e478]
+                  - menuitemcheckbox "Ease of Movement Price movement relative to volume EOM" [ref=e480] [cursor=pointer]:
+                    - generic [ref=e482]:
+                      - strong [ref=e483]: Ease of Movement
+                      - generic [ref=e484]: Price movement relative to volume
+                    - generic [ref=e485]: EOM
+                - generic [ref=e486]:
+                  - button "Add Elder Force Index to favorites" [ref=e487] [cursor=pointer]:
+                    - img [ref=e488]
+                  - menuitemcheckbox "Elder Force Index Price change weighted by volume EFI" [ref=e490] [cursor=pointer]:
+                    - generic [ref=e492]:
+                      - strong [ref=e493]: Elder Force Index
+                      - generic [ref=e494]: Price change weighted by volume
+                    - generic [ref=e495]: EFI
+                - generic [ref=e496]:
+                  - button "Add Envelope to favorites" [ref=e497] [cursor=pointer]:
+                    - img [ref=e498]
+                  - menuitemcheckbox "Envelope Percent envelope around a moving average ENV" [ref=e500] [cursor=pointer]:
+                    - generic [ref=e502]:
+                      - strong [ref=e503]: Envelope
+                      - generic [ref=e504]: Percent envelope around a moving average
+                    - generic [ref=e505]: ENV
+                - generic [ref=e506]:
+                  - button "Add Fisher Transform to favorites" [ref=e507] [cursor=pointer]:
+                    - img [ref=e508]
+                  - menuitemcheckbox "Fisher Transform Gaussian transform of price extremes Fisher" [ref=e510] [cursor=pointer]:
+                    - generic [ref=e512]:
+                      - strong [ref=e513]: Fisher Transform
+                      - generic [ref=e514]: Gaussian transform of price extremes
+                    - generic [ref=e515]: Fisher
+                - generic [ref=e516]:
+                  - button "Add Historical Volatility to favorites" [ref=e517] [cursor=pointer]:
+                    - img [ref=e518]
+                  - menuitemcheckbox "Historical Volatility Annualized standard deviation of returns HV" [ref=e520] [cursor=pointer]:
+                    - generic [ref=e522]:
+                      - strong [ref=e523]: Historical Volatility
+                      - generic [ref=e524]: Annualized standard deviation of returns
+                    - generic [ref=e525]: HV
+                - generic [ref=e526]:
+                  - button "Add Hull Moving Average to favorites" [ref=e527] [cursor=pointer]:
+                    - img [ref=e528]
+                  - menuitemcheckbox "Hull Moving Average Fast low-lag weighted moving average HMA" [ref=e530] [cursor=pointer]:
+                    - generic [ref=e532]:
+                      - strong [ref=e533]: Hull Moving Average
+                      - generic [ref=e534]: Fast low-lag weighted moving average
+                    - generic [ref=e535]: HMA
+                - generic [ref=e536]:
+                  - button "Add Ichimoku Cloud to favorites" [ref=e537] [cursor=pointer]:
+                    - img [ref=e538]
+                  - menuitemcheckbox "Ichimoku Cloud Cloud with conversion, base, and spans Ichimoku" [ref=e540] [cursor=pointer]:
+                    - generic [ref=e542]:
+                      - strong [ref=e543]: Ichimoku Cloud
+                      - generic [ref=e544]: Cloud with conversion, base, and spans
+                    - generic [ref=e545]: Ichimoku
+                - generic [ref=e546]:
+                  - button "Add Keltner Channels to favorites" [ref=e547] [cursor=pointer]:
+                    - img [ref=e548]
+                  - menuitemcheckbox "Keltner Channels EMA bands offset by average true range KC" [ref=e550] [cursor=pointer]:
+                    - generic [ref=e552]:
+                      - strong [ref=e553]: Keltner Channels
+                      - generic [ref=e554]: EMA bands offset by average true range
+                    - generic [ref=e555]: KC
+                - generic [ref=e556]:
+                  - button "Add Klinger Oscillator to favorites" [ref=e557] [cursor=pointer]:
+                    - img [ref=e558]
+                  - menuitemcheckbox "Klinger Oscillator Volume force oscillator with signal KVO" [ref=e560] [cursor=pointer]:
+                    - generic [ref=e562]:
+                      - strong [ref=e563]: Klinger Oscillator
+                      - generic [ref=e564]: Volume force oscillator with signal
+                    - generic [ref=e565]: KVO
+                - generic [ref=e566]:
+                  - button "Add Know Sure Thing to favorites" [ref=e567] [cursor=pointer]:
+                    - img [ref=e568]
+                  - menuitemcheckbox "Know Sure Thing Weighted sum of smoothed rate of change KST" [ref=e570] [cursor=pointer]:
+                    - generic [ref=e572]:
+                      - strong [ref=e573]: Know Sure Thing
+                      - generic [ref=e574]: Weighted sum of smoothed rate of change
+                    - generic [ref=e575]: KST
+                - generic [ref=e576]:
+                  - button "Add Least Squares Moving Average to favorites" [ref=e577] [cursor=pointer]:
+                    - img [ref=e578]
+                  - menuitemcheckbox "Least Squares Moving Average Linear regression endpoint average LSMA" [ref=e580] [cursor=pointer]:
+                    - generic [ref=e582]:
+                      - strong [ref=e583]: Least Squares Moving Average
+                      - generic [ref=e584]: Linear regression endpoint average
+                    - generic [ref=e585]: LSMA
+                - generic [ref=e586]:
+                  - button "Add Linear Regression Channel to favorites" [ref=e587] [cursor=pointer]:
+                    - img [ref=e588]
+                  - menuitemcheckbox "Linear Regression Channel Regression line with deviation channel LinReg" [ref=e590] [cursor=pointer]:
+                    - generic [ref=e592]:
+                      - strong [ref=e593]: Linear Regression Channel
+                      - generic [ref=e594]: Regression line with deviation channel
+                    - generic [ref=e595]: LinReg
+                - generic [ref=e596]:
+                  - button "Add MA Cross to favorites" [ref=e597] [cursor=pointer]:
+                    - img [ref=e598]
+                  - menuitemcheckbox "MA Cross Two moving averages with cross markers MA Cross" [ref=e600] [cursor=pointer]:
+                    - generic [ref=e602]:
+                      - strong [ref=e603]: MA Cross
+                      - generic [ref=e604]: Two moving averages with cross markers
+                    - generic [ref=e605]: MA Cross
+                - generic [ref=e606]:
+                  - button "Add MACD to favorites" [ref=e607] [cursor=pointer]:
+                    - img [ref=e608]
+                  - menuitemcheckbox "MACD Moving average convergence divergence MACD" [ref=e610] [cursor=pointer]:
+                    - generic [ref=e612]:
+                      - strong [ref=e613]: MACD
+                      - generic [ref=e614]: Moving average convergence divergence
+                    - generic [ref=e615]: MACD
+                - generic [ref=e616]:
+                  - button "Add Mass Index to favorites" [ref=e617] [cursor=pointer]:
+                    - img [ref=e618]
+                  - menuitemcheckbox "Mass Index Range expansion from EMA ratio sums Mass" [ref=e620] [cursor=pointer]:
+                    - generic [ref=e622]:
+                      - strong [ref=e623]: Mass Index
+                      - generic [ref=e624]: Range expansion from EMA ratio sums
+                    - generic [ref=e625]: Mass
+                - generic [ref=e626]:
+                  - button "Add McGinley Dynamic to favorites" [ref=e627] [cursor=pointer]:
+                    - img [ref=e628]
+                  - menuitemcheckbox "McGinley Dynamic Self-adjusting smoothing average MD" [ref=e630] [cursor=pointer]:
+                    - generic [ref=e632]:
+                      - strong [ref=e633]: McGinley Dynamic
+                      - generic [ref=e634]: Self-adjusting smoothing average
+                    - generic [ref=e635]: MD
+                - generic [ref=e636]:
+                  - button "Add Median to favorites" [ref=e637] [cursor=pointer]:
+                    - img [ref=e638]
+                  - menuitemcheckbox "Median Rolling median of source price Median" [ref=e640] [cursor=pointer]:
+                    - generic [ref=e642]:
+                      - strong [ref=e643]: Median
+                      - generic [ref=e644]: Rolling median of source price
+                    - generic [ref=e645]: Median
+                - generic [ref=e646]:
+                  - button "Add Momentum to favorites" [ref=e647] [cursor=pointer]:
+                    - img [ref=e648]
+                  - menuitemcheckbox "Momentum Close price momentum Mom" [ref=e650] [cursor=pointer]:
+                    - generic [ref=e652]:
+                      - strong [ref=e653]: Momentum
+                      - generic [ref=e654]: Close price momentum
+                    - generic [ref=e655]: Mom
+                - generic [ref=e656]:
+                  - button "Add Money Flow Index to favorites" [ref=e657] [cursor=pointer]:
+                    - img [ref=e658]
+                  - menuitemcheckbox "Money Flow Index Volume-weighted RSI of typical price MFI" [ref=e660] [cursor=pointer]:
+                    - generic [ref=e662]:
+                      - strong [ref=e663]: Money Flow Index
+                      - generic [ref=e664]: Volume-weighted RSI of typical price
+                    - generic [ref=e665]: MFI
+                - generic [ref=e666]:
+                  - button "Add Moving Average Exponential to favorites" [ref=e667] [cursor=pointer]:
+                    - img [ref=e668]
+                  - menuitemcheckbox "Moving Average Exponential Exponential moving average EMA" [ref=e670] [cursor=pointer]:
+                    - generic [ref=e672]:
+                      - strong [ref=e673]: Moving Average Exponential
+                      - generic [ref=e674]: Exponential moving average
+                    - generic [ref=e675]: EMA
+                - generic [ref=e676]:
+                  - button "Add Moving Average Ribbon to favorites" [ref=e677] [cursor=pointer]:
+                    - img [ref=e678]
+                  - menuitemcheckbox "Moving Average Ribbon Four moving averages as a ribbon Ribbon" [ref=e680] [cursor=pointer]:
+                    - generic [ref=e682]:
+                      - strong [ref=e683]: Moving Average Ribbon
+                      - generic [ref=e684]: Four moving averages as a ribbon
+                    - generic [ref=e685]: Ribbon
+                - generic [ref=e686]:
+                  - button "Add Moving Average Simple to favorites" [ref=e687] [cursor=pointer]:
+                    - img [ref=e688]
+                  - menuitemcheckbox "Moving Average Simple Simple moving average SMA" [checked] [ref=e690] [cursor=pointer]:
+                    - generic [ref=e692]:
+                      - strong [ref=e693]: Moving Average Simple
+                      - generic [ref=e694]: Simple moving average
+                    - generic [ref=e695]: SMA
+                - generic [ref=e696]:
+                  - button "Add Moving Average Weighted to favorites" [ref=e697] [cursor=pointer]:
+                    - img [ref=e698]
+                  - menuitemcheckbox "Moving Average Weighted Weighted moving average WMA" [ref=e700] [cursor=pointer]:
+                    - generic [ref=e702]:
+                      - strong [ref=e703]: Moving Average Weighted
+                      - generic [ref=e704]: Weighted moving average
+                    - generic [ref=e705]: WMA
+                - generic [ref=e706]:
+                  - button "Add Net Volume to favorites" [ref=e707] [cursor=pointer]:
+                    - img [ref=e708]
+                  - menuitemcheckbox "Net Volume Signed volume by price direction NV" [ref=e710] [cursor=pointer]:
+                    - generic [ref=e712]:
+                      - strong [ref=e713]: Net Volume
+                      - generic [ref=e714]: Signed volume by price direction
+                    - generic [ref=e715]: NV
+                - generic [ref=e716]:
+                  - button "Add On Balance Volume to favorites" [ref=e717] [cursor=pointer]:
+                    - img [ref=e718]
+                  - menuitemcheckbox "On Balance Volume Cumulative signed volume OBV" [ref=e720] [cursor=pointer]:
+                    - generic [ref=e722]:
+                      - strong [ref=e723]: On Balance Volume
+                      - generic [ref=e724]: Cumulative signed volume
+                    - generic [ref=e725]: OBV
+                - generic [ref=e726]:
+                  - button "Add Parabolic SAR to favorites" [ref=e727] [cursor=pointer]:
+                    - img [ref=e728]
+                  - menuitemcheckbox "Parabolic SAR Stop and reverse trailing dots SAR" [ref=e730] [cursor=pointer]:
+                    - generic [ref=e732]:
+                      - strong [ref=e733]: Parabolic SAR
+                      - generic [ref=e734]: Stop and reverse trailing dots
+                    - generic [ref=e735]: SAR
+                - generic [ref=e736]:
+                  - button "Add Pivot Points High Low to favorites" [ref=e737] [cursor=pointer]:
+                    - img [ref=e738]
+                  - menuitemcheckbox "Pivot Points High Low Local high and low pivot labels Pivots HL" [ref=e740] [cursor=pointer]:
+                    - generic [ref=e742]:
+                      - strong [ref=e743]: Pivot Points High Low
+                      - generic [ref=e744]: Local high and low pivot labels
+                    - generic [ref=e745]: Pivots HL
+                - generic [ref=e746]:
+                  - button "Add Pivot Points Standard to favorites" [ref=e747] [cursor=pointer]:
+                    - img [ref=e748]
+                  - menuitemcheckbox "Pivot Points Standard Traditional floor trader pivot levels Pivots" [ref=e750] [cursor=pointer]:
+                    - generic [ref=e752]:
+                      - strong [ref=e753]: Pivot Points Standard
+                      - generic [ref=e754]: Traditional floor trader pivot levels
+                    - generic [ref=e755]: Pivots
+                - generic [ref=e756]:
+                  - button "Add Price Oscillator to favorites" [ref=e757] [cursor=pointer]:
+                    - img [ref=e758]
+                  - menuitemcheckbox "Price Oscillator Percent difference of moving averages PPO" [ref=e760] [cursor=pointer]:
+                    - generic [ref=e762]:
+                      - strong [ref=e763]: Price Oscillator
+                      - generic [ref=e764]: Percent difference of moving averages
+                    - generic [ref=e765]: PPO
+                - generic [ref=e766]:
+                  - button "Add Price Volume Trend to favorites" [ref=e767] [cursor=pointer]:
+                    - img [ref=e768]
+                  - menuitemcheckbox "Price Volume Trend Cumulative volume scaled by percent change PVT" [ref=e770] [cursor=pointer]:
+                    - generic [ref=e772]:
+                      - strong [ref=e773]: Price Volume Trend
+                      - generic [ref=e774]: Cumulative volume scaled by percent change
+                    - generic [ref=e775]: PVT
+                - generic [ref=e776]:
+                  - button "Add Rate Of Change to favorites" [ref=e777] [cursor=pointer]:
+                    - img [ref=e778]
+                  - menuitemcheckbox "Rate Of Change Percent rate of change ROC" [ref=e780] [cursor=pointer]:
+                    - generic [ref=e782]:
+                      - strong [ref=e783]: Rate Of Change
+                      - generic [ref=e784]: Percent rate of change
+                    - generic [ref=e785]: ROC
+                - generic [ref=e786]:
+                  - button "Add Relative Strength Index to favorites" [ref=e787] [cursor=pointer]:
+                    - img [ref=e788]
+                  - menuitemcheckbox "Relative Strength Index Momentum oscillator RSI" [ref=e790] [cursor=pointer]:
+                    - generic [ref=e792]:
+                      - strong [ref=e793]: Relative Strength Index
+                      - generic [ref=e794]: Momentum oscillator
+                    - generic [ref=e795]: RSI
+                - generic [ref=e796]:
+                  - button "Add Relative Vigor Index to favorites" [ref=e797] [cursor=pointer]:
+                    - img [ref=e798]
+                  - menuitemcheckbox "Relative Vigor Index Close strength relative to range RVGI" [ref=e800] [cursor=pointer]:
+                    - generic [ref=e802]:
+                      - strong [ref=e803]: Relative Vigor Index
+                      - generic [ref=e804]: Close strength relative to range
+                    - generic [ref=e805]: RVGI
+                - generic [ref=e806]:
+                  - button "Add Relative Volatility Index to favorites" [ref=e807] [cursor=pointer]:
+                    - img [ref=e808]
+                  - menuitemcheckbox "Relative Volatility Index RSI computed on standard deviation RVI" [ref=e810] [cursor=pointer]:
+                    - generic [ref=e812]:
+                      - strong [ref=e813]: Relative Volatility Index
+                      - generic [ref=e814]: RSI computed on standard deviation
+                    - generic [ref=e815]: RVI
+                - generic [ref=e816]:
+                  - button "Add Relative Volume at Time to favorites" [ref=e817] [cursor=pointer]:
+                    - img [ref=e818]
+                  - menuitemcheckbox "Relative Volume at Time Session volume versus prior sessions RVOL" [ref=e820] [cursor=pointer]:
+                    - generic [ref=e822]:
+                      - strong [ref=e823]: Relative Volume at Time
+                      - generic [ref=e824]: Session volume versus prior sessions
+                    - generic [ref=e825]: RVOL
+                - generic [ref=e826]:
+                  - button "Add SMI Ergodic Indicator to favorites" [ref=e827] [cursor=pointer]:
+                    - img [ref=e828]
+                  - menuitemcheckbox "SMI Ergodic Indicator True strength index with signal line SMIE" [ref=e830] [cursor=pointer]:
+                    - generic [ref=e832]:
+                      - strong [ref=e833]: SMI Ergodic Indicator
+                      - generic [ref=e834]: True strength index with signal line
+                    - generic [ref=e835]: SMIE
+                - generic [ref=e836]:
+                  - button "Add SMI Ergodic Oscillator to favorites" [ref=e837] [cursor=pointer]:
+                    - img [ref=e838]
+                  - menuitemcheckbox "SMI Ergodic Oscillator SMI ergodic histogram oscillator SMIEO" [ref=e840] [cursor=pointer]:
+                    - generic [ref=e842]:
+                      - strong [ref=e843]: SMI Ergodic Oscillator
+                      - generic [ref=e844]: SMI ergodic histogram oscillator
+                    - generic [ref=e845]: SMIEO
+                - generic [ref=e846]:
+                  - button "Add Smoothed Moving Average to favorites" [ref=e847] [cursor=pointer]:
+                    - img [ref=e848]
+                  - menuitemcheckbox "Smoothed Moving Average Wilder smoothed moving average SMMA" [ref=e850] [cursor=pointer]:
+                    - generic [ref=e852]:
+                      - strong [ref=e853]: Smoothed Moving Average
+                      - generic [ref=e854]: Wilder smoothed moving average
+                    - generic [ref=e855]: SMMA
+                - generic [ref=e856]:
+                  - button "Add Stochastic to favorites" [ref=e857] [cursor=pointer]:
+                    - img [ref=e858]
+                  - menuitemcheckbox "Stochastic Stochastic oscillator Stoch" [ref=e860] [cursor=pointer]:
+                    - generic [ref=e862]:
+                      - strong [ref=e863]: Stochastic
+                      - generic [ref=e864]: Stochastic oscillator
+                    - generic [ref=e865]: Stoch
+                - generic [ref=e866]:
+                  - button "Add Stochastic Momentum Index to favorites" [ref=e867] [cursor=pointer]:
+                    - img [ref=e868]
+                  - menuitemcheckbox "Stochastic Momentum Index Double-smoothed stochastic momentum SMI" [ref=e870] [cursor=pointer]:
+                    - generic [ref=e872]:
+                      - strong [ref=e873]: Stochastic Momentum Index
+                      - generic [ref=e874]: Double-smoothed stochastic momentum
+                    - generic [ref=e875]: SMI
+                - generic [ref=e876]:
+                  - button "Add Stochastic RSI to favorites" [ref=e877] [cursor=pointer]:
+                    - img [ref=e878]
+                  - menuitemcheckbox "Stochastic RSI Stochastic applied to RSI values Stoch RSI" [ref=e880] [cursor=pointer]:
+                    - generic [ref=e882]:
+                      - strong [ref=e883]: Stochastic RSI
+                      - generic [ref=e884]: Stochastic applied to RSI values
+                    - generic [ref=e885]: Stoch RSI
+                - generic [ref=e886]:
+                  - button "Add Supertrend to favorites" [ref=e887] [cursor=pointer]:
+                    - img [ref=e888]
+                  - menuitemcheckbox "Supertrend ATR trailing stop trend line Supertrend" [ref=e890] [cursor=pointer]:
+                    - generic [ref=e892]:
+                      - strong [ref=e893]: Supertrend
+                      - generic [ref=e894]: ATR trailing stop trend line
+                    - generic [ref=e895]: Supertrend
+                - generic [ref=e896]:
+                  - button "Add Triple EMA to favorites" [ref=e897] [cursor=pointer]:
+                    - img [ref=e898]
+                  - menuitemcheckbox "Triple EMA Triple exponential moving average TEMA" [ref=e900] [cursor=pointer]:
+                    - generic [ref=e902]:
+                      - strong [ref=e903]: Triple EMA
+                      - generic [ref=e904]: Triple exponential moving average
+                    - generic [ref=e905]: TEMA
+                - generic [ref=e906]:
+                  - button "Add TRIX to favorites" [ref=e907] [cursor=pointer]:
+                    - img [ref=e908]
+                  - menuitemcheckbox "TRIX Rate of change of triple smoothed EMA TRIX" [ref=e910] [cursor=pointer]:
+                    - generic [ref=e912]:
+                      - strong [ref=e913]: TRIX
+                      - generic [ref=e914]: Rate of change of triple smoothed EMA
+                    - generic [ref=e915]: TRIX
+                - generic [ref=e916]:
+                  - button "Add True Strength Index to favorites" [ref=e917] [cursor=pointer]:
+                    - img [ref=e918]
+                  - menuitemcheckbox "True Strength Index Double smoothed momentum oscillator TSI" [ref=e920] [cursor=pointer]:
+                    - generic [ref=e922]:
+                      - strong [ref=e923]: True Strength Index
+                      - generic [ref=e924]: Double smoothed momentum oscillator
+                    - generic [ref=e925]: TSI
+                - generic [ref=e926]:
+                  - button "Add TWAP to favorites" [ref=e927] [cursor=pointer]:
+                    - img [ref=e928]
+                  - menuitemcheckbox "TWAP Time weighted average price TWAP" [ref=e930] [cursor=pointer]:
+                    - generic [ref=e932]:
+                      - strong [ref=e933]: TWAP
+                      - generic [ref=e934]: Time weighted average price
+                    - generic [ref=e935]: TWAP
+                - generic [ref=e936]:
+                  - button "Add Ultimate Oscillator to favorites" [ref=e937] [cursor=pointer]:
+                    - img [ref=e938]
+                  - menuitemcheckbox "Ultimate Oscillator Weighted buying pressure across three windows UO" [ref=e940] [cursor=pointer]:
+                    - generic [ref=e942]:
+                      - strong [ref=e943]: Ultimate Oscillator
+                      - generic [ref=e944]: Weighted buying pressure across three windows
+                    - generic [ref=e945]: UO
+                - generic [ref=e946]:
+                  - button "Add Volatility Stop to favorites" [ref=e947] [cursor=pointer]:
+                    - img [ref=e948]
+                  - menuitemcheckbox "Volatility Stop ATR trailing stop dots VStop" [ref=e950] [cursor=pointer]:
+                    - generic [ref=e952]:
+                      - strong [ref=e953]: Volatility Stop
+                      - generic [ref=e954]: ATR trailing stop dots
+                    - generic [ref=e955]: VStop
+                - generic [ref=e956]:
+                  - button "Add Volume to favorites" [ref=e957] [cursor=pointer]:
+                    - img [ref=e958]
+                  - menuitemcheckbox "Volume Exchange volume bars Vol" [checked] [ref=e960] [cursor=pointer]:
+                    - generic [ref=e962]:
+                      - strong [ref=e963]: Volume
+                      - generic [ref=e964]: Exchange volume bars
+                    - generic [ref=e965]: Vol
+                - generic [ref=e966]:
+                  - button "Add Volume Oscillator to favorites" [ref=e967] [cursor=pointer]:
+                    - img [ref=e968]
+                  - menuitemcheckbox "Volume Oscillator Percent spread of volume EMAs Vol Osc" [ref=e970] [cursor=pointer]:
+                    - generic [ref=e972]:
+                      - strong [ref=e973]: Volume Oscillator
+                      - generic [ref=e974]: Percent spread of volume EMAs
+                    - generic [ref=e975]: Vol Osc
+                - generic [ref=e976]:
+                  - button "Add Vortex Indicator to favorites" [ref=e977] [cursor=pointer]:
+                    - img [ref=e978]
+                  - menuitemcheckbox "Vortex Indicator Positive and negative trend movement VI" [ref=e980] [cursor=pointer]:
+                    - generic [ref=e982]:
+                      - strong [ref=e983]: Vortex Indicator
+                      - generic [ref=e984]: Positive and negative trend movement
+                    - generic [ref=e985]: VI
+                - generic [ref=e986]:
+                  - button "Add VWAP to favorites" [ref=e987] [cursor=pointer]:
+                    - img [ref=e988]
+                  - menuitemcheckbox "VWAP Session volume weighted average price VWAP" [ref=e990] [cursor=pointer]:
+                    - generic [ref=e992]:
+                      - strong [ref=e993]: VWAP
+                      - generic [ref=e994]: Session volume weighted average price
+                    - generic [ref=e995]: VWAP
+                - generic [ref=e996]:
+                  - button "Add VWMA to favorites" [ref=e997] [cursor=pointer]:
+                    - img [ref=e998]
+                  - menuitemcheckbox "VWMA Volume weighted moving average VWMA" [ref=e1000] [cursor=pointer]:
+                    - generic [ref=e1002]:
+                      - strong [ref=e1003]: VWMA
+                      - generic [ref=e1004]: Volume weighted moving average
+                    - generic [ref=e1005]: VWMA
+                - generic [ref=e1006]:
+                  - button "Add Williams Alligator to favorites" [ref=e1007] [cursor=pointer]:
+                    - img [ref=e1008]
+                  - menuitemcheckbox "Williams Alligator Three smoothed averages with offsets Alligator" [ref=e1010] [cursor=pointer]:
+                    - generic [ref=e1012]:
+                      - strong [ref=e1013]: Williams Alligator
+                      - generic [ref=e1014]: Three smoothed averages with offsets
+                    - generic [ref=e1015]: Alligator
+                - generic [ref=e1016]:
+                  - button "Add Williams Fractals to favorites" [ref=e1017] [cursor=pointer]:
+                    - img [ref=e1018]
+                  - menuitemcheckbox "Williams Fractals Fractal reversal markers Fractals" [ref=e1020] [cursor=pointer]:
+                    - generic [ref=e1022]:
+                      - strong [ref=e1023]: Williams Fractals
+                      - generic [ref=e1024]: Fractal reversal markers
+                    - generic [ref=e1025]: Fractals
+                - generic [ref=e1026]:
+                  - button "Add Williams Percent Range to favorites" [ref=e1027] [cursor=pointer]:
+                    - img [ref=e1028]
+                  - menuitemcheckbox "Williams Percent Range Close relative to the high low range %R" [ref=e1030] [cursor=pointer]:
+                    - generic [ref=e1032]:
+                      - strong [ref=e1033]: Williams Percent Range
+                      - generic [ref=e1034]: Close relative to the high low range
+                    - generic [ref=e1035]: "%R"
+                - generic [ref=e1036]:
+                  - button "Add Woodies CCI to favorites" [ref=e1037] [cursor=pointer]:
+                    - img [ref=e1038]
+                  - menuitemcheckbox "Woodies CCI CCI histogram with turbo line Woodies" [ref=e1040] [cursor=pointer]:
+                    - generic [ref=e1042]:
+                      - strong [ref=e1043]: Woodies CCI
+                      - generic [ref=e1044]: CCI histogram with turbo line
+                    - generic [ref=e1045]: Woodies
+                - generic [ref=e1046]:
+                  - button "Add Zig Zag to favorites" [ref=e1047] [cursor=pointer]:
+                    - img [ref=e1048]
+                  - menuitemcheckbox "Zig Zag Pivot swings filtered by deviation ZigZag" [ref=e1050] [cursor=pointer]:
+                    - generic [ref=e1052]:
+                      - strong [ref=e1053]: Zig Zag
+                      - generic [ref=e1054]: Pivot swings filtered by deviation
+                    - generic [ref=e1055]: ZigZag
+        - button "Indicator templates" [ref=e49] [cursor=pointer]:
+          - img [ref=e50]
+        - button "Create alert" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - generic [ref=e61]: Alert
+        - button "Bar replay" [ref=e62] [cursor=pointer]:
+          - img [ref=e63]
+          - generic [ref=e66]: Replay
+        - button "Undo" [disabled] [ref=e67]:
+          - img [ref=e68]
+        - button "Redo" [disabled] [ref=e71]:
+          - img [ref=e72]
+        - generic "TradingView desktop header controls" [ref=e75]:
+          - button "Layout setup" [ref=e77] [cursor=pointer]:
+            - img [ref=e78]
+          - button "Save all charts for all symbols and intervals on your layout" [ref=e80] [cursor=pointer]:
+            - generic [ref=e37]: Save
+          - button "Manage layouts" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+          - button "Quick search" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+          - button "Settings" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+          - button "Fullscreen mode" [ref=e96] [cursor=pointer]:
+            - img [ref=e97]
+          - button "Take a snapshot" [ref=e103] [cursor=pointer]:
+            - img [ref=e104]
+          - button "Trade" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: Trade
+          - button "Share your idea with the trade community" [ref=e110] [cursor=pointer]:
+            - generic [ref=e111]: Publish
+          - button "Signed in as cursor-tester@example.com. Sign out" [ref=e112] [cursor=pointer]:
+            - generic [ref=e113]: cursor-tester@example.com
+    - generic [ref=e38]:
+      - toolbar "Drawing tools" [ref=e114]:
+        - button "Cursor tool, Cross" [ref=e117] [cursor=pointer]:
+          - img [ref=e119]
+        - button "Trendline drawing tool group" [ref=e124] [cursor=pointer]
+        - button "Fib retracement drawing tool group" [ref=e127] [cursor=pointer]:
+          - img [ref=e129]
+        - button "XABCD pattern drawing tool group" [ref=e133] [cursor=pointer]:
+          - img [ref=e135]
+        - button "Long position drawing tool group" [ref=e144] [cursor=pointer]:
+          - img [ref=e146]
+        - button "Brush drawing tool group" [ref=e150] [cursor=pointer]:
+          - img [ref=e152]
+        - button "Text drawing tool group" [ref=e156] [cursor=pointer]:
+          - img [ref=e158]
+      - generic [ref=e40]:
+        - generic "BTC/USDT 1d chart pane 1" [ref=e41]
+        - generic "BTC/USDT 1D OHLC legend pane 1":
+          - generic: BTC/USDT 1D
+          - generic:
+            - generic: O
+            - text: 63,626.00
+          - generic:
+            - generic: H
+            - text: 64,394.44
+          - generic:
+            - generic: L
+            - text: 62,829.81
+          - generic:
+            - generic: C
+            - text: 64,289.56
+          - generic: +663.56 (+1.04%)
+        - generic "Active indicators pane 1":
+          - generic "Price indicators pane 1" [ref=e160]:
+            - generic [ref=e162]:
+              - generic [ref=e163]: SMA 20 close
+              - generic [ref=e164]: 68.26K
+              - generic:
+                - button "Hide Moving Average Simple"
+                - button "Settings for Moving Average Simple":
+                  - generic:
+                    - img
+                - button "Remove Moving Average Simple"
+                - button "More actions for Moving Average Simple"
+          - generic "Volume indicators pane 1" [ref=e165]:
+            - generic [ref=e167]:
+              - generic [ref=e168]: Vol · BTC
+              - generic [ref=e169]: 11.56K
+              - generic:
+                - button "Hide Volume"
+                - button "Settings for Volume":
+                  - generic:
+                    - img
+                - button "Remove Volume"
+                - button "More actions for Volume"
+  - alert [ref=e170]
