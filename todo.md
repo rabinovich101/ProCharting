@@ -1,3 +1,52 @@
+# Enable Indicators Popup Scroll
+
+## Goal
+
+Make the Indicators popup scroll reliably so users can reach the full
+indicator list on shorter desktop viewports and mobile-sized screens.
+
+## Investigation / Decisions
+
+- The popup is implemented by `IndicatorsDropdown` in
+  `TEST/binance-chart-test/app/page.tsx`.
+- The related layout styles live in `TEST/binance-chart-test/app/globals.css`.
+- The panel already caps itself with `max-height` and clips overflow, but its
+  body uses a fixed `min-height`. On shorter viewports this lets the body be
+  clipped instead of giving the indicator results list a reliable scrollable
+  height.
+- Keep the fix CSS-only and scoped to the indicator picker: make the panel a
+  column layout, let the picker body shrink inside the capped panel, and keep
+  scrolling on `.indicator-results`.
+- No architecture change is expected because this only adjusts an existing
+  popup layout, not the app structure or data flow.
+
+## Checklist
+
+- [x] Update the indicator popup layout CSS.
+- [x] Verify the app typechecks/builds.
+- [x] Test the popup scroll behavior in a browser at desktop and mobile-sized
+      viewports.
+- [x] Add review notes and confirm whether `ARCHITECTURE.md` needs changes.
+- [x] Commit, push, and clean temporary browser artifacts.
+
+## Review
+
+- Updated the indicator picker CSS so the popup is a vertical flex container,
+  the picker body can shrink inside the viewport-capped panel, and the results
+  list remains the dedicated scroll container.
+- Verified the popup scrolls to the final indicator row on a constrained
+  desktop viewport and a mobile-sized viewport.
+- `ARCHITECTURE.md` does not need a change for this task because the app
+  architecture, data flow, and component boundaries are unchanged.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Browser Playwright smoke on `http://127.0.0.1:3101`
+  - Browser devtools log check for warnings/errors
+  - `git diff --check`
+- Closed the temporary browser tab. No screenshots or generated browser
+  artifacts were created.
+
 # Delete Generated Images And Screenshots
 
 ## Goal

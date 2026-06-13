@@ -1693,6 +1693,8 @@ summary {
 
 .indicator-menu-panel {
   border-radius: 8px;
+  display: flex;
+  flex-direction: column;
   gap: 0;
   max-height: min(660px, calc(100vh - 76px));
   min-width: min(820px, calc(100vw - 28px));
@@ -1829,8 +1831,10 @@ summary {
 
 .indicator-picker-body {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: 210px minmax(0, 1fr);
-  min-height: 430px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .indicator-category-rail {
@@ -1838,6 +1842,8 @@ summary {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-height: 0;
+  overflow: auto;
   padding: 14px 10px;
   scrollbar-width: none;
 }
