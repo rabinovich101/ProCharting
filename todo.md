@@ -8062,3 +8062,107 @@ state/rendering system.
   - `git diff --check`
 - Generated `.next`, `test-results`, and `playwright-report` artifacts were
   removed.
+
+# Localhost 3000 Internal Server Error
+
+## Goal
+
+Restore `http://localhost:3000/` so the standalone Binance chart app loads
+without a generic Next.js Internal Server Error.
+
+## Investigation / Decisions
+
+- `curl -i http://localhost:3000/` reproduced a `500 Internal Server Error`.
+- Port 3000 was owned by a long-running
+  `next dev --turbopack` / `next-server (v15.4.5)` process.
+- A fresh dev server on `http://127.0.0.1:3104` served `/` with `200 OK`.
+- The same fresh server served `/api/binance/tickers` with `200 OK`, confirming
+  the Binance ticker route and current code path are healthy.
+- The fix should restart the stale port 3000 dev process and verify the app in
+  the browser instead of changing unrelated code.
+
+## Checklist
+
+- [x] Stop the stale port 3000 dev process.
+- [x] Restart the standalone chart app on port 3000.
+- [x] Verify `/` and `/api/binance/tickers` return `200`.
+- [x] Verify the page in the in-app browser.
+- [x] Clean any generated verification artifacts.
+
+## Review
+
+- Stopped the stale port 3000 `next dev --turbopack` process that was serving
+  generic `500 Internal Server Error` responses.
+- Cleared generated Next/Playwright runtime artifacts before restart.
+- Started a fresh Next dev server on port 3000 in detached `screen` session
+  `procharting-next-3000` so `http://localhost:3000/` stays available.
+- Verified `curl -I http://localhost:3000/` returns `200 OK`.
+- Verified `http://localhost:3000/api/binance/tickers` returns `200` with
+  1,364 tickers and `ETHBTC` present.
+- In-app Browser smoke verified `ProCharting Market Desk`, `BTC/USDT 1D`,
+  canvas presence, no error overlay, and no browser console errors.
+
+# Live Binance Ticker Universe
+
+## Goal
+
+Make the standalone Binance chart app expose the full current Binance spot
+ticker universe in symbol search instead of only the existing fixed curated
+list.
+
+## Investigation / Decisions
+
+- The runnable product surface is `TEST/binance-chart-test`, and
+  `ARCHITECTURE.md` identifies `TEST/binance-chart-test/app/page.tsx` as the
+  main chart UI and `TEST/binance-chart-test/app/api/binance/route.ts` as the
+  historical kline proxy.
+- The current symbol picker uses a 12-item `SYMBOL_SEARCH_OPTIONS` constant in
+  `TEST/binance-chart-test/app/page.tsx`.
+- The kline route already accepts any syntactically valid Binance symbol and
+  lets Binance validate availability, so the missing coverage is the client
+  picker universe rather than candle loading.
+- Use Binance `exchangeInfo` through a local Next API route so the app can load
+  all current trading spot symbols without committing a stale generated list.
+- Preserve the curated symbols as favorites, richer labels/colors, and offline
+  fallback when Binance is unavailable.
+- Keep the UI simple: search all loaded symbols, keep category tabs working, and
+  mark all fetched symbols as `spot`.
+
+## Checklist
+
+- [x] Add a local Binance ticker-list API route backed by `exchangeInfo`.
+- [x] Normalize Binance symbols into the existing symbol-search option shape.
+- [x] Load live ticker options in `app/page.tsx` with safe fallback to curated
+  defaults.
+- [x] Update Playwright market mocks so symbol-list fetches are deterministic.
+- [x] Update `ARCHITECTURE.md` to describe the live Binance ticker universe.
+- [x] Run typecheck/build/e2e and browser verification.
+- [x] Clean generated verification artifacts.
+
+## Review
+
+- Added `TEST/binance-chart-test/app/api/binance/tickers/route.ts`, which
+  fetches Binance `exchangeInfo`, filters active spot-trading symbols, returns
+  `{ symbol, base, quote }`, and caches the normalized small ticker list for one
+  hour without asking Next to cache the oversized raw Binance payload.
+- Updated `TEST/binance-chart-test/app/page.tsx` so symbol search loads the
+  live ticker universe from `/api/binance/tickers`, keeps the curated entries as
+  favorites/rich labels/fallback, and formats non-USDT symbols such as
+  `ETHBTC` as `ETH/BTC`.
+- Updated Playwright mocks so ticker-list requests and kline requests are
+  handled separately; the signed-out symbol test now selects mocked `ETHBTC`
+  from the live-list path.
+- Updated `ARCHITECTURE.md` to replace the fixed crypto-list description with
+  the live Binance `exchangeInfo` ticker route.
+- Live local endpoint verification on June 13, 2026 returned 1,364 active spot
+  tickers and included `ETHBTC`.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - In-app Browser smoke on `http://127.0.0.1:3103`: selected live `ETHBTC`,
+    verified `ETH/BTC 1D` candles and volume rendered, and confirmed no browser
+    console errors.
+  - `git diff --check`
+- Generated `.next`, `test-results`, and `playwright-report` artifacts were
+  removed.

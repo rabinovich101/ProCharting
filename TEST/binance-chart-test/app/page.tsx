@@ -689,6 +689,13 @@ interface SymbolSearchOption {
   color: string;
 }
 
+interface BinanceTickerOption {
+  symbol: string;
+  base: string;
+  quote: string;
+}
+
+const BINANCE_TICKERS_ENDPOINT = '/api/binance/tickers';
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
 const CHART_LAYOUT_STORAGE_KEY = 'procharting.chartLayouts';
 const USER_TRACKING_DEVICE_STORAGE_KEY = 'procharting.userTrackingDevice';
@@ -2441,6 +2448,35 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = [
     color: '#ff0013',
   },
 ];
+const BINANCE_QUOTE_SUFFIXES = [
+  'FDUSD',
+  'USDT',
+  'USDC',
+  'TUSD',
+  'BUSD',
+  'USDP',
+  'DAI',
+  'BTC',
+  'ETH',
+  'BNB',
+  'TRY',
+  'EUR',
+  'BRL',
+  'AUD',
+  'BIDR',
+  'IDRT',
+  'NGN',
+  'RUB',
+  'UAH',
+  'ZAR',
+  'GBP',
+  'JPY',
+  'ARS',
+  'MXN',
+  'PLN',
+  'RON',
+  'VAI',
+] as const;
 const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
   { value: 'candles', label: 'Candles', shortLabel: 'Candle', description: 'OHLC candles' },
   { value: 'line', label: 'Line', description: 'Close price line' },
@@ -5612,10 +5648,98 @@ const parseCandles = (payload: unknown): Candle[] => {
   });
 };
 
-const formatSymbol = (symbol: string) => `${symbol.slice(0, -4)}/${symbol.slice(-4)}`;
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const getSymbolSearchOption = (symbol: string) =>
-  SYMBOL_SEARCH_OPTIONS.find((option) => option.symbol === symbol) ?? SYMBOL_SEARCH_OPTIONS[0]!;
+const isBinanceTickerOption = (value: unknown): value is BinanceTickerOption =>
+  isObjectRecord(value) &&
+  typeof value.symbol === 'string' &&
+  typeof value.base === 'string' &&
+  typeof value.quote === 'string' &&
+  value.symbol.length > 0 &&
+  value.base.length > 0 &&
+  value.quote.length > 0;
+
+const findSymbolQuote = (symbol: string) =>
+  BINANCE_QUOTE_SUFFIXES.find((quote) => symbol.endsWith(quote) && symbol.length > quote.length);
+
+const getGeneratedSymbolColor = (symbol: string) => {
+  let hash = 0;
+
+  for (const character of symbol) {
+    hash = (hash * 31 + character.charCodeAt(0)) % 360;
+  }
+
+  return `hsl(${hash}, 68%, 48%)`;
+};
+
+const createFallbackSymbolSearchOption = (symbol: string): SymbolSearchOption => {
+  const quote = findSymbolQuote(symbol);
+  const base = quote ? symbol.slice(0, -quote.length) : symbol;
+
+  return {
+    symbol,
+    base,
+    quote: quote ?? '',
+    name: quote ? `${base} / ${quote}` : symbol,
+    exchange: 'Binance',
+    tags: ['spot', 'crypto'],
+    categories: ['spot'],
+    color: getGeneratedSymbolColor(symbol),
+  };
+};
+
+const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] => {
+  if (!isObjectRecord(payload) || !Array.isArray(payload.tickers)) {
+    return [];
+  }
+
+  const curatedBySymbol = new Map(SYMBOL_SEARCH_OPTIONS.map((option) => [option.symbol, option]));
+  const seenSymbols = new Set<string>();
+
+  return payload.tickers.reduce<SymbolSearchOption[]>((options, ticker) => {
+    if (!isBinanceTickerOption(ticker) || seenSymbols.has(ticker.symbol)) {
+      return options;
+    }
+
+    seenSymbols.add(ticker.symbol);
+
+    const curated = curatedBySymbol.get(ticker.symbol);
+    if (curated) {
+      options.push({ ...curated, base: ticker.base, quote: ticker.quote });
+      return options;
+    }
+
+    options.push({
+      symbol: ticker.symbol,
+      base: ticker.base,
+      quote: ticker.quote,
+      name: `${ticker.base} / ${ticker.quote}`,
+      exchange: 'Binance',
+      tags: ['spot', 'crypto', ticker.quote.toLowerCase()],
+      categories: ['spot'],
+      color: getGeneratedSymbolColor(ticker.symbol),
+    });
+
+    return options;
+  }, []);
+};
+
+const formatSymbol = (symbol: string, options: readonly SymbolSearchOption[] = SYMBOL_SEARCH_OPTIONS) => {
+  const option = options.find((searchOption) => searchOption.symbol === symbol);
+
+  if (option) {
+    return `${option.base}/${option.quote}`;
+  }
+
+  const quote = findSymbolQuote(symbol);
+  return quote ? `${symbol.slice(0, -quote.length)}/${quote}` : symbol;
+};
+
+const getSymbolSearchOption = (
+  symbol: string,
+  options: readonly SymbolSearchOption[] = SYMBOL_SEARCH_OPTIONS
+) => options.find((option) => option.symbol === symbol) ?? createFallbackSymbolSearchOption(symbol);
 
 const matchesSymbolSearch = (
   option: SymbolSearchOption,
@@ -5865,7 +5989,7 @@ const createDefaultSavedChartLayout = (timestamp = Date.now()): SavedChartLayout
 const getIndicatorLegendName = (indicator: ActiveIndicator, symbol: string) => {
   const definition = getIndicatorDefinition(indicator.definitionId);
 
-  if (definition.formula === 'volume') return `Vol · ${symbol.replace('USDT', '')}`;
+  if (definition.formula === 'volume') return `Vol · ${formatSymbol(symbol).split('/')[0]}`;
   if (definition.formula === 'vwap') return 'VWAP Session';
 
   const suffix = getIndicatorLegendSuffix(definition, indicator.settings);
@@ -6823,6 +6947,7 @@ export default function Home() {
   const [selectedLayoutId, setSelectedLayoutId] = useState(DEFAULT_LAYOUT_ID);
   const [layoutSync, setLayoutSync] = useState<Record<LayoutSyncKey, boolean>>(DEFAULT_LAYOUT_SYNC);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('symbol');
+  const [symbolSearchOptions, setSymbolSearchOptions] = useState<SymbolSearchOption[]>(SYMBOL_SEARCH_OPTIONS);
   const [quickSearchQuery, setQuickSearchQuery] = useState('');
   const [symbolSearchQuery, setSymbolSearchQuery] = useState('BTCUSDT');
   const [symbolSearchCategory, setSymbolSearchCategory] = useState<SymbolSearchCategory>('all');
@@ -6868,7 +6993,7 @@ export default function Home() {
   const activeTimeframe = activePane.timeframe;
   const activeFeedStatus = activePane.feedStatus;
   const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
-  const selectedSymbolOption = getSymbolSearchOption(activeSymbol);
+  const selectedSymbolOption = getSymbolSearchOption(activeSymbol, symbolSearchOptions);
   const visibleVolumeIndicator = visibleIndicators.find(
     (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
   );
@@ -6904,10 +7029,10 @@ export default function Home() {
   drawingTextEditorRef.current = drawingTextEditor;
   activePaneIndexRef.current = activePaneIndex;
   const filteredSymbolOptions = useMemo(() => {
-    return SYMBOL_SEARCH_OPTIONS.filter((option) =>
+    return symbolSearchOptions.filter((option) =>
       matchesSymbolSearch(option, symbolSearchCategory, symbolSearchQuery)
     );
-  }, [symbolSearchCategory, symbolSearchQuery]);
+  }, [symbolSearchCategory, symbolSearchOptions, symbolSearchQuery]);
   const filteredQuickActions = QUICK_ACTIONS.filter((action) => {
     const query = quickSearchQuery.trim().toLowerCase();
     if (query.length === 0) return true;
@@ -6920,6 +7045,37 @@ export default function Home() {
   const paneMarketRequestKey = chartPanes
     .map((pane, index) => `${index}:${pane.symbol}:${pane.timeframe}:${pane.refreshNonce}`)
     .join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBinanceTickers = async () => {
+      try {
+        const response = await fetch(BINANCE_TICKERS_ENDPOINT);
+
+        if (!response.ok) {
+          throw new Error('Binance ticker list unavailable.');
+        }
+
+        const data = await response.json();
+        const nextOptions = normalizeBinanceSymbolOptions(data);
+
+        if (!cancelled && nextOptions.length > 0) {
+          setSymbolSearchOptions(nextOptions);
+        }
+      } catch {
+        if (!cancelled) {
+          setSymbolSearchOptions(SYMBOL_SEARCH_OPTIONS);
+        }
+      }
+    };
+
+    void loadBinanceTickers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     canvasRefs.current = canvasRefs.current.slice(0, paneCount);
@@ -8467,7 +8623,7 @@ export default function Home() {
       const pane = paneStatesRef.current[request.paneIndex];
       placeContentDrawing(request, {
         text: value.slice(0, 120),
-        contentMeta: pane ? `${formatSymbol(pane.symbol)} · ${pane.timeframe}` : '',
+        contentMeta: pane ? `${formatSymbol(pane.symbol, symbolSearchOptions)} · ${pane.timeframe}` : '',
       });
     }
   };
@@ -12138,10 +12294,10 @@ export default function Home() {
     return chartSettings.showStatusLine && pane && legendCandle ? (
         <div
           className="instrument-legend-overlay"
-          aria-label={`${formatSymbol(pane.symbol)} ${timeframeLabel} OHLC legend pane ${paneIndex + 1}`}
+          aria-label={`${formatSymbol(pane.symbol, symbolSearchOptions)} ${timeframeLabel} OHLC legend pane ${paneIndex + 1}`}
         >
           <span className="instrument-legend-symbol">
-            {formatSymbol(pane.symbol)} {timeframeLabel}
+            {formatSymbol(pane.symbol, symbolSearchOptions)} {timeframeLabel}
           </span>
           <span className="instrument-legend-field">
             <span>O</span>
@@ -15828,7 +15984,7 @@ export default function Home() {
                     {settingsTab === 'symbol' && (
                       <>
                         <strong>Symbol</strong>
-                        <span className="settings-current-symbol">{formatSymbol(activeSymbol)}</span>
+                        <span className="settings-current-symbol">{formatSymbol(activeSymbol, symbolSearchOptions)}</span>
                         <div className="settings-segmented" aria-label="Chart type">
                           {CHART_STYLE_OPTIONS.map((option) => (
                             <button
@@ -16010,7 +16166,7 @@ export default function Home() {
                   canvasRefs.current[paneIndex] = node;
                 }}
                 canvasProps={{
-                  'aria-label': `${formatSymbol(pane.symbol)} ${pane.timeframe} chart pane ${paneIndex + 1}`,
+                  'aria-label': `${formatSymbol(pane.symbol, symbolSearchOptions)} ${pane.timeframe} chart pane ${paneIndex + 1}`,
                   'data-active-pane': activePaneIndex === paneIndex ? 'true' : 'false',
                   'data-active-drawing-tool': isAuthenticated ? activeDrawingTool ?? '' : '',
                   'data-cursor-tool': isAuthenticated ? cursorTool : 'cross',

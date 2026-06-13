@@ -21,6 +21,14 @@ const createMockKlines = () => {
   });
 };
 
+const createMockTickers = () => ({
+  tickers: [
+    { symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT' },
+    { symbol: 'SOLUSDT', base: 'SOL', quote: 'USDT' },
+    { symbol: 'ETHBTC', base: 'ETH', quote: 'BTC' },
+  ],
+});
+
 const installMarketMocks = async (page: Page) => {
   await page.addInitScript(() => {
     class MockWebSocket {
@@ -57,7 +65,15 @@ const installMarketMocks = async (page: Page) => {
     Object.assign(window, { WebSocket: MockWebSocket });
   });
 
-  await page.route('**/api/binance**', async (route) => {
+  await page.route((url) => url.pathname === '/api/binance/tickers', async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(createMockTickers()),
+      contentType: 'application/json',
+      status: 200,
+    });
+  });
+
+  await page.route((url) => url.pathname === '/api/binance', async (route) => {
     await route.fulfill({
       body: JSON.stringify(createMockKlines()),
       contentType: 'application/json',
@@ -427,9 +443,10 @@ test.describe('signed-out chart access', () => {
     await openApp(page);
 
     await page.getByRole('button', { name: 'Symbol search' }).click();
-    await page.getByLabel('Search symbols').fill('SOL');
-    await page.locator('.symbol-search-result', { hasText: 'SOLUSDT' }).click();
-    await expect(page.getByRole('button', { name: 'Symbol search' })).toContainText('SOLUSDT');
+    await page.getByLabel('Search symbols').fill('ETHBTC');
+    await expect(page.locator('.symbol-search-result', { hasText: 'ETHBTC' })).toBeVisible();
+    await page.locator('.symbol-search-result', { hasText: 'ETHBTC' }).click();
+    await expect(page.getByRole('button', { name: 'Symbol search' })).toContainText('ETHBTC');
 
     await page.getByRole('button', { name: 'Chart type' }).click();
     await page.getByRole('menuitemradio', { name: 'Line Close price line' }).click();
