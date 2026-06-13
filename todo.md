@@ -8063,6 +8063,45 @@ state/rendering system.
 - Generated `.next`, `test-results`, and `playwright-report` artifacts were
   removed.
 
+# Localhost 3000 Internal Server Error
+
+## Goal
+
+Restore `http://localhost:3000/` so the standalone Binance chart app loads
+without a generic Next.js Internal Server Error.
+
+## Investigation / Decisions
+
+- `curl -i http://localhost:3000/` reproduced a `500 Internal Server Error`.
+- Port 3000 was owned by a long-running
+  `next dev --turbopack` / `next-server (v15.4.5)` process.
+- A fresh dev server on `http://127.0.0.1:3104` served `/` with `200 OK`.
+- The same fresh server served `/api/binance/tickers` with `200 OK`, confirming
+  the Binance ticker route and current code path are healthy.
+- The fix should restart the stale port 3000 dev process and verify the app in
+  the browser instead of changing unrelated code.
+
+## Checklist
+
+- [x] Stop the stale port 3000 dev process.
+- [x] Restart the standalone chart app on port 3000.
+- [x] Verify `/` and `/api/binance/tickers` return `200`.
+- [x] Verify the page in the in-app browser.
+- [x] Clean any generated verification artifacts.
+
+## Review
+
+- Stopped the stale port 3000 `next dev --turbopack` process that was serving
+  generic `500 Internal Server Error` responses.
+- Cleared generated Next/Playwright runtime artifacts before restart.
+- Started a fresh Next dev server on port 3000 in detached `screen` session
+  `procharting-next-3000` so `http://localhost:3000/` stays available.
+- Verified `curl -I http://localhost:3000/` returns `200 OK`.
+- Verified `http://localhost:3000/api/binance/tickers` returns `200` with
+  1,364 tickers and `ETHBTC` present.
+- In-app Browser smoke verified `ProCharting Market Desk`, `BTC/USDT 1D`,
+  canvas presence, no error overlay, and no browser console errors.
+
 # Live Binance Ticker Universe
 
 ## Goal
