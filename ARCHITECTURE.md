@@ -495,8 +495,9 @@ stale package contents even after `npm pack` produced a correct tarball.
 
 `TEST/binance-chart-test` is a standalone Next.js app used for visual browser
 verification of a live Binance market chart. Its main chart route lives in
-`TEST/binance-chart-test/app/page.tsx`, and the Binance REST proxy lives in
-`TEST/binance-chart-test/app/api/binance/route.ts`.
+`TEST/binance-chart-test/app/page.tsx`, the Binance REST candle proxy lives in
+`TEST/binance-chart-test/app/api/binance/route.ts`, and the live spot ticker
+universe is exposed through `TEST/binance-chart-test/app/api/binance/tickers/route.ts`.
 
 As of May 31, 2026, this app draws its chart directly with Canvas 2D inside the
 client component. It does not instantiate `@procharting/core` or the WebGPU/WebGL
@@ -521,7 +522,9 @@ harness and do not change packaged renderer contracts.
 
 The chart app supports:
 
-- Binance spot symbols selected from a fixed crypto list.
+- Binance spot symbols loaded from Binance `exchangeInfo`, filtered to trading
+  spot symbols, with curated favorites retained as labels/colors and offline
+  fallback.
 - Binance spot symbols selected from a compact top command-bar dropdown.
 - Timeframes `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`, and `1M`,
   exposed through a compact custom toolbar dropdown that keeps the selected

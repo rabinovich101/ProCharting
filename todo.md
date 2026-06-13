@@ -8062,3 +8062,68 @@ state/rendering system.
   - `git diff --check`
 - Generated `.next`, `test-results`, and `playwright-report` artifacts were
   removed.
+
+# Live Binance Ticker Universe
+
+## Goal
+
+Make the standalone Binance chart app expose the full current Binance spot
+ticker universe in symbol search instead of only the existing fixed curated
+list.
+
+## Investigation / Decisions
+
+- The runnable product surface is `TEST/binance-chart-test`, and
+  `ARCHITECTURE.md` identifies `TEST/binance-chart-test/app/page.tsx` as the
+  main chart UI and `TEST/binance-chart-test/app/api/binance/route.ts` as the
+  historical kline proxy.
+- The current symbol picker uses a 12-item `SYMBOL_SEARCH_OPTIONS` constant in
+  `TEST/binance-chart-test/app/page.tsx`.
+- The kline route already accepts any syntactically valid Binance symbol and
+  lets Binance validate availability, so the missing coverage is the client
+  picker universe rather than candle loading.
+- Use Binance `exchangeInfo` through a local Next API route so the app can load
+  all current trading spot symbols without committing a stale generated list.
+- Preserve the curated symbols as favorites, richer labels/colors, and offline
+  fallback when Binance is unavailable.
+- Keep the UI simple: search all loaded symbols, keep category tabs working, and
+  mark all fetched symbols as `spot`.
+
+## Checklist
+
+- [x] Add a local Binance ticker-list API route backed by `exchangeInfo`.
+- [x] Normalize Binance symbols into the existing symbol-search option shape.
+- [x] Load live ticker options in `app/page.tsx` with safe fallback to curated
+  defaults.
+- [x] Update Playwright market mocks so symbol-list fetches are deterministic.
+- [x] Update `ARCHITECTURE.md` to describe the live Binance ticker universe.
+- [x] Run typecheck/build/e2e and browser verification.
+- [x] Clean generated verification artifacts.
+
+## Review
+
+- Added `TEST/binance-chart-test/app/api/binance/tickers/route.ts`, which
+  fetches Binance `exchangeInfo`, filters active spot-trading symbols, returns
+  `{ symbol, base, quote }`, and caches the normalized small ticker list for one
+  hour without asking Next to cache the oversized raw Binance payload.
+- Updated `TEST/binance-chart-test/app/page.tsx` so symbol search loads the
+  live ticker universe from `/api/binance/tickers`, keeps the curated entries as
+  favorites/rich labels/fallback, and formats non-USDT symbols such as
+  `ETHBTC` as `ETH/BTC`.
+- Updated Playwright mocks so ticker-list requests and kline requests are
+  handled separately; the signed-out symbol test now selects mocked `ETHBTC`
+  from the live-list path.
+- Updated `ARCHITECTURE.md` to replace the fixed crypto-list description with
+  the live Binance `exchangeInfo` ticker route.
+- Live local endpoint verification on June 13, 2026 returned 1,364 active spot
+  tickers and included `ETHBTC`.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - In-app Browser smoke on `http://127.0.0.1:3103`: selected live `ETHBTC`,
+    verified `ETH/BTC 1D` candles and volume rendered, and confirmed no browser
+    console errors.
+  - `git diff --check`
+- Generated `.next`, `test-results`, and `playwright-report` artifacts were
+  removed.
