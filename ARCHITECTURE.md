@@ -555,6 +555,10 @@ The chart app supports:
 - Header command SVG icons are registered in the local `HeaderIcon` map in
   `app/page.tsx`; chart-style selector glyphs remain CSS-drawn per option in
   `app/globals.css`.
+- Header modals, including Symbol search, are fixed descendants of the top
+  command bar. The top bar's stacking context intentionally sits above
+  chart-stage controls so modal backdrops cover the authenticated drawing-tool
+  rail instead of allowing left-side tools to paint over dialogs.
 - The chart stage owns a TradingView-style top-left DOM instrument/OHLC overlay
   synced to the latest candle or the candle under the crosshair. The canvas no
   longer paints that instrument row directly, which keeps the white-rectangle

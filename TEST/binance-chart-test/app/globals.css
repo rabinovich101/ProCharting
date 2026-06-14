@@ -92,7 +92,8 @@ summary {
   min-height: 38px;
   padding: 5px 8px;
   position: relative;
-  z-index: 20;
+  /* Header modals are fixed descendants of this stacking context. */
+  z-index: 90;
 }
 
 .top-command-bar,

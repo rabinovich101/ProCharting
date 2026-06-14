@@ -8373,6 +8373,61 @@ state/rendering system.
 - Generated `.next`, `test-results`, and `playwright-report` artifacts were
   removed.
 
+# Symbol Search Modal Layering
+
+## Goal
+
+When the user opens Symbol search, the left drawing tools rail must not appear
+above the Symbol search modal. The visible focus should be the Symbol search
+dialog and its backdrop.
+
+## Investigation / Decisions
+
+- The runnable UI is `TEST/binance-chart-test`.
+- Symbol search is rendered from `TEST/binance-chart-test/app/page.tsx` as a
+  `header-modal-backdrop` / `symbol-search-dialog` pair inside the top bar.
+- The left tools line is the authenticated `drawing-tool-rail`, rendered inside
+  the chart stage.
+- CSS layering is the root cause: `.chart-topbar` creates a stacking context at
+  `z-index: 20`, while `.drawing-tool-rail` participates above it at
+  `z-index: 42`. The Symbol search backdrop has `z-index: 60`, but it is still
+  trapped inside the top bar stacking context.
+- The simplest durable fix is to raise the top-bar overlay stacking context
+  above chart-stage tools, preserving the existing modal/backdrop structure
+  instead of adding Symbol-search-only React conditionals.
+
+## Checklist
+
+- [x] Patch the header/modal stacking layer so Symbol search covers the drawing
+  tools rail.
+- [x] Update `ARCHITECTURE.md` with the discovered header overlay layering
+  rule.
+- [x] Run the app build/type verification available for the changed app.
+- [x] Verify Symbol search in Playwright/browser and confirm the drawing tools
+  rail is not visible above it.
+- [x] Clean generated verification artifacts.
+
+## Review
+
+- Raised the standalone app top bar stacking context in
+  `TEST/binance-chart-test/app/globals.css` from `z-index: 20` to `z-index: 90`
+  so fixed header modals/backdrops, including Symbol search, paint above the
+  chart-stage drawing tool rail (`z-index: 42`).
+- Updated `ARCHITECTURE.md` to document that header modals are fixed
+  descendants of the top command bar and must stay layered above chart-stage
+  controls.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - In-app Browser opened `http://127.0.0.1:3104/`, opened Symbol search,
+    confirmed the dialog was visible, `document.elementFromPoint(34, 96)`
+    resolved to `.header-modal-backdrop`, and browser console errors were empty.
+  - Playwright paint-order probe injected a temporary authenticated-style
+    `.drawing-tool-rail` into the chart stage and confirmed the Symbol search
+    backdrop still covered it.
+  - `git diff --check`
+- Removed generated `TEST/binance-chart-test/.next` after verification.
+
 # Localhost 3000 Internal Server Error
 
 ## Goal
