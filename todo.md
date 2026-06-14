@@ -32,7 +32,7 @@ make drawing persistence independent from saved chart layouts.
 - [x] Remove drawing sync UI that implies drawings belong to layouts.
 - [x] Update `ARCHITECTURE.md` with the new drawing persistence boundary.
 - [x] Run typecheck/build and Playwright/devtools verification.
-- [ ] Clean temporary artifacts, commit, push, and review git status.
+- [x] Clean temporary artifacts, commit, push, and review git status.
 
 ## Review
 
@@ -58,6 +58,8 @@ make drawing persistence independent from saved chart layouts.
   - `git diff --check`
 - Production start sanity check on `http://127.0.0.1:3103/` returned `200 OK`
   after rebuilding.
+- Removed generated Playwright `test-results` artifacts, committed the change,
+  pushed `main` to origin, and confirmed the workspace is clean.
 
 # Add Binance Exchange Logo
 
