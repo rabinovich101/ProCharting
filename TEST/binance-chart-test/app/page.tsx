@@ -2330,6 +2330,8 @@ const SYMBOL_SEARCH_TABS: Array<{ id: SymbolSearchCategory; label: string }> = [
 ];
 
 const SYMBOL_ICON_BASE_URL = 'https://assets.coincap.io/assets/icons/';
+const BINANCE_EXCHANGE_LOGO_URL =
+  '/api/binance/asset-logo?url=https%3A%2F%2Fbin.bnbstatic.com%2Fstatic%2Fimages%2Fcommon%2Ffavicon.ico';
 const SYMBOL_ICON_SLUG_OVERRIDES: Record<string, string> = {
   '1000BONK': 'bonk',
   '1000FLOKI': 'floki',
@@ -15981,7 +15983,19 @@ export default function Home() {
                         <span className="symbol-result-exchange">
                           {option.exchange}
                           <span className="exchange-mark" aria-hidden="true">
-                            {option.exchange.slice(0, 1)}
+                            <span className="exchange-mark-fallback">{option.exchange.slice(0, 1)}</span>
+                            {option.exchange === 'Binance' && (
+                              <img
+                                src={BINANCE_EXCHANGE_LOGO_URL}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                draggable={false}
+                                onError={(event) => {
+                                  event.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            )}
                           </span>
                         </span>
                       </button>

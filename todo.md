@@ -1,3 +1,55 @@
+# Add Binance Exchange Logo
+
+## Goal
+
+Replace the generated `B` exchange marker in Symbol search rows with a real
+Binance exchange logo.
+
+## Investigation / Decisions
+
+- The `B` appears in the Symbol search result exchange column, not in the
+  pair/base-asset logo badge.
+- The row is rendered in `TEST/binance-chart-test/app/page.tsx` with
+  `.exchange-mark`; the styling lives in `TEST/binance-chart-test/app/globals.css`.
+- Binance exposes a real exchange/favicon image at
+  `https://bin.bnbstatic.com/static/images/common/favicon.ico`.
+- Use the existing same-origin `/api/binance/asset-logo` proxy instead of
+  loading the CDN URL directly, because that route already restricts Binance
+  image sources to `bin.bnbstatic.com`.
+- Keep the old `B` as the fallback if the image fails.
+
+## Checklist
+
+- [x] Add a Binance exchange logo URL constant that uses the existing image
+      proxy.
+- [x] Render the exchange mark as a real image with `B` fallback text.
+- [x] Update exchange badge CSS for image-backed rendering.
+- [x] Update `ARCHITECTURE.md` with the exchange logo behavior.
+- [x] Run typecheck/build and browser verification.
+- [x] Clean temporary artifacts, commit, push, and review git status.
+
+## Review
+
+- Replaced the generated `B` exchange marker in Symbol search rows with
+  Binance's hosted exchange favicon, loaded through the existing
+  `/api/binance/asset-logo` same-origin proxy.
+- Kept the `B` as fallback text if the exchange logo image fails to load.
+- Updated `.exchange-mark` CSS so the real image fills the existing 18px badge
+  without changing row layout.
+- Updated `ARCHITECTURE.md` to document the Binance exchange logo behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Browser Playwright/devtools check on `http://127.0.0.1:3000`: the Symbol
+    search exchange mark loads
+    `/api/binance/asset-logo?url=https%3A%2F%2Fbin.bnbstatic.com%2Fstatic%2Fimages%2Fcommon%2Ffavicon.ico`,
+    keeps the 18px badge size, and warning/error logs are clean.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Removed generated `TEST/binance-chart-test/test-results` artifacts.
+- Restarted the detached `procharting-3000` dev server after the production
+  build so `http://127.0.0.1:3000/` returns `200 OK`.
+
 # Restore Localhost 3000
 
 ## Goal

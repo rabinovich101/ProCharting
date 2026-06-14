@@ -59,7 +59,9 @@ proxy, which only accepts `https://bin.bnbstatic.com/*` image sources. The
 Symbol trigger and Symbol search result rows render that proxied logo when
 available, fall back to the CoinCap slug URL pattern when needed, and keep the
 generated color/initial badge as the final fallback for missing or failed icon
-assets.
+assets. The Symbol search exchange column also uses the same proxy to render
+Binance's hosted exchange favicon instead of a generated letter badge, with
+the letter kept as the fallback.
 
 ### 1.1 VM Deployment
 
