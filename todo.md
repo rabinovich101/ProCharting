@@ -1,3 +1,64 @@
+# Persist Canvas Drawings Independently
+
+## Goal
+
+Keep user-created canvas drawings after refresh until the user removes them, and
+make drawing persistence independent from saved chart layouts.
+
+## Investigation / Decisions
+
+- Drawing state lives in `TEST/binance-chart-test/app/page.tsx` as
+  `ChartDrawing[]`, with add/edit/delete flows all mutating `setDrawings`.
+- Saved layouts currently have an optional `drawings` snapshot field, and
+  applying a layout replaces the full drawing state. That couples drawings to
+  layout selection and explains why drawings can disappear after refresh.
+- Use a standalone browser storage key, `procharting.drawings`, for drawings.
+  Layout save/apply/autosave should no longer write, read, or react to drawings.
+- Keep the existing drawing sanitizer and use the maximum supported pane count
+  when loading persisted drawings so drawings from hidden panes are not dropped
+  when the current layout has fewer panes.
+- Migrate legacy drawings from old saved-layout snapshots only when the new
+  standalone drawing key does not exist. Once the standalone key exists, even an
+  empty array is authoritative so removed drawings do not come back.
+- Preserve existing authentication gates for drawing tools/rendering; persistence
+  should not clear storage during sign-out.
+
+## Checklist
+
+- [x] Add standalone drawing storage constants and migration helpers.
+- [x] Hydrate drawings from standalone storage on load and persist drawing
+      changes, including refresh/pagehide flushes.
+- [x] Decouple layout save/apply/autosave from drawings.
+- [x] Remove drawing sync UI that implies drawings belong to layouts.
+- [x] Update `ARCHITECTURE.md` with the new drawing persistence boundary.
+- [x] Run typecheck/build and Playwright/devtools verification.
+- [ ] Clean temporary artifacts, commit, push, and review git status.
+
+## Review
+
+- Added standalone drawing persistence under `procharting.drawings`, with
+  debounced localStorage writes and a `pagehide` flush for refresh/navigation.
+- Migrated legacy `drawings` snapshots out of old saved-layout JSON only when the
+  standalone drawing key does not already exist.
+- Removed drawings from new saved-layout snapshots, stopped layout application
+  from replacing drawing state, and removed drawings from layout autosave
+  dependencies.
+- Removed the drawing toolbar sync menu entries that implied drawings were tied
+  to layouts.
+- Updated `ARCHITECTURE.md` to document drawings as browser-local annotations
+  independent from saved chart layouts.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Custom Playwright browser check on `http://127.0.0.1:3102/` for legacy
+    layout drawing migration and authoritative empty standalone storage.
+  - In-app browser/devtools check on `http://127.0.0.1:3102/` loaded the chart
+    pane with no warning/error logs.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Production start sanity check on `http://127.0.0.1:3103/` returned `200 OK`
+  after rebuilding.
+
 # Add Binance Exchange Logo
 
 ## Goal

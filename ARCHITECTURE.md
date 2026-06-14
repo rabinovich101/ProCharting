@@ -63,6 +63,16 @@ assets. The Symbol search exchange column also uses the same proxy to render
 Binance's hosted exchange favicon instead of a generated letter badge, with
 the letter kept as the fallback.
 
+Canvas drawings in the standalone app are browser-local chart annotations, not
+saved-layout state. `app/page.tsx` persists the `ChartDrawing[]` collection under
+the standalone `procharting.drawings` localStorage key, hydrates it on page load,
+and flushes the latest state during normal edits and browser refresh/pagehide.
+Saved chart layouts continue to own panes, symbols, intervals, indicators,
+settings, theme, and view ranges, but they do not write or apply drawings. Older
+layout JSON may still contain a legacy `drawings` snapshot; the app migrates
+those drawings into `procharting.drawings` only when the standalone key does not
+already exist, so deleted drawings are not resurrected from old layouts.
+
 ### 1.1 VM Deployment
 
 The public app deployment for `procharts.thefiscalwire.com` serves the

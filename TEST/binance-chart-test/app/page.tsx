@@ -624,6 +624,7 @@ interface SavedChartLayout {
   layoutSync: Record<LayoutSyncKey, boolean>;
   chartSettings: ChartSettingsState;
   indicators: ActiveIndicator[];
+  // Legacy localStorage snapshots only; current layouts do not write or apply drawings.
   drawings?: ChartDrawing[];
   panes: SavedChartPaneSnapshot[];
 }
@@ -700,6 +701,7 @@ interface BinanceTickerOption {
 const BINANCE_TICKERS_ENDPOINT = '/api/binance/tickers';
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
 const CHART_LAYOUT_STORAGE_KEY = 'procharting.chartLayouts';
+const CHART_DRAWINGS_STORAGE_KEY = 'procharting.drawings';
 const USER_TRACKING_DEVICE_STORAGE_KEY = 'procharting.userTrackingDevice';
 const MAX_SAVED_CHART_LAYOUTS = 12;
 const DEFAULT_ACCOUNT_LAYOUT_ID = 'layout-default';
@@ -1983,6 +1985,7 @@ const LAYOUT_GROUPS: ChartLayoutGroup[] = [
   },
 ];
 const ALL_LAYOUT_OPTIONS = LAYOUT_GROUPS.flatMap((group) => group.options);
+const MAX_DRAWING_STORAGE_PANE_COUNT = Math.max(...ALL_LAYOUT_OPTIONS.map((option) => option.cells.length));
 const DEFAULT_LAYOUT_ID = '1-single';
 const getLayoutOptionById = (layoutId: string) =>
   ALL_LAYOUT_OPTIONS.find((option) => option.id === layoutId) ?? ALL_LAYOUT_OPTIONS[0]!;
@@ -3272,6 +3275,29 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
       };
     })
     .filter((drawing): drawing is ChartDrawing => drawing !== null);
+};
+const extractLegacyLayoutDrawings = (layouts: unknown): ChartDrawing[] => {
+  if (!Array.isArray(layouts)) return [];
+
+  const drawingsById = new Map<string, ChartDrawing>();
+
+  layouts.forEach((layout) => {
+    if (!layout || typeof layout !== 'object') return;
+
+    const legacyDrawings = sanitizeSavedDrawings(
+      (layout as { drawings?: unknown }).drawings,
+      MAX_DRAWING_STORAGE_PANE_COUNT
+    );
+
+    legacyDrawings.forEach((drawing) => {
+      const existing = drawingsById.get(drawing.id);
+      if (!existing || drawing.updatedAt >= existing.updatedAt) {
+        drawingsById.set(drawing.id, drawing);
+      }
+    });
+  });
+
+  return Array.from(drawingsById.values()).sort((left, right) => left.createdAt - right.createdAt);
 };
 const getDistanceToSegment = (
   x: number,
@@ -6067,7 +6093,6 @@ const createDefaultSavedChartLayout = (timestamp = Date.now()): SavedChartLayout
     layoutSync: { ...DEFAULT_LAYOUT_SYNC },
     chartSettings: { ...DEFAULT_CHART_SETTINGS },
     indicators: createDefaultActiveIndicators(),
-    drawings: [],
     panes: [createSavedPaneSnapshot(pane)],
   };
 };
@@ -6984,6 +7009,7 @@ export default function Home() {
   const wasAuthenticatedRef = useRef(false);
   const pendingAuthTrackingEventRef = useRef<UserTrackingEventType | null>(null);
   const trackedAuthEventsRef = useRef<Set<string>>(new Set());
+  const drawingsStorageLoadedRef = useRef(false);
 
   const [chartPanes, setChartPanes] = useState<ChartPaneState[]>(() => [
     createChartPaneState(DEFAULT_ACCOUNT_LAYOUT_SYMBOL, DEFAULT_ACCOUNT_LAYOUT_TIMEFRAME),
@@ -7132,6 +7158,13 @@ export default function Home() {
   const paneMarketRequestKey = chartPanes
     .map((pane, index) => `${index}:${pane.symbol}:${pane.timeframe}:${pane.refreshNonce}`)
     .join('|');
+  const persistDrawingsToStorage = (nextDrawings: ChartDrawing[]) => {
+    try {
+      window.localStorage.setItem(CHART_DRAWINGS_STORAGE_KEY, JSON.stringify(nextDrawings.map(cloneDrawing)));
+    } catch {
+      // storage unavailable
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -7297,6 +7330,49 @@ export default function Home() {
     } catch {
       setFavoriteCursorTools({});
     }
+  }, []);
+
+  useEffect(() => {
+    let nextDrawings: ChartDrawing[] = [];
+
+    try {
+      const rawDrawings = window.localStorage.getItem(CHART_DRAWINGS_STORAGE_KEY);
+      if (rawDrawings !== null) {
+        nextDrawings = sanitizeSavedDrawings(JSON.parse(rawDrawings), MAX_DRAWING_STORAGE_PANE_COUNT);
+      } else {
+        const rawLayouts = window.localStorage.getItem(CHART_LAYOUT_STORAGE_KEY);
+        nextDrawings = rawLayouts ? extractLegacyLayoutDrawings(JSON.parse(rawLayouts)) : [];
+        if (nextDrawings.length > 0) {
+          persistDrawingsToStorage(nextDrawings);
+        }
+      }
+    } catch {
+      nextDrawings = [];
+    }
+
+    setDrawings(nextDrawings);
+    drawingsStorageLoadedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!drawingsStorageLoadedRef.current) return;
+
+    const handle = window.setTimeout(() => {
+      persistDrawingsToStorage(drawings);
+    }, 250);
+
+    return () => window.clearTimeout(handle);
+  }, [drawings]);
+
+  useEffect(() => {
+    const flushDrawings = () => {
+      if (drawingsStorageLoadedRef.current) {
+        persistDrawingsToStorage(drawingsRef.current);
+      }
+    };
+
+    window.addEventListener('pagehide', flushDrawings);
+    return () => window.removeEventListener('pagehide', flushDrawings);
   }, []);
 
   const toggleIndicatorFavorite = (definitionId: string) => {
@@ -8553,7 +8629,6 @@ export default function Home() {
     clearDrawingInteractionState(activePaneIndex);
     drawingToolbarDragRef.current = null;
     setDrawingToolbarPosition(null);
-    setDrawings([]);
   }, [activePaneIndex, isAuthenticated]);
 
   const getDefaultTextToolTextColor = (kind: DrawingToolId) => {
@@ -11950,7 +12025,6 @@ export default function Home() {
     clearDrawingInteractionState(activePaneIndex);
     drawingToolbarDragRef.current = null;
     setDrawingToolbarPosition(null);
-    setDrawings([]);
 
     if (!supabase) {
       setAuthUser(null);
@@ -12045,8 +12119,6 @@ export default function Home() {
       ...indicator,
       settings: { ...indicator.settings },
     }));
-  const copyDrawingsForSnapshot = (sourceDrawings: ChartDrawing[]) =>
-    sourceDrawings.map((drawing) => cloneDrawing(drawing));
   const buildSavedChartLayout = (name: string, existingLayout?: SavedChartLayout): SavedChartLayout => {
     const now = Date.now();
     const visiblePaneSnapshots = chartPanes.slice(0, paneCount).map(createSavedPaneSnapshot);
@@ -12063,9 +12135,6 @@ export default function Home() {
       layoutSync: { ...layoutSync },
       chartSettings: { ...chartSettings },
       indicators: copyIndicatorsForSnapshot(activeIndicators),
-      drawings: copyDrawingsForSnapshot(
-        (isAuthenticated ? drawings : []).filter((drawing) => drawing.paneIndex < paneCount)
-      ),
       panes: visiblePaneSnapshots.length > 0 ? visiblePaneSnapshots : [createSavedPaneSnapshot(activePane)],
     };
   };
@@ -12133,12 +12202,6 @@ export default function Home() {
         id: `${indicator.definitionId}-${Date.now()}-${index}`,
       }))
     );
-    setDrawings(
-      sanitizeSavedDrawings(layout.drawings, layoutOption.cells.length).map((drawing, index) => ({
-        ...drawing,
-        id: `${drawing.kind}-${Date.now()}-${index}`,
-      }))
-    );
     setSelectedDrawingId(null);
     setActiveDrawingToolbarMenu(null);
     setDrawingToolbarStatus('');
@@ -12195,7 +12258,6 @@ export default function Home() {
     chartPanes,
     chartSettings,
     chartStyle,
-    drawings,
     isAuthenticated,
     layoutAutosave,
     layoutSync,
@@ -14769,46 +14831,6 @@ export default function Home() {
                 <span className="drawing-more-menu-icon" aria-hidden="true" />
                 <span>Copy</span>
                 <kbd>⌘ + C</kbd>
-              </button>
-              <span className="drawing-more-menu-separator" role="presentation" />
-              <button
-                type="button"
-                className="drawing-more-menu-row"
-                role="menuitemradio"
-                aria-checked={!drawing.syncInLayout && !drawing.syncGlobally}
-                data-active={!drawing.syncInLayout && !drawing.syncGlobally}
-                onClick={() => patchSelectedDrawing({ syncInLayout: false, syncGlobally: false })}
-              >
-                <span className="drawing-more-menu-icon" aria-hidden="true">
-                  {!drawing.syncInLayout && !drawing.syncGlobally && <Check size={17} strokeWidth={1.8} />}
-                </span>
-                <span>No sync</span>
-              </button>
-              <button
-                type="button"
-                className="drawing-more-menu-row"
-                role="menuitemradio"
-                aria-checked={drawing.syncInLayout && !drawing.syncGlobally}
-                data-active={drawing.syncInLayout && !drawing.syncGlobally}
-                onClick={() => patchSelectedDrawing({ syncInLayout: true, syncGlobally: false })}
-              >
-                <span className="drawing-more-menu-icon" aria-hidden="true">
-                  {drawing.syncInLayout && !drawing.syncGlobally && <Check size={17} strokeWidth={1.8} />}
-                </span>
-                <span>Sync in layout</span>
-              </button>
-              <button
-                type="button"
-                className="drawing-more-menu-row"
-                role="menuitemradio"
-                aria-checked={drawing.syncGlobally}
-                data-active={drawing.syncGlobally}
-                onClick={() => patchSelectedDrawing({ syncInLayout: false, syncGlobally: true })}
-              >
-                <span className="drawing-more-menu-icon" aria-hidden="true">
-                  {drawing.syncGlobally && <Check size={17} strokeWidth={1.8} />}
-                </span>
-                <span>Sync globally</span>
               </button>
               <span className="drawing-more-menu-separator" role="presentation" />
               <button
