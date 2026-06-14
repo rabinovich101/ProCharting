@@ -333,6 +333,7 @@ interface ChartInteractionBounds {
 interface ChartDrawingAnchor {
   logicalIndex: number;
   price: number;
+  time?: number;
 }
 
 interface DrawingPatternBar {
@@ -2738,7 +2739,11 @@ const createDrawingDragState = (paneIndex = 0): DrawingDragState => ({
 const createDrawingId = (kind: DrawingToolId) =>
   `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const cloneDrawingAnchors = (anchors: ChartDrawingAnchor[]) =>
-  anchors.map((anchor) => ({ logicalIndex: anchor.logicalIndex, price: anchor.price }));
+  anchors.map((anchor) => ({
+    logicalIndex: anchor.logicalIndex,
+    price: anchor.price,
+    ...(Number.isFinite(anchor.time) ? { time: anchor.time } : {}),
+  }));
 const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
   ...drawing,
   anchors: cloneDrawingAnchors(drawing.anchors),
@@ -3165,7 +3170,11 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
             Number.isFinite(anchor.logicalIndex) &&
             Number.isFinite(anchor.price)
         )
-        .map((anchor) => ({ logicalIndex: anchor.logicalIndex, price: anchor.price }));
+        .map((anchor) => ({
+          logicalIndex: anchor.logicalIndex,
+          price: anchor.price,
+          ...(Number.isFinite(anchor.time) ? { time: anchor.time } : {}),
+        }));
 
       if (anchors.length < requiredAnchors) return null;
 
@@ -5940,6 +5949,47 @@ const getTimeAtVirtualIndex = (index: number, candles: Candle[], intervalMs: num
 
   return candles[candles.length - 1].time + (index - candles.length + 1) * intervalMs;
 };
+const getLogicalIndexAtTime = (timestamp: number, candles: Candle[], intervalMs: number) => {
+  if (candles.length === 0 || !Number.isFinite(timestamp)) return 0;
+
+  const firstCandle = candles[0]!;
+  const lastIndex = candles.length - 1;
+  const lastCandle = candles[lastIndex]!;
+
+  if (timestamp <= firstCandle.time) {
+    return (timestamp - firstCandle.time) / Math.max(1, intervalMs);
+  }
+
+  if (timestamp >= lastCandle.time) {
+    return lastIndex + (timestamp - lastCandle.time) / Math.max(1, intervalMs);
+  }
+
+  let low = 0;
+  let high = lastIndex;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const midTime = candles[mid]!.time;
+    if (midTime === timestamp) return mid;
+    if (midTime < timestamp) low = mid + 1;
+    else high = mid - 1;
+  }
+
+  const beforeIndex = Math.max(0, high);
+  const afterIndex = Math.min(lastIndex, low);
+  const before = candles[beforeIndex]!;
+  const after = candles[afterIndex]!;
+  const span = Math.max(1, after.time - before.time);
+
+  return beforeIndex + (timestamp - before.time) / span;
+};
+const getDrawingAnchorTime = (anchor: ChartDrawingAnchor, candles: Candle[], intervalMs: number) =>
+  Number.isFinite(anchor.time)
+    ? anchor.time!
+    : getTimeAtVirtualIndex(anchor.logicalIndex, candles, intervalMs);
+const getDrawingAnchorLogicalIndex = (anchor: ChartDrawingAnchor, candles: Candle[], intervalMs: number) =>
+  Number.isFinite(anchor.time)
+    ? getLogicalIndexAtTime(anchor.time!, candles, intervalMs)
+    : anchor.logicalIndex;
 
 const getTimelineBucket = (timestamp: number, step: TimeStep) => {
   const date = new Date(timestamp);
@@ -8144,6 +8194,52 @@ export default function Home() {
     return range.maxPrice - (localY / Math.max(1, chartArea.height)) * (range.maxPrice - range.minPrice);
   };
 
+  const getTimeForLogicalIndex = (paneIndex: number, logicalIndex: number) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane?.candles.length) return undefined;
+
+    return getTimeAtVirtualIndex(logicalIndex, pane.candles, timeframeToMilliseconds(pane.timeframe));
+  };
+  const attachAnchorTime = (paneIndex: number, anchor: ChartDrawingAnchor): ChartDrawingAnchor => {
+    const time = getTimeForLogicalIndex(paneIndex, anchor.logicalIndex);
+    return Number.isFinite(time) ? { ...anchor, time } : { ...anchor };
+  };
+  const getCurrentAnchorLogicalIndex = (paneIndex: number, anchor: ChartDrawingAnchor) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane?.candles.length) return anchor.logicalIndex;
+
+    return getDrawingAnchorLogicalIndex(anchor, pane.candles, timeframeToMilliseconds(pane.timeframe));
+  };
+  const getCurrentTimeframeAnchors = (paneIndex: number, anchors: ChartDrawingAnchor[]) =>
+    cloneDrawingAnchors(anchors).map((anchor) => ({
+      ...anchor,
+      logicalIndex: getCurrentAnchorLogicalIndex(paneIndex, anchor),
+    }));
+
+  useEffect(() => {
+    if (!drawingsStorageLoadedRef.current) return;
+
+    setDrawings((current) => {
+      let changed = false;
+      const nextDrawings = current.map((drawing) => {
+        const pane = paneStatesRef.current[drawing.paneIndex];
+        if (!pane?.candles.length || drawing.anchors.every((anchor) => Number.isFinite(anchor.time))) {
+          return drawing;
+        }
+
+        changed = true;
+        return {
+          ...drawing,
+          anchors: drawing.anchors.map((anchor) =>
+            Number.isFinite(anchor.time) ? anchor : attachAnchorTime(drawing.paneIndex, anchor)
+          ),
+        };
+      });
+
+      return changed ? nextDrawings : current;
+    });
+  }, [chartPanes]);
+
   const getSnappedCrosshairPosition = (paneIndex: number, x: number) => {
     const pane = paneStatesRef.current[paneIndex];
     const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
@@ -8172,11 +8268,14 @@ export default function Home() {
     const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     if (!pane || !currentPriceRange || chartArea.width <= 0 || chartArea.height <= 0) return null;
 
+    const logicalIndex =
+      pane.viewRange.startIndex +
+      clamp((x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) * pane.viewRange.candlesPerView;
+
     return {
-      logicalIndex:
-        pane.viewRange.startIndex +
-        clamp((x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) * pane.viewRange.candlesPerView,
+      logicalIndex,
       price: getPriceAtY(paneIndex, y, currentPriceRange),
+      time: getTimeAtVirtualIndex(logicalIndex, pane.candles, timeframeToMilliseconds(pane.timeframe)),
     };
   };
 
@@ -8187,8 +8286,10 @@ export default function Home() {
     if (!pane || !currentPriceRange || chartArea.width <= 0 || chartArea.height <= 0) return null;
 
     const priceRange = currentPriceRange.maxPrice - currentPriceRange.minPrice || 1;
+    const logicalIndex = getDrawingAnchorLogicalIndex(anchor, pane.candles, timeframeToMilliseconds(pane.timeframe));
+
     return {
-      x: chartArea.left + ((anchor.logicalIndex - pane.viewRange.startIndex) / Math.max(1, pane.viewRange.candlesPerView)) * chartArea.width,
+      x: chartArea.left + ((logicalIndex - pane.viewRange.startIndex) / Math.max(1, pane.viewRange.candlesPerView)) * chartArea.width,
       y: chartArea.top + ((currentPriceRange.maxPrice - anchor.price) / priceRange) * chartArea.height,
     };
   };
@@ -8281,16 +8382,19 @@ export default function Home() {
       if (!start || !end) return false;
 
       const bars = drawing.patternBars ?? [];
-      const leftAnchorIndex = drawing.anchors[0]!.logicalIndex <= drawing.anchors[1]!.logicalIndex ? 0 : 1;
+      const firstIndex = getCurrentAnchorLogicalIndex(paneIndex, drawing.anchors[0]!);
+      const secondIndex = getCurrentAnchorLogicalIndex(paneIndex, drawing.anchors[1]!);
+      const leftAnchorIndex = firstIndex <= secondIndex ? 0 : 1;
       const baseAnchor = drawing.anchors[leftAnchorIndex]!;
+      const baseLogicalIndex = leftAnchorIndex === 0 ? firstIndex : secondIndex;
       let minPrice = baseAnchor.price;
       let maxPrice = baseAnchor.price;
       bars.forEach((bar) => {
         minPrice = Math.min(minPrice, baseAnchor.price + bar.low);
         maxPrice = Math.max(maxPrice, baseAnchor.price + bar.high);
       });
-      const topPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: baseAnchor.logicalIndex, price: maxPrice });
-      const bottomPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: baseAnchor.logicalIndex, price: minPrice });
+      const topPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: baseLogicalIndex, price: maxPrice });
+      const bottomPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: baseLogicalIndex, price: minPrice });
       if (!topPoint || !bottomPoint) return false;
 
       const left = Math.min(start.x, end.x);
@@ -8322,7 +8426,7 @@ export default function Home() {
       const paneCandles = paneStatesRef.current[paneIndex]?.candles;
       if (!anchor || !paneCandles || paneCandles.length === 0) return false;
 
-      const series = computeAnchoredVwap(paneCandles, anchor.logicalIndex);
+      const series = computeAnchoredVwap(paneCandles, getCurrentAnchorLogicalIndex(paneIndex, anchor));
       const stride = Math.max(1, Math.floor(series.length / 400));
       let previous: { x: number; y: number } | null = null;
       for (let index = 0; index < series.length; index += stride) {
@@ -8342,10 +8446,15 @@ export default function Home() {
 
       const anchoredToEnd = drawing.kind === 'anchored-volume-profile';
       const secondAnchor = drawing.anchors[1];
-      const toIndex = anchoredToEnd ? paneCandles.length - 1 : secondAnchor?.logicalIndex;
+      const toIndex = anchoredToEnd
+        ? paneCandles.length - 1
+        : secondAnchor
+          ? getCurrentAnchorLogicalIndex(paneIndex, secondAnchor)
+          : undefined;
       if (toIndex === undefined) return false;
 
-      const profile = computeVolumeProfile(paneCandles, anchor.logicalIndex, toIndex);
+      const fromIndex = getCurrentAnchorLogicalIndex(paneIndex, anchor);
+      const profile = computeVolumeProfile(paneCandles, fromIndex, toIndex);
       if (!profile) return false;
 
       const endPoint = anchoredToEnd
@@ -8353,8 +8462,8 @@ export default function Home() {
         : points[1];
       if (!endPoint) return false;
 
-      const topPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: anchor.logicalIndex, price: profile.maxPrice });
-      const bottomPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: anchor.logicalIndex, price: profile.minPrice });
+      const topPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: fromIndex, price: profile.maxPrice });
+      const bottomPoint = getDrawingPointForAnchor(paneIndex, { logicalIndex: fromIndex, price: profile.minPrice });
       if (!topPoint || !bottomPoint) return false;
 
       const left = Math.min(points[0]!.x, endPoint.x);
@@ -8656,7 +8765,7 @@ export default function Home() {
       id: createDrawingId(kind),
       kind,
       paneIndex,
-      anchors: cloneDrawingAnchors(anchors),
+      anchors: cloneDrawingAnchors(anchors).map((anchor) => attachAnchorTime(paneIndex, anchor)),
       locked: false,
       visible: true,
       color: getDefaultDrawingColor(kind),
@@ -8859,7 +8968,10 @@ export default function Home() {
       if (!drawing.anchors[anchorIndex]) return drawing;
 
       const anchors = cloneDrawingAnchors(drawing.anchors);
-      anchors[anchorIndex] = { ...anchors[anchorIndex]!, ...updates };
+      const nextAnchor = { ...anchors[anchorIndex]!, ...updates };
+      anchors[anchorIndex] = Number.isFinite(updates.logicalIndex)
+        ? attachAnchorTime(drawing.paneIndex, nextAnchor)
+        : nextAnchor;
       return { ...drawing, anchors, updatedAt: Date.now() };
     });
   };
@@ -8927,13 +9039,16 @@ export default function Home() {
 
     const priceRange = getCurrentPriceRange(sourceDrawing.paneIndex);
     const priceOffset = priceRange ? (priceRange.maxPrice - priceRange.minPrice) * 0.025 : 0;
+    const sourceAnchors = getCurrentTimeframeAnchors(sourceDrawing.paneIndex, sourceDrawing.anchors);
     const duplicate: ChartDrawing = {
       ...sourceDrawing,
       id: createDrawingId(sourceDrawing.kind),
-      anchors: sourceDrawing.anchors.map((anchor) => ({
-        logicalIndex: anchor.logicalIndex + 3,
-        price: anchor.price + priceOffset,
-      })),
+      anchors: sourceAnchors.map((anchor) =>
+        attachAnchorTime(sourceDrawing.paneIndex, {
+          logicalIndex: anchor.logicalIndex + 3,
+          price: anchor.price + priceOffset,
+        })
+      ),
       locked: false,
       visible: true,
       createdAt: Date.now(),
@@ -9235,7 +9350,7 @@ export default function Home() {
             drawingId: drawingHit.drawing.id,
             startX: event.clientX,
             startY: event.clientY,
-            startAnchors: cloneDrawingAnchors(drawingHit.drawing.anchors),
+            startAnchors: getCurrentTimeframeAnchors(paneIndex, drawingHit.drawing.anchors),
           };
         } else {
           drawingDragRef.current = createDrawingDragState(paneIndex);
@@ -9396,7 +9511,11 @@ export default function Home() {
               }
             }
 
-            return { ...drawing, anchors: nextAnchors, updatedAt: Date.now() };
+            return {
+              ...drawing,
+              anchors: nextAnchors.map((anchor) => attachAnchorTime(paneIndex, anchor)),
+              updatedAt: Date.now(),
+            };
           })
         );
       }
@@ -9882,8 +10001,15 @@ export default function Home() {
       ctx.setLineDash([]);
     }
 
+    const logicalIndexForDrawingAnchor = (anchor: ChartDrawingAnchor) =>
+      getDrawingAnchorLogicalIndex(anchor, candles, intervalMs);
+    const timeForDrawingAnchor = (anchor: ChartDrawingAnchor) =>
+      getDrawingAnchorTime(anchor, candles, intervalMs);
     const pointForDrawingAnchor = (anchor: ChartDrawingAnchor) => ({
-      x: chartArea.left + ((anchor.logicalIndex - viewRange.startIndex) / Math.max(1, viewRange.candlesPerView)) * chartArea.width,
+      x:
+        chartArea.left +
+        ((logicalIndexForDrawingAnchor(anchor) - viewRange.startIndex) / Math.max(1, viewRange.candlesPerView)) *
+          chartArea.width,
       y: priceToY(anchor.price),
     });
     const applyDrawingLineStyle = (drawing: ChartDrawing) => {
@@ -9933,10 +10059,12 @@ export default function Home() {
       }
 
       const [firstAnchor, secondAnchor] = drawing.anchors;
+      const firstIndex = logicalIndexForDrawingAnchor(firstAnchor);
+      const secondIndex = logicalIndexForDrawingAnchor(secondAnchor);
       const priceDelta = secondAnchor.price - firstAnchor.price;
-      const barsDelta = secondAnchor.logicalIndex - firstAnchor.logicalIndex;
+      const barsDelta = secondIndex - firstIndex;
       const percentDelta = firstAnchor.price !== 0 ? (priceDelta / firstAnchor.price) * 100 : 0;
-      const dateTimeDelta = Math.abs(timeForIndex(secondAnchor.logicalIndex) - timeForIndex(firstAnchor.logicalIndex));
+      const dateTimeDelta = Math.abs(timeForDrawingAnchor(secondAnchor) - timeForDrawingAnchor(firstAnchor));
       const days = Math.floor(dateTimeDelta / 86_400_000);
       const hours = Math.floor((dateTimeDelta % 86_400_000) / 3_600_000);
       const minutes = Math.round((dateTimeDelta % 3_600_000) / 60_000);
@@ -10855,7 +10983,7 @@ export default function Home() {
       ctx.restore();
 
       drawForecastPill(
-        [formatPrice(startAnchor.price), formatForecastDate(timeForIndex(startAnchor.logicalIndex))],
+        [formatPrice(startAnchor.price), formatForecastDate(timeForDrawingAnchor(startAnchor))],
         start.x,
         start.y,
         drawing.color,
@@ -10865,15 +10993,17 @@ export default function Home() {
 
       const priceDelta = endAnchor.price - startAnchor.price;
       const percentDelta = startAnchor.price !== 0 ? (priceDelta / startAnchor.price) * 100 : 0;
-      const timeDelta = Math.abs(timeForIndex(endAnchor.logicalIndex) - timeForIndex(startAnchor.logicalIndex));
+      const startIndex = logicalIndexForDrawingAnchor(startAnchor);
+      const endIndex = logicalIndexForDrawingAnchor(endAnchor);
+      const timeDelta = Math.abs(timeForDrawingAnchor(endAnchor) - timeForDrawingAnchor(startAnchor));
       const dayCount = Math.round(timeDelta / 86_400_000);
-      const barCount = Math.round(Math.abs(endAnchor.logicalIndex - startAnchor.logicalIndex));
+      const barCount = Math.round(Math.abs(endIndex - startIndex));
       const durationText = dayCount >= 1 ? `${dayCount}d` : `${barCount} bars`;
       const sign = priceDelta >= 0 ? '' : '-';
       const targetPill = drawForecastPill(
         [
           `${sign}${formatPrice(Math.abs(priceDelta))} (${percentDelta.toFixed(2)}%) in ${durationText}`,
-          `${formatPrice(endAnchor.price)} · ${formatForecastDate(timeForIndex(endAnchor.logicalIndex))}`,
+          `${formatPrice(endAnchor.price)} · ${formatForecastDate(timeForDrawingAnchor(endAnchor))}`,
         ],
         end.x,
         end.y,
@@ -10883,9 +11013,9 @@ export default function Home() {
       );
 
       const lastIndex = candles.length - 1;
-      if (endAnchor.logicalIndex <= lastIndex + 0.0001 && lastIndex >= 0) {
-        const fromIndex = Math.max(0, Math.ceil(Math.min(startAnchor.logicalIndex, endAnchor.logicalIndex)));
-        const toIndex = Math.min(lastIndex, Math.floor(Math.max(startAnchor.logicalIndex, endAnchor.logicalIndex)));
+      if (endIndex <= lastIndex + 0.0001 && lastIndex >= 0) {
+        const fromIndex = Math.max(0, Math.ceil(Math.min(startIndex, endIndex)));
+        const toIndex = Math.min(lastIndex, Math.floor(Math.max(startIndex, endIndex)));
         const isUp = endAnchor.price >= startAnchor.price;
         let reached = false;
         for (let index = fromIndex; index <= toIndex; index += 1) {
@@ -10912,11 +11042,16 @@ export default function Home() {
       const secondAnchor = drawing.anchors[1];
       if (!start || !end || !firstAnchor || !secondAnchor) return;
 
-      const baseAnchor = firstAnchor.logicalIndex <= secondAnchor.logicalIndex ? firstAnchor : secondAnchor;
+      const firstIndex = logicalIndexForDrawingAnchor(firstAnchor);
+      const secondIndex = logicalIndexForDrawingAnchor(secondAnchor);
+      const baseAnchor = firstIndex <= secondIndex ? firstAnchor : secondAnchor;
       const bars =
         drawing.patternBars && drawing.patternBars.length > 0
           ? drawing.patternBars
-          : captureBarsPatternData(candles, drawing.anchors);
+          : captureBarsPatternData(
+              candles,
+              drawing.anchors.map((anchor) => ({ ...anchor, logicalIndex: logicalIndexForDrawingAnchor(anchor) }))
+            );
       const leftX = Math.min(start.x, end.x);
       const rightX = Math.max(start.x, end.x);
 
@@ -10957,7 +11092,10 @@ export default function Home() {
       points: Array<{ x: number; y: number }>,
       selected: boolean
     ) => {
-      const ghostCandles = buildGhostFeedCandles(drawing.anchors, drawing.seed ?? 7);
+      const ghostCandles = buildGhostFeedCandles(
+        drawing.anchors.map((anchor) => ({ ...anchor, logicalIndex: logicalIndexForDrawingAnchor(anchor) })),
+        drawing.seed ?? 7
+      );
       const ghostWidth = clamp(candleSpacing * 0.64, 1, 12);
 
       ghostCandles.forEach((bar) => {
@@ -11041,7 +11179,7 @@ export default function Home() {
       const anchorPoint = points[0];
       if (!anchor || !anchorPoint) return;
 
-      const series = computeAnchoredVwap(candles, anchor.logicalIndex);
+      const series = computeAnchoredVwap(candles, logicalIndexForDrawingAnchor(anchor));
       ctx.save();
       ctx.strokeStyle = getDrawingStrokeColor(drawing);
       ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
@@ -11078,8 +11216,8 @@ export default function Home() {
       const secondAnchor = anchoredToEnd ? null : drawing.anchors[1];
       if (!anchoredToEnd && !secondAnchor) return;
 
-      const fromIndex = firstAnchor.logicalIndex;
-      const toIndex = anchoredToEnd ? candles.length - 1 : secondAnchor!.logicalIndex;
+      const fromIndex = logicalIndexForDrawingAnchor(firstAnchor);
+      const toIndex = anchoredToEnd ? candles.length - 1 : logicalIndexForDrawingAnchor(secondAnchor!);
       const profile = computeVolumeProfile(candles, fromIndex, toIndex);
       const leftX = anchoredToEnd
         ? points[0]!.x
@@ -11249,15 +11387,17 @@ export default function Home() {
       const percentDelta = startAnchor.price !== 0 ? (priceDelta / startAnchor.price) * 100 : 0;
       const ticks = Math.round(Math.abs(priceDelta) / POSITION_PRICE_TICK).toLocaleString();
       const priceSign = priceDelta >= 0 ? '' : '-';
-      const barsDelta = Math.round(Math.abs(endAnchor.logicalIndex - startAnchor.logicalIndex));
-      const timeDelta = Math.abs(timeForIndex(endAnchor.logicalIndex) - timeForIndex(startAnchor.logicalIndex));
+      const startIndex = logicalIndexForDrawingAnchor(startAnchor);
+      const endIndex = logicalIndexForDrawingAnchor(endAnchor);
+      const barsDelta = Math.round(Math.abs(endIndex - startIndex));
+      const timeDelta = Math.abs(timeForDrawingAnchor(endAnchor) - timeForDrawingAnchor(startAnchor));
       const dayCount = Math.floor(timeDelta / 86_400_000);
       const hourCount = Math.floor((timeDelta % 86_400_000) / 3_600_000);
       const minuteCount = Math.round((timeDelta % 3_600_000) / 60_000);
       const durationText =
         dayCount >= 1 ? `${dayCount}d` : hourCount >= 1 ? `${hourCount}h ${minuteCount}m` : `${minuteCount}m`;
-      const volumeFrom = clamp(Math.ceil(Math.min(startAnchor.logicalIndex, endAnchor.logicalIndex)), 0, candles.length - 1);
-      const volumeTo = clamp(Math.floor(Math.max(startAnchor.logicalIndex, endAnchor.logicalIndex)), 0, candles.length - 1);
+      const volumeFrom = clamp(Math.ceil(Math.min(startIndex, endIndex)), 0, candles.length - 1);
+      const volumeTo = clamp(Math.floor(Math.max(startIndex, endIndex)), 0, candles.length - 1);
       let rangeVolume = 0;
       for (let index = volumeFrom; index <= volumeTo; index += 1) {
         rangeVolume += candles[index]?.volume ?? 0;
@@ -13189,7 +13329,9 @@ export default function Home() {
       ),
       drawing.syncInLayout ? 'sync-layout-on' : 'sync-layout-off',
       drawing.syncGlobally ? 'sync-global-on' : 'sync-global-off',
-      ...drawing.anchors.map((anchor) => `${anchor.logicalIndex.toFixed(2)},${anchor.price.toFixed(2)}`),
+      ...drawing.anchors.map(
+        (anchor) => `${getCurrentAnchorLogicalIndex(paneIndex, anchor).toFixed(2)},${anchor.price.toFixed(2)}`
+      ),
     ].join('|');
   };
   const getDrawingToolbarMetrics = (paneIndex: number) => {
@@ -13655,9 +13797,12 @@ export default function Home() {
     const toolbarColorValue = toolbarColorTargetsText ? drawing.textColor : drawing.color;
     const patchToolbarColor = (value: string) =>
       patchSelectedDrawing(toolbarColorTargetsText ? { textColor: value } : { color: value });
-    const drawingCoordinatePoints = drawing.anchors;
-    const pointOne = drawing.anchors[0];
-    const pointTwo = drawing.anchors[1];
+    const drawingCoordinatePoints = drawing.anchors.map((anchor) => ({
+      ...anchor,
+      logicalIndex: getCurrentAnchorLogicalIndex(paneIndex, anchor),
+    }));
+    const pointOne = drawingCoordinatePoints[0];
+    const pointTwo = drawingCoordinatePoints[1];
     const usesTabbedSettingsDialog = true;
     const closeDrawingSettingsDialog = () => {
       setActiveDrawingToolbarMenu(null);

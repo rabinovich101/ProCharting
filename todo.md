@@ -1,3 +1,63 @@
+# Keep Drawings Aligned Across Timeframes
+
+## Goal
+
+When a user draws a line or shape on candles, keep the drawing anchored to the
+same market time and price levels after switching candle timeframe, such as from
+`1D` to `4H`.
+
+## Investigation / Decisions
+
+- Drawing anchors currently store `logicalIndex` and `price` only. `logicalIndex`
+  is an index in the current candle array, so the same index points to a
+  different candle sequence after timeframe changes.
+- Candles already carry open timestamps in `Candle.time`, and the app already has
+  interpolation helpers for virtual candle indices.
+- Add optional anchor `time` metadata for newly created and edited drawings.
+  Use that timestamp to convert anchors into the active pane's current candle
+  index during rendering, hit-testing, stats, VWAP/profile tools, and labels.
+- Keep legacy persisted drawings compatible by falling back to `logicalIndex`
+  when an anchor has no valid timestamp.
+- Preserve the price anchor exactly; only the horizontal placement needs
+  timeframe-aware remapping.
+
+## Checklist
+
+- [x] Add time-aware drawing anchor helpers and persist/sanitize optional anchor
+      timestamps.
+- [x] Update drawing creation, cloning, dragging, duplication, and manual anchor
+      edits to preserve or refresh anchor timestamps.
+- [x] Update render/hit-test/special drawing calculations to use time-mapped
+      logical indices on the active timeframe.
+- [x] Update `ARCHITECTURE.md` with timeframe-independent drawing anchors.
+- [x] Run typecheck/build and Playwright/devtools verification.
+- [x] Clean temporary artifacts, commit, push, and review git status.
+
+## Review
+
+- Added optional candle timestamps to drawing anchors and preserved them through
+  cloning, sanitizing, persisted storage, manual coordinate edits, duplication,
+  and drag/resize operations.
+- Added timeframe-aware anchor mapping so drawing render positions, hit-testing,
+  stats labels, forecast tools, bars patterns, ghost feeds, anchored VWAP, and
+  volume profiles convert saved anchor timestamps into the active pane's candle
+  index instead of reusing stale indices from another interval.
+- Legacy stored drawings without anchor timestamps are upgraded once pane candles
+  load; their price levels remain unchanged and their old `logicalIndex` remains
+  a fallback.
+- Updated `ARCHITECTURE.md` to document browser-local drawing storage and
+  timeframe-independent timestamp anchors.
+- Added a Playwright regression that seeds an index-only persisted drawing,
+  confirms candle timestamps are attached, switches from `1D` to `4H`, and
+  confirms the saved anchors remain stable.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - In-app browser/devtools check on `http://127.0.0.1:3104/` loaded the app
+    with no warning/error logs.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+
 # Persist Canvas Drawings Independently
 
 ## Goal

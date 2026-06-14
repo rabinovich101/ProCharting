@@ -67,6 +67,11 @@ Canvas drawings in the standalone app are browser-local chart annotations, not
 saved-layout state. `app/page.tsx` persists the `ChartDrawing[]` collection under
 the standalone `procharting.drawings` localStorage key, hydrates it on page load,
 and flushes the latest state during normal edits and browser refresh/pagehide.
+Drawing anchors store price plus a market timestamp when candle data is
+available; rendering and hit-testing remap that timestamp into the active
+timeframe's candle index so annotations stay on the same levels when switching
+intervals. Legacy anchors without timestamps still fall back to their saved
+logical index and are upgraded once pane candles load.
 Saved chart layouts continue to own panes, symbols, intervals, indicators,
 settings, theme, and view ranges, but they do not write or apply drawings. Older
 layout JSON may still contain a legacy `drawings` snapshot; the app migrates
@@ -584,8 +589,11 @@ The chart app supports:
   Arrow marker, Arrow, Arrow mark up/down, Rectangle, Rotated rectangle, Path,
   Circle, Ellipse, Polyline, Triangle, Arc, Curve, and Double curve. Enabled
   drawing tools can also be activated from their advertised keyboard shortcuts
-  when focus is not in an editable field. Drawing anchors are
-  stored as logical bar index plus price; Horizontal line, Horizontal ray,
+  when focus is not in an editable field. Drawing anchors are stored as logical
+  bar index plus price plus an optional candle timestamp; timestamped anchors are
+  remapped to the active timeframe before drawing, hit-testing, statistics,
+  VWAP/profile calculations, and coordinate labels. Horizontal line,
+  Horizontal ray,
   Vertical line, and Cross line use one anchor; Trendline, Ray, Info line,
   Extended line, and Trend angle use two anchors; Parallel channel, Regression
   trend, and Flat top/bottom use three anchors; Disjoint channel uses four

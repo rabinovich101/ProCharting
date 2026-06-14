@@ -362,6 +362,67 @@ test.describe('signed-out chart access', () => {
     await expect(page.locator('.instrument-legend-symbol')).toHaveText('BTC/USDT 1m');
   });
 
+  test('adds stable candle timestamps to persisted drawing anchors across timeframe changes', async ({ page }) => {
+    await installMarketMocks(page);
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        'procharting.drawings',
+        JSON.stringify([
+          {
+            id: 'legacy-timeframe-line',
+            kind: 'trend-line',
+            paneIndex: 0,
+            anchors: [
+              { logicalIndex: 10, price: 102.25 },
+              { logicalIndex: 40, price: 106.75 },
+            ],
+            createdAt: Date.UTC(2026, 0, 1, 0, 0, 0),
+            updatedAt: Date.UTC(2026, 0, 1, 0, 0, 0),
+          },
+        ])
+      );
+    });
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Sign up' })).toBeVisible();
+
+    const expectedAnchors = [
+      { logicalIndex: 10, price: 102.25, time: Date.UTC(2026, 0, 1, 0, 10, 0) },
+      { logicalIndex: 40, price: 106.75, time: Date.UTC(2026, 0, 1, 0, 40, 0) },
+    ];
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const rawDrawings = window.localStorage.getItem('procharting.drawings');
+          const drawing = rawDrawings ? JSON.parse(rawDrawings)[0] : null;
+          return drawing?.anchors?.map((anchor: { logicalIndex: number; price: number; time?: number }) => ({
+            logicalIndex: anchor.logicalIndex,
+            price: anchor.price,
+            time: anchor.time,
+          }));
+        })
+      )
+      .toEqual(expectedAnchors);
+
+    await page.getByRole('button', { name: 'Timeframe' }).click();
+    await page.locator('#timeframe-menu [data-menu-value="4h"]').click();
+    await expect(page.locator('canvas.chart-canvas')).toHaveAttribute('aria-label', 'BTC/USDT 4h chart pane 1');
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const rawDrawings = window.localStorage.getItem('procharting.drawings');
+          const drawing = rawDrawings ? JSON.parse(rawDrawings)[0] : null;
+          return drawing?.anchors?.map((anchor: { logicalIndex: number; price: number; time?: number }) => ({
+            logicalIndex: anchor.logicalIndex,
+            price: anchor.price,
+            time: anchor.time,
+          }));
+        })
+      )
+      .toEqual(expectedAnchors);
+  });
+
   test('shows signup/login entry points and keeps account tools gated', async ({ page }) => {
     await openApp(page);
 
