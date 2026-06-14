@@ -1,3 +1,48 @@
+# Restore Localhost 3000
+
+## Goal
+
+Restore `http://localhost:3000/` after it started returning `500 Internal
+Server Error`.
+
+## Investigation / Decisions
+
+- `curl http://localhost:3000/` reproduced the `500 Internal Server Error`.
+- Port `3000` was owned by an old `next dev --turbopack --hostname 0.0.0.0
+  --port 3000` process started on Saturday, June 13, 2026 at 11:15:21.
+- The `.next` artifacts were rebuilt later on Sunday, June 14, 2026 around
+  17:51, so the old dev server was serving from a runtime/artifact state that
+  no longer matched the current app.
+- No source-code or architecture fix is expected. The smallest proper fix is
+  operational: stop the stale dev server process group and start a fresh local
+  dev server on port `3000`.
+
+## Checklist
+
+- [x] Stop the stale `next dev` process on port `3000`.
+- [x] Start a clean local dev server on `http://localhost:3000/`.
+- [x] Verify the page returns `200 OK` by CLI.
+- [x] Verify the page loads in a browser with Playwright/devtools checks.
+- [x] Add review notes and confirm whether source/architecture changes were
+      needed.
+- [x] Commit, push, and leave the workspace clean.
+
+## Review
+
+- Stopped the stale `next dev --turbopack --hostname 0.0.0.0 --port 3000`
+  process group that was returning `500 Internal Server Error`.
+- Confirmed the stale process started on Saturday, June 13, 2026 before the
+  current `.next` artifacts were rebuilt on Sunday, June 14, 2026.
+- Started a fresh local dev server in detached `screen` session
+  `procharting-3000` on `http://127.0.0.1:3000/`.
+- Verified `curl -I http://127.0.0.1:3000/` returns `200 OK`.
+- Verified the HTML title is `ProCharting Market Desk`.
+- Verified in the in-app browser with Playwright/devtools that the chart shell
+  and Symbol search trigger render, and warning/error logs are clean.
+- No source-code or architecture change was needed; this was an operational
+  stale local dev-server/runtime mismatch.
+- The detached server log is `/tmp/procharting-localhost-3000.log`.
+
 # Expand Symbol Logo Coverage
 
 ## Goal
