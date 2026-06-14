@@ -687,6 +687,7 @@ interface SymbolSearchOption {
   tags: string[];
   categories: SymbolSearchCategory[];
   color: string;
+  iconUrl?: string;
 }
 
 interface BinanceTickerOption {
@@ -2326,7 +2327,32 @@ const SYMBOL_SEARCH_TABS: Array<{ id: SymbolSearchCategory; label: string }> = [
   { id: 'defi', label: 'DeFi' },
   { id: 'meme', label: 'Meme' },
 ];
-const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = [
+
+const SYMBOL_ICON_BASE_URL = 'https://assets.coincap.io/assets/icons/';
+const SYMBOL_ICON_SLUG_OVERRIDES: Record<string, string> = {
+  '1000BONK': 'bonk',
+  '1000FLOKI': 'floki',
+  '1000PEPE': 'pepe',
+  '1000SHIB': 'shib',
+};
+const getSymbolIconSlug = (asset: string) => {
+  const normalizedAsset = asset.trim().toUpperCase();
+
+  if (!normalizedAsset) return '';
+
+  return SYMBOL_ICON_SLUG_OVERRIDES[normalizedAsset] ?? normalizedAsset.toLowerCase();
+};
+const getSymbolIconUrl = (asset: string) => {
+  const slug = getSymbolIconSlug(asset);
+
+  return slug ? `${SYMBOL_ICON_BASE_URL}${slug}@2x.png` : undefined;
+};
+const withSymbolIcon = (option: SymbolSearchOption): SymbolSearchOption => ({
+  ...option,
+  iconUrl: option.iconUrl ?? getSymbolIconUrl(option.base),
+});
+
+const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
   {
     symbol: 'BTCUSDT',
     base: 'BTC',
@@ -2447,7 +2473,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = [
     categories: ['spot', 'layer1'],
     color: '#ff0013',
   },
-];
+] satisfies SymbolSearchOption[]).map(withSymbolIcon);
 const BINANCE_QUOTE_SUFFIXES = [
   'FDUSD',
   'USDT',
@@ -5686,6 +5712,7 @@ const createFallbackSymbolSearchOption = (symbol: string): SymbolSearchOption =>
     tags: ['spot', 'crypto'],
     categories: ['spot'],
     color: getGeneratedSymbolColor(symbol),
+    iconUrl: getSymbolIconUrl(base),
   };
 };
 
@@ -5706,7 +5733,12 @@ const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] =
 
     const curated = curatedBySymbol.get(ticker.symbol);
     if (curated) {
-      options.push({ ...curated, base: ticker.base, quote: ticker.quote });
+      options.push({
+        ...curated,
+        base: ticker.base,
+        quote: ticker.quote,
+        iconUrl: getSymbolIconUrl(ticker.base),
+      });
       return options;
     }
 
@@ -5719,6 +5751,7 @@ const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] =
       tags: ['spot', 'crypto', ticker.quote.toLowerCase()],
       categories: ['spot'],
       color: getGeneratedSymbolColor(ticker.symbol),
+      iconUrl: getSymbolIconUrl(ticker.base),
     });
 
     return options;
@@ -5740,6 +5773,24 @@ const getSymbolSearchOption = (
   symbol: string,
   options: readonly SymbolSearchOption[] = SYMBOL_SEARCH_OPTIONS
 ) => options.find((option) => option.symbol === symbol) ?? createFallbackSymbolSearchOption(symbol);
+
+const SymbolLogo = ({ option, className }: { option: SymbolSearchOption; className: string }) => (
+  <span className={className} style={{ '--symbol-color': option.color } as CSSProperties} aria-hidden="true">
+    <span className="symbol-logo-fallback">{option.base.slice(0, 1) || option.symbol.slice(0, 1)}</span>
+    {option.iconUrl && (
+      <img
+        src={option.iconUrl}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        onError={(event) => {
+          event.currentTarget.style.display = 'none';
+        }}
+      />
+    )}
+  </span>
+);
 
 const matchesSymbolSearch = (
   option: SymbolSearchOption,
@@ -15077,9 +15128,7 @@ export default function Home() {
               aria-expanded={headerPanel === 'symbolSearch'}
               onClick={openSymbolSearch}
             >
-              <span className="symbol-badge" style={{ background: selectedSymbolOption.color }} aria-hidden="true">
-                {selectedSymbolOption.base.slice(0, 1)}
-              </span>
+              <SymbolLogo option={selectedSymbolOption} className="symbol-badge" />
               <span className="symbol-trigger-copy">
                 <span className="trigger-label">{activeSymbol}</span>
                 <small>{selectedSymbolOption.exchange}</small>
@@ -15885,9 +15934,7 @@ export default function Home() {
                         data-active={active}
                         onClick={() => selectSymbolSearchOption(option.symbol)}
                       >
-                        <span className="symbol-result-badge" style={{ background: option.color }} aria-hidden="true">
-                          {option.base.slice(0, 1)}
-                        </span>
+                        <SymbolLogo option={option} className="symbol-result-badge" />
                         <span className="symbol-result-main">
                           <strong>{option.symbol}</strong>
                           <span>{option.name}</span>

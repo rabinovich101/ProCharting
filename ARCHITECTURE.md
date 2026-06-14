@@ -48,6 +48,14 @@ It loads Google Analytics through Next's `Script` lifecycle with measurement ID
 `G-HW6ZYLMS7C`, so site-wide page loads initialize `gtag` from the app shell
 without coupling analytics to chart rendering or market-data code.
 
+The standalone app also owns Symbol search metadata for Binance spot pairs.
+Curated pairs and dynamically fetched `/api/binance/tickers` pairs are
+normalized into `SymbolSearchOption` records in `app/page.tsx`; each record
+derives an optional base-asset icon URL from CoinCap's public icon CDN. The
+Symbol trigger and Symbol search result rows render that logo when available
+and keep the generated color/initial badge as the fallback for missing or
+failed icon assets.
+
 ### 1.1 VM Deployment
 
 The public app deployment for `procharts.thefiscalwire.com` serves the

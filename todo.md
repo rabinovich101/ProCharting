@@ -1,3 +1,63 @@
+# Add Real Symbol Logos To Pair Search
+
+## Goal
+
+Show real crypto logos for each Binance trading pair in the Symbol trigger and
+Symbol search results, while preserving the existing generated badge fallback
+when an external icon is unavailable.
+
+## Investigation / Decisions
+
+- The Symbol UI and Binance pair normalization live in
+  `TEST/binance-chart-test/app/page.tsx`.
+- The Symbol trigger currently renders a colored initial from
+  `selectedSymbolOption.color`; Symbol search rows render the same generated
+  initial through `.symbol-result-badge`.
+- Binance tickers already provide `base` and `quote`, so the logo should use
+  the base asset, not the full pair. `ETHBTC` should show the ETH logo, and
+  `BTCUSDT` should show the BTC logo.
+- CoinCap's public icon CDN resolves common and newer crypto asset symbols with
+  a simple lower-case slug URL. Use that URL pattern for dynamic Binance pairs
+  instead of adding hundreds of image files to the repository.
+- Keep the implementation simple: add an optional `iconUrl` to
+  `SymbolSearchOption`, derive it from the base asset, render a reusable
+  `SymbolLogo`, and hide the image on load failure so the existing fallback
+  remains visible.
+- This changes the standalone app's symbol metadata/rendering boundary, so
+  `ARCHITECTURE.md` should get a small note.
+
+## Checklist
+
+- [x] Add icon metadata derivation for curated, dynamic, and fallback Symbol
+      options.
+- [x] Replace generated-only Symbol badges with a shared real-logo renderer.
+- [x] Update Symbol badge CSS for image-backed logos and fallback initials.
+- [x] Update `ARCHITECTURE.md` with the symbol logo metadata behavior.
+- [x] Run typecheck/build and browser verification with Playwright/devtools.
+- [x] Clean temporary browser artifacts, commit, push, and review git status.
+
+## Review
+
+- Added optional `iconUrl` metadata to Symbol search options and derive it from
+  each pair's base asset using CoinCap's public icon CDN.
+- Added a shared `SymbolLogo` renderer for the topbar Symbol trigger and Symbol
+  search results, with the generated color/initial badge kept as the fallback
+  for missing or failed image loads.
+- Updated badge CSS so loaded logos occupy the existing fixed-size badge slots
+  without shifting the toolbar or search-result grid.
+- Updated `ARCHITECTURE.md` with the Symbol logo metadata/rendering behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - In-app browser Playwright/devtools check on `http://127.0.0.1:3101`:
+    BTC header logo and ETHBTC search result logo loaded from CoinCap, mobile
+    width had no Symbol search horizontal overflow, and warning/error logs were
+    clean.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Removed the generated `TEST/binance-chart-test/test-results` artifacts after
+  the Playwright run.
+
 # Fix Localhost 3000 Internal Server Error
 
 ## Goal
