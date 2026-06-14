@@ -694,6 +694,7 @@ interface BinanceTickerOption {
   symbol: string;
   base: string;
   quote: string;
+  iconUrl?: string;
 }
 
 const BINANCE_TICKERS_ENDPOINT = '/api/binance/tickers';
@@ -5684,7 +5685,11 @@ const isBinanceTickerOption = (value: unknown): value is BinanceTickerOption =>
   typeof value.quote === 'string' &&
   value.symbol.length > 0 &&
   value.base.length > 0 &&
-  value.quote.length > 0;
+  value.quote.length > 0 &&
+  (value.iconUrl === undefined || (typeof value.iconUrl === 'string' && value.iconUrl.length > 0));
+
+const getTickerIconUrl = (ticker: BinanceTickerOption, iconsByBase: ReadonlyMap<string, string>) =>
+  iconsByBase.get(ticker.base) ?? getSymbolIconUrl(ticker.base);
 
 const findSymbolQuote = (symbol: string) =>
   BINANCE_QUOTE_SUFFIXES.find((quote) => symbol.endsWith(quote) && symbol.length > quote.length);
@@ -5722,7 +5727,19 @@ const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] =
   }
 
   const curatedBySymbol = new Map(SYMBOL_SEARCH_OPTIONS.map((option) => [option.symbol, option]));
+  const iconsByBase = new Map<string, string>();
   const seenSymbols = new Set<string>();
+
+  payload.tickers.forEach((ticker) => {
+    if (
+      isObjectRecord(ticker) &&
+      typeof ticker.base === 'string' &&
+      typeof ticker.iconUrl === 'string' &&
+      ticker.iconUrl.length > 0
+    ) {
+      iconsByBase.set(ticker.base, ticker.iconUrl);
+    }
+  });
 
   return payload.tickers.reduce<SymbolSearchOption[]>((options, ticker) => {
     if (!isBinanceTickerOption(ticker) || seenSymbols.has(ticker.symbol)) {
@@ -5737,7 +5754,7 @@ const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] =
         ...curated,
         base: ticker.base,
         quote: ticker.quote,
-        iconUrl: getSymbolIconUrl(ticker.base),
+        iconUrl: getTickerIconUrl(ticker, iconsByBase),
       });
       return options;
     }
@@ -5751,7 +5768,7 @@ const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] =
       tags: ['spot', 'crypto', ticker.quote.toLowerCase()],
       categories: ['spot'],
       color: getGeneratedSymbolColor(ticker.symbol),
-      iconUrl: getSymbolIconUrl(ticker.base),
+      iconUrl: getTickerIconUrl(ticker, iconsByBase),
     });
 
     return options;
@@ -5774,23 +5791,40 @@ const getSymbolSearchOption = (
   options: readonly SymbolSearchOption[] = SYMBOL_SEARCH_OPTIONS
 ) => options.find((option) => option.symbol === symbol) ?? createFallbackSymbolSearchOption(symbol);
 
-const SymbolLogo = ({ option, className }: { option: SymbolSearchOption; className: string }) => (
-  <span className={className} style={{ '--symbol-color': option.color } as CSSProperties} aria-hidden="true">
-    <span className="symbol-logo-fallback">{option.base.slice(0, 1) || option.symbol.slice(0, 1)}</span>
-    {option.iconUrl && (
-      <img
-        src={option.iconUrl}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-        onError={(event) => {
-          event.currentTarget.style.display = 'none';
-        }}
-      />
-    )}
-  </span>
-);
+const SymbolLogo = ({ option, className }: { option: SymbolSearchOption; className: string }) => {
+  const fallbackIconUrl = getSymbolIconUrl(option.base);
+  const iconUrl = option.iconUrl ?? fallbackIconUrl;
+  const fallbackSrc = option.iconUrl && fallbackIconUrl !== option.iconUrl ? fallbackIconUrl : undefined;
+
+  return (
+    <span className={className} style={{ '--symbol-color': option.color } as CSSProperties} aria-hidden="true">
+      <span className="symbol-logo-fallback">{option.base.slice(0, 1) || option.symbol.slice(0, 1)}</span>
+      {iconUrl && (
+        <img
+          key={iconUrl}
+          src={iconUrl}
+          alt=""
+          data-fallback-src={fallbackSrc}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={(event) => {
+            const image = event.currentTarget;
+            const nextSrc = image.dataset.fallbackSrc;
+
+            if (nextSrc) {
+              image.removeAttribute('data-fallback-src');
+              image.src = nextSrc;
+              return;
+            }
+
+            image.style.display = 'none';
+          }}
+        />
+      )}
+    </span>
+  );
+};
 
 const matchesSymbolSearch = (
   option: SymbolSearchOption,
@@ -7102,7 +7136,7 @@ export default function Home() {
 
     const loadBinanceTickers = async () => {
       try {
-        const response = await fetch(BINANCE_TICKERS_ENDPOINT);
+        const response = await fetch(BINANCE_TICKERS_ENDPOINT, { cache: 'no-store' });
 
         if (!response.ok) {
           throw new Error('Binance ticker list unavailable.');

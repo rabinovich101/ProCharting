@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const BINANCE_EXCHANGE_INFO_URL = 'https://api.binance.com/api/v3/exchangeInfo';
+const BINANCE_ASSET_METADATA_URL = 'https://www.binance.com/bapi/asset/v2/public/asset/asset/get-all-asset';
 const CACHE_SECONDS = 60 * 60;
 
 let tickerCache: { expiresAt: number; tickers: BinanceTicker[] } | null = null;
@@ -9,6 +10,7 @@ interface BinanceTicker {
   symbol: string;
   base: string;
   quote: string;
+  iconUrl?: string;
 }
 
 export async function GET() {
@@ -19,9 +21,12 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch(BINANCE_EXCHANGE_INFO_URL, {
-      cache: 'no-store',
-    });
+    const [response, assetIcons] = await Promise.all([
+      fetch(BINANCE_EXCHANGE_INFO_URL, {
+        cache: 'no-store',
+      }),
+      fetchBinanceAssetIcons(),
+    ]);
     const data = await response.json();
 
     if (!response.ok) {
@@ -31,7 +36,7 @@ export async function GET() {
       );
     }
 
-    const tickers = normalizeBinanceTickers(data);
+    const tickers = normalizeBinanceTickers(data, assetIcons);
     tickerCache = {
       expiresAt: now + CACHE_SECONDS * 1000,
       tickers,
@@ -57,20 +62,67 @@ const createTickerResponse = (tickers: BinanceTicker[]) =>
     }
   );
 
-const normalizeBinanceTickers = (payload: unknown): BinanceTicker[] => {
+const normalizeBinanceTickers = (payload: unknown, assetIcons = new Map<string, string>()): BinanceTicker[] => {
   if (!isRecord(payload) || !Array.isArray(payload.symbols)) {
     throw new Error('Binance returned an unexpected exchangeInfo payload.');
   }
 
   return payload.symbols
     .filter(isTradingSpotSymbol)
-    .map((entry) => ({
-      symbol: entry.symbol,
-      base: entry.baseAsset,
-      quote: entry.quoteAsset,
-    }))
+    .map((entry) => {
+      const iconUrl = assetIcons.get(entry.baseAsset);
+
+      return {
+        symbol: entry.symbol,
+        base: entry.baseAsset,
+        quote: entry.quoteAsset,
+        ...(iconUrl ? { iconUrl } : {}),
+      };
+    })
     .sort((a, b) => a.symbol.localeCompare(b.symbol));
 };
+
+const fetchBinanceAssetIcons = async (): Promise<Map<string, string>> => {
+  try {
+    const response = await fetch(BINANCE_ASSET_METADATA_URL, {
+      cache: 'no-store',
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      return new Map();
+    }
+
+    return normalizeBinanceAssetIcons(data);
+  } catch {
+    return new Map();
+  }
+};
+
+const normalizeBinanceAssetIcons = (payload: unknown): Map<string, string> => {
+  const icons = new Map<string, string>();
+
+  if (!isRecord(payload) || !Array.isArray(payload.data)) {
+    return icons;
+  }
+
+  for (const asset of payload.data) {
+    if (!isBinanceAssetMetadata(asset)) {
+      continue;
+    }
+
+    const iconUrl = getHttpUrl(asset.fullLogoUrl) ?? getHttpUrl(asset.logoUrl);
+
+    if (iconUrl) {
+      icons.set(asset.assetCode, createAssetLogoProxyUrl(iconUrl));
+    }
+  }
+
+  return icons;
+};
+
+const createAssetLogoProxyUrl = (sourceUrl: string) =>
+  `/api/binance/asset-logo?url=${encodeURIComponent(sourceUrl)}`;
 
 interface BinanceExchangeInfoSymbol {
   symbol: string;
@@ -80,6 +132,12 @@ interface BinanceExchangeInfoSymbol {
   isSpotTradingAllowed?: boolean;
   permissions?: unknown[];
   permissionSets?: unknown[];
+}
+
+interface BinanceAssetMetadata {
+  assetCode: string;
+  logoUrl?: string;
+  fullLogoUrl?: string;
 }
 
 const isTradingSpotSymbol = (value: unknown): value is BinanceExchangeInfoSymbol => {
@@ -100,6 +158,25 @@ const isTradingSpotSymbol = (value: unknown): value is BinanceExchangeInfoSymbol
     value.isSpotTradingAllowed !== false &&
     hasSpotPermission
   );
+};
+
+const isBinanceAssetMetadata = (value: unknown): value is BinanceAssetMetadata =>
+  isRecord(value) &&
+  typeof value.assetCode === 'string' &&
+  value.assetCode.length > 0 &&
+  (value.logoUrl === undefined || typeof value.logoUrl === 'string') &&
+  (value.fullLogoUrl === undefined || typeof value.fullLogoUrl === 'string');
+
+const getHttpUrl = (value: string | undefined) => {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

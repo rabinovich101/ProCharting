@@ -50,11 +50,16 @@ without coupling analytics to chart rendering or market-data code.
 
 The standalone app also owns Symbol search metadata for Binance spot pairs.
 Curated pairs and dynamically fetched `/api/binance/tickers` pairs are
-normalized into `SymbolSearchOption` records in `app/page.tsx`; each record
-derives an optional base-asset icon URL from CoinCap's public icon CDN. The
-Symbol trigger and Symbol search result rows render that logo when available
-and keep the generated color/initial badge as the fallback for missing or
-failed icon assets.
+normalized into `SymbolSearchOption` records in `app/page.tsx`. The
+`/api/binance/tickers` route joins Binance exchangeInfo symbols with Binance's
+public asset metadata so fetched pairs carry the base asset's official
+`logoUrl`/`fullLogoUrl` when Binance publishes one. Those Binance image URLs
+are exposed to the browser through the same-origin `/api/binance/asset-logo`
+proxy, which only accepts `https://bin.bnbstatic.com/*` image sources. The
+Symbol trigger and Symbol search result rows render that proxied logo when
+available, fall back to the CoinCap slug URL pattern when needed, and keep the
+generated color/initial badge as the final fallback for missing or failed icon
+assets.
 
 ### 1.1 VM Deployment
 

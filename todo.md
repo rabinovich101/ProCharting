@@ -1,3 +1,68 @@
+# Expand Symbol Logo Coverage
+
+## Goal
+
+Use Binance's own public asset logo metadata so Symbol search shows real logos
+for nearly all Binance-listed pairs, not only assets covered by the CoinCap
+slug URL pattern.
+
+## Investigation / Decisions
+
+- The first implementation used CoinCap URLs derived from the base asset slug.
+  That covers common assets but misses some Binance-listed bases.
+- Binance exposes a public asset metadata endpoint at
+  `https://www.binance.com/bapi/asset/v2/public/asset/asset/get-all-asset`.
+  Its asset rows include `assetCode`, `logoUrl`, and `fullLogoUrl`.
+- Keep the client simple and avoid a second browser-side fetch by enriching the
+  existing `/api/binance/tickers` response. The route already fetches and
+  caches Binance spot pair metadata, so it is the natural place to join base
+  assets with their Binance logo URLs.
+- Browser image requests to Binance's CDN can fail independently of the server
+  fetch, so the ticker response should expose same-origin proxied logo URLs via
+  a narrow `/api/binance/asset-logo` route that only accepts Binance image CDN
+  sources.
+- The route should treat asset-logo metadata as optional. If the asset endpoint
+  fails, tickers should still load and the UI should keep the existing CoinCap
+  and generated-initial fallback behavior.
+
+## Checklist
+
+- [x] Enrich `/api/binance/tickers` with Binance base-asset logo URLs.
+- [x] Add a same-origin Binance logo proxy for browser image loads.
+- [x] Update client ticker normalization to prefer server-provided icon URLs.
+- [x] Update `ARCHITECTURE.md` with Binance asset metadata as the primary logo
+      source.
+- [x] Run typecheck/build and browser verification for common and previously
+      missing pairs.
+- [x] Clean temporary artifacts, commit, push, and review git status.
+
+## Review
+
+- Added Binance asset-logo enrichment to `/api/binance/tickers`; the route now
+  joins exchangeInfo pairs to Binance public asset metadata and returns
+  same-origin proxied `iconUrl` values for fetched pairs.
+- Added `/api/binance/asset-logo`, a narrow image proxy that only accepts
+  `https://bin.bnbstatic.com/*` sources and returns cached image responses.
+- Updated client ticker normalization to prefer server-provided icon URLs, with
+  CoinCap and generated-initial fallbacks still available.
+- Verified the ticker API returned proxied logo URLs for previously missing
+  examples including `LUNCUSDT`, `WIFUSDT`, `PYTHUSDT`, and `1000SATSUSDT`.
+- Verified the proxy returns `200 OK` with `image/png` for a Binance logo.
+- Verified in Playwright that the Symbol search rows load proxied logos for
+  `LUNCUSDT`, `WIFUSDT`, `PYTHUSDT`, and `1000SATSUSDT`.
+- Verified mobile-width Symbol search has no horizontal overflow and loads the
+  proxied `LUNCUSDT` logo.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Playwright request-failure tracing showed one unrelated local DNS failure for
+  the existing Google Analytics script at `www.googletagmanager.com`; logo
+  requests loaded successfully through the same-origin proxy.
+- Removed generated `TEST/binance-chart-test/test-results` artifacts and
+  stopped the temporary verification server.
+
 # Add Real Symbol Logos To Pair Search
 
 ## Goal
