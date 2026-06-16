@@ -617,6 +617,12 @@ The chart app supports:
   field. Emoji drawings reuse the text drawing render, hit-test, selection,
   floating-toolbar, and browser-local persistence paths rather than introducing
   a separate storage boundary.
+  A standalone Measure ruler button follows the Icons group in the left rail.
+  It creates a two-anchor `measure` drawing that reuses the same logical-index,
+  price, timestamp, persistence, hit-test, and drag infrastructure as the other
+  drawing objects, while rendering with a TradingView-like blue measured range:
+  translucent rectangle, dashed endpoint guides, price/time axis labels, and a
+  compact readout for price change, percent, bar/time span, and range volume.
   Drawings are rendered in the main price-pane canvas pass, and selected
   drawings show a DOM floating toolbar with working TradingView-like quick
   controls for templates, line color, opacity, text, line width, line style,

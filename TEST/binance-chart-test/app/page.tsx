@@ -46,6 +46,7 @@ import {
   Lock,
   MoreHorizontal,
   Pencil,
+  Ruler,
   Settings,
   Trash2,
   Type,
@@ -228,6 +229,7 @@ type DrawingToolId =
   | 'price-range'
   | 'date-range'
   | 'date-price-range'
+  | 'measure'
   | 'brush'
   | 'highlighter'
   | 'arrow-marker'
@@ -446,6 +448,15 @@ interface FreehandDrawingState {
   paneIndex: number;
   anchors: ChartDrawingAnchor[];
   lastPoint: { x: number; y: number };
+}
+
+interface MeasureDrawingDragState {
+  paneIndex: number;
+  startAnchor: ChartDrawingAnchor;
+  previewAnchor: ChartDrawingAnchor;
+  startClientX: number;
+  startClientY: number;
+  hasMoved: boolean;
 }
 
 interface DrawingHitResult {
@@ -922,6 +933,7 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'price-range': 'Price range',
   'date-range': 'Date range',
   'date-price-range': 'Date and price range',
+  measure: 'Measure',
   brush: 'Brush',
   highlighter: 'Highlighter',
   'arrow-marker': 'Arrow marker',
@@ -2984,10 +2996,12 @@ const isFreehandDrawingTool = (kind: DrawingToolId) => kind === 'brush' || kind 
 const isVariableAnchorShapeDrawingTool = (kind: DrawingToolId) => kind === 'path' || kind === 'polyline';
 // Curve tools complete after two clicks; their bend handles are appended automatically and dragged afterwards.
 const isAutoControlCurveDrawingTool = (kind: DrawingToolId) => kind === 'curve' || kind === 'double-curve';
+const isMeasureDrawingTool = (kind: DrawingToolId) => kind === 'measure';
 const isClassicLineDrawingTool = (kind: DrawingToolId) =>
   !isFibDrawingTool(kind) &&
   !isPatternDrawingTool(kind) &&
   !isForecastDrawingTool(kind) &&
+  !isMeasureDrawingTool(kind) &&
   !isShapeDrawingTool(kind) &&
   !isTextDrawingTool(kind);
 const getMaxDrawingAnchorCount = (kind: DrawingToolId) =>
@@ -3039,7 +3053,8 @@ const isTwoAnchorDrawingTool = (kind: DrawingToolId) =>
   kind === 'ray' ||
   kind === 'info-line' ||
   kind === 'extended-line' ||
-  kind === 'trend-angle';
+  kind === 'trend-angle' ||
+  kind === 'measure';
 const isChannelDrawingTool = (kind: DrawingToolId) =>
   kind === 'parallel-channel' ||
   kind === 'regression-trend' ||
@@ -3097,7 +3112,9 @@ const TEXT_TOOL_DEFAULT_COLORS: Partial<Record<DrawingToolId, string>> = {
   emoji: '#2962ff',
 };
 const getDefaultDrawingColor = (kind: DrawingToolId) =>
-  isFibDrawingTool(kind)
+  isMeasureDrawingTool(kind)
+    ? '#2962ff'
+    : isFibDrawingTool(kind)
     ? kind === 'fib-spiral'
       ? DRAWING_DEFAULT_COLOR
       : FIB_DEFAULT_TREND_COLOR
@@ -7158,6 +7175,7 @@ export default function Home() {
   const touchGestureRef = useRef<ChartTouchGestureState>(createTouchGestureState());
   const drawingDragRef = useRef<DrawingDragState>(createDrawingDragState());
   const freehandDrawingRef = useRef<FreehandDrawingState | null>(null);
+  const measureDrawingDragRef = useRef<MeasureDrawingDragState | null>(null);
   const drawingToolbarDragRef = useRef<DrawingToolbarDragState | null>(null);
   const drawingsRef = useRef<ChartDrawing[]>([]);
   const selectedDrawingIdRef = useRef<string | null>(null);
@@ -7901,6 +7919,7 @@ export default function Home() {
         closeDrawingTextEditor();
         setContentToolDialog(null);
         freehandDrawingRef.current = null;
+        measureDrawingDragRef.current = null;
         drawingDragRef.current = createDrawingDragState(activePaneIndex);
       }
 
@@ -7921,6 +7940,7 @@ export default function Home() {
         setActiveDrawingMenu(null);
         setPendingDrawing(null);
         freehandDrawingRef.current = null;
+        measureDrawingDragRef.current = null;
         drawingDragRef.current = createDrawingDragState(activePaneIndexRef.current);
         setSelectedDrawingId(null);
         setLastFibTool('fib-retracement');
@@ -7947,6 +7967,7 @@ export default function Home() {
         setActiveDrawingMenu(null);
         setPendingDrawing(null);
         freehandDrawingRef.current = null;
+        measureDrawingDragRef.current = null;
         drawingDragRef.current = createDrawingDragState(activePaneIndexRef.current);
         setSelectedDrawingId(null);
         if (isFibDrawingTool(drawingShortcutTool)) {
@@ -7955,6 +7976,8 @@ export default function Home() {
           setLastPatternTool(drawingShortcutTool);
         } else if (isForecastDrawingTool(drawingShortcutTool)) {
           setLastForecastTool(drawingShortcutTool);
+        } else if (isMeasureDrawingTool(drawingShortcutTool)) {
+          // Measure is a standalone rail button, so it does not change a menu's remembered tool.
         } else if (isShapeDrawingTool(drawingShortcutTool)) {
           setLastShapeTool(drawingShortcutTool);
         } else if (isTextDrawingTool(drawingShortcutTool)) {
@@ -8588,7 +8611,12 @@ export default function Home() {
       return x >= left - tolerance && x <= right + tolerance && y >= topPoint.y - tolerance && y <= bottomPoint.y + tolerance;
     }
 
-    if (drawing.kind === 'price-range' || drawing.kind === 'date-range' || drawing.kind === 'date-price-range') {
+    if (
+      drawing.kind === 'price-range' ||
+      drawing.kind === 'date-range' ||
+      drawing.kind === 'date-price-range' ||
+      isMeasureDrawingTool(drawing.kind)
+    ) {
       const [start, end] = points;
       if (!start || !end) return false;
 
@@ -8664,6 +8692,13 @@ export default function Home() {
       }
 
       if (isForecastDrawingTool(drawing.kind)) {
+        if (hitTestForecastDrawingAt(drawing, points, paneIndex, x, y)) {
+          return { drawing, target: 'body' };
+        }
+        continue;
+      }
+
+      if (isMeasureDrawingTool(drawing.kind)) {
         if (hitTestForecastDrawingAt(drawing, points, paneIndex, x, y)) {
           return { drawing, target: 'body' };
         }
@@ -8782,6 +8817,7 @@ export default function Home() {
     setSelectedDrawingId(null);
     setDrawingTextEditor(null);
     freehandDrawingRef.current = null;
+    measureDrawingDragRef.current = null;
     drawingDragRef.current = createDrawingDragState(paneIndex);
   };
   const toggleDrawingMenu = (menu: DrawingMenuId) => {
@@ -8808,6 +8844,7 @@ export default function Home() {
     setActiveDrawingTool(null);
     setPendingDrawing(null);
     freehandDrawingRef.current = null;
+    measureDrawingDragRef.current = null;
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
   };
   const selectDrawingTool = (tool: DrawingToolId, options?: { forceActive?: boolean }) => {
@@ -8825,6 +8862,7 @@ export default function Home() {
     setActiveDrawingMenu(null);
     setPendingDrawing(null);
     freehandDrawingRef.current = null;
+    measureDrawingDragRef.current = null;
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
     setSelectedDrawingId(null);
     if (isFibDrawingTool(tool)) {
@@ -8833,6 +8871,8 @@ export default function Home() {
       setLastPatternTool(tool);
     } else if (isForecastDrawingTool(tool)) {
       setLastForecastTool(tool);
+    } else if (isMeasureDrawingTool(tool)) {
+      // Measure is a standalone rail button, so it does not change a menu's remembered tool.
     } else if (isShapeDrawingTool(tool)) {
       setLastShapeTool(tool);
     } else if (isIconDrawingTool(tool)) {
@@ -8932,6 +8972,7 @@ export default function Home() {
     setSelectedDrawingId(drawing.id);
     setPendingDrawing(null);
     freehandDrawingRef.current = null;
+    measureDrawingDragRef.current = null;
     setActiveDrawingTool(null);
     setActiveDrawingMenu(null);
     setActiveDrawingToolbarMenu(null);
@@ -9315,6 +9356,30 @@ export default function Home() {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
       if (!anchor) return;
 
+      if (isMeasureDrawingTool(activeDrawingTool)) {
+        if (pendingDrawing?.tool === activeDrawingTool && pendingDrawing.paneIndex === paneIndex) {
+          const startAnchor = pendingDrawing.anchors[0];
+          if (startAnchor) {
+            addCompletedDrawing(createChartDrawing(paneIndex, activeDrawingTool, [startAnchor, anchor]));
+          }
+        } else {
+          measureDrawingDragRef.current = {
+            paneIndex,
+            startAnchor: anchor,
+            previewAnchor: anchor,
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+            hasMoved: false,
+          };
+          setPendingDrawing({ tool: activeDrawingTool, paneIndex, anchors: [anchor], preview: anchor });
+          setSelectedDrawingId(null);
+          setActiveDrawingToolbarMenu(null);
+          setDrawingToolbarStatus('');
+        }
+        event.preventDefault();
+        return;
+      }
+
       if (isContentDrawingTool(activeDrawingTool)) {
         // Content tools collect their payload in a dialog before anything lands on the chart.
         setContentToolDialog({ kind: activeDrawingTool, paneIndex, anchor, x, y });
@@ -9507,6 +9572,19 @@ export default function Home() {
   };
 
   const handleMouseUp = () => {
+    const measureDrawingDrag = measureDrawingDragRef.current;
+    if (measureDrawingDrag) {
+      measureDrawingDragRef.current = null;
+      if (measureDrawingDrag.hasMoved) {
+        addCompletedDrawing(
+          createChartDrawing(measureDrawingDrag.paneIndex, 'measure', [
+            measureDrawingDrag.startAnchor,
+            measureDrawingDrag.previewAnchor,
+          ])
+        );
+      }
+    }
+
     const freehandDrawing = freehandDrawingRef.current;
     if (freehandDrawing) {
       if (freehandDrawing.anchors.length >= getRequiredDrawingAnchorCount(freehandDrawing.tool)) {
@@ -9558,6 +9636,27 @@ export default function Home() {
             lastPoint: { x, y },
           };
           setPendingDrawing({ tool: freehandDrawing.tool, paneIndex, anchors: nextAnchors, preview: anchor });
+        }
+      }
+      updatePaneHoverAtPoint(paneIndex, x, y, area, event.currentTarget);
+      event.preventDefault();
+      return;
+    }
+
+    const measureDrawingDrag = measureDrawingDragRef.current;
+    if (isAuthenticated && measureDrawingDrag && measureDrawingDrag.paneIndex === paneIndex) {
+      if (area === 'plot') {
+        const preview = getDrawingAnchorAtPoint(paneIndex, x, y);
+        if (preview) {
+          const hasMoved =
+            measureDrawingDrag.hasMoved ||
+            Math.hypot(event.clientX - measureDrawingDrag.startClientX, event.clientY - measureDrawingDrag.startClientY) > 3;
+          measureDrawingDragRef.current = {
+            ...measureDrawingDrag,
+            previewAnchor: preview,
+            hasMoved,
+          };
+          setPendingDrawing({ tool: 'measure', paneIndex, anchors: [measureDrawingDrag.startAnchor], preview });
         }
       }
       updatePaneHoverAtPoint(paneIndex, x, y, area, event.currentTarget);
@@ -10005,6 +10104,7 @@ export default function Home() {
       }))
       .filter((tick) => tick.x >= chartArea.left && tick.x <= chartArea.left + chartArea.width);
     const drawingPriceLabels: Array<{ y: number; price: number; color: string; selected: boolean }> = [];
+    const drawingTimeLabels: Array<{ x: number; time: number; color: string }> = [];
 
     ctx.save();
     ctx.beginPath();
@@ -11413,11 +11513,18 @@ export default function Home() {
       ctx.fill();
       ctx.restore();
     };
-    const drawMeasureLabel = (lines: string[], centerX: number, edgeY: number, placement: 'above' | 'below', color: string) => {
+    const drawMeasureLabel = (
+      lines: string[],
+      centerX: number,
+      edgeY: number,
+      placement: 'above' | 'below',
+      color: string,
+      variant: 'default' | 'measure' = 'default'
+    ) => {
       if (lines.length === 0) return;
 
       ctx.save();
-      ctx.font = getCanvasFont(11);
+      ctx.font = getCanvasFont(variant === 'measure' ? 12 : 11);
       const paddingX = 9;
       const paddingY = 6;
       const lineHeight = 15;
@@ -11436,12 +11543,19 @@ export default function Home() {
       } else {
         ctx.rect(labelX, labelY, labelWidth, labelHeight);
       }
-      ctx.fillStyle = theme === 'dark' ? 'rgba(15, 23, 42, 0.86)' : 'rgba(255, 255, 255, 0.94)';
+      ctx.fillStyle =
+        variant === 'measure'
+          ? hexToRgba(color, 0.96)
+          : theme === 'dark'
+            ? 'rgba(15, 23, 42, 0.86)'
+            : 'rgba(255, 255, 255, 0.94)';
       ctx.fill();
-      ctx.strokeStyle = hexToRgba(color, 0.72);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = theme === 'dark' ? '#f8fafc' : '#1f2937';
+      if (variant === 'default') {
+        ctx.strokeStyle = hexToRgba(color, 0.72);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.fillStyle = variant === 'measure' ? '#ffffff' : theme === 'dark' ? '#f8fafc' : '#1f2937';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       lines.forEach((line, index) => {
@@ -11462,15 +11576,35 @@ export default function Home() {
       const centerX = (left + right) / 2;
       const centerY = (top + bottom) / 2;
       const strokeColor = getDrawingStrokeColor(drawing);
+      const fullMeasure = isMeasureDrawingTool(drawing.kind);
+      const includesPrice = drawing.kind === 'price-range' || drawing.kind === 'date-price-range' || fullMeasure;
+      const includesTime = drawing.kind === 'date-range' || drawing.kind === 'date-price-range' || fullMeasure;
 
       ctx.save();
-      ctx.fillStyle = hexToRgba(drawing.color, 0.12);
+      if (fullMeasure) {
+        ctx.strokeStyle = hexToRgba(drawing.color, 0.45);
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(start.x, chartArea.top);
+        ctx.lineTo(start.x, chartArea.top + chartArea.height);
+        ctx.moveTo(end.x, chartArea.top);
+        ctx.lineTo(end.x, chartArea.top + chartArea.height);
+        ctx.moveTo(chartArea.left, start.y);
+        ctx.lineTo(chartArea.left + chartArea.width, start.y);
+        ctx.moveTo(chartArea.left, end.y);
+        ctx.lineTo(chartArea.left + chartArea.width, end.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.fillStyle = hexToRgba(drawing.color, fullMeasure ? 0.18 : 0.12);
       ctx.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
       applyDrawingLineStyle(drawing);
 
-      if (drawing.kind === 'price-range' || drawing.kind === 'date-price-range') {
+      if (includesPrice) {
         if (drawing.kind === 'price-range') {
           ctx.beginPath();
           ctx.moveTo(left, start.y);
@@ -11485,7 +11619,7 @@ export default function Home() {
         ctx.stroke();
         drawMeasureArrowHead({ x: centerX, y: end.y }, end.y >= start.y ? Math.PI / 2 : -Math.PI / 2, strokeColor);
       }
-      if (drawing.kind === 'date-range' || drawing.kind === 'date-price-range') {
+      if (includesTime) {
         if (drawing.kind === 'date-range') {
           ctx.beginPath();
           ctx.moveTo(start.x, top);
@@ -11533,7 +11667,25 @@ export default function Home() {
             ? [dateLine, volumeLine]
             : [priceLine, dateLine, volumeLine];
       const placement: 'above' | 'below' = end.y <= start.y ? 'above' : 'below';
-      drawMeasureLabel(labelLines, centerX, placement === 'above' ? top : bottom, placement, drawing.color);
+      drawMeasureLabel(
+        labelLines,
+        centerX,
+        placement === 'above' ? top : bottom,
+        placement,
+        drawing.color,
+        fullMeasure ? 'measure' : 'default'
+      );
+
+      if (fullMeasure) {
+        drawingPriceLabels.push(
+          { y: start.y, price: startAnchor.price, color: drawing.color, selected: true },
+          { y: end.y, price: endAnchor.price, color: drawing.color, selected: true }
+        );
+        drawingTimeLabels.push(
+          { x: start.x, time: timeForDrawingAnchor(startAnchor), color: drawing.color },
+          { x: end.x, time: timeForDrawingAnchor(endAnchor), color: drawing.color }
+        );
+      }
 
       points.forEach((point) => drawDrawingHandle(point, selected));
     };
@@ -11590,6 +11742,11 @@ export default function Home() {
       }
 
       if (points.length < getRequiredDrawingAnchorCount(drawing.kind)) return;
+
+      if (isMeasureDrawingTool(drawing.kind)) {
+        drawMeasureDrawing(drawing, points, selected);
+        return;
+      }
 
       if (isFibDrawingTool(drawing.kind)) {
         drawFibDrawing(drawing, points, selected);
@@ -11961,6 +12118,22 @@ export default function Home() {
       );
       ctx.fillText(tick.label, labelX, rect.height - 10);
     }
+
+    drawingTimeLabels.forEach((label) => {
+      if (label.x < chartArea.left || label.x > chartArea.left + chartArea.width || timeScaleArea.height <= 0) return;
+
+      const labelText = formatTime(label.time, true);
+      const labelWidth = ctx.measureText(labelText).width + 18;
+      const labelHeight = 22;
+      const labelX = clamp(label.x - labelWidth / 2, chartArea.left, chartArea.left + chartArea.width - labelWidth);
+      const labelY = timeScaleArea.top + 4;
+
+      ctx.fillStyle = label.color;
+      ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(labelText, labelX + labelWidth / 2, labelY + 15);
+    });
 
     const cursorToolShowsCrosshair =
       !isAuthenticated ||
@@ -13974,6 +14147,19 @@ export default function Home() {
             </span>
           </button>
           {activeDrawingMenu === 'icon-tools' && renderIconToolMenu()}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label="Measure"
+            title={DRAWING_TOOL_LABELS.measure}
+            data-active={activeDrawingTool === 'measure'}
+            onClick={() => selectDrawingTool('measure')}
+          >
+            <span className="drawing-tool-icon measure" aria-hidden="true">
+              <Ruler size={21} strokeWidth={1.8} />
+            </span>
+          </button>
         </div>
       </div>
     );

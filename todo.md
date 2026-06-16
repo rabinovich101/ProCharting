@@ -8714,3 +8714,72 @@ list.
   - `git diff --check`
 - Generated `.next`, `test-results`, and `playwright-report` artifacts were
   removed.
+
+# TradingView-Style Measure Tool
+
+## Goal
+
+Add the next TradingView left-rail tool: a standalone Measure ruler button that
+lets authenticated users measure price, percent, bars/time, and volume over a
+dragged chart range.
+
+## Investigation / Decisions
+
+- TradingView exposes Measure as its own left toolbar button below annotation
+  tools and above the magnet/lock/hide controls, not as an item inside the
+  Forecasting and measurement tools menu.
+- TradingView's Measure interaction shows a blue translucent rectangle, dashed
+  endpoint guides, price/time axis labels, a vertical and horizontal range line,
+  and a compact blue label with price delta, percent, ticks, bars/time, and
+  volume.
+- The local app already has `price-range`, `date-range`, and
+  `date-price-range` drawing infrastructure with the same anchor math and label
+  calculations. Reuse that path by adding a `measure` drawing kind instead of
+  creating a separate renderer or persistence model.
+- Keep the implementation small: add a standalone rail button, default the
+  measure drawing to TradingView blue, render it with the richer blue measure
+  style, and preserve existing click-to-place preview behavior while adding
+  drag-to-create support.
+- Update `ARCHITECTURE.md` because the drawing architecture changes by adding a
+  new first-class left-rail drawing tool.
+
+## Checklist
+
+- [x] Add `measure` to drawing types, labels, anchor counts, defaults, and
+      hit-testing.
+- [x] Add the standalone Measure ruler button to the authenticated left drawing
+      rail.
+- [x] Render Measure with TradingView-like blue rectangle, guides, axis labels,
+      and readout text.
+- [x] Add drag-to-create behavior while preserving existing drawing preview
+      mechanics.
+- [x] Update `ARCHITECTURE.md` with the Measure tool behavior.
+- [x] Run typecheck/build and browser verification with Playwright/devtools.
+- [x] Clean generated verification artifacts and review git status.
+
+## Review
+
+- Added a first-class `measure` drawing kind in
+  `TEST/binance-chart-test/app/page.tsx`, including defaults, anchor counts,
+  hit-testing, selection state, persistence through the existing drawing model,
+  and cleanup of pending measure drag state.
+- Added a standalone authenticated left-rail Measure button with a ruler icon,
+  matching TradingView's placement as a direct tool rather than a menu item.
+- Reused the existing range-measure infrastructure and extended it for
+  TradingView-style Measure rendering: blue translucent rectangle, dashed
+  endpoint guides, horizontal and vertical arrows, price/time axis labels, and
+  compact readout text for price, percent, bars/time, and volume.
+- Added drag-to-create behavior for Measure while keeping click-preview
+  placement behavior available.
+- Updated `ARCHITECTURE.md` to document the new standalone Measure drawing
+  tool and its reuse of the chart drawing architecture.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Playwright smoke on `http://127.0.0.1:3105`: authenticated chart, clicked
+    Measure, dragged on the canvas, verified one selected `measure` drawing
+    with two anchors, default `#2962ff`, and the floating drawing toolbar.
+- Build warnings remain the existing multiple-lockfile warning and missing
+  Next ESLint plugin warning.
+- Generated `.next`, temporary screenshots, Playwright report folders, and the
+  local preview server were cleaned after verification.
