@@ -32,7 +32,7 @@ drawings directly on the chart.
       TradingView-style rail.
 - [x] Update `ARCHITECTURE.md` with the new Icons drawing group behavior.
 - [x] Run typecheck/build and Playwright/devtools verification.
-- [ ] Clean temporary artifacts, commit, push, and review git status.
+- [x] Clean temporary artifacts, commit, push, and review git status.
 
 ## Review
 
@@ -56,6 +56,7 @@ drawings directly on the chart.
   - `git diff --check`
 - Removed generated Playwright test output and the temporary local verification
   account/file, then stopped the temporary dev server.
+- Committed and pushed the completed change to `origin/main`.
 
 # Keep Drawings Aligned Across Timeframes
 
