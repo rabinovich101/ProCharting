@@ -761,6 +761,9 @@ const DEFAULT_CHART_SETTINGS: ChartSettingsState = {
   showCrosshair: true,
 };
 const DRAWING_DEFAULT_COLOR = '#2962ff';
+// TradingView's Measure tool tints the measured body by direction: blue up, red down.
+const MEASURE_UP_COLOR = '#2962ff';
+const MEASURE_DOWN_COLOR = '#f7525f';
 const DRAWING_DEFAULT_LINE_STYLE: DrawingLineStyle = 'solid';
 const DRAWING_DEFAULT_TEXT_COLOR = '#ffffff';
 const DRAWING_DEFAULT_OPACITY = 1;
@@ -11575,30 +11578,20 @@ export default function Home() {
       const bottom = Math.max(start.y, end.y);
       const centerX = (left + right) / 2;
       const centerY = (top + bottom) / 2;
-      const strokeColor = getDrawingStrokeColor(drawing);
       const fullMeasure = isMeasureDrawingTool(drawing.kind);
+      // Measure tints its body by direction (blue up / red down) like TradingView; the other range
+      // tools keep their own color. Axis labels below stay drawing.color so they read blue either way.
+      const measureBodyColor = fullMeasure
+        ? endAnchor.price >= startAnchor.price
+          ? MEASURE_UP_COLOR
+          : MEASURE_DOWN_COLOR
+        : drawing.color;
+      const strokeColor = fullMeasure ? hexToRgba(measureBodyColor, drawing.opacity) : getDrawingStrokeColor(drawing);
       const includesPrice = drawing.kind === 'price-range' || drawing.kind === 'date-price-range' || fullMeasure;
       const includesTime = drawing.kind === 'date-range' || drawing.kind === 'date-price-range' || fullMeasure;
 
       ctx.save();
-      if (fullMeasure) {
-        ctx.strokeStyle = hexToRgba(drawing.color, 0.45);
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(start.x, chartArea.top);
-        ctx.lineTo(start.x, chartArea.top + chartArea.height);
-        ctx.moveTo(end.x, chartArea.top);
-        ctx.lineTo(end.x, chartArea.top + chartArea.height);
-        ctx.moveTo(chartArea.left, start.y);
-        ctx.lineTo(chartArea.left + chartArea.width, start.y);
-        ctx.moveTo(chartArea.left, end.y);
-        ctx.lineTo(chartArea.left + chartArea.width, end.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      ctx.fillStyle = hexToRgba(drawing.color, fullMeasure ? 0.18 : 0.12);
+      ctx.fillStyle = hexToRgba(measureBodyColor, fullMeasure ? 0.18 : 0.12);
       ctx.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = selected ? drawing.lineWidth + 0.6 : drawing.lineWidth;
@@ -11639,17 +11632,22 @@ export default function Home() {
 
       const priceDelta = endAnchor.price - startAnchor.price;
       const percentDelta = startAnchor.price !== 0 ? (priceDelta / startAnchor.price) * 100 : 0;
-      const ticks = Math.round(Math.abs(priceDelta) / POSITION_PRICE_TICK).toLocaleString();
       const priceSign = priceDelta >= 0 ? '' : '-';
       const startIndex = logicalIndexForDrawingAnchor(startAnchor);
       const endIndex = logicalIndexForDrawingAnchor(endAnchor);
-      const barsDelta = Math.round(Math.abs(endIndex - startIndex));
-      const timeDelta = Math.abs(timeForDrawingAnchor(endAnchor) - timeForDrawingAnchor(startAnchor));
+      const signedTimeDelta = timeForDrawingAnchor(endAnchor) - timeForDrawingAnchor(startAnchor);
+      // Measure keeps the sign on ticks/bars/duration (negative on a down or backwards drag) to match
+      // TradingView; the other range tools keep reporting absolute spans.
+      const tickCount = Math.round(Math.abs(priceDelta) / POSITION_PRICE_TICK);
+      const ticks = `${fullMeasure && priceDelta < 0 ? '-' : ''}${tickCount.toLocaleString()}`;
+      const barsDelta = fullMeasure ? Math.round(endIndex - startIndex) : Math.round(Math.abs(endIndex - startIndex));
+      const timeDelta = Math.abs(signedTimeDelta);
       const dayCount = Math.floor(timeDelta / 86_400_000);
       const hourCount = Math.floor((timeDelta % 86_400_000) / 3_600_000);
       const minuteCount = Math.round((timeDelta % 3_600_000) / 60_000);
-      const durationText =
+      const durationCore =
         dayCount >= 1 ? `${dayCount}d` : hourCount >= 1 ? `${hourCount}h ${minuteCount}m` : `${minuteCount}m`;
+      const durationText = `${fullMeasure && signedTimeDelta < 0 ? '-' : ''}${durationCore}`;
       const volumeFrom = clamp(Math.ceil(Math.min(startIndex, endIndex)), 0, candles.length - 1);
       const volumeTo = clamp(Math.floor(Math.max(startIndex, endIndex)), 0, candles.length - 1);
       let rangeVolume = 0;
@@ -11672,7 +11670,7 @@ export default function Home() {
         centerX,
         placement === 'above' ? top : bottom,
         placement,
-        drawing.color,
+        measureBodyColor,
         fullMeasure ? 'measure' : 'default'
       );
 
