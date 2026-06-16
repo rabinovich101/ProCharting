@@ -1,3 +1,62 @@
+# Add TradingView-Style Emoji Icons Tool
+
+## Goal
+
+Add a TradingView-like Icons tool group to the left drawing toolbar after the
+Text and notes / Content tools, with an emoji-first menu that places emoji
+drawings directly on the chart.
+
+## Investigation / Decisions
+
+- The left drawing rail and all drawing behavior live in
+  `TEST/binance-chart-test/app/page.tsx`.
+- TradingView documents chart emojis under the left-panel Icons section, with
+  menu tabs for emojis, stickers, and icons at the bottom.
+- Keep the implementation small by adding one new chart drawing kind, `emoji`,
+  and storing the chosen glyph in the existing `ChartDrawing.text` field.
+- Reuse the existing text-drawing render, hit-test, persistence, selection, and
+  toolbar infrastructure so emoji drawings can be selected, dragged, resized by
+  text size, and saved like other local drawings.
+- Add a separate left-rail Icons group instead of folding emoji into the Text
+  menu, so the toolbar order matches TradingView: annotations/content first,
+  then icons/emojis.
+
+## Checklist
+
+- [x] Extend drawing types, labels, menu ids, and default drawing behavior with
+      an emoji/icon drawing path.
+- [x] Add the left-rail Icons menu with emoji, sticker, and icon tabs at the
+      bottom and emoji selection behavior.
+- [x] Render and hit-test emoji drawings as text-like canvas objects.
+- [x] Update CSS so the Icons menu and toolbar button match the existing
+      TradingView-style rail.
+- [x] Update `ARCHITECTURE.md` with the new Icons drawing group behavior.
+- [x] Run typecheck/build and Playwright/devtools verification.
+- [ ] Clean temporary artifacts, commit, push, and review git status.
+
+## Review
+
+- Added a new authenticated left-rail Icons drawing group after Text and notes /
+  Content, matching TradingView's emoji-first Icons section placement.
+- Added an emoji picker menu with bottom tabs for Emojis, Stickers, and Icons.
+  Selecting any glyph arms a one-click `emoji` drawing tool.
+- Emoji drawings store their glyph in the existing `ChartDrawing.text` field,
+  render as centered text-like canvas objects, can be selected/dragged, and
+  reuse existing browser-local drawing persistence.
+- Updated `ARCHITECTURE.md` to document the new Icons group and storage/render
+  path.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - In-app browser/Playwright check on `http://127.0.0.1:3105/`: authenticated
+    drawing rail shows Icons after Text, Emojis/Stickers/Icons tabs switch,
+    the fire emoji places on the chart with the selected drawing toolbar, and
+    warning/error logs are clean.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Removed generated Playwright test output and the temporary local verification
+  account/file, then stopped the temporary dev server.
+
 # Keep Drawings Aligned Across Timeframes
 
 ## Goal

@@ -256,8 +256,19 @@ type DrawingToolId =
   | 'flag-mark'
   | 'image'
   | 'post'
-  | 'idea';
-type DrawingMenuId = 'cursor' | 'line-tools' | 'fib-tools' | 'pattern-tools' | 'forecast-tools' | 'shape-tools' | 'text-tools';
+  | 'idea'
+  | 'emoji';
+type IconDrawingToolId = 'emoji';
+type DrawingMenuId =
+  | 'cursor'
+  | 'line-tools'
+  | 'fib-tools'
+  | 'pattern-tools'
+  | 'forecast-tools'
+  | 'shape-tools'
+  | 'text-tools'
+  | 'icon-tools';
+type IconToolTab = 'emojis' | 'stickers' | 'icons';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
@@ -494,6 +505,12 @@ interface DrawingMenuSectionEntry {
 }
 
 type DrawingMenuEntry = DrawingMenuToolEntry | DrawingMenuSectionEntry;
+
+interface IconToolMenuItem {
+  tab: IconToolTab;
+  value: string;
+  label: string;
+}
 
 interface OscillatorPaneArea extends ChartCanvasArea {
   indicator: ActiveIndicator;
@@ -934,7 +951,9 @@ const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   image: 'Image',
   post: 'Post',
   idea: 'Idea',
+  emoji: 'Emoji',
 };
+const DEFAULT_EMOJI_DRAWING_VALUE = '😀';
 const FIB_DEFAULT_TREND_COLOR = '#787b86';
 const POSITION_RISK_AMOUNT = 250;
 const POSITION_PRICE_TICK = 0.01;
@@ -1709,6 +1728,58 @@ const TEXT_TOOL_ICONS: Record<string, ReactNode> = {
       <path
         fill="currentColor"
         d="M9.5 21H9h.5zm8 0H17h.5zm-6-10H11v1h.5v-1zm4 1h.5v-1h-.5v1zm-6 7.5h.5-.5zm8 0h.5-.5zm.29-1.59A7.97 7.97 0 0 0 21 11.5h-1a6.97 6.97 0 0 1-2.79 5.59l.58.82zM21 11.5A7.5 7.5 0 0 0 13.5 4v1a6.5 6.5 0 0 1 6.5 6.5h1zM13.5 4A7.5 7.5 0 0 0 6 11.5h1A6.5 6.5 0 0 1 13.5 5V4zM6 11.5a7.98 7.98 0 0 0 3.21 6.41l.57-.82A6.98 6.98 0 0 1 7 11.5H6zM9 21a1 1 0 0 0 1 1v-1H9zm8 1a1 1 0 0 0 1-1h-1v1zm-6-.5V23h1v-1.5h-1zm0 1.5a1 1 0 0 0 1 1v-1h-1zm1 1h3v-1h-3v1zm3 0a1 1 0 0 0 1-1h-1v1zm1-1v-1.5h-1V23h1zm-3-11.5v6h1v-6h-1zm-4 6v2h1v-2H9zm0 2V21h1v-1.5H9zm9 1.5v-1.5h-1V21h1zm0-1.5v-2h-1v2h1zM9.5 18h4v-1h-4v1zm4 0h4v-1h-4v1zm-2-6h2v-1h-2v1zm2 0h2v-1h-2v1zM10 22h1.5v-1H10v1zm1.5 0h4v-1h-4v1zm4 0H17v-1h-1.5v1z"
+      />
+    </svg>
+  ),
+};
+const ICON_TOOL_TABS: Array<{ value: IconToolTab; label: string }> = [
+  { value: 'emojis', label: 'Emojis' },
+  { value: 'stickers', label: 'Stickers' },
+  { value: 'icons', label: 'Icons' },
+];
+const ICON_TOOL_MENU_ITEMS: IconToolMenuItem[] = [
+  { tab: 'emojis', value: '😀', label: 'Grinning face' },
+  { tab: 'emojis', value: '😃', label: 'Smiling face' },
+  { tab: 'emojis', value: '😎', label: 'Sunglasses' },
+  { tab: 'emojis', value: '🤔', label: 'Thinking face' },
+  { tab: 'emojis', value: '🔥', label: 'Fire' },
+  { tab: 'emojis', value: '🚀', label: 'Rocket' },
+  { tab: 'emojis', value: '💎', label: 'Gem' },
+  { tab: 'emojis', value: '⚡', label: 'Lightning' },
+  { tab: 'emojis', value: '✅', label: 'Check mark' },
+  { tab: 'emojis', value: '❌', label: 'Cross mark' },
+  { tab: 'emojis', value: '⬆️', label: 'Up arrow' },
+  { tab: 'emojis', value: '⬇️', label: 'Down arrow' },
+  { tab: 'emojis', value: '💰', label: 'Money bag' },
+  { tab: 'emojis', value: '📈', label: 'Chart up' },
+  { tab: 'emojis', value: '📉', label: 'Chart down' },
+  { tab: 'emojis', value: '⏰', label: 'Alarm clock' },
+  { tab: 'emojis', value: '⭐', label: 'Star' },
+  { tab: 'emojis', value: '🚩', label: 'Flag' },
+  { tab: 'stickers', value: '💡', label: 'Idea' },
+  { tab: 'stickers', value: '🎯', label: 'Target' },
+  { tab: 'stickers', value: '🏆', label: 'Trophy' },
+  { tab: 'stickers', value: '🧲', label: 'Magnet' },
+  { tab: 'stickers', value: '🛡️', label: 'Shield' },
+  { tab: 'stickers', value: '🧨', label: 'Dynamite' },
+  { tab: 'stickers', value: '🔔', label: 'Bell' },
+  { tab: 'stickers', value: '🧠', label: 'Brain' },
+  { tab: 'icons', value: '●', label: 'Circle' },
+  { tab: 'icons', value: '◆', label: 'Diamond' },
+  { tab: 'icons', value: '▲', label: 'Triangle up' },
+  { tab: 'icons', value: '▼', label: 'Triangle down' },
+  { tab: 'icons', value: '★', label: 'Star' },
+  { tab: 'icons', value: '✚', label: 'Cross' },
+  { tab: 'icons', value: '↗', label: 'Arrow up right' },
+  { tab: 'icons', value: '↘', label: 'Arrow down right' },
+];
+const ICON_TOOL_ICONS: Record<IconDrawingToolId, ReactNode> = {
+  emoji: (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M14 4a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM5 14a9 9 0 1 1 18 0 9 9 0 0 1-18 0Zm6-2.25a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Zm6 0a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Zm-7 4.5h1a3 3 0 0 0 6 0h1a4 4 0 0 1-8 0Z"
       />
     </svg>
   ),
@@ -2847,6 +2918,7 @@ const TEXT_DRAWING_TOOL_IDS: ReadonlySet<DrawingToolId> = new Set([
   'post',
   'idea',
 ]);
+const ICON_DRAWING_TOOL_IDS: ReadonlySet<DrawingToolId> = new Set(['emoji']);
 const TEXT_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
   text: 1,
   note: 2,
@@ -2861,8 +2933,11 @@ const TEXT_DRAWING_ANCHOR_COUNTS: Partial<Record<DrawingToolId, number>> = {
   image: 2,
   post: 1,
   idea: 1,
+  emoji: 1,
 };
-const isTextDrawingTool = (kind: DrawingToolId) => TEXT_DRAWING_TOOL_IDS.has(kind);
+const isIconDrawingTool = (kind: DrawingToolId): kind is IconDrawingToolId => ICON_DRAWING_TOOL_IDS.has(kind);
+const isTextMenuDrawingTool = (kind: DrawingToolId) => TEXT_DRAWING_TOOL_IDS.has(kind);
+const isTextDrawingTool = (kind: DrawingToolId) => isTextMenuDrawingTool(kind) || isIconDrawingTool(kind);
 // Content tools collect their payload (file, link, title) in a dialog before the drawing is created.
 const isContentDrawingTool = (kind: DrawingToolId): kind is 'image' | 'post' | 'idea' =>
   kind === 'image' || kind === 'post' || kind === 'idea';
@@ -2956,6 +3031,7 @@ const isOneAnchorDrawingTool = (kind: DrawingToolId) =>
   kind === 'comment' ||
   kind === 'signpost' ||
   kind === 'flag-mark' ||
+  isIconDrawingTool(kind) ||
   isAutoLabelTextDrawingTool(kind) ||
   isContentDrawingTool(kind);
 const isTwoAnchorDrawingTool = (kind: DrawingToolId) =>
@@ -3018,6 +3094,7 @@ const TEXT_TOOL_DEFAULT_COLORS: Partial<Record<DrawingToolId, string>> = {
   image: '#2962ff',
   post: '#2962ff',
   idea: '#2962ff',
+  emoji: '#2962ff',
 };
 const getDefaultDrawingColor = (kind: DrawingToolId) =>
   isFibDrawingTool(kind)
@@ -3179,6 +3256,8 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
       if (anchors.length < requiredAnchors) return null;
 
       const timestamp = Number.isFinite(drawing.createdAt) ? drawing.createdAt! : Date.now();
+      const textValue =
+        typeof drawing.text === 'string' ? drawing.text.slice(0, isTextDrawingTool(drawing.kind) ? 500 : 120) : '';
       return {
         id: typeof drawing.id === 'string' && drawing.id.length > 0 ? drawing.id : `${drawing.kind}-${timestamp}-${index}`,
         kind: drawing.kind,
@@ -3195,10 +3274,16 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         extend: isDrawingExtendMode(drawing.extend) ? drawing.extend : 'none',
         leftEnd: isDrawingArrowEnd(drawing.leftEnd) ? drawing.leftEnd : getDefaultDrawingLeftEnd(drawing.kind),
         rightEnd: isDrawingArrowEnd(drawing.rightEnd) ? drawing.rightEnd : getDefaultDrawingRightEnd(drawing.kind),
-        text: typeof drawing.text === 'string' ? drawing.text.slice(0, isTextDrawingTool(drawing.kind) ? 500 : 120) : '',
+        text: drawing.kind === 'emoji' && textValue.trim().length === 0 ? DEFAULT_EMOJI_DRAWING_VALUE : textValue,
         showText: drawing.showText === true || isTextDrawingTool(drawing.kind),
         textColor: typeof drawing.textColor === 'string' ? drawing.textColor : DRAWING_DEFAULT_TEXT_COLOR,
-        textSize: Number.isFinite(drawing.textSize) ? clamp(drawing.textSize!, 10, 40) : isTextDrawingTool(drawing.kind) ? 14 : 12,
+        textSize: Number.isFinite(drawing.textSize)
+          ? clamp(drawing.textSize!, 10, 40)
+          : drawing.kind === 'emoji'
+            ? 28
+            : isTextDrawingTool(drawing.kind)
+              ? 14
+              : 12,
         textBold: drawing.textBold === true,
         textItalic: drawing.textItalic === true,
         textAlignment: isDrawingTextAlignment(drawing.textAlignment) ? drawing.textAlignment : 'center',
@@ -4238,6 +4323,8 @@ const formatPrice = (price: number) => {
 };
 
 const TEXT_DRAWING_FONT_STACK = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const EMOJI_DRAWING_FONT_STACK =
+  '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
 const TEXT_DRAWING_CARD_BG = '#ffffff';
 const TEXT_DRAWING_CARD_BORDER = '#d1d4dc';
 const TEXT_DRAWING_CARD_TEXT = '#131722';
@@ -4345,9 +4432,36 @@ const getTextDrawingRenderModel = (
   if (!p0) return model;
 
   const font = buildTextDrawingFont(drawing);
-  const rawText = drawing.text;
+  const rawText =
+    drawing.kind === 'emoji' && drawing.text.trim().length === 0 ? DEFAULT_EMOJI_DRAWING_VALUE : drawing.text;
   const hasText = rawText.trim().length > 0;
   const textLines = hasText ? splitTextDrawingLines(rawText) : [TEXT_DRAWING_PLACEHOLDER];
+
+  if (drawing.kind === 'emoji') {
+    const glyph = rawText.trim() || DEFAULT_EMOJI_DRAWING_VALUE;
+    const glyphFont = `${drawing.textBold ? '700' : '400'} ${drawing.textSize}px ${EMOJI_DRAWING_FONT_STACK}`;
+    const lineHeight = Math.round(drawing.textSize * 1.18);
+    const glyphWidth = Math.max(measureTextDrawingWidth(glyph, glyphFont), drawing.textSize);
+    const box: TextDrawingRect = {
+      x: p0.x - glyphWidth / 2 - 4,
+      y: p0.y - lineHeight / 2 - 4,
+      w: glyphWidth + 8,
+      h: lineHeight + 8,
+    };
+    model.texts.push({
+      lines: [glyph],
+      x: p0.x,
+      y: box.y + 3,
+      lineHeight,
+      font: glyphFont,
+      color: drawing.textColor,
+      align: 'center',
+      placeholder: false,
+    });
+    model.hitRects.push(box);
+    model.selectionRect = box;
+    return model;
+  }
 
   if (drawing.kind === 'text') {
     const block = measureTextDrawingBlock(textLines, font, drawing.textSize);
@@ -7078,6 +7192,9 @@ export default function Home() {
   const [lastForecastTool, setLastForecastTool] = useState<DrawingToolId>('long-position');
   const [lastShapeTool, setLastShapeTool] = useState<DrawingToolId>('brush');
   const [lastTextTool, setLastTextTool] = useState<DrawingToolId>('text');
+  const [lastIconTool, setLastIconTool] = useState<IconDrawingToolId>('emoji');
+  const [activeIconToolTab, setActiveIconToolTab] = useState<IconToolTab>('emojis');
+  const [selectedIconDrawingValue, setSelectedIconDrawingValue] = useState(DEFAULT_EMOJI_DRAWING_VALUE);
   const [drawingTextEditor, setDrawingTextEditor] = useState<DrawingTextEditorState | null>(null);
   const [contentToolDialog, setContentToolDialog] = useState<ContentToolDialogState | null>(null);
   const [contentToolDialogValue, setContentToolDialogValue] = useState('');
@@ -8693,7 +8810,7 @@ export default function Home() {
     freehandDrawingRef.current = null;
     drawingDragRef.current = createDrawingDragState(activePaneIndex);
   };
-  const selectDrawingTool = (tool: DrawingToolId) => {
+  const selectDrawingTool = (tool: DrawingToolId, options?: { forceActive?: boolean }) => {
     if (!isAuthenticated) {
       clearDrawingInteractionState();
       return;
@@ -8718,12 +8835,14 @@ export default function Home() {
       setLastForecastTool(tool);
     } else if (isShapeDrawingTool(tool)) {
       setLastShapeTool(tool);
-    } else if (isTextDrawingTool(tool)) {
+    } else if (isIconDrawingTool(tool)) {
+      setLastIconTool(tool);
+    } else if (isTextMenuDrawingTool(tool)) {
       setLastTextTool(tool);
     } else {
       setLastDrawingTool(tool);
     }
-    setActiveDrawingTool((current) => (current === tool ? null : tool));
+    setActiveDrawingTool((current) => (current === tool && options?.forceActive !== true ? null : tool));
   };
 
   useEffect(() => {
@@ -8742,6 +8861,7 @@ export default function Home() {
 
   const getDefaultTextToolTextColor = (kind: DrawingToolId) => {
     if (kind === 'text') return '#2962ff';
+    if (kind === 'emoji') return '#ffffff';
     // Pin's popup is a light card in both themes, so its text stays dark.
     if (kind === 'note' || kind === 'table' || kind === 'pin') return TEXT_DRAWING_CARD_TEXT;
     if (kind === 'signpost') return theme === 'dark' ? '#d1d4dc' : '#131722';
@@ -8775,10 +8895,10 @@ export default function Home() {
       extend: 'none',
       leftEnd: getDefaultDrawingLeftEnd(kind),
       rightEnd: getDefaultDrawingRightEnd(kind),
-      text: '',
+      text: kind === 'emoji' ? selectedIconDrawingValue : '',
       showText: isTextDrawingTool(kind),
       textColor: isTextDrawingTool(kind) ? getDefaultTextToolTextColor(kind) : DRAWING_DEFAULT_TEXT_COLOR,
-      textSize: isTextDrawingTool(kind) ? 14 : 12,
+      textSize: kind === 'emoji' ? 28 : isTextDrawingTool(kind) ? 14 : 12,
       textBold: false,
       textItalic: false,
       textAlignment: 'center',
@@ -13463,6 +13583,56 @@ export default function Home() {
     event.currentTarget.releasePointerCapture(event.pointerId);
     drawingToolbarDragRef.current = null;
   };
+  const selectIconDrawingItem = (item: IconToolMenuItem) => {
+    setActiveIconToolTab(item.tab);
+    setSelectedIconDrawingValue(item.value);
+    selectDrawingTool('emoji', { forceActive: true });
+  };
+  const renderIconToolMenu = () => {
+    const activeTabLabel = ICON_TOOL_TABS.find((tab) => tab.value === activeIconToolTab)?.label ?? 'Emojis';
+    const items = ICON_TOOL_MENU_ITEMS.filter((item) => item.tab === activeIconToolTab);
+
+    return (
+      <div className="drawing-tool-menu icon-tools-menu" role="menu" aria-label="Icons">
+        <div className="icon-tool-grid" role="group" aria-label={activeTabLabel}>
+          {items.map((item) => {
+            const active = activeDrawingTool === 'emoji' && selectedIconDrawingValue === item.value;
+            return (
+              <button
+                key={`${item.tab}-${item.label}-${item.value}`}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                aria-label={item.label}
+                className="icon-tool-item"
+                data-active={active}
+                onClick={() => selectIconDrawingItem(item)}
+              >
+                <span className="icon-tool-glyph" aria-hidden="true">
+                  {item.value}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="icon-tool-tabs" role="tablist" aria-label="Icon types">
+          {ICON_TOOL_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={activeIconToolTab === tab.value}
+              className="icon-tool-tab"
+              data-active={activeIconToolTab === tab.value}
+              onClick={() => setActiveIconToolTab(tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
   const renderDrawingMenuEntry = (entry: DrawingMenuEntry) => {
     if (entry.type === 'section') {
       return (
@@ -13585,7 +13755,9 @@ export default function Home() {
     const visibleShapeTool =
       activeDrawingTool !== null && isShapeDrawingTool(activeDrawingTool) ? activeDrawingTool : lastShapeTool;
     const visibleTextTool =
-      activeDrawingTool !== null && isTextDrawingTool(activeDrawingTool) ? activeDrawingTool : lastTextTool;
+      activeDrawingTool !== null && isTextMenuDrawingTool(activeDrawingTool) ? activeDrawingTool : lastTextTool;
+    const visibleIconTool =
+      activeDrawingTool !== null && isIconDrawingTool(activeDrawingTool) ? activeDrawingTool : lastIconTool;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -13766,7 +13938,7 @@ export default function Home() {
             title={DRAWING_TOOL_LABELS[visibleTextTool]}
             data-active={
               activeDrawingMenu === 'text-tools' ||
-              (activeDrawingTool !== null && isTextDrawingTool(activeDrawingTool))
+              (activeDrawingTool !== null && isTextMenuDrawingTool(activeDrawingTool))
             }
             onClick={() => toggleDrawingMenu('text-tools')}
           >
@@ -13783,6 +13955,25 @@ export default function Home() {
               {TEXT_TOOL_MENU_ENTRIES.map(renderDrawingMenuEntry)}
             </div>
           )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label="Icons drawing tool group"
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'icon-tools'}
+            title="Icons"
+            data-active={
+              activeDrawingMenu === 'icon-tools' ||
+              (activeDrawingTool !== null && isIconDrawingTool(activeDrawingTool))
+            }
+            onClick={() => toggleDrawingMenu('icon-tools')}
+          >
+            <span className={`drawing-tool-icon ${visibleIconTool}`} aria-hidden="true">
+              {ICON_TOOL_ICONS[visibleIconTool] ?? null}
+            </span>
+          </button>
+          {activeDrawingMenu === 'icon-tools' && renderIconToolMenu()}
         </div>
       </div>
     );

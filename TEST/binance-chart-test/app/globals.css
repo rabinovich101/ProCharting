@@ -2940,6 +2940,79 @@ summary {
   min-width: 282px;
 }
 
+.icon-tools-menu {
+  max-height: min(72vh, 520px);
+  min-width: 286px;
+  overflow: hidden;
+  padding: 8px 8px 0;
+}
+
+.icon-tool-grid {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(6, 1fr);
+  max-height: min(58vh, 390px);
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.icon-tool-item {
+  align-items: center;
+  aspect-ratio: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-strong);
+  cursor: default;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 0;
+  outline: 0;
+  padding: 0;
+}
+
+.icon-tool-item:hover,
+.icon-tool-item:focus-visible,
+.icon-tool-item[data-active="true"] {
+  background: var(--surface-2);
+}
+
+.icon-tool-glyph {
+  display: block;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.icon-tool-tabs {
+  background: color-mix(in srgb, var(--surface-1) 98%, transparent);
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 -8px;
+  padding: 6px;
+}
+
+.icon-tool-tab {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  height: 28px;
+  outline: 0;
+  padding: 0 6px;
+}
+
+.icon-tool-tab:hover,
+.icon-tool-tab:focus-visible,
+.icon-tool-tab[data-active="true"] {
+  background: var(--surface-2);
+  color: var(--text-strong);
+}
+
 .drawing-tool-menu-section {
   color: var(--text-muted);
   display: block;

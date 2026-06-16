@@ -610,6 +610,13 @@ The chart app supports:
   segment geometry and shape drawings use shared canvas-space polygon, curve,
   ellipse, and polyline hit-test helpers so canvas drawing, hit-testing, text
   placement, and body drag agree on the same visible shape.
+  The left drawing rail also has a TradingView-style Icons group after the Text
+  and notes / Content annotation tools. Its menu keeps the emoji-first
+  bottom-tab pattern for Emojis, Stickers, and Icons, and creates a one-anchor
+  `emoji` drawing whose selected glyph is stored in the existing drawing `text`
+  field. Emoji drawings reuse the text drawing render, hit-test, selection,
+  floating-toolbar, and browser-local persistence paths rather than introducing
+  a separate storage boundary.
   Drawings are rendered in the main price-pane canvas pass, and selected
   drawings show a DOM floating toolbar with working TradingView-like quick
   controls for templates, line color, opacity, text, line width, line style,
