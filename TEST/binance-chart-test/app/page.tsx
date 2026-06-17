@@ -33,6 +33,14 @@ import {
   type IndicatorSmoothingType,
   type IndicatorSource,
 } from '@/lib/indicators';
+import { EMOJI_CATEGORIES, twemojiSvgUrl } from './emoji-data';
+import {
+  ICON_CATEGORIES,
+  ICON_TOKEN_PREFIX,
+  STICKER_EMOJIS,
+  getIconGlyphById,
+  iconSvgDataUrl,
+} from './icon-data';
 import {
   Bell,
   Bookmark,
@@ -516,12 +524,6 @@ interface DrawingMenuSectionEntry {
 }
 
 type DrawingMenuEntry = DrawingMenuToolEntry | DrawingMenuSectionEntry;
-
-interface IconToolMenuItem {
-  tab: IconToolTab;
-  value: string;
-  label: string;
-}
 
 interface OscillatorPaneArea extends ChartCanvasArea {
   indicator: ActiveIndicator;
@@ -1751,42 +1753,6 @@ const ICON_TOOL_TABS: Array<{ value: IconToolTab; label: string }> = [
   { value: 'emojis', label: 'Emojis' },
   { value: 'stickers', label: 'Stickers' },
   { value: 'icons', label: 'Icons' },
-];
-const ICON_TOOL_MENU_ITEMS: IconToolMenuItem[] = [
-  { tab: 'emojis', value: '😀', label: 'Grinning face' },
-  { tab: 'emojis', value: '😃', label: 'Smiling face' },
-  { tab: 'emojis', value: '😎', label: 'Sunglasses' },
-  { tab: 'emojis', value: '🤔', label: 'Thinking face' },
-  { tab: 'emojis', value: '🔥', label: 'Fire' },
-  { tab: 'emojis', value: '🚀', label: 'Rocket' },
-  { tab: 'emojis', value: '💎', label: 'Gem' },
-  { tab: 'emojis', value: '⚡', label: 'Lightning' },
-  { tab: 'emojis', value: '✅', label: 'Check mark' },
-  { tab: 'emojis', value: '❌', label: 'Cross mark' },
-  { tab: 'emojis', value: '⬆️', label: 'Up arrow' },
-  { tab: 'emojis', value: '⬇️', label: 'Down arrow' },
-  { tab: 'emojis', value: '💰', label: 'Money bag' },
-  { tab: 'emojis', value: '📈', label: 'Chart up' },
-  { tab: 'emojis', value: '📉', label: 'Chart down' },
-  { tab: 'emojis', value: '⏰', label: 'Alarm clock' },
-  { tab: 'emojis', value: '⭐', label: 'Star' },
-  { tab: 'emojis', value: '🚩', label: 'Flag' },
-  { tab: 'stickers', value: '💡', label: 'Idea' },
-  { tab: 'stickers', value: '🎯', label: 'Target' },
-  { tab: 'stickers', value: '🏆', label: 'Trophy' },
-  { tab: 'stickers', value: '🧲', label: 'Magnet' },
-  { tab: 'stickers', value: '🛡️', label: 'Shield' },
-  { tab: 'stickers', value: '🧨', label: 'Dynamite' },
-  { tab: 'stickers', value: '🔔', label: 'Bell' },
-  { tab: 'stickers', value: '🧠', label: 'Brain' },
-  { tab: 'icons', value: '●', label: 'Circle' },
-  { tab: 'icons', value: '◆', label: 'Diamond' },
-  { tab: 'icons', value: '▲', label: 'Triangle up' },
-  { tab: 'icons', value: '▼', label: 'Triangle down' },
-  { tab: 'icons', value: '★', label: 'Star' },
-  { tab: 'icons', value: '✚', label: 'Cross' },
-  { tab: 'icons', value: '↗', label: 'Arrow up right' },
-  { tab: 'icons', value: '↘', label: 'Arrow down right' },
 ];
 const ICON_TOOL_ICONS: Record<IconDrawingToolId, ReactNode> = {
   emoji: (
@@ -3298,7 +3264,7 @@ const sanitizeSavedDrawings = (drawings: unknown, paneCount: number): ChartDrawi
         showText: drawing.showText === true || isTextDrawingTool(drawing.kind),
         textColor: typeof drawing.textColor === 'string' ? drawing.textColor : DRAWING_DEFAULT_TEXT_COLOR,
         textSize: Number.isFinite(drawing.textSize)
-          ? clamp(drawing.textSize!, 10, 40)
+          ? clamp(drawing.textSize!, 10, drawing.kind === 'emoji' ? 200 : 40)
           : drawing.kind === 'emoji'
             ? 28
             : isTextDrawingTool(drawing.kind)
@@ -4345,6 +4311,21 @@ const formatPrice = (price: number) => {
 const TEXT_DRAWING_FONT_STACK = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const EMOJI_DRAWING_FONT_STACK =
   '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+// Resolves an icon-tool drawing's stored token to an image source. Emoji/sticker
+// glyphs render through Twemoji (consistent across platforms); `icon:` tokens
+// render the recolorable vector set. The native emoji char doubles as the
+// fallback drawn while the Twemoji SVG is still loading.
+const resolveIconDrawingImage = (drawing: ChartDrawing): { src: string; fallbackText: string | null } => {
+  const token = (drawing.text || '').trim();
+  if (token.startsWith(ICON_TOKEN_PREFIX)) {
+    const glyph = getIconGlyphById(token.slice(ICON_TOKEN_PREFIX.length));
+    if (glyph) {
+      return { src: iconSvgDataUrl(glyph.svg, drawing.textColor || '#2962ff'), fallbackText: null };
+    }
+  }
+  const emoji = token.length > 0 ? token : DEFAULT_EMOJI_DRAWING_VALUE;
+  return { src: twemojiSvgUrl(emoji), fallbackText: emoji };
+};
 const TEXT_DRAWING_CARD_BG = '#ffffff';
 const TEXT_DRAWING_CARD_BORDER = '#d1d4dc';
 const TEXT_DRAWING_CARD_TEXT = '#131722';
@@ -4395,6 +4376,9 @@ interface TextDrawingRenderModel {
   lines: Array<{ start: TextDrawingPoint; end: TextDrawingPoint; color: string; width: number; dash?: number[] }>;
   circles: Array<{ x: number; y: number; r: number; fill: string | null; stroke: string | null; strokeWidth?: number }>;
   texts: TextDrawingTextBlock[];
+  images: Array<
+    TextDrawingRect & { src: string; fallbackText: string | null; fallbackFont?: string; fallbackColor?: string }
+  >;
   gridLines: Array<{ start: TextDrawingPoint; end: TextDrawingPoint }>;
   hitRects: TextDrawingRect[];
   hitSegments: Array<{ start: TextDrawingPoint; end: TextDrawingPoint }>;
@@ -4440,6 +4424,7 @@ const getTextDrawingRenderModel = (
     lines: [],
     circles: [],
     texts: [],
+    images: [],
     gridLines: [],
     hitRects: [],
     hitSegments: [],
@@ -4458,25 +4443,27 @@ const getTextDrawingRenderModel = (
   const textLines = hasText ? splitTextDrawingLines(rawText) : [TEXT_DRAWING_PLACEHOLDER];
 
   if (drawing.kind === 'emoji') {
-    const glyph = rawText.trim() || DEFAULT_EMOJI_DRAWING_VALUE;
-    const glyphFont = `${drawing.textBold ? '700' : '400'} ${drawing.textSize}px ${EMOJI_DRAWING_FONT_STACK}`;
-    const lineHeight = Math.round(drawing.textSize * 1.18);
-    const glyphWidth = Math.max(measureTextDrawingWidth(glyph, glyphFont), drawing.textSize);
+    // Emoji/sticker/icon glyphs render as square SVG images so they look identical
+    // on every OS (Twemoji) and stay crisp at any size (vector icons).
+    const size = Math.max(drawing.textSize, 10);
+    const half = size / 2;
+    const pad = 4;
+    const { src, fallbackText } = resolveIconDrawingImage(drawing);
     const box: TextDrawingRect = {
-      x: p0.x - glyphWidth / 2 - 4,
-      y: p0.y - lineHeight / 2 - 4,
-      w: glyphWidth + 8,
-      h: lineHeight + 8,
+      x: p0.x - half - pad,
+      y: p0.y - half - pad,
+      w: size + pad * 2,
+      h: size + pad * 2,
     };
-    model.texts.push({
-      lines: [glyph],
-      x: p0.x,
-      y: box.y + 3,
-      lineHeight,
-      font: glyphFont,
-      color: drawing.textColor,
-      align: 'center',
-      placeholder: false,
+    model.images.push({
+      x: p0.x - half,
+      y: p0.y - half,
+      w: size,
+      h: size,
+      src,
+      fallbackText,
+      fallbackFont: `${drawing.textBold ? '700' : '400'} ${size}px ${EMOJI_DRAWING_FONT_STACK}`,
+      fallbackColor: drawing.textColor,
     });
     model.hitRects.push(box);
     model.selectionRect = box;
@@ -7215,7 +7202,11 @@ export default function Home() {
   const [lastTextTool, setLastTextTool] = useState<DrawingToolId>('text');
   const [lastIconTool, setLastIconTool] = useState<IconDrawingToolId>('emoji');
   const [activeIconToolTab, setActiveIconToolTab] = useState<IconToolTab>('emojis');
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>(EMOJI_CATEGORIES[0].id);
+  const [activeIconCategory, setActiveIconCategory] = useState<string>(ICON_CATEGORIES[0].id);
   const [selectedIconDrawingValue, setSelectedIconDrawingValue] = useState(DEFAULT_EMOJI_DRAWING_VALUE);
+  const [selectedIconDrawingSize, setSelectedIconDrawingSize] = useState(28);
+  const iconToolScrollRef = useRef<HTMLDivElement | null>(null);
   const [drawingTextEditor, setDrawingTextEditor] = useState<DrawingTextEditorState | null>(null);
   const [contentToolDialog, setContentToolDialog] = useState<ContentToolDialogState | null>(null);
   const [contentToolDialogValue, setContentToolDialogValue] = useState('');
@@ -8911,6 +8902,11 @@ export default function Home() {
     return '#ffffff';
   };
 
+  // Vector icons recolor to a theme-readable default; emoji/sticker glyphs ignore
+  // color (full-color Twemoji), so any value is fine for them.
+  const getDefaultIconDrawingTextColor = (token: string) =>
+    token.startsWith(ICON_TOKEN_PREFIX) ? (theme === 'dark' ? '#d1d4dc' : '#131722') : '#ffffff';
+
   const createChartDrawing = (
     paneIndex: number,
     kind: DrawingToolId,
@@ -8940,8 +8936,13 @@ export default function Home() {
       rightEnd: getDefaultDrawingRightEnd(kind),
       text: kind === 'emoji' ? selectedIconDrawingValue : '',
       showText: isTextDrawingTool(kind),
-      textColor: isTextDrawingTool(kind) ? getDefaultTextToolTextColor(kind) : DRAWING_DEFAULT_TEXT_COLOR,
-      textSize: kind === 'emoji' ? 28 : isTextDrawingTool(kind) ? 14 : 12,
+      textColor:
+        kind === 'emoji'
+          ? getDefaultIconDrawingTextColor(selectedIconDrawingValue)
+          : isTextDrawingTool(kind)
+            ? getDefaultTextToolTextColor(kind)
+            : DRAWING_DEFAULT_TEXT_COLOR,
+      textSize: kind === 'emoji' ? selectedIconDrawingSize : isTextDrawingTool(kind) ? 14 : 12,
       textBold: false,
       textItalic: false,
       textAlignment: 'center',
@@ -10971,6 +10972,21 @@ export default function Home() {
           ctx.strokeStyle = circle.stroke;
           ctx.lineWidth = circle.strokeWidth ?? 1;
           ctx.stroke();
+        }
+      });
+      model.images.forEach((img) => {
+        const bitmap = getTextDrawingImage(img.src);
+        if (bitmap) {
+          ctx.drawImage(bitmap, img.x, img.y, img.w, img.h);
+        } else if (img.fallbackText) {
+          // Twemoji SVG not decoded yet — show the native glyph for this frame.
+          ctx.font = img.fallbackFont ?? ctx.font;
+          ctx.fillStyle = img.fallbackColor ?? '#000000';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(img.fallbackText, img.x + img.w / 2, img.y + img.h / 2);
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
         }
       });
       model.texts.forEach((block, index) => {
@@ -13754,37 +13770,175 @@ export default function Home() {
     event.currentTarget.releasePointerCapture(event.pointerId);
     drawingToolbarDragRef.current = null;
   };
-  const selectIconDrawingItem = (item: IconToolMenuItem) => {
-    setActiveIconToolTab(item.tab);
-    setSelectedIconDrawingValue(item.value);
+  const selectIconDrawingItem = (value: string, size: number) => {
+    setSelectedIconDrawingValue(value);
+    setSelectedIconDrawingSize(size);
     selectDrawingTool('emoji', { forceActive: true });
   };
-  const renderIconToolMenu = () => {
-    const activeTabLabel = ICON_TOOL_TABS.find((tab) => tab.value === activeIconToolTab)?.label ?? 'Emojis';
-    const items = ICON_TOOL_MENU_ITEMS.filter((item) => item.tab === activeIconToolTab);
-
+  // Scroll the picker's scroll area so the chosen category's section aligns to the top.
+  const scrollIconSectionIntoView = (catId: string) => {
+    const container = iconToolScrollRef.current;
+    const section = container?.querySelector<HTMLElement>(`[data-cat="${catId}"]`);
+    if (!container || !section) return;
+    container.scrollTo({ top: section.offsetTop, behavior: 'smooth' });
+  };
+  // Category-bar buttons act as scroll-to anchors (TradingView model), not switches.
+  const selectIconCategory = (catId: string) => {
+    if (activeIconToolTab === 'emojis') setActiveEmojiCategory(catId);
+    else if (activeIconToolTab === 'icons') setActiveIconCategory(catId);
+    scrollIconSectionIntoView(catId);
+  };
+  // Scroll-spy: highlight the category whose section is at the top of the viewport.
+  const handleIconToolScroll = () => {
+    const container = iconToolScrollRef.current;
+    if (!container) return;
+    const sections = Array.from(container.querySelectorAll<HTMLElement>('[data-cat]'));
+    if (sections.length === 0) return;
+    const threshold = container.scrollTop + 16;
+    let currentId = sections[0].dataset.cat ?? '';
+    for (const section of sections) {
+      if (section.offsetTop <= threshold) currentId = section.dataset.cat ?? currentId;
+      else break;
+    }
+    if (activeIconToolTab === 'emojis') {
+      setActiveEmojiCategory((prev) => (prev === currentId ? prev : currentId));
+    } else if (activeIconToolTab === 'icons') {
+      setActiveIconCategory((prev) => (prev === currentId ? prev : currentId));
+    }
+  };
+  // When the picker opens or the tab changes, reset the scroll + highlight to the top.
+  useEffect(() => {
+    if (activeDrawingMenu !== 'icon-tools') return;
+    if (iconToolScrollRef.current) iconToolScrollRef.current.scrollTop = 0;
+    if (activeIconToolTab === 'emojis') setActiveEmojiCategory(EMOJI_CATEGORIES[0].id);
+    else if (activeIconToolTab === 'icons') setActiveIconCategory(ICON_CATEGORIES[0].id);
+  }, [activeDrawingMenu, activeIconToolTab]);
+  const renderEmojiGlyphCell = (char: string, name: string, size: number) => {
+    const active = activeDrawingTool === 'emoji' && selectedIconDrawingValue === char;
     return (
-      <div className="drawing-tool-menu icon-tools-menu" role="menu" aria-label="Icons">
-        <div className="icon-tool-grid" role="group" aria-label={activeTabLabel}>
-          {items.map((item) => {
-            const active = activeDrawingTool === 'emoji' && selectedIconDrawingValue === item.value;
+      <button
+        key={char}
+        type="button"
+        role="menuitemradio"
+        aria-checked={active}
+        aria-label={name}
+        title={name}
+        className="icon-tool-item"
+        data-active={active}
+        onClick={() => selectIconDrawingItem(char, size)}
+      >
+        <img
+          className="icon-tool-img"
+          src={twemojiSvgUrl(char)}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
+      </button>
+    );
+  };
+  const renderIconToolMenu = () => {
+    // Icons paint with the theme foreground; emoji/stickers are full-colour Twemoji.
+    const iconPickerColor = theme === 'dark' ? '#d1d4dc' : '#131722';
+    let categoryBar: ReactNode = null;
+    let scrollBody: ReactNode = null;
+
+    if (activeIconToolTab === 'emojis') {
+      // Top bar = scroll-to anchors; the body is one continuous, section-headed scroll (TradingView).
+      categoryBar = (
+        <div className="icon-tool-categories" role="tablist" aria-label="Emoji categories">
+          {EMOJI_CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              role="tab"
+              aria-selected={activeEmojiCategory === c.id}
+              aria-label={c.label}
+              title={c.label}
+              className="icon-tool-category"
+              data-active={activeEmojiCategory === c.id}
+              onClick={() => selectIconCategory(c.id)}
+            >
+              <img className="icon-tool-category-img" src={twemojiSvgUrl(c.icon)} alt="" aria-hidden="true" draggable={false} />
+            </button>
+          ))}
+        </div>
+      );
+      scrollBody = EMOJI_CATEGORIES.map((c) => (
+        <section key={c.id} className="icon-tool-section" data-cat={c.id}>
+          <div className="icon-tool-section-label">{c.label}</div>
+          <div className="icon-tool-grid" role="group" aria-label={c.label}>
+            {c.emojis.map((emoji) => renderEmojiGlyphCell(emoji.c, emoji.n, 28))}
+          </div>
+        </section>
+      ));
+    } else if (activeIconToolTab === 'stickers') {
+      scrollBody = (
+        <section className="icon-tool-section" data-cat="stickers">
+          <div className="icon-tool-section-label">Stickers</div>
+          <div className="icon-tool-grid icon-tool-grid-stickers" role="group" aria-label="Stickers">
+            {STICKER_EMOJIS.map((emoji) => renderEmojiGlyphCell(emoji.c, emoji.n, 44))}
+          </div>
+        </section>
+      );
+    } else {
+      categoryBar = (
+        <div className="icon-tool-categories" role="tablist" aria-label="Icon categories">
+          {ICON_CATEGORIES.map((c) => {
+            const rep = c.glyphs.find((g) => g.id === c.icon) ?? c.glyphs[0];
             return (
               <button
-                key={`${item.tab}-${item.label}-${item.value}`}
+                key={c.id}
                 type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                aria-label={item.label}
-                className="icon-tool-item"
-                data-active={active}
-                onClick={() => selectIconDrawingItem(item)}
+                role="tab"
+                aria-selected={activeIconCategory === c.id}
+                aria-label={c.label}
+                title={c.label}
+                className="icon-tool-category"
+                data-active={activeIconCategory === c.id}
+                onClick={() => selectIconCategory(c.id)}
               >
-                <span className="icon-tool-glyph" aria-hidden="true">
-                  {item.value}
-                </span>
+                <img className="icon-tool-category-svg" src={iconSvgDataUrl(rep.svg, iconPickerColor)} alt="" aria-hidden="true" draggable={false} />
               </button>
             );
           })}
+        </div>
+      );
+      scrollBody = ICON_CATEGORIES.map((c) => (
+        <section key={c.id} className="icon-tool-section" data-cat={c.id}>
+          <div className="icon-tool-section-label">{c.label}</div>
+          <div className="icon-tool-grid" role="group" aria-label={c.label}>
+            {c.glyphs.map((glyph) => {
+              const token = `${ICON_TOKEN_PREFIX}${glyph.id}`;
+              const active = activeDrawingTool === 'emoji' && selectedIconDrawingValue === token;
+              return (
+                <button
+                  key={glyph.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  aria-label={glyph.name}
+                  title={glyph.name}
+                  className="icon-tool-item icon-tool-item-vector"
+                  data-active={active}
+                  onClick={() => selectIconDrawingItem(token, 28)}
+                >
+                  <img className="icon-tool-svg" src={iconSvgDataUrl(glyph.svg, iconPickerColor)} alt="" aria-hidden="true" draggable={false} />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ));
+    }
+
+    return (
+      <div className="drawing-tool-menu icon-tools-menu" role="menu" aria-label="Icons">
+        {categoryBar}
+        <div className="icon-tool-scroll" ref={iconToolScrollRef} onScroll={handleIconToolScroll}>
+          {scrollBody}
         </div>
         <div className="icon-tool-tabs" role="tablist" aria-label="Icon types">
           {ICON_TOOL_TABS.map((tab) => (

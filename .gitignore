@@ -40,3 +40,6 @@ benchmark-results/
 
 # Claude AI
 .claude/
+
+# Playwright MCP browser artifacts (screenshots, snapshots, console logs)
+.playwright-mcp/
