@@ -60,8 +60,6 @@ import {
   Type,
   Unlock,
   X,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -7203,7 +7201,6 @@ export default function Home() {
   const [lastShapeTool, setLastShapeTool] = useState<DrawingToolId>('brush');
   const [lastTextTool, setLastTextTool] = useState<DrawingToolId>('text');
   const [lastIconTool, setLastIconTool] = useState<IconDrawingToolId>('emoji');
-  const [railZoomMode, setRailZoomMode] = useState<'in' | 'out'>('in');
   const [activeIconToolTab, setActiveIconToolTab] = useState<IconToolTab>('emojis');
   const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>(EMOJI_CATEGORIES[0].id);
   const [activeIconCategory, setActiveIconCategory] = useState<string>(ICON_CATEGORIES[0].id);
@@ -7224,6 +7221,30 @@ export default function Home() {
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [pendingDrawing, setPendingDrawing] = useState<PendingDrawing | null>(null);
+  // TradingView-style marquee "Zoom in" tool: a persistent mode where dragging a
+  // rectangle on the chart zooms both axes (time + price) into that box.
+  const [railZoomActive, setRailZoomActive] = useState(false);
+  const railZoomDragRef = useRef<{
+    paneIndex: number;
+    startAnchor: ChartDrawingAnchor;
+    previewAnchor: ChartDrawingAnchor;
+    startX: number;
+    startY: number;
+    startClientX: number;
+    startClientY: number;
+    hasMoved: boolean;
+  } | null>(null);
+  const [railZoomMarquee, setRailZoomMarquee] = useState<{
+    paneIndex: number;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  // Picking a drawing tool exits zoom mode (the two are mutually exclusive, like TV).
+  useEffect(() => {
+    if (activeDrawingTool) setRailZoomActive(false);
+  }, [activeDrawingTool]);
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(createDefaultActiveIndicators);
   const [settingsTarget, setSettingsTarget] = useState<IndicatorLegendTarget | null>(null);
   const [moreTarget, setMoreTarget] = useState<IndicatorLegendTarget | null>(null);
@@ -9266,43 +9287,49 @@ export default function Home() {
     setActiveDrawingToolbarMenu((current) => (current === menu ? null : menu));
   };
 
-  const applyCenteredPaneZoom = (paneIndex: number, direction: 'in' | 'out') => {
+  // Zoom the pane so the marquee rectangle (from anchor `a` to anchor `b`) fills
+  // the pane on BOTH axes — time (X) via viewRange, price (Y) via manualPriceRange.
+  const applyMarqueeZoom = (paneIndex: number, a: ChartDrawingAnchor, b: ChartDrawingAnchor) => {
     const pane = paneStatesRef.current[paneIndex];
     if (!pane?.candles.length) return;
 
-    const zoomFactor = direction === 'in' ? 0.78 : 1.28;
-
     updatePaneState(paneIndex, (currentPane) => {
-      const visibleBars = Math.max(1, currentPane.viewRange.endIndex - currentPane.viewRange.startIndex);
-      const nextCandlesPerView = Math.round(
-        clamp(
-          visibleBars * zoomFactor,
-          MIN_VISIBLE_BARS,
-          Math.min(MAX_VISIBLE_BARS, currentPane.candles.length + MAX_FUTURE_BARS)
-        )
-      );
-      const anchorRatio = 0.5;
-      const anchorIndex = currentPane.viewRange.startIndex + currentPane.viewRange.candlesPerView * anchorRatio;
-      const nextStartIndex = anchorIndex - nextCandlesPerView * anchorRatio;
+      const candleCount = currentPane.candles.length;
+      const loIndex = Math.min(a.logicalIndex, b.logicalIndex);
+      const hiIndex = Math.max(a.logicalIndex, b.logicalIndex);
+      const maxVisible = Math.min(MAX_VISIBLE_BARS, candleCount + MAX_FUTURE_BARS);
+      const rawSpan = hiIndex - loIndex;
+      const nextCandlesPerView = Math.round(clamp(rawSpan, MIN_VISIBLE_BARS, maxVisible));
+      // If the box is narrower than the minimum window, keep it centered on the box.
+      const startIndex =
+        rawSpan >= nextCandlesPerView ? loIndex : (loIndex + hiIndex) / 2 - nextCandlesPerView / 2;
+
+      const minPrice = Math.min(a.price, b.price);
+      const maxPrice = Math.max(a.price, b.price);
+      const manualPriceRange = maxPrice > minPrice ? { minPrice, maxPrice } : currentPane.manualPriceRange;
 
       return {
         ...currentPane,
-        viewRange: normalizeViewRange(nextStartIndex, nextCandlesPerView, currentPane.candles.length),
+        viewRange: normalizeViewRange(startIndex, nextCandlesPerView, candleCount),
+        manualPriceRange,
       };
     });
   };
 
-  const handleRailZoomClick = () => {
-    const paneIndex = activePaneIndexRef.current;
-
-    setActivePaneIndex(paneIndex);
-    setActiveDrawingMenu(null);
-    setActiveDrawingTool(null);
-    setPendingDrawing(null);
-    setActiveDrawingToolbarMenu(null);
-    setDrawingToolbarStatus('');
-    applyCenteredPaneZoom(paneIndex, railZoomMode);
-    setRailZoomMode((current) => (current === 'in' ? 'out' : 'in'));
+  const handleRailZoomToggle = () => {
+    const next = !railZoomActive;
+    setRailZoomActive(next);
+    // Always clear any in-progress marquee when the mode flips.
+    railZoomDragRef.current = null;
+    setRailZoomMarquee(null);
+    if (next) {
+      // Entering zoom mode is exclusive: drop any active drawing tool/menus.
+      setActiveDrawingMenu(null);
+      setActiveDrawingTool(null);
+      setPendingDrawing(null);
+      setActiveDrawingToolbarMenu(null);
+      setDrawingToolbarStatus('');
+    }
   };
 
   const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
@@ -9397,6 +9424,26 @@ export default function Home() {
     const area = getPointerArea(paneIndex, x, y);
 
     if (area === 'outside') return;
+
+    // Zoom tool (marquee drag-to-zoom) takes priority and needs no auth — it is chart
+    // navigation, not a drawing. Drag a box; on release the chart zooms into it.
+    if (railZoomActive && area === 'plot') {
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      if (!anchor) return;
+      railZoomDragRef.current = {
+        paneIndex,
+        startAnchor: anchor,
+        previewAnchor: anchor,
+        startX: x,
+        startY: y,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        hasMoved: false,
+      };
+      setRailZoomMarquee({ paneIndex, left: x, top: y, width: 0, height: 0 });
+      event.preventDefault();
+      return;
+    }
 
     if (area === 'plot' && isAuthenticated && activeDrawingTool) {
       const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
@@ -9618,6 +9665,17 @@ export default function Home() {
   };
 
   const handleMouseUp = () => {
+    const railZoomDrag = railZoomDragRef.current;
+    if (railZoomDrag) {
+      railZoomDragRef.current = null;
+      setRailZoomMarquee(null);
+      if (railZoomDrag.hasMoved) {
+        applyMarqueeZoom(railZoomDrag.paneIndex, railZoomDrag.startAnchor, railZoomDrag.previewAnchor);
+      }
+      // The zoom tool stays active for repeated marquee zooms (matches TradingView).
+      return;
+    }
+
     const measureDrawingDrag = measureDrawingDragRef.current;
     if (measureDrawingDrag) {
       measureDrawingDragRef.current = null;
@@ -9665,6 +9723,32 @@ export default function Home() {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const area = getPointerArea(paneIndex, x, y);
+
+    const railZoomDrag = railZoomDragRef.current;
+    if (railZoomDrag && railZoomDrag.paneIndex === paneIndex) {
+      const bounds = chartBoundsRefs.current[paneIndex]?.chartArea;
+      const clampedX = bounds ? clamp(x, bounds.left, bounds.left + bounds.width) : x;
+      const clampedY = bounds ? clamp(y, bounds.top, bounds.top + bounds.height) : y;
+      const preview = getDrawingAnchorAtPoint(paneIndex, clampedX, clampedY);
+      const hasMoved =
+        railZoomDrag.hasMoved ||
+        Math.hypot(event.clientX - railZoomDrag.startClientX, event.clientY - railZoomDrag.startClientY) > 3;
+      railZoomDragRef.current = {
+        ...railZoomDrag,
+        previewAnchor: preview ?? railZoomDrag.previewAnchor,
+        hasMoved,
+      };
+      setRailZoomMarquee({
+        paneIndex,
+        left: Math.min(railZoomDrag.startX, clampedX),
+        top: Math.min(railZoomDrag.startY, clampedY),
+        width: Math.abs(clampedX - railZoomDrag.startX),
+        height: Math.abs(clampedY - railZoomDrag.startY),
+      });
+      updatePaneHoverAtPoint(paneIndex, x, y, area, event.currentTarget);
+      event.preventDefault();
+      return;
+    }
 
     const freehandDrawing = freehandDrawingRef.current;
     if (isAuthenticated && freehandDrawing && freehandDrawing.paneIndex === paneIndex && area === 'plot') {
@@ -12315,6 +12399,7 @@ export default function Home() {
   ]);
 
   const getCanvasCursor = (paneIndex: number, pane: ChartPaneState) => {
+    if (railZoomActive) return 'crosshair';
     if (isAuthenticated && activeDrawingTool) return 'crosshair';
     if (isAuthenticated && drawingDragRef.current.mode !== 'none' && drawingDragRef.current.paneIndex === paneIndex) {
       return 'grabbing';
@@ -14125,8 +14210,6 @@ export default function Home() {
       activeDrawingTool !== null && isTextMenuDrawingTool(activeDrawingTool) ? activeDrawingTool : lastTextTool;
     const visibleIconTool =
       activeDrawingTool !== null && isIconDrawingTool(activeDrawingTool) ? activeDrawingTool : lastIconTool;
-    const railZoomLabel = railZoomMode === 'in' ? 'Zoom in' : 'Zoom out';
-    const RailZoomIcon = railZoomMode === 'in' ? ZoomIn : ZoomOut;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -14360,13 +14443,19 @@ export default function Home() {
         <div className="drawing-tool-group">
           <button
             type="button"
-            aria-label={railZoomLabel}
-            title={railZoomLabel}
+            aria-label="Zoom in"
+            title="Zoom in"
+            data-active={railZoomActive ? 'true' : 'false'}
             disabled={!activePane?.candles.length}
-            onClick={handleRailZoomClick}
+            onClick={handleRailZoomToggle}
           >
             <span className="drawing-tool-icon rail-zoom" aria-hidden="true">
-              <RailZoomIcon size={21} strokeWidth={1.8} />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width={28} height={28} fill="currentColor">
+                <path d="M17.646 18.354l4 4 .708-.708-4-4z" />
+                <path d="M12.5 21a8.5 8.5 0 1 1 0-17 8.5 8.5 0 0 1 0 17zm0-1a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15z" />
+                <path d="M9 13h7v-1H9z" />
+                <path d="M13 16V9h-1v7z" />
+              </svg>
             </span>
           </button>
         </div>
@@ -15865,6 +15954,21 @@ export default function Home() {
         {renderIndicatorLegend(paneIndex, attachLegendRef)}
         {renderSelectedDrawingToolbar(paneIndex)}
         {renderDrawingTextEditor(paneIndex)}
+
+        {railZoomMarquee &&
+          railZoomMarquee.paneIndex === paneIndex &&
+          railZoomMarquee.width > 0 &&
+          railZoomMarquee.height > 0 && (
+            <div
+              className="chart-zoom-marquee"
+              style={{
+                left: railZoomMarquee.left,
+                top: railZoomMarquee.top,
+                width: railZoomMarquee.width,
+                height: railZoomMarquee.height,
+              }}
+            />
+          )}
 
         {pane.loading && (
           <div className="chart-overlay">

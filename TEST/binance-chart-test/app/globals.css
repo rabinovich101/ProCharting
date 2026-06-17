@@ -2708,7 +2708,16 @@ summary {
 }
 
 .drawing-tool-icon.rail-zoom svg {
-  stroke: currentColor;
+  fill: currentColor;
+}
+
+/* TradingView-style marquee drawn while the Zoom tool is dragging a box. */
+.chart-zoom-marquee {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+  border: 1px solid rgba(125, 152, 198, 0.75);
+  background: rgba(125, 152, 198, 0.18);
 }
 
 .drawing-cursor-control {
