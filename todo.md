@@ -1,3 +1,36 @@
+# Add TradingView-Style Left Rail Zoom Button
+
+## Goal
+Add a TradingView-like zoom control to the chart app's left drawing tool rail, keeping zoom in and zoom out on the same rail button.
+
+## Investigation / Decisions
+- Live TradingView desktop chart shows one left-rail `data-name="zoom"` button in the same 52x38 slot as drawing tools.
+- That button is labeled `Zoom in`, uses a magnifier icon, highlights while active, and puts the chart pane into a zoom cursor/tool state.
+- ProCharting already owns pan and wheel zoom in `TEST/binance-chart-test/app/page.tsx`; the new rail button should reuse `normalizeViewRange` and the same `candlesPerView` model instead of creating a second zoom system.
+- Keep the implementation simple: one left-rail button switches between `Zoom in` and `Zoom out` after each click, zooming around the current pane center.
+- Keep the rail's existing authenticated drawing-tool boundary unchanged so this feature does not alter auth or layout behavior outside the requested tool line.
+
+## Checklist
+- [x] Inspect TradingView left-rail zoom behavior and identify matching local chart/toolbar code.
+- [x] Add a same-slot left rail zoom button that alternates zoom in / zoom out.
+- [x] Reuse existing chart view range math for center-anchored zoom.
+- [x] Style the button and icon so it matches the current TradingView-style rail.
+- [x] Update `ARCHITECTURE.md` with the discovered local zoom/tool-rail behavior.
+- [x] Run typecheck/build and browser verification with Playwright or Camoufox.
+- [ ] Clean temporary artifacts, commit, push, and review git status.
+
+## Review
+- Added a same-slot left drawing rail Zoom button after Measure.
+- The button starts as `Zoom in`, applies a center-anchored zoom using existing `normalizeViewRange` / `candlesPerView` behavior, then flips to `Zoom out`; the next click reverses the zoom and flips back.
+- Kept the existing authenticated drawing rail boundary unchanged.
+- Updated `ARCHITECTURE.md` to document the new rail placement and center-anchored zoom path.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Custom Playwright check on `http://127.0.0.1:3107/` with fake Supabase session and mocked market data: rail button is 52x38, starts enabled as `Zoom in`, toggles to `Zoom out`, toggles back to `Zoom in`, no console/page errors.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+
 # Add TradingView-Style Emoji Icons Tool
 
 ## Goal

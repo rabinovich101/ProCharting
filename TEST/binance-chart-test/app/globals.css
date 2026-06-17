@@ -2697,6 +2697,20 @@ summary {
   background: var(--surface-3);
 }
 
+.drawing-tool-rail > .drawing-tool-group > button:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.45;
+}
+
+.drawing-tool-rail > .drawing-tool-group > button:disabled::before {
+  background: transparent;
+}
+
+.drawing-tool-icon.rail-zoom svg {
+  stroke: currentColor;
+}
+
 .drawing-cursor-control {
   height: 38px;
   position: relative;

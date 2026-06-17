@@ -60,6 +60,8 @@ import {
   Type,
   Unlock,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -7201,6 +7203,7 @@ export default function Home() {
   const [lastShapeTool, setLastShapeTool] = useState<DrawingToolId>('brush');
   const [lastTextTool, setLastTextTool] = useState<DrawingToolId>('text');
   const [lastIconTool, setLastIconTool] = useState<IconDrawingToolId>('emoji');
+  const [railZoomMode, setRailZoomMode] = useState<'in' | 'out'>('in');
   const [activeIconToolTab, setActiveIconToolTab] = useState<IconToolTab>('emojis');
   const [activeEmojiCategory, setActiveEmojiCategory] = useState<string>(EMOJI_CATEGORIES[0].id);
   const [activeIconCategory, setActiveIconCategory] = useState<string>(ICON_CATEGORIES[0].id);
@@ -9261,6 +9264,45 @@ export default function Home() {
       setActiveDrawingSettingsTab('style');
     }
     setActiveDrawingToolbarMenu((current) => (current === menu ? null : menu));
+  };
+
+  const applyCenteredPaneZoom = (paneIndex: number, direction: 'in' | 'out') => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane?.candles.length) return;
+
+    const zoomFactor = direction === 'in' ? 0.78 : 1.28;
+
+    updatePaneState(paneIndex, (currentPane) => {
+      const visibleBars = Math.max(1, currentPane.viewRange.endIndex - currentPane.viewRange.startIndex);
+      const nextCandlesPerView = Math.round(
+        clamp(
+          visibleBars * zoomFactor,
+          MIN_VISIBLE_BARS,
+          Math.min(MAX_VISIBLE_BARS, currentPane.candles.length + MAX_FUTURE_BARS)
+        )
+      );
+      const anchorRatio = 0.5;
+      const anchorIndex = currentPane.viewRange.startIndex + currentPane.viewRange.candlesPerView * anchorRatio;
+      const nextStartIndex = anchorIndex - nextCandlesPerView * anchorRatio;
+
+      return {
+        ...currentPane,
+        viewRange: normalizeViewRange(nextStartIndex, nextCandlesPerView, currentPane.candles.length),
+      };
+    });
+  };
+
+  const handleRailZoomClick = () => {
+    const paneIndex = activePaneIndexRef.current;
+
+    setActivePaneIndex(paneIndex);
+    setActiveDrawingMenu(null);
+    setActiveDrawingTool(null);
+    setPendingDrawing(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
+    applyCenteredPaneZoom(paneIndex, railZoomMode);
+    setRailZoomMode((current) => (current === 'in' ? 'out' : 'in'));
   };
 
   const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
@@ -14083,6 +14125,8 @@ export default function Home() {
       activeDrawingTool !== null && isTextMenuDrawingTool(activeDrawingTool) ? activeDrawingTool : lastTextTool;
     const visibleIconTool =
       activeDrawingTool !== null && isIconDrawingTool(activeDrawingTool) ? activeDrawingTool : lastIconTool;
+    const railZoomLabel = railZoomMode === 'in' ? 'Zoom in' : 'Zoom out';
+    const RailZoomIcon = railZoomMode === 'in' ? ZoomIn : ZoomOut;
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -14310,6 +14354,19 @@ export default function Home() {
           >
             <span className="drawing-tool-icon measure" aria-hidden="true">
               <Ruler size={21} strokeWidth={1.8} />
+            </span>
+          </button>
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={railZoomLabel}
+            title={railZoomLabel}
+            disabled={!activePane?.candles.length}
+            onClick={handleRailZoomClick}
+          >
+            <span className="drawing-tool-icon rail-zoom" aria-hidden="true">
+              <RailZoomIcon size={21} strokeWidth={1.8} />
             </span>
           </button>
         </div>

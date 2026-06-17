@@ -617,7 +617,9 @@ The chart app supports:
   field. Emoji drawings reuse the text drawing render, hit-test, selection,
   floating-toolbar, and browser-local persistence paths rather than introducing
   a separate storage boundary.
-  A standalone Measure ruler button follows the Icons group in the left rail.
+  A standalone Measure ruler button follows the Icons group in the left
+  rail, then a same-slot Zoom button alternates between zoom in and zoom
+  out while keeping the rail's 52px TradingView control cadence.
   It creates a two-anchor `measure` drawing that reuses the same logical-index,
   price, timestamp, persistence, hit-test, and drag infrastructure as the other
   drawing objects, while rendering with a TradingView-like blue measured range:
@@ -689,9 +691,10 @@ The chart app supports:
 - TradingView-style chart scale behavior: interval-specific default bar density,
   a small right-side future offset, semantic time-axis ticks, pixel-targeted
   nice price ticks, a dotted current-price guide with a right-axis marker,
-  cursor-anchored wheel zoom, horizontal/Shift-wheel timeline pan, reset,
-  crosshair, DOM-rendered high-contrast OHLC overlay, and responsive
-  desktop/tablet/mobile layouts.
+  cursor-anchored wheel zoom, center-anchored left-rail zoom button,
+  horizontal/Shift-wheel timeline pan, reset, crosshair, DOM-rendered
+  high-contrast OHLC overlay, and responsive desktop/tablet/mobile
+  layouts.
 - TradingView-style right price-scale interaction: the right axis is a distinct
   pointer hit area, vertical axis drags create a manual Y range anchored to the
   pointer price, and plot drags can pan that manual price range vertically until
