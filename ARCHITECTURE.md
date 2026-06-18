@@ -568,8 +568,10 @@ The chart app supports:
   Donchian Channels, WMA, Momentum, Rate of Change, Accumulation/Distribution,
   ATR, Bollinger %B, and Bollinger BandWidth.
 - Header command SVG icons are registered in the local `HeaderIcon` map in
-  `app/page.tsx`; chart-style selector glyphs remain CSS-drawn per option in
-  `app/globals.css`.
+  `app/page.tsx`; shared toolbar, left-rail, and icon-picker styling in
+  `app/globals.css` standardizes stroke weight, hover plates, and active states
+  around that local map plus `lucide-react` controls. Chart-style selector
+  glyphs remain CSS-drawn per option in `app/globals.css`.
 - Header modals, including Symbol search, are fixed descendants of the top
   command bar. The top bar's stacking context intentionally sits above
   chart-stage controls so modal backdrops cover the authenticated drawing-tool

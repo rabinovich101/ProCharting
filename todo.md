@@ -1,3 +1,62 @@
+# Icon Polish Pass
+
+## Goal
+Make the chart UI icons look cleaner and more premium without changing the chart
+layout, tool behavior, or icon library.
+
+## Investigation / Decisions
+- The standalone chart app uses `lucide-react` for React control icons and a
+  local `HeaderIcon` SVG map for several TradingView-style header commands.
+- Several icons feel uneven because local SVGs, Lucide icons, CSS-drawn drawing
+  glyphs, and icon-menu assets have different stroke weights, sizes, and hover
+  treatments.
+- Keep the change small and style-first: normalize shared icon rendering,
+  improve button states, and refine local header glyph paths instead of
+  replacing the library or refactoring toolbar logic.
+- Use the existing chart terminal palette and compact TradingView-style toolbar
+  structure. The polish should read as clearer controls, not a new visual
+  direction.
+- Update `ARCHITECTURE.md` because the icon styling architecture is now more
+  explicit around the shared `HeaderIcon` and toolbar icon treatment.
+
+## Checklist
+- [x] Review current icon rendering surfaces and choose the smallest useful
+  polish scope.
+- [x] Update `todo.md` with this checklist before changing code.
+- [x] Refine local header SVG icons for smoother outline shapes and consistent
+  stroke behavior.
+- [x] Polish shared header/tool/left-rail/icon-menu CSS states and sizing.
+- [x] Update `ARCHITECTURE.md` with the icon styling note.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright, including a screenshot pass.
+- [x] Clean generated verification artifacts.
+
+## Review
+- Refined the local `HeaderIcon` SVG map in
+  `TEST/binance-chart-test/app/page.tsx` with smoother outline geometry,
+  filled anchor dots where appropriate, and non-focusable decorative SVGs.
+- Polished shared icon presentation in `TEST/binance-chart-test/app/globals.css`:
+  consistent 1.8px header strokes, rounded caps/joins for Lucide controls,
+  softer hover/active plates, subtle depth, disabled-state cleanup, and matching
+  left-rail/icon-picker active treatments.
+- Updated `ARCHITECTURE.md` to document the shared icon styling approach around
+  the local `HeaderIcon` map plus `lucide-react` controls.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Playwright desktop visual smoke on `http://127.0.0.1:3106` with mocked market
+    and analytics requests: no console or page errors.
+  - Playwright left-rail CSS fixture screenshot using the real rail/icon classes:
+    active and default icon states rendered cleanly with no console or page
+    errors.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+    passed 10/10 tests.
+  - `git diff --check`
+- Build warnings remain pre-existing: multiple lockfiles and missing Next ESLint
+  plugin warning.
+- Removed generated `.next`, `test-results`, temporary screenshots, and local
+  Serena metadata after verification.
+
 # Correct TradingView Left Rail Zoom Out
 
 ## Goal
