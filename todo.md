@@ -21,7 +21,7 @@ and Zoom out appears underneath it after a completed marquee zoom.
 - [x] Keep Zoom in inactive after marquee release while showing Zoom out.
 - [x] Update `ARCHITECTURE.md` and review notes with corrected behavior.
 - [x] Run typecheck/build and Playwright verification.
-- [ ] Clean temporary artifacts, commit, push, review git status.
+- [x] Clean temporary artifacts, commit, push, review git status.
 
 ## Review
 - Corrected the previous bad inspection: TradingView shows
