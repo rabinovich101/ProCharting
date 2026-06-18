@@ -2531,6 +2531,12 @@ summary {
   position: relative;
 }
 
+.drawing-tool-rail > .drawing-tool-group--stack {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
 .drawing-text-editor {
   background: transparent;
   border: 0;

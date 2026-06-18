@@ -7241,6 +7241,9 @@ export default function Home() {
     width: number;
     height: number;
   } | null>(null);
+  const [railZoomHistory, setRailZoomHistory] = useState<
+    Array<{ paneIndex: number; viewRange: ViewRange; manualPriceRange: PriceRange | null }>
+  >([]);
   // Picking a drawing tool exits zoom mode (the two are mutually exclusive, like TV).
   useEffect(() => {
     if (activeDrawingTool) setRailZoomActive(false);
@@ -9332,6 +9335,22 @@ export default function Home() {
     }
   };
 
+  const handleRailZoomOut = () => {
+    if (railZoomHistory.length === 0) return;
+    const entry = railZoomHistory[railZoomHistory.length - 1];
+
+    setRailZoomActive(false);
+    railZoomDragRef.current = null;
+    setRailZoomMarquee(null);
+    setActivePaneIndex(entry.paneIndex);
+    updatePaneState(entry.paneIndex, (pane) => ({
+      ...pane,
+      viewRange: { ...entry.viewRange },
+      manualPriceRange: entry.manualPriceRange ? { ...entry.manualPriceRange } : null,
+    }));
+    setRailZoomHistory((stack) => stack.slice(0, -1));
+  };
+
   const handleWheel = (paneIndex: number, event: React.WheelEvent<HTMLCanvasElement>) => {
     const pane = paneStatesRef.current[paneIndex];
     setActivePaneIndex(paneIndex);
@@ -9670,6 +9689,17 @@ export default function Home() {
       railZoomDragRef.current = null;
       setRailZoomMarquee(null);
       if (railZoomDrag.hasMoved) {
+        const pane = paneStatesRef.current[railZoomDrag.paneIndex];
+        if (pane) {
+          setRailZoomHistory((stack) => [
+            ...stack,
+            {
+              paneIndex: railZoomDrag.paneIndex,
+              viewRange: { ...pane.viewRange },
+              manualPriceRange: pane.manualPriceRange ? { ...pane.manualPriceRange } : null,
+            },
+          ]);
+        }
         applyMarqueeZoom(railZoomDrag.paneIndex, railZoomDrag.startAnchor, railZoomDrag.previewAnchor);
         setRailZoomActive(false);
       }
@@ -14440,11 +14470,12 @@ export default function Home() {
             </span>
           </button>
         </div>
-        <div className="drawing-tool-group">
+        <div className="drawing-tool-group drawing-tool-group--stack">
           <button
             type="button"
             aria-label="Zoom in"
             title="Zoom in"
+            data-name="zoom"
             data-active={railZoomActive ? 'true' : 'false'}
             disabled={!activePane?.candles.length}
             onClick={handleRailZoomToggle}
@@ -14455,9 +14486,20 @@ export default function Home() {
                 <path d="M12.5 21a8.5 8.5 0 1 1 0-17 8.5 8.5 0 0 1 0 17zm0-1a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15z" />
                 <path d="M9 13h7v-1H9z" />
                 <path d="M13 16V9h-1v7z" />
-              </svg>
-            </span>
-          </button>
+            </svg>
+          </span>
+        </button>
+          {railZoomHistory.length > 0 && (
+            <button type="button" aria-label="Zoom out" title="Zoom out" data-name="zoom-out" onClick={handleRailZoomOut}>
+              <span className="drawing-tool-icon rail-zoom" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width={28} height={28} fill="currentColor">
+                  <path d="M17.646 18.354l4 4 .708-.708-4-4z" />
+                  <path d="M12.5 21a8.5 8.5 0 1 1 0-17 8.5 8.5 0 0 1 0 17zm0-1a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15z" />
+                  <path d="M9 13h7v-1H9z" />
+                </svg>
+              </span>
+            </button>
+          )}
         </div>
       </div>
     );

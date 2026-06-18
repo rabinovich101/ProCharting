@@ -1,3 +1,47 @@
+# Correct TradingView Left Rail Zoom Out
+
+## Goal
+Match TradingView's complete left-rail zoom flow: Zoom in starts a marquee box,
+and Zoom out appears underneath it after a completed marquee zoom.
+
+## Investigation / Decisions
+- Re-inspected TradingView after a completed box zoom. The left rail shows a
+  52x38 `button[data-name="zoom-out"]` directly under
+  `button[data-name="zoom"]`.
+- The Zoom out button is not visible before any box zoom; it appears only when
+  there is a zoom history step to restore.
+- Zoom in should remain one-shot after release, but the pre-zoom view must be
+  stored so Zoom out can pop back one step.
+- Keep this local to the rail zoom feature and avoid changing wheel zoom,
+  reset view, drawing tools, or unauthenticated rail behavior.
+
+## Checklist
+- [x] Re-inspect TradingView after performing a marquee zoom.
+- [x] Restore local zoom history state and left-rail Zoom out button.
+- [x] Keep Zoom in inactive after marquee release while showing Zoom out.
+- [x] Update `ARCHITECTURE.md` and review notes with corrected behavior.
+- [x] Run typecheck/build and Playwright verification.
+- [ ] Clean temporary artifacts, commit, push, review git status.
+
+## Review
+- Corrected the previous bad inspection: TradingView shows
+  `button[data-name="zoom-out"]` directly under the left-rail Zoom in button
+  after a completed box zoom.
+- Restored a rail zoom history stack so Zoom out returns to the pre-zoom view
+  and disappears when history is empty.
+- Kept Zoom in one-shot: it becomes inactive after the marquee release, while
+  Zoom out remains available underneath.
+- Added TradingView-like `data-name="zoom"` / `data-name="zoom-out"` attributes
+  for the local rail buttons.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Custom Playwright check on `http://127.0.0.1:3108/`: no Zoom out initially,
+    Zoom in active after click, one 52x38 Zoom out appears below after marquee,
+    clicking Zoom out removes it, no browser console issues.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+
 # Fix TradingView-Style Left Rail Zoom Tool
 
 ## Goal
