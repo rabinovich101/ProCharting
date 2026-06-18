@@ -618,9 +618,10 @@ The chart app supports:
   floating-toolbar, and browser-local persistence paths rather than introducing
   a separate storage boundary.
   A standalone Measure ruler button follows the Icons group in the left
-  rail, then a same-slot Zoom button alternates between zoom in and zoom
-  out while keeping the rail's 52px TradingView control cadence.
-  It creates a two-anchor `measure` drawing that reuses the same logical-index,
+  rail. A same-slot Zoom in button follows Measure, enters a one-shot
+  marquee mode, zooms the active pane to the dragged box on release, then
+  clears its active state to match TradingView's left rail. Measure creates
+  a two-anchor `measure` drawing that reuses the same logical-index,
   price, timestamp, persistence, hit-test, and drag infrastructure as the other
   drawing objects, while rendering with a TradingView-like blue measured range:
   translucent rectangle, dashed endpoint guides, price/time axis labels, and a

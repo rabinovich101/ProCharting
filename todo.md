@@ -1,3 +1,48 @@
+# Fix TradingView-Style Left Rail Zoom Tool
+
+## Goal
+Make the existing left drawing rail zoom behavior match TradingView's current
+Zoom in tool instead of the earlier zoom in / zoom out toggle attempt.
+
+## Investigation / Decisions
+- Live TradingView desktop chart exposes one left-rail
+  `button[data-name="zoom"]`, 52x38px, immediately after Measure.
+- The button is always labeled `Zoom in`; clicking it adds TradingView's active
+  class and enters a marquee zoom mode.
+- Completing a marquee drag removes the active class again. TradingView does
+  not keep the left-rail zoom tool active for repeated drags.
+- TradingView does not show a left-rail `Zoom out` button beside this tool; the
+  visible zoom-out control belongs to the bottom chart navigation controls.
+- Keep ProCharting's current marquee zoom math because it already maps a box
+  into the pane's time range and manual price range. Change only the rail
+  lifecycle and visible controls.
+
+## Checklist
+- [x] Inspect TradingView's current left-rail zoom button and active-state
+  behavior.
+- [x] Locate ProCharting's existing left-rail zoom state, handlers, and button.
+- [x] Remove the left-rail zoom-out/history UI path.
+- [x] Make the left-rail Zoom in tool one-shot: active while selecting the
+  marquee, then inactive after release.
+- [x] Update `ARCHITECTURE.md` with the corrected zoom tool behavior.
+- [x] Run typecheck/build and browser verification with Playwright.
+- [ ] Clean temporary artifacts, commit, push, review git status.
+
+## Review
+- Updated the left rail Zoom in tool to clear active state after a completed
+  marquee zoom, matching TradingView's current one-shot left-rail behavior.
+- Removed the active-state comment that claimed repeated persistent marquee
+  zooms matched TradingView.
+- Updated `ARCHITECTURE.md` to document the corrected one-shot rail zoom tool.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - Custom Playwright check on `http://127.0.0.1:3108/` with mocked auth and
+    market data: one 52x38 rail `Zoom in`, zero rail `Zoom out`, marquee visible
+    during drag, `data-active="false"` after release, no browser console issues.
+  - `git diff --check`
+
 # Add TradingView-Style Left Rail Zoom Button
 
 ## Goal

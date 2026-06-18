@@ -7221,8 +7221,8 @@ export default function Home() {
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [pendingDrawing, setPendingDrawing] = useState<PendingDrawing | null>(null);
-  // TradingView-style marquee "Zoom in" tool: a persistent mode where dragging a
-  // rectangle on the chart zooms both axes (time + price) into that box.
+  // TradingView-style marquee "Zoom in" tool: click the rail button, drag a
+  // rectangle on the chart, then zoom both axes (time + price) into that box.
   const [railZoomActive, setRailZoomActive] = useState(false);
   const railZoomDragRef = useRef<{
     paneIndex: number;
@@ -9671,8 +9671,8 @@ export default function Home() {
       setRailZoomMarquee(null);
       if (railZoomDrag.hasMoved) {
         applyMarqueeZoom(railZoomDrag.paneIndex, railZoomDrag.startAnchor, railZoomDrag.previewAnchor);
+        setRailZoomActive(false);
       }
-      // The zoom tool stays active for repeated marquee zooms (matches TradingView).
       return;
     }
 
