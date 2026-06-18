@@ -26,7 +26,7 @@ Zoom in tool instead of the earlier zoom in / zoom out toggle attempt.
   marquee, then inactive after release.
 - [x] Update `ARCHITECTURE.md` with the corrected zoom tool behavior.
 - [x] Run typecheck/build and browser verification with Playwright.
-- [ ] Clean temporary artifacts, commit, push, review git status.
+- [x] Clean temporary artifacts, commit, push, review git status.
 
 ## Review
 - Updated the left rail Zoom in tool to clear active state after a completed
