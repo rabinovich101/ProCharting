@@ -4278,6 +4278,57 @@ summary {
   box-shadow: none;
 }
 
+.chart-pane-stack {
+  display: grid;
+  inset: 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: absolute;
+}
+
+.chart-pane-row {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.chart-indicator-pane-row {
+  background: var(--surface-0);
+}
+
+.chart-pane-resize-handle {
+  align-items: center;
+  background: color-mix(in srgb, var(--border-subtle) 72%, transparent);
+  border: 0;
+  cursor: row-resize;
+  display: flex;
+  justify-content: center;
+  min-height: 6px;
+  outline: 0;
+  padding: 0;
+  position: relative;
+  touch-action: none;
+  z-index: 24;
+}
+
+.chart-pane-resize-handle::before {
+  background: color-mix(in srgb, var(--text-muted) 42%, transparent);
+  border-radius: 999px;
+  content: "";
+  height: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease;
+  width: 42px;
+}
+
+.chart-pane-resize-handle:hover::before,
+.chart-pane-resize-handle:focus-visible::before {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
 .chart-canvas {
   display: block;
   height: 100%;

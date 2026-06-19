@@ -700,6 +700,13 @@ The chart app supports:
   per-candle legend-value extraction, so MACD line, signal, and histogram
   values update to the candle under the crosshair without recalculating the
   indicator series during hover.
+- Oscillator indicators now render as separate stacked indicator canvases
+  below the main price canvas inside each standalone chart layout cell. Thin
+  row-resize handles adjust adjacent stack percentages locally, so lower
+  indicators can be resized TradingView-style without changing saved layout
+  schema, chart drawing storage, or package renderer contracts. Lower-pane
+  indicator canvases reuse the main chart time scale and draw the shared time
+  axis on the bottom indicator pane when oscillator panes are present.
 - Dark/light UI themes.
 - TradingView-style chart scale behavior: interval-specific default bar density,
   a small right-side future offset, semantic time-axis ticks, pixel-targeted

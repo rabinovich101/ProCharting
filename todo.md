@@ -1,3 +1,35 @@
+# TradingView-Style Indicator Panes
+
+## Goal
+Make oscillator indicators render in separate resizable panes below the main chart canvas, matching the TradingView behavior shown in the supplied screen recording.
+
+## Investigation / Decisions
+- Reference video shows a top price chart pane with lower indicator panes separated by horizontal resize handles.
+- `TEST/binance-chart-test/app/page.tsx` already has chart layout cells, per-pane canvas refs, and `IndicatorPaneKind = 'price' | 'volume' | 'oscillator'`.
+- Current oscillator indicators are drawn into `oscillatorPaneAreas` inside the same chart canvas, which creates visual bands but not independent canvas panes.
+- Keep the change app-local and simple: preserve existing multi-chart layout cells, price drawing tools, view range, and volume overlay; add an inner vertical pane stack only when oscillator indicators are visible.
+- Store pane heights as CSS percentages in React state and update them from pointer dragging. No server or layout persistence schema change is needed for this first TradingView-like resizing behavior.
+
+## Checklist
+- [x] Inspect the supplied TradingView recording and identify the expected pane behavior.
+- [x] Locate the current chart canvas, indicator, and visual layout code.
+- [x] Add indicator pane sizing state and divider drag handlers.
+- [x] Render one canvas per oscillator indicator below the main chart canvas.
+- [x] Refactor oscillator drawing out of the main canvas into the indicator canvas path.
+- [x] Update CSS for stacked chart panes and resize handles.
+- [x] Update `ARCHITECTURE.md` with the new chart pane architecture.
+- [x] Run type/build checks.
+- [x] Verify with Playwright or Camoufox and clean generated artifacts.
+- [ ] Commit, push, and review final git status.
+
+## Review
+- Added an internal `chart-pane-stack` inside each chart layout cell so the price canvas and oscillator indicator canvases are separate rows.
+- RSI/MACD-style oscillator indicators now paint on their own canvases below the main chart canvas; the main canvas no longer allocates oscillator bands.
+- Added row-resize handles that adjust adjacent pane percentages locally while preserving the outer chart layout grid.
+- Moved the shared time-axis labels to the bottom indicator canvas when oscillator panes exist, avoiding duplicate time labels between panes.
+- Updated `ARCHITECTURE.md` with the new standalone chart pane composition.
+- Verification passed: `npx tsc --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and Playwright browser check adding RSI + MACD and dragging a divider.
+
 # Icon Polish Pass
 
 ## Goal
