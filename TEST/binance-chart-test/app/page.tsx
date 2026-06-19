@@ -52,6 +52,7 @@ import {
   GripVertical,
   Layers,
   Lock,
+  Magnet,
   MoreHorizontal,
   Pencil,
   Ruler,
@@ -282,6 +283,7 @@ type IconToolTab = 'emojis' | 'stickers' | 'icons';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
+type DrawingMagnetMode = 'off' | 'weak' | 'strong';
 type DrawingToolbarMenuId = 'templates' | 'color' | 'text' | 'width' | 'style' | 'settings' | 'alert' | 'more';
 type DrawingSettingsTab = 'style' | 'text' | 'coordinates' | 'visibility';
 type DrawingArrowEnd = 'none' | 'arrow';
@@ -888,6 +890,13 @@ const CURSOR_TOOLS_WITHOUT_CROSSHAIR: ReadonlySet<CursorToolId> = new Set(['arro
 const CURSOR_FAVORITES_STORAGE_KEY = 'procharting.cursorToolFavorites';
 const INDICATOR_FAVORITES_STORAGE_KEY = 'procharting.indicatorFavorites';
 const VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY = 'procharting.valuesTooltipOnLongPress';
+const DRAWING_MAGNET_MODE_STORAGE_KEY = 'procharting.drawingMagnetMode';
+const DRAWING_MAGNET_WEAK_TOLERANCE_PX = 18;
+const DRAWING_MAGNET_MODE_LABELS: Record<DrawingMagnetMode, string> = {
+  off: 'Magnet mode off',
+  weak: 'Weak magnet',
+  strong: 'Strong magnet',
+};
 const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'trend-line': 'Trendline',
   ray: 'Ray',
@@ -2804,6 +2813,10 @@ const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   typeof value === 'string' && Object.prototype.hasOwnProperty.call(DRAWING_TOOL_LABELS, value);
+const isDrawingMagnetMode = (value: unknown): value is DrawingMagnetMode =>
+  value === 'off' || value === 'weak' || value === 'strong';
+const getNextDrawingMagnetMode = (mode: DrawingMagnetMode): DrawingMagnetMode =>
+  mode === 'off' ? 'weak' : mode === 'weak' ? 'strong' : 'off';
 const isFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' ||
   kind === 'fib-extension' ||
@@ -6996,87 +7009,94 @@ type HeaderIconName =
 const HEADER_ICON_PATHS: Record<HeaderIconName, ReactNode> = {
   indicators: (
     <>
-      <path d="M3 13.5c1.8 0 2.4-7 4.4-7 2.5 0 2.3 7 4.8 7 2 0 2.6-5 4.8-5" />
-      <circle cx="7.4" cy="6.5" r="1.1" />
-      <circle cx="12.2" cy="13.5" r="1.1" />
-      <path d="M3 16.5h14" />
+      <path d="M3 13.4c1.8 0 2.2-7 4.4-7 2.5 0 2.3 7 4.9 7 2 0 2.5-5 4.7-5" />
+      <circle cx="7.4" cy="6.4" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12.3" cy="13.4" r="1" fill="currentColor" stroke="none" />
+      <path d="M3.2 16.5h13.6" />
     </>
   ),
   templates: (
     <>
-      <rect x="3" y="3" width="5" height="5" rx="1" />
-      <rect x="12" y="3" width="5" height="5" rx="1" />
-      <rect x="3" y="12" width="5" height="5" rx="1" />
-      <rect x="12" y="12" width="5" height="5" rx="1" />
+      <rect x="3.2" y="3.2" width="5.2" height="5.2" rx="1.25" />
+      <rect x="11.6" y="3.2" width="5.2" height="5.2" rx="1.25" />
+      <rect x="3.2" y="11.6" width="5.2" height="5.2" rx="1.25" />
+      <rect x="11.6" y="11.6" width="5.2" height="5.2" rx="1.25" />
     </>
   ),
   alert: (
     <>
-      <circle cx="10" cy="10" r="7" />
-      <path d="M10 6v4l3 2" />
-      <path d="M15.5 4.5l2-2" />
-      <path d="M16 2.5h2v2" />
+      <circle cx="10" cy="10.5" r="5.9" />
+      <path d="M10 7.2v3.5l2.6 1.7" />
+      <path d="M5.5 3.7 3.6 5.5" />
+      <path d="M14.5 3.7l1.9 1.8" />
+      <path d="M7.8 16.8h4.4" />
     </>
   ),
   replay: (
     <>
-      <path d="M7 5L3 10l4 5" />
-      <path d="M14 5l-4 5 4 5" />
-      <path d="M17 5v10" />
+      <path d="M8.6 5.8 4.2 10l4.4 4.2" />
+      <path d="M15 5.8 10.6 10l4.4 4.2" />
+      <path d="M17 5.4v9.2" />
     </>
   ),
   undo: (
     <>
-      <path d="M8 6H4v4" />
-      <path d="M4 10c2.2-3.6 7.8-4.1 11-1.1 1.4 1.4 2 3.3 1.7 5.1" />
+      <path d="M8.2 6.1H4.3v3.9" />
+      <path d="M4.5 9.8c2.3-3.6 7.5-4.1 10.4-1.2 1.5 1.5 2 3.5 1.5 5.4" />
     </>
   ),
   redo: (
     <>
-      <path d="M12 6h4v4" />
-      <path d="M16 10C13.8 6.4 8.2 5.9 5 8.9 3.6 10.3 3 12.2 3.3 14" />
+      <path d="M11.8 6.1h3.9v3.9" />
+      <path d="M15.5 9.8C13.2 6.2 8 5.7 5.1 8.6 3.6 10.1 3.1 12.1 3.6 14" />
     </>
   ),
-  layout: <rect x="4" y="4" width="12" height="12" rx="2" />,
-  caret: <path d="M6 8l4 4 4-4" />,
+  layout: (
+    <>
+      <rect x="3.4" y="3.4" width="13.2" height="13.2" rx="2" />
+      <path d="M8.3 3.6v12.8" />
+      <path d="M3.6 8.8h12.8" />
+    </>
+  ),
+  caret: <path d="M6.5 8.2 10 11.8l3.5-3.6" />,
   search: (
     <>
-      <circle cx="8.5" cy="8.5" r="5" />
-      <path d="M12.5 12.5L17 17" />
+      <circle cx="8.8" cy="8.8" r="4.9" />
+      <path d="m12.5 12.5 4 4" />
     </>
   ),
   settings: (
     <>
-      <circle cx="10" cy="10" r="2.5" />
-      <path d="M10 2.5v2" />
-      <path d="M10 15.5v2" />
-      <path d="M2.5 10h2" />
-      <path d="M15.5 10h2" />
-      <path d="M4.7 4.7l1.4 1.4" />
-      <path d="M13.9 13.9l1.4 1.4" />
-      <path d="M15.3 4.7l-1.4 1.4" />
-      <path d="M6.1 13.9l-1.4 1.4" />
+      <circle cx="10" cy="10" r="2.7" />
+      <path d="M10 2.8v2" />
+      <path d="M10 15.2v2" />
+      <path d="M2.8 10h2" />
+      <path d="M15.2 10h2" />
+      <path d="m4.9 4.9 1.4 1.4" />
+      <path d="m13.7 13.7 1.4 1.4" />
+      <path d="m15.1 4.9-1.4 1.4" />
+      <path d="m6.3 13.7-1.4 1.4" />
     </>
   ),
   fullscreen: (
     <>
-      <path d="M7 3H3v4" />
-      <path d="M13 3h4v4" />
-      <path d="M17 13v4h-4" />
-      <path d="M3 13v4h4" />
+      <path d="M7.4 3.4h-4v4" />
+      <path d="M12.6 3.4h4v4" />
+      <path d="M16.6 12.6v4h-4" />
+      <path d="M3.4 12.6v4h4" />
     </>
   ),
   snapshot: (
     <>
-      <path d="M6.5 6.5l1-2h5l1 2H16a2 2 0 0 1 2 2v6A2 2 0 0 1 16 16H4a2 2 0 0 1-2-2V8.5a2 2 0 0 1 2-2h2.5z" />
-      <circle cx="10" cy="11" r="3" />
+      <path d="M6.5 6.3 7.8 4.4h4.4l1.3 1.9H16a2 2 0 0 1 2 2v6.1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.3a2 2 0 0 1 2-2h2.5z" />
+      <circle cx="10" cy="11.2" r="3.1" />
     </>
   ),
 };
 
 function HeaderIcon({ name }: { name: HeaderIconName }) {
   return (
-    <svg className="header-icon" viewBox="0 0 20 20" aria-hidden="true">
+    <svg className="header-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
       {HEADER_ICON_PATHS[name]}
     </svg>
   );
@@ -7212,6 +7232,7 @@ export default function Home() {
   const [contentToolDialogValue, setContentToolDialogValue] = useState('');
   const [contentToolDialogError, setContentToolDialogError] = useState('');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
+  const [drawingMagnetMode, setDrawingMagnetMode] = useState<DrawingMagnetMode>('off');
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
   const [activeDrawingToolbarMenu, setActiveDrawingToolbarMenu] = useState<DrawingToolbarMenuId | null>(null);
@@ -7520,6 +7541,11 @@ export default function Home() {
       const rawValuesTooltip = window.localStorage.getItem(VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY);
       if (rawValuesTooltip !== null) {
         setValuesTooltipOnLongPress(rawValuesTooltip === 'true');
+      }
+
+      const rawDrawingMagnetMode = window.localStorage.getItem(DRAWING_MAGNET_MODE_STORAGE_KEY);
+      if (isDrawingMagnetMode(rawDrawingMagnetMode)) {
+        setDrawingMagnetMode(rawDrawingMagnetMode);
       }
 
       const rawIndicatorFavorites = window.localStorage.getItem(INDICATOR_FAVORITES_STORAGE_KEY);
@@ -8423,11 +8449,82 @@ export default function Home() {
     };
   };
 
-  const getDrawingAnchorAtPoint = (paneIndex: number, x: number, y: number): ChartDrawingAnchor | null => {
+  const getEffectiveDrawingMagnetMode = (
+    event?: Pick<React.MouseEvent<HTMLCanvasElement>, 'ctrlKey' | 'metaKey'>
+  ): DrawingMagnetMode => {
+    const modifierActive = Boolean(event?.ctrlKey || event?.metaKey);
+    if (!modifierActive) return drawingMagnetMode;
+    return drawingMagnetMode === 'off' ? 'weak' : 'off';
+  };
+  const getMagnetizedDrawingAnchorAtPoint = (
+    paneIndex: number,
+    x: number,
+    y: number,
+    mode: DrawingMagnetMode,
+    currentPriceRange: PriceRange,
+    chartArea: ChartCanvasArea
+  ): ChartDrawingAnchor | null => {
+    if (mode === 'off') return null;
+
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane?.candles.length || chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    const rawLogicalIndex =
+      pane.viewRange.startIndex +
+      clamp((x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) * pane.viewRange.candlesPerView;
+    if (rawLogicalIndex < 0 || rawLogicalIndex >= pane.candles.length) return null;
+
+    const priceSpan = currentPriceRange.maxPrice - currentPriceRange.minPrice || 1;
+    const yForPrice = (price: number) =>
+      chartArea.top + ((currentPriceRange.maxPrice - price) / priceSpan) * chartArea.height;
+    const xForLogicalIndex = (logicalIndex: number) =>
+      chartArea.left +
+      ((logicalIndex - pane.viewRange.startIndex) / Math.max(1, pane.viewRange.candlesPerView)) * chartArea.width;
+    const firstCandidateIndex = Math.max(0, Math.floor(rawLogicalIndex) - 1);
+    const lastCandidateIndex = Math.min(pane.candles.length - 1, Math.ceil(rawLogicalIndex) + 1);
+    let bestCandidate: { distance: number; logicalIndex: number; price: number } | null = null;
+
+    for (let index = firstCandidateIndex; index <= lastCandidateIndex; index += 1) {
+      const candle = pane.candles[index];
+      if (!candle) continue;
+
+      const logicalIndex = index + 0.5;
+      const candleX = xForLogicalIndex(logicalIndex);
+      for (const price of [candle.open, candle.high, candle.low, candle.close]) {
+        if (!Number.isFinite(price)) continue;
+
+        const distance = Math.hypot(candleX - x, yForPrice(price) - y);
+        if (!bestCandidate || distance < bestCandidate.distance) {
+          bestCandidate = { distance, logicalIndex, price };
+        }
+      }
+    }
+
+    if (!bestCandidate) return null;
+
+    const candleSpacing = chartArea.width / Math.max(1, pane.viewRange.candlesPerView);
+    const weakTolerance = Math.max(DRAWING_MAGNET_WEAK_TOLERANCE_PX, Math.min(32, candleSpacing * 0.6));
+    if (mode === 'weak' && bestCandidate.distance > weakTolerance) return null;
+
+    return {
+      logicalIndex: bestCandidate.logicalIndex,
+      price: bestCandidate.price,
+      time: getTimeAtVirtualIndex(bestCandidate.logicalIndex, pane.candles, timeframeToMilliseconds(pane.timeframe)),
+    };
+  };
+  const getDrawingAnchorAtPoint = (
+    paneIndex: number,
+    x: number,
+    y: number,
+    magnetMode: DrawingMagnetMode = drawingMagnetMode
+  ): ChartDrawingAnchor | null => {
     const pane = paneStatesRef.current[paneIndex];
     const currentPriceRange = getCurrentPriceRange(paneIndex);
     const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     if (!pane || !currentPriceRange || chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    const magnetizedAnchor = getMagnetizedDrawingAnchorAtPoint(paneIndex, x, y, magnetMode, currentPriceRange, chartArea);
+    if (magnetizedAnchor) return magnetizedAnchor;
 
     const logicalIndex =
       pane.viewRange.startIndex +
@@ -8840,6 +8937,28 @@ export default function Home() {
     freehandDrawingRef.current = null;
     measureDrawingDragRef.current = null;
     drawingDragRef.current = createDrawingDragState(paneIndex);
+  };
+  const setStoredDrawingMagnetMode = (mode: DrawingMagnetMode) => {
+    setDrawingMagnetMode(mode);
+    try {
+      window.localStorage.setItem(DRAWING_MAGNET_MODE_STORAGE_KEY, mode);
+    } catch {
+      // storage unavailable
+    }
+  };
+  const toggleDrawingMagnetMode = () => {
+    if (!isAuthenticated) {
+      clearDrawingInteractionState();
+      return;
+    }
+
+    setOpenMenu(null);
+    setHeaderPanel(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
+    setStoredDrawingMagnetMode(getNextDrawingMagnetMode(drawingMagnetMode));
   };
   const toggleDrawingMenu = (menu: DrawingMenuId) => {
     if (!isAuthenticated) {
@@ -9447,7 +9566,7 @@ export default function Home() {
     // Zoom tool (marquee drag-to-zoom) takes priority and needs no auth — it is chart
     // navigation, not a drawing. Drag a box; on release the chart zooms into it.
     if (railZoomActive && area === 'plot') {
-      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y, 'off');
       if (!anchor) return;
       railZoomDragRef.current = {
         paneIndex,
@@ -9465,7 +9584,7 @@ export default function Home() {
     }
 
     if (area === 'plot' && isAuthenticated && activeDrawingTool) {
-      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
       if (!anchor) return;
 
       if (isMeasureDrawingTool(activeDrawingTool)) {
@@ -9569,7 +9688,7 @@ export default function Home() {
               const endPoint = getDrawingPointForAnchor(paneIndex, nextAnchors[1]!);
               if (startPoint && endPoint) {
                 getDefaultShapeCurveControls(activeDrawingTool, startPoint, endPoint).forEach((controlPoint) => {
-                  const controlAnchor = getDrawingAnchorAtPoint(paneIndex, controlPoint.x, controlPoint.y);
+                  const controlAnchor = getDrawingAnchorAtPoint(paneIndex, controlPoint.x, controlPoint.y, 'off');
                   if (controlAnchor) nextAnchors.push(controlAnchor);
                 });
               }
@@ -9759,7 +9878,7 @@ export default function Home() {
       const bounds = chartBoundsRefs.current[paneIndex]?.chartArea;
       const clampedX = bounds ? clamp(x, bounds.left, bounds.left + bounds.width) : x;
       const clampedY = bounds ? clamp(y, bounds.top, bounds.top + bounds.height) : y;
-      const preview = getDrawingAnchorAtPoint(paneIndex, clampedX, clampedY);
+      const preview = getDrawingAnchorAtPoint(paneIndex, clampedX, clampedY, 'off');
       const hasMoved =
         railZoomDrag.hasMoved ||
         Math.hypot(event.clientX - railZoomDrag.startClientX, event.clientY - railZoomDrag.startClientY) > 3;
@@ -9782,7 +9901,7 @@ export default function Home() {
 
     const freehandDrawing = freehandDrawingRef.current;
     if (isAuthenticated && freehandDrawing && freehandDrawing.paneIndex === paneIndex && area === 'plot') {
-      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
       if (anchor) {
         const sampleDistance = Math.hypot(x - freehandDrawing.lastPoint.x, y - freehandDrawing.lastPoint.y);
         if (
@@ -9806,7 +9925,7 @@ export default function Home() {
     const measureDrawingDrag = measureDrawingDragRef.current;
     if (isAuthenticated && measureDrawingDrag && measureDrawingDrag.paneIndex === paneIndex) {
       if (area === 'plot') {
-        const preview = getDrawingAnchorAtPoint(paneIndex, x, y);
+        const preview = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
         if (preview) {
           const hasMoved =
             measureDrawingDrag.hasMoved ||
@@ -9832,7 +9951,7 @@ export default function Home() {
       pendingDrawing.paneIndex === paneIndex &&
       area === 'plot'
     ) {
-      const preview = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const preview = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
       if (preview) {
         setPendingDrawing((current) => (current ? { ...current, preview } : current));
       }
@@ -9846,7 +9965,7 @@ export default function Home() {
     if (isAuthenticated && drawingDrag.mode !== 'none' && drawingDrag.paneIndex === paneIndex && drawingDrag.drawingId) {
       const currentPriceRange = getCurrentPriceRange(paneIndex);
       const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
-      const currentAnchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const currentAnchor = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
 
       if (currentPriceRange && chartArea.width > 0 && chartArea.height > 0 && currentAnchor) {
         const deltaX = event.clientX - drawingDrag.startX;
@@ -14240,6 +14359,8 @@ export default function Home() {
       activeDrawingTool !== null && isTextMenuDrawingTool(activeDrawingTool) ? activeDrawingTool : lastTextTool;
     const visibleIconTool =
       activeDrawingTool !== null && isIconDrawingTool(activeDrawingTool) ? activeDrawingTool : lastIconTool;
+    const magnetModeLabel = DRAWING_MAGNET_MODE_LABELS[drawingMagnetMode];
+    const nextMagnetModeLabel = DRAWING_MAGNET_MODE_LABELS[getNextDrawingMagnetMode(drawingMagnetMode)];
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -14500,6 +14621,21 @@ export default function Home() {
               </span>
             </button>
           )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${magnetModeLabel}. Snaps drawings to candle OHLC values.`}
+            title={`${magnetModeLabel}. Click for ${nextMagnetModeLabel}. Ctrl/Cmd temporarily toggles while drawing.`}
+            data-name="magnet"
+            data-active={drawingMagnetMode !== 'off'}
+            data-magnet-mode={drawingMagnetMode}
+            onClick={toggleDrawingMagnetMode}
+          >
+            <span className="drawing-tool-icon magnet" aria-hidden="true">
+              <Magnet size={21} strokeWidth={1.85} />
+            </span>
+          </button>
         </div>
       </div>
     );

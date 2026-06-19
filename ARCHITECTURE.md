@@ -72,6 +72,12 @@ available; rendering and hit-testing remap that timestamp into the active
 timeframe's candle index so annotations stay on the same levels when switching
 intervals. Legacy anchors without timestamps still fall back to their saved
 logical index and are upgraded once pane candles load.
+Magnet mode is browser-local drawing interaction preference under
+`procharting.drawingMagnetMode`. It does not create drawing records; it
+snaps newly placed or edited anchors to visible candle OHLC values before
+those anchors enter the existing `ChartDrawing` model. Weak magnet only snaps
+near price bars, Strong magnet snaps to the nearest visible candle OHLC value,
+and Ctrl/Cmd temporarily toggles magnet behavior while drawing or editing.
 Saved chart layouts continue to own panes, symbols, intervals, indicators,
 settings, theme, and view ranges, but they do not write or apply drawings. Older
 layout JSON may still contain a legacy `drawings` snapshot; the app migrates
@@ -568,8 +574,10 @@ The chart app supports:
   Donchian Channels, WMA, Momentum, Rate of Change, Accumulation/Distribution,
   ATR, Bollinger %B, and Bollinger BandWidth.
 - Header command SVG icons are registered in the local `HeaderIcon` map in
-  `app/page.tsx`; chart-style selector glyphs remain CSS-drawn per option in
-  `app/globals.css`.
+  `app/page.tsx`; shared toolbar, left-rail, and icon-picker styling in
+  `app/globals.css` standardizes stroke weight, hover plates, and active states
+  around that local map plus `lucide-react` controls. Chart-style selector
+  glyphs remain CSS-drawn per option in `app/globals.css`.
 - Header modals, including Symbol search, are fixed descendants of the top
   command bar. The top bar's stacking context intentionally sits above
   chart-stage controls so modal backdrops cover the authenticated drawing-tool
@@ -621,7 +629,9 @@ The chart app supports:
   rail. A same-slot Zoom in button follows Measure, enters a one-shot
   marquee mode, zooms the active pane to the dragged box on release, clears
   its active state, then shows a left-rail Zoom out button underneath while
-  a pre-zoom view is available to restore. Measure creates a two-anchor
+  a pre-zoom view is available to restore. Magnet mode follows Zoom in on the
+  left rail and cycles Off, Weak, Strong without changing selected drawing tool.
+  Measure creates a two-anchor
   `measure` drawing that reuses the same logical-index,
   price, timestamp, persistence, hit-test, and drag infrastructure as the other
   drawing objects, while rendering with a TradingView-like blue measured range:
