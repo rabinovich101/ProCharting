@@ -8964,3 +8964,41 @@ dragged chart range.
   Next ESLint plugin warning.
 - Generated `.next`, temporary screenshots, Playwright report folders, and the
   local preview server were cleaned after verification.
+
+# TradingView-Style Magnet Mode
+
+## Goal
+Add the next TradingView left-rail utility: Magnet mode for chart drawings, placed below Zoom in and above the remaining drawing utility controls.
+
+## Investigation / Decisions
+- TradingView docs say Magnet mode makes drawings stick to the nearest price point, specifically bar OHLC values.
+- TradingView exposes Strong magnet and Weak magnet: Strong forces anchors to OHLC values; Weak only pulls anchors when drawing near price bars.
+- TradingView live chart places Magnet mode on the left drawing rail below Zoom in and above Keep drawing, with the label "Magnet mode snaps drawings placed near price bars to the closest OHLC value."
+- TradingView also documents Ctrl/Cmd as a temporary magnet toggle while drawing or editing. Implement that modifier behavior for drawing anchor creation and anchor editing.
+- Keep this first pass OHLC-only. TradingView's 2025 Snap to indicators option needs indicator-value attachment points, which are a separate architecture surface.
+- Keep the change small: add one local UI state, one rail button, and shared anchor snapping inside `getDrawingAnchorAtPoint`.
+
+## Checklist
+- [x] Add Magnet mode state, persistence key, and mode helpers.
+- [x] Add OHLC snapping logic for drawing anchors with Weak and Strong behavior.
+- [x] Wire drawing creation, previews, measure, freehand sampling, and anchor editing through the effective magnet mode.
+- [x] Add the left-rail Magnet button in TradingView placement using the existing rail styling and lucide icon set.
+- [x] Update `ARCHITECTURE.md` with the new drawing utility behavior.
+- [x] Run TypeScript/build verification.
+- [x] Verify with Playwright/browser against the local chart UI.
+- [x] Clean generated artifacts and local tool files.
+- [x] Commit and push the completed change.
+
+## Review
+- Added browser-local `DrawingMagnetMode` state persisted under `procharting.drawingMagnetMode`.
+- Added TradingView-style OHLC magnet snapping in the shared drawing anchor path: Weak snaps only near candle OHLC points; Strong snaps to the nearest visible candle OHLC point.
+- Wired drawing placement, previews, Measure drag, freehand sampling, and anchor editing through effective magnet mode. Chart Zoom remains unsnapped.
+- Added Ctrl/Cmd temporary magnet override while drawing or editing: off becomes temporary Weak, active Weak/Strong becomes temporarily off.
+- Added authenticated left-rail Magnet button below Zoom in. It cycles Off -> Weak -> Strong -> Off and uses the existing rail button styling plus lucide `Magnet` icon.
+- Updated `ARCHITECTURE.md` to document magnet mode as interaction preference, not a new drawing record type.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Playwright smoke on `http://127.0.0.1:3106`: isolated local Supabase session stub, mocked market data, clicked Magnet to Weak and Strong, selected Trendline, placed a drawing, verified persisted `strong` mode and candle-center snapped anchors.
+- Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.
+- Generated `.next`, `.serena`, and codegraph pid changes cleaned after verification.

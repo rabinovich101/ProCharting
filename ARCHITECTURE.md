@@ -72,6 +72,12 @@ available; rendering and hit-testing remap that timestamp into the active
 timeframe's candle index so annotations stay on the same levels when switching
 intervals. Legacy anchors without timestamps still fall back to their saved
 logical index and are upgraded once pane candles load.
+Magnet mode is browser-local drawing interaction preference under
+`procharting.drawingMagnetMode`. It does not create drawing records; it
+snaps newly placed or edited anchors to visible candle OHLC values before
+those anchors enter the existing `ChartDrawing` model. Weak magnet only snaps
+near price bars, Strong magnet snaps to the nearest visible candle OHLC value,
+and Ctrl/Cmd temporarily toggles magnet behavior while drawing or editing.
 Saved chart layouts continue to own panes, symbols, intervals, indicators,
 settings, theme, and view ranges, but they do not write or apply drawings. Older
 layout JSON may still contain a legacy `drawings` snapshot; the app migrates
@@ -623,7 +629,9 @@ The chart app supports:
   rail. A same-slot Zoom in button follows Measure, enters a one-shot
   marquee mode, zooms the active pane to the dragged box on release, clears
   its active state, then shows a left-rail Zoom out button underneath while
-  a pre-zoom view is available to restore. Measure creates a two-anchor
+  a pre-zoom view is available to restore. Magnet mode follows Zoom in on the
+  left rail and cycles Off, Weak, Strong without changing selected drawing tool.
+  Measure creates a two-anchor
   `measure` drawing that reuses the same logical-index,
   price, timestamp, persistence, hit-test, and drag infrastructure as the other
   drawing objects, while rendering with a TradingView-like blue measured range:

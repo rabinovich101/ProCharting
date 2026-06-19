@@ -52,6 +52,7 @@ import {
   GripVertical,
   Layers,
   Lock,
+  Magnet,
   MoreHorizontal,
   Pencil,
   Ruler,
@@ -282,6 +283,7 @@ type IconToolTab = 'emojis' | 'stickers' | 'icons';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
 type DrawingVisibilityMode = 'all' | 'intraday' | 'daily-plus';
+type DrawingMagnetMode = 'off' | 'weak' | 'strong';
 type DrawingToolbarMenuId = 'templates' | 'color' | 'text' | 'width' | 'style' | 'settings' | 'alert' | 'more';
 type DrawingSettingsTab = 'style' | 'text' | 'coordinates' | 'visibility';
 type DrawingArrowEnd = 'none' | 'arrow';
@@ -888,6 +890,13 @@ const CURSOR_TOOLS_WITHOUT_CROSSHAIR: ReadonlySet<CursorToolId> = new Set(['arro
 const CURSOR_FAVORITES_STORAGE_KEY = 'procharting.cursorToolFavorites';
 const INDICATOR_FAVORITES_STORAGE_KEY = 'procharting.indicatorFavorites';
 const VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY = 'procharting.valuesTooltipOnLongPress';
+const DRAWING_MAGNET_MODE_STORAGE_KEY = 'procharting.drawingMagnetMode';
+const DRAWING_MAGNET_WEAK_TOLERANCE_PX = 18;
+const DRAWING_MAGNET_MODE_LABELS: Record<DrawingMagnetMode, string> = {
+  off: 'Magnet mode off',
+  weak: 'Weak magnet',
+  strong: 'Strong magnet',
+};
 const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'trend-line': 'Trendline',
   ray: 'Ray',
@@ -2804,6 +2813,10 @@ const cloneDrawing = (drawing: ChartDrawing): ChartDrawing => ({
 });
 const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   typeof value === 'string' && Object.prototype.hasOwnProperty.call(DRAWING_TOOL_LABELS, value);
+const isDrawingMagnetMode = (value: unknown): value is DrawingMagnetMode =>
+  value === 'off' || value === 'weak' || value === 'strong';
+const getNextDrawingMagnetMode = (mode: DrawingMagnetMode): DrawingMagnetMode =>
+  mode === 'off' ? 'weak' : mode === 'weak' ? 'strong' : 'off';
 const isFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' ||
   kind === 'fib-extension' ||
@@ -7219,6 +7232,7 @@ export default function Home() {
   const [contentToolDialogValue, setContentToolDialogValue] = useState('');
   const [contentToolDialogError, setContentToolDialogError] = useState('');
   const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingToolId | null>(null);
+  const [drawingMagnetMode, setDrawingMagnetMode] = useState<DrawingMagnetMode>('off');
   const [activeDrawingMenu, setActiveDrawingMenu] = useState<DrawingMenuId | null>(null);
   const [drawingToolbarPosition, setDrawingToolbarPosition] = useState<DrawingToolbarPosition | null>(null);
   const [activeDrawingToolbarMenu, setActiveDrawingToolbarMenu] = useState<DrawingToolbarMenuId | null>(null);
@@ -7527,6 +7541,11 @@ export default function Home() {
       const rawValuesTooltip = window.localStorage.getItem(VALUES_TOOLTIP_LONG_PRESS_STORAGE_KEY);
       if (rawValuesTooltip !== null) {
         setValuesTooltipOnLongPress(rawValuesTooltip === 'true');
+      }
+
+      const rawDrawingMagnetMode = window.localStorage.getItem(DRAWING_MAGNET_MODE_STORAGE_KEY);
+      if (isDrawingMagnetMode(rawDrawingMagnetMode)) {
+        setDrawingMagnetMode(rawDrawingMagnetMode);
       }
 
       const rawIndicatorFavorites = window.localStorage.getItem(INDICATOR_FAVORITES_STORAGE_KEY);
@@ -8430,11 +8449,82 @@ export default function Home() {
     };
   };
 
-  const getDrawingAnchorAtPoint = (paneIndex: number, x: number, y: number): ChartDrawingAnchor | null => {
+  const getEffectiveDrawingMagnetMode = (
+    event?: Pick<React.MouseEvent<HTMLCanvasElement>, 'ctrlKey' | 'metaKey'>
+  ): DrawingMagnetMode => {
+    const modifierActive = Boolean(event?.ctrlKey || event?.metaKey);
+    if (!modifierActive) return drawingMagnetMode;
+    return drawingMagnetMode === 'off' ? 'weak' : 'off';
+  };
+  const getMagnetizedDrawingAnchorAtPoint = (
+    paneIndex: number,
+    x: number,
+    y: number,
+    mode: DrawingMagnetMode,
+    currentPriceRange: PriceRange,
+    chartArea: ChartCanvasArea
+  ): ChartDrawingAnchor | null => {
+    if (mode === 'off') return null;
+
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane?.candles.length || chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    const rawLogicalIndex =
+      pane.viewRange.startIndex +
+      clamp((x - chartArea.left) / Math.max(1, chartArea.width), 0, 1) * pane.viewRange.candlesPerView;
+    if (rawLogicalIndex < 0 || rawLogicalIndex >= pane.candles.length) return null;
+
+    const priceSpan = currentPriceRange.maxPrice - currentPriceRange.minPrice || 1;
+    const yForPrice = (price: number) =>
+      chartArea.top + ((currentPriceRange.maxPrice - price) / priceSpan) * chartArea.height;
+    const xForLogicalIndex = (logicalIndex: number) =>
+      chartArea.left +
+      ((logicalIndex - pane.viewRange.startIndex) / Math.max(1, pane.viewRange.candlesPerView)) * chartArea.width;
+    const firstCandidateIndex = Math.max(0, Math.floor(rawLogicalIndex) - 1);
+    const lastCandidateIndex = Math.min(pane.candles.length - 1, Math.ceil(rawLogicalIndex) + 1);
+    let bestCandidate: { distance: number; logicalIndex: number; price: number } | null = null;
+
+    for (let index = firstCandidateIndex; index <= lastCandidateIndex; index += 1) {
+      const candle = pane.candles[index];
+      if (!candle) continue;
+
+      const logicalIndex = index + 0.5;
+      const candleX = xForLogicalIndex(logicalIndex);
+      for (const price of [candle.open, candle.high, candle.low, candle.close]) {
+        if (!Number.isFinite(price)) continue;
+
+        const distance = Math.hypot(candleX - x, yForPrice(price) - y);
+        if (!bestCandidate || distance < bestCandidate.distance) {
+          bestCandidate = { distance, logicalIndex, price };
+        }
+      }
+    }
+
+    if (!bestCandidate) return null;
+
+    const candleSpacing = chartArea.width / Math.max(1, pane.viewRange.candlesPerView);
+    const weakTolerance = Math.max(DRAWING_MAGNET_WEAK_TOLERANCE_PX, Math.min(32, candleSpacing * 0.6));
+    if (mode === 'weak' && bestCandidate.distance > weakTolerance) return null;
+
+    return {
+      logicalIndex: bestCandidate.logicalIndex,
+      price: bestCandidate.price,
+      time: getTimeAtVirtualIndex(bestCandidate.logicalIndex, pane.candles, timeframeToMilliseconds(pane.timeframe)),
+    };
+  };
+  const getDrawingAnchorAtPoint = (
+    paneIndex: number,
+    x: number,
+    y: number,
+    magnetMode: DrawingMagnetMode = drawingMagnetMode
+  ): ChartDrawingAnchor | null => {
     const pane = paneStatesRef.current[paneIndex];
     const currentPriceRange = getCurrentPriceRange(paneIndex);
     const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
     if (!pane || !currentPriceRange || chartArea.width <= 0 || chartArea.height <= 0) return null;
+
+    const magnetizedAnchor = getMagnetizedDrawingAnchorAtPoint(paneIndex, x, y, magnetMode, currentPriceRange, chartArea);
+    if (magnetizedAnchor) return magnetizedAnchor;
 
     const logicalIndex =
       pane.viewRange.startIndex +
@@ -8847,6 +8937,28 @@ export default function Home() {
     freehandDrawingRef.current = null;
     measureDrawingDragRef.current = null;
     drawingDragRef.current = createDrawingDragState(paneIndex);
+  };
+  const setStoredDrawingMagnetMode = (mode: DrawingMagnetMode) => {
+    setDrawingMagnetMode(mode);
+    try {
+      window.localStorage.setItem(DRAWING_MAGNET_MODE_STORAGE_KEY, mode);
+    } catch {
+      // storage unavailable
+    }
+  };
+  const toggleDrawingMagnetMode = () => {
+    if (!isAuthenticated) {
+      clearDrawingInteractionState();
+      return;
+    }
+
+    setOpenMenu(null);
+    setHeaderPanel(null);
+    setSettingsTarget(null);
+    setMoreTarget(null);
+    setActiveDrawingToolbarMenu(null);
+    setDrawingToolbarStatus('');
+    setStoredDrawingMagnetMode(getNextDrawingMagnetMode(drawingMagnetMode));
   };
   const toggleDrawingMenu = (menu: DrawingMenuId) => {
     if (!isAuthenticated) {
@@ -9454,7 +9566,7 @@ export default function Home() {
     // Zoom tool (marquee drag-to-zoom) takes priority and needs no auth — it is chart
     // navigation, not a drawing. Drag a box; on release the chart zooms into it.
     if (railZoomActive && area === 'plot') {
-      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y, 'off');
       if (!anchor) return;
       railZoomDragRef.current = {
         paneIndex,
@@ -9472,7 +9584,7 @@ export default function Home() {
     }
 
     if (area === 'plot' && isAuthenticated && activeDrawingTool) {
-      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
       if (!anchor) return;
 
       if (isMeasureDrawingTool(activeDrawingTool)) {
@@ -9576,7 +9688,7 @@ export default function Home() {
               const endPoint = getDrawingPointForAnchor(paneIndex, nextAnchors[1]!);
               if (startPoint && endPoint) {
                 getDefaultShapeCurveControls(activeDrawingTool, startPoint, endPoint).forEach((controlPoint) => {
-                  const controlAnchor = getDrawingAnchorAtPoint(paneIndex, controlPoint.x, controlPoint.y);
+                  const controlAnchor = getDrawingAnchorAtPoint(paneIndex, controlPoint.x, controlPoint.y, 'off');
                   if (controlAnchor) nextAnchors.push(controlAnchor);
                 });
               }
@@ -9766,7 +9878,7 @@ export default function Home() {
       const bounds = chartBoundsRefs.current[paneIndex]?.chartArea;
       const clampedX = bounds ? clamp(x, bounds.left, bounds.left + bounds.width) : x;
       const clampedY = bounds ? clamp(y, bounds.top, bounds.top + bounds.height) : y;
-      const preview = getDrawingAnchorAtPoint(paneIndex, clampedX, clampedY);
+      const preview = getDrawingAnchorAtPoint(paneIndex, clampedX, clampedY, 'off');
       const hasMoved =
         railZoomDrag.hasMoved ||
         Math.hypot(event.clientX - railZoomDrag.startClientX, event.clientY - railZoomDrag.startClientY) > 3;
@@ -9789,7 +9901,7 @@ export default function Home() {
 
     const freehandDrawing = freehandDrawingRef.current;
     if (isAuthenticated && freehandDrawing && freehandDrawing.paneIndex === paneIndex && area === 'plot') {
-      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const anchor = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
       if (anchor) {
         const sampleDistance = Math.hypot(x - freehandDrawing.lastPoint.x, y - freehandDrawing.lastPoint.y);
         if (
@@ -9813,7 +9925,7 @@ export default function Home() {
     const measureDrawingDrag = measureDrawingDragRef.current;
     if (isAuthenticated && measureDrawingDrag && measureDrawingDrag.paneIndex === paneIndex) {
       if (area === 'plot') {
-        const preview = getDrawingAnchorAtPoint(paneIndex, x, y);
+        const preview = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
         if (preview) {
           const hasMoved =
             measureDrawingDrag.hasMoved ||
@@ -9839,7 +9951,7 @@ export default function Home() {
       pendingDrawing.paneIndex === paneIndex &&
       area === 'plot'
     ) {
-      const preview = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const preview = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
       if (preview) {
         setPendingDrawing((current) => (current ? { ...current, preview } : current));
       }
@@ -9853,7 +9965,7 @@ export default function Home() {
     if (isAuthenticated && drawingDrag.mode !== 'none' && drawingDrag.paneIndex === paneIndex && drawingDrag.drawingId) {
       const currentPriceRange = getCurrentPriceRange(paneIndex);
       const { chartArea } = chartBoundsRefs.current[paneIndex] ?? createDefaultChartBounds();
-      const currentAnchor = getDrawingAnchorAtPoint(paneIndex, x, y);
+      const currentAnchor = getDrawingAnchorAtPoint(paneIndex, x, y, getEffectiveDrawingMagnetMode(event));
 
       if (currentPriceRange && chartArea.width > 0 && chartArea.height > 0 && currentAnchor) {
         const deltaX = event.clientX - drawingDrag.startX;
@@ -14247,6 +14359,8 @@ export default function Home() {
       activeDrawingTool !== null && isTextMenuDrawingTool(activeDrawingTool) ? activeDrawingTool : lastTextTool;
     const visibleIconTool =
       activeDrawingTool !== null && isIconDrawingTool(activeDrawingTool) ? activeDrawingTool : lastIconTool;
+    const magnetModeLabel = DRAWING_MAGNET_MODE_LABELS[drawingMagnetMode];
+    const nextMagnetModeLabel = DRAWING_MAGNET_MODE_LABELS[getNextDrawingMagnetMode(drawingMagnetMode)];
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -14507,6 +14621,21 @@ export default function Home() {
               </span>
             </button>
           )}
+        </div>
+        <div className="drawing-tool-group">
+          <button
+            type="button"
+            aria-label={`${magnetModeLabel}. Snaps drawings to candle OHLC values.`}
+            title={`${magnetModeLabel}. Click for ${nextMagnetModeLabel}. Ctrl/Cmd temporarily toggles while drawing.`}
+            data-name="magnet"
+            data-active={drawingMagnetMode !== 'off'}
+            data-magnet-mode={drawingMagnetMode}
+            onClick={toggleDrawingMagnetMode}
+          >
+            <span className="drawing-tool-icon magnet" aria-hidden="true">
+              <Magnet size={21} strokeWidth={1.85} />
+            </span>
+          </button>
         </div>
       </div>
     );
