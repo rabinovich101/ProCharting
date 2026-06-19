@@ -3261,6 +3261,25 @@ summary {
   font-size: 12px;
 }
 
+.magnet-menu {
+  min-width: 330px;
+}
+
+.magnet-menu-item {
+  grid-template-columns: 20px 104px minmax(0, 1fr);
+}
+
+.magnet-menu-check {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.magnet-menu-description {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .drawing-tool-icon {
   display: block;
   height: 18px;

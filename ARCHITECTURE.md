@@ -630,7 +630,8 @@ The chart app supports:
   marquee mode, zooms the active pane to the dragged box on release, clears
   its active state, then shows a left-rail Zoom out button underneath while
   a pre-zoom view is available to restore. Magnet mode follows Zoom in on the
-  left rail and cycles Off, Weak, Strong without changing selected drawing tool.
+  left rail and opens a menu with Off, Weak magnet, and Strong magnet choices
+  without changing selected drawing tool.
   Measure creates a two-anchor
   `measure` drawing that reuses the same logical-index,
   price, timestamp, persistence, hit-test, and drag infrastructure as the other

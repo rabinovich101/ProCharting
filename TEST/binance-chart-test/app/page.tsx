@@ -278,7 +278,8 @@ type DrawingMenuId =
   | 'forecast-tools'
   | 'shape-tools'
   | 'text-tools'
-  | 'icon-tools';
+  | 'icon-tools'
+  | 'magnet';
 type IconToolTab = 'emojis' | 'stickers' | 'icons';
 type DrawingLineStyle = 'solid' | 'dashed' | 'dotted';
 type DrawingExtendMode = 'none' | 'left' | 'right' | 'both';
@@ -897,6 +898,23 @@ const DRAWING_MAGNET_MODE_LABELS: Record<DrawingMagnetMode, string> = {
   weak: 'Weak magnet',
   strong: 'Strong magnet',
 };
+const DRAWING_MAGNET_MENU_ENTRIES: ReadonlyArray<{ mode: DrawingMagnetMode; label: string; description: string }> = [
+  {
+    mode: 'off',
+    label: 'Off',
+    description: 'Draw freely without OHLC snapping',
+  },
+  {
+    mode: 'weak',
+    label: 'Weak magnet',
+    description: 'Snap when drawing near candle OHLC values',
+  },
+  {
+    mode: 'strong',
+    label: 'Strong magnet',
+    description: 'Always pull anchors to candle OHLC values',
+  },
+];
 const DRAWING_TOOL_LABELS: Record<DrawingToolId, string> = {
   'trend-line': 'Trendline',
   ray: 'Ray',
@@ -2815,8 +2833,6 @@ const isDrawingToolId = (value: unknown): value is DrawingToolId =>
   typeof value === 'string' && Object.prototype.hasOwnProperty.call(DRAWING_TOOL_LABELS, value);
 const isDrawingMagnetMode = (value: unknown): value is DrawingMagnetMode =>
   value === 'off' || value === 'weak' || value === 'strong';
-const getNextDrawingMagnetMode = (mode: DrawingMagnetMode): DrawingMagnetMode =>
-  mode === 'off' ? 'weak' : mode === 'weak' ? 'strong' : 'off';
 const isFibDrawingTool = (kind: DrawingToolId) =>
   kind === 'fib-retracement' ||
   kind === 'fib-extension' ||
@@ -8946,7 +8962,7 @@ export default function Home() {
       // storage unavailable
     }
   };
-  const toggleDrawingMagnetMode = () => {
+  const selectDrawingMagnetMode = (mode: DrawingMagnetMode) => {
     if (!isAuthenticated) {
       clearDrawingInteractionState();
       return;
@@ -8957,8 +8973,9 @@ export default function Home() {
     setSettingsTarget(null);
     setMoreTarget(null);
     setActiveDrawingToolbarMenu(null);
+    setActiveDrawingMenu(null);
     setDrawingToolbarStatus('');
-    setStoredDrawingMagnetMode(getNextDrawingMagnetMode(drawingMagnetMode));
+    setStoredDrawingMagnetMode(mode);
   };
   const toggleDrawingMenu = (menu: DrawingMenuId) => {
     if (!isAuthenticated) {
@@ -14360,7 +14377,6 @@ export default function Home() {
     const visibleIconTool =
       activeDrawingTool !== null && isIconDrawingTool(activeDrawingTool) ? activeDrawingTool : lastIconTool;
     const magnetModeLabel = DRAWING_MAGNET_MODE_LABELS[drawingMagnetMode];
-    const nextMagnetModeLabel = DRAWING_MAGNET_MODE_LABELS[getNextDrawingMagnetMode(drawingMagnetMode)];
 
     return (
       <div className="drawing-tool-rail" role="toolbar" aria-label="Drawing tools" ref={drawingToolsRef}>
@@ -14626,16 +14642,39 @@ export default function Home() {
           <button
             type="button"
             aria-label={`${magnetModeLabel}. Snaps drawings to candle OHLC values.`}
-            title={`${magnetModeLabel}. Click for ${nextMagnetModeLabel}. Ctrl/Cmd temporarily toggles while drawing.`}
+            aria-haspopup="menu"
+            aria-expanded={activeDrawingMenu === 'magnet'}
+            title={`${magnetModeLabel}. Select magnet type. Ctrl/Cmd temporarily toggles while drawing.`}
             data-name="magnet"
             data-active={drawingMagnetMode !== 'off'}
             data-magnet-mode={drawingMagnetMode}
-            onClick={toggleDrawingMagnetMode}
+            onClick={() => toggleDrawingMenu('magnet')}
           >
             <span className="drawing-tool-icon magnet" aria-hidden="true">
               <Magnet size={21} strokeWidth={1.85} />
             </span>
           </button>
+          {activeDrawingMenu === 'magnet' && (
+            <div className="drawing-tool-menu magnet-menu" role="menu" aria-label="Magnet mode">
+              {DRAWING_MAGNET_MENU_ENTRIES.map((entry) => (
+                <button
+                  key={entry.mode}
+                  type="button"
+                  className="drawing-tool-menu-item magnet-menu-item"
+                  role="menuitemradio"
+                  aria-checked={drawingMagnetMode === entry.mode}
+                  data-active={drawingMagnetMode === entry.mode}
+                  onClick={() => selectDrawingMagnetMode(entry.mode)}
+                >
+                  <span className="drawing-tool-icon magnet-menu-check" aria-hidden="true">
+                    {drawingMagnetMode === entry.mode ? <Check size={15} strokeWidth={2.2} /> : null}
+                  </span>
+                  <span>{entry.label}</span>
+                  <span className="magnet-menu-description">{entry.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
