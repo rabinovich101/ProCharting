@@ -5868,6 +5868,36 @@ Changes made:
   commands are clearly labeled as post-publication install commands.
 - Added local `@procharting/prices` pack instructions for pre-publication
   verification.
+
+# Magnet Icon Menu Fix
+
+## Goal
+Expose the two TradingView magnet types inside the magnet icon menu instead of hiding them behind a cycling button.
+
+## Investigation / Decisions
+- Current implementation already has `weak` and `strong` snap behavior, but the rail icon cycles Off -> Weak -> Strong -> Off.
+- TradingView presents Magnet as a left-rail utility with type choices, so users should see Weak magnet and Strong magnet as explicit menu items.
+- Keep snapping architecture unchanged; only change selection UI and docs wording.
+
+## Checklist
+- [x] Add a magnet menu id and explicit mode menu selection handler.
+- [x] Change the Magnet rail icon to open a menu with Off, Weak magnet, Strong magnet.
+- [x] Update architecture/todo notes to reflect explicit menu selection.
+- [x] Run TypeScript/build and Playwright smoke.
+- [x] Clean, commit, and push.
+
+## Review
+- Added a magnet menu id and explicit `selectDrawingMagnetMode` handler so the rail button opens choices instead of cycling modes.
+- Added Off, Weak magnet, and Strong magnet menu rows under the magnet icon while preserving existing OHLC snapping behavior and storage key.
+- Updated `ARCHITECTURE.md` to describe the explicit magnet menu selection.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Playwright smoke on `http://127.0.0.1:3107`: opened the magnet menu, selected Weak then Strong, verified localStorage mode, drew a Trendline, and confirmed both anchors snapped to candle centers.
+  - `git diff --check`
+
+# Previous NPM Documentation Notes
+
 - Updated `ARCHITECTURE.md` to record that `@procharting/core` and
   `@procharting/prices` currently return npm registry `E404` responses.
 
