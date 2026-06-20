@@ -9064,3 +9064,34 @@ Add the next TradingView left-rail utility: Magnet mode for chart drawings, plac
   - Playwright smoke on `http://127.0.0.1:3106`: isolated local Supabase session stub, mocked market data, clicked Magnet to Weak and Strong, selected Trendline, placed a drawing, verified persisted `strong` mode and candle-center snapped anchors.
 - Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.
 - Generated `.next`, `.serena`, and codegraph pid changes cleaned after verification.
+# Move Volume Indicator Into Main Chart
+
+## Goal
+Render the Volume indicator inside the main price chart area, TradingView-style, instead of reserving a separate volume pane below the candles.
+
+## Investigation / Decisions
+- `TEST/binance-chart-test/app/page.tsx` already draws volume bars on the main price canvas, but `getChartVisualLayout` reserves `volumeHeight` below `chartArea`, which makes volume behave like its own pane.
+- Oscillator indicators already use separate resizable canvases and should keep that behavior.
+- Keep the change small: make `volumeArea` a bottom overlay band inside `chartArea`, remove volume from separate crosshair pane calculations, and update UI/architecture copy that still calls it a pane.
+
+## Checklist
+- [x] Update `todo.md` checklist before code changes.
+- [x] Change chart layout math so volume uses an overlay area inside the main chart.
+- [x] Keep oscillator indicator pane sizing unaffected.
+- [x] Update volume legend/settings wording to match overlay behavior.
+- [x] Update `ARCHITECTURE.md` with the discovered chart layout behavior.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright or Camoufox and clean generated artifacts.
+- [x] Commit, push, and confirm clean git status.
+
+## Review
+- Changed `getChartVisualLayout` so Volume uses a lower overlay band inside `chartArea`, no longer subtracting volume height or gap from the main price chart layout.
+- Kept oscillator indicators as separate stacked canvases and verified adding RSI still creates exactly one lower indicator canvas.
+- Updated settings/legend copy from volume pane wording to on-chart/overlay wording and documented the architecture behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Custom Playwright smoke on `http://127.0.0.1:3111` with mocked market data: Volume legend stayed inside price canvas, lower price-canvas volume pixels rendered, RSI rendered below price canvas, temporary screenshot cleaned.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.

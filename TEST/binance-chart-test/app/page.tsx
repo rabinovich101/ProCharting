@@ -2751,11 +2751,7 @@ const getChartVisualLayout = ({
   const minMainChartHeight = width < 520 ? 176 : 220;
   const availableAuxHeight = Math.max(0, height - bottomAxisHeight - topPlotInset - minMainChartHeight);
   const paneGap = 10;
-  const volumeHeight = showVolume ? Math.min(requestedVolumeHeight, Math.max(42, availableAuxHeight * 0.38)) : 0;
-  const availablePaneHeight = Math.max(
-    0,
-    availableAuxHeight - volumeHeight - (showVolume && oscillatorCount > 0 ? paneGap : 0)
-  );
+  const availablePaneHeight = availableAuxHeight;
   const oscillatorPaneHeight =
     oscillatorCount > 0
       ? clamp(
@@ -2773,26 +2769,26 @@ const getChartVisualLayout = ({
     top: topPlotInset,
     width: Math.max(80, width - rightAxisWidth - (compactChart ? 10 : 18)),
     height: Math.max(
-      120,
-      height -
-        bottomAxisHeight -
-        topPlotInset -
-        volumeHeight -
-        oscillatorTotalHeight -
-        (showVolume ? paneGap : 0) -
-        (oscillatorCount > 0 ? paneGap : 0)
-    ),
+        120,
+        height -
+          bottomAxisHeight -
+          topPlotInset -
+          oscillatorTotalHeight -
+          (oscillatorCount > 0 ? paneGap : 0)
+      ),
   };
+  const volumeHeight = showVolume
+    ? Math.min(requestedVolumeHeight, Math.max(42, chartArea.height * 0.28))
+    : 0;
   const volumeArea = {
     left: chartArea.left,
-    top: chartArea.top + chartArea.height + paneGap,
+    top: chartArea.top + Math.max(0, chartArea.height - volumeHeight),
     width: chartArea.width,
-    height: Math.max(0, volumeHeight - 14),
+    height: volumeHeight,
   };
   const oscillatorStartTop =
     chartArea.top +
     chartArea.height +
-    (showVolume ? volumeHeight + paneGap : 0) +
     (oscillatorCount > 0 ? paneGap : 0);
   const oscillatorPaneAreas = oscillatorIndicators.map((indicator, index) => ({
     indicator,
@@ -2803,7 +2799,6 @@ const getChartVisualLayout = ({
   }));
   const crosshairAreas: ChartCanvasArea[] = [
     chartArea,
-    ...(showVolume && volumeArea.height > 0 ? [volumeArea] : []),
     ...oscillatorPaneAreas
       .filter((area) => area.height > 0)
       .map(({ left, top, width: areaWidth, height: areaHeight }) => ({
@@ -14238,7 +14233,7 @@ export default function Home() {
             className="indicator-legend-overlay indicator-legend-overlay-floating"
             data-visual-pane="volume"
             style={getLegendStyleForArea(visualLayout.volumeArea)}
-            aria-label={`Volume indicators pane ${paneIndex + 1}`}
+            aria-label={`Volume overlay pane ${paneIndex + 1}`}
           >
             {renderLegendRow(
               visibleVolumeIndicator,
@@ -17659,7 +17654,7 @@ export default function Home() {
                             checked={chartSettings.showVolumePane}
                             onChange={(event) => updateChartSetting('showVolumePane', event.target.checked)}
                           />
-                          <span>Volume pane</span>
+                          <span>Volume on chart</span>
                         </label>
                       </>
                     )}

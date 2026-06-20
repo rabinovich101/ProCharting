@@ -677,7 +677,8 @@ The chart app supports:
 - Active indicators are stored as registry-backed instances with mutable
   settings. HTML legend/action rows mirror the canvas visual layout: price
   overlays sit under the instrument/OHLC row, volume controls sit over the
-  volume band, and oscillator controls sit over their lower panes. Rows stay
+  main price pane's lower volume overlay band, and oscillator controls sit
+  over their lower panes. Rows stay
   compact by default and expand on desktop hover/focus/open states to expose
   controls for hide/show, settings, remove, duplicate, and ordering actions.
   Ordering actions are scoped to the row's current visible legend group, so
@@ -694,7 +695,8 @@ The chart app supports:
   values for the snapped candle without recomputing every indicator from the
   full candle history.
 - Selected price overlays participate in automatic Y-range fitting and draw on
-  the main price pane. Volume draws in the volume band, and oscillator
+  the main price pane. Volume draws in a TradingView-style bottom overlay band
+  inside the main price pane and does not reserve a separate row; oscillator
   indicators draw in compact lower panes with guide lines and right-side value
   labels. Lower-pane headers are DOM legend/action rows that reuse the same
   per-candle legend-value extraction, so MACD line, signal, and histogram
