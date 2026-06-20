@@ -9063,7 +9063,60 @@ Add the next TradingView left-rail utility: Magnet mode for chart drawings, plac
   - `npm --prefix TEST/binance-chart-test run build`
   - Playwright smoke on `http://127.0.0.1:3106`: isolated local Supabase session stub, mocked market data, clicked Magnet to Weak and Strong, selected Trendline, placed a drawing, verified persisted `strong` mode and candle-center snapped anchors.
 - Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.
-- Generated `.next`, `.serena`, and codegraph pid changes cleaned after verification.
+
+# Admin User Session Activity Schema Cache Error
+
+## Goal
+Stop the admin users panel from exposing the raw Supabase schema-cache error for
+`public.user_session_activity`, and make the deployment path apply the existing
+session-activity migration so production databases do not lag behind the app.
+
+## Investigation / Decisions
+- The admin page is loading, but its session telemetry join reports `Could not
+  find the table 'public.user_session_activity' in the schema cache`.
+- `infra/supabase/migrations/003_user_session_activity.sql` already defines the
+  missing table, grants, RLS boundary, trigger, and indexes.
+- `scripts/deploy-vm.sh` restarts the Next.js app but does not apply project
+  Supabase migrations, so a VM checkout can deploy app code before its database
+  contract is present.
+- The Cloudflare `beacon.min.js` browser error is client-side analytics/privacy
+  blocking noise; it is separate from the Supabase data failure.
+- Keep the fix small: preserve the existing migration and admin page flow, add a
+  friendly missing-migration warning, and make VM deploy run the existing
+  idempotent migrations when the production Supabase runtime is available.
+
+## Checklist
+- [x] Inspect admin users table loading and session telemetry query.
+- [x] Confirm the session activity table exists in project migrations.
+- [x] Confirm VM deployment does not currently run Supabase migrations.
+- [x] Add admin-page handling for the known missing session telemetry table.
+- [x] Add VM deploy migration step using the existing Supabase helper.
+- [x] Update `ARCHITECTURE.md` with the deployment/schema-cache discovery.
+- [x] Run type/build checks.
+- [x] Verify admin page with Playwright or Camoufox.
+- [x] Clean generated verification artifacts.
+- [x] Commit, push, and confirm final git status.
+
+## Review
+- Added Supabase/PostgREST error formatting so `/admin/users` translates the
+  known missing `user_session_activity` schema-cache error into an actionable
+  migration warning while still rendering account rows.
+- Added VM deploy migration execution before PM2 is stopped when the production
+  Supabase runtime is present.
+- Updated the Supabase migration helper to notify PostgREST to reload schema
+  metadata after applying SQL files.
+- Updated `ARCHITECTURE.md` with the migration/cache deployment behavior.
+- Verification passed:
+  - `bash -n scripts/deploy-vm.sh`
+  - `sh -n infra/supabase/scripts/supabase.sh`
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Playwright desktop and mobile admin checks against a mocked Supabase
+    `PGRST205` schema-cache response.
+- Build warnings remain existing multiple-lockfile and missing Next ESLint
+  plugin warnings.
+- Generated `.next`, `.serena`, and codegraph pid changes cleaned after
+  verification.
 # Move Volume Indicator Into Main Chart
 
 ## Goal

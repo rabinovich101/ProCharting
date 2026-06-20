@@ -109,6 +109,11 @@ not contain Supabase server secrets such as service-role keys, JWT secrets,
 Postgres passwords, or OAuth client secrets.
 The file is owned by `root:ooo` with mode `0640` so the self-hosted Actions
 runner user can source it during deploy while other local users cannot read it.
+VM deployment applies project Supabase migrations before PM2 is stopped when a
+Supabase runtime exists at `PROCHARTING_SUPABASE_RUNTIME_DIR`, defaulting to
+`/home/ooo/procharts-supabase/runtime`. App-only deployments without that runtime
+skip this step by default; set `PROCHARTS_SUPABASE_MIGRATIONS=required` to fail
+the deploy when the runtime is missing, or `false` to skip explicitly.
 During VM deploy, app-local `.env.local` and `.env.production.local` files are
 moved aside before the Next.js build so stale ignored dotenv files cannot
 override `/etc/procharts/app.env` in production.
@@ -151,7 +156,9 @@ self-hosted Docker bundle, generates local secrets, and delegates operation to
 the generated runtime's `run.sh`.
 
 Project schema lives outside the generated runtime in
-`infra/supabase/migrations`. The first migration creates
+`infra/supabase/migrations`. The migration helper applies these SQL files to the
+selected runtime database and sends `notify pgrst, 'reload schema';` afterward
+so PostgREST refreshes table metadata after DDL. The first migration creates
 `public.chart_layouts` for authenticated user-owned chart state. Layout
 snapshots are stored as `jsonb` so the existing chart layout shape can evolve
 without prematurely normalizing every UI setting. Candles and live feed data
@@ -259,7 +266,9 @@ captures IP/user-agent metadata on the server, hashes the marker with
 `PROCHARTS_TRACKING_SALT` when configured or the service-role key fallback, and
 writes through the service-role boundary. The raw device marker is not stored in
 Postgres, and the tracking table has RLS enabled with direct anon/authenticated
-grants revoked. The users route is disabled until the app runtime has valid
+grants revoked. If the telemetry table is missing from PostgREST's schema cache,
+the admin users page keeps account rows visible and shows a migration-needed
+warning instead of raw Supabase internals. The users route is disabled until the app runtime has valid
 admin credentials, `SUPABASE_SERVICE_ROLE_KEY`, and either `SUPABASE_URL` or
 `NEXT_PUBLIC_SUPABASE_URL`. The privileged key remains server runtime state; it
 must not be copied into `NEXT_PUBLIC_*` variables or exposed to browser code.

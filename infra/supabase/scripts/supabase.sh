@@ -337,7 +337,15 @@ apply_migrations() {
     )
   done
 
-  [ "$found" = true ] || echo "No Supabase migrations found."
+  if [ "$found" = true ]; then
+    echo "Reloading PostgREST schema cache..."
+    (
+      cd "$RUNTIME_DIR"
+      docker compose exec -T db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "notify pgrst, 'reload schema';"
+    )
+  else
+    echo "No Supabase migrations found."
+  fi
 }
 
 case "${1:-help}" in

@@ -110,6 +110,52 @@ interface AdminUsersResult {
   total: number;
 }
 
+interface SupabaseFetchErrorLike {
+  code?: string;
+  details?: string;
+  hint?: string;
+  message?: string;
+}
+
+const SESSION_ACTIVITY_MISSING_TABLE_WARNING =
+  "Session activity tracking is not deployed yet. Run the Supabase migrate helper for the production runtime, then reload this page.";
+
+const getSupabaseFetchErrorText = (error: unknown): string => {
+  if (!error || typeof error !== "object") {
+    return "";
+  }
+
+  const { code, details, hint, message } = error as SupabaseFetchErrorLike;
+  return [code, message, details, hint].filter((value): value is string => Boolean(value)).join(" ");
+};
+
+const isMissingSessionActivityTableError = (error: unknown): boolean => {
+  const errorText = getSupabaseFetchErrorText(error).toLowerCase();
+
+  return (
+    errorText.includes("user_session_activity") &&
+    (errorText.includes("schema cache") ||
+      errorText.includes("could not find the table") ||
+      errorText.includes("does not exist") ||
+      errorText.includes("relation") ||
+      errorText.includes("pgrst205") ||
+      errorText.includes("42p01"))
+  );
+};
+
+const formatSupabaseFetchError = (error: unknown): string | null => {
+  if (!error) {
+    return null;
+  }
+
+  if (isMissingSessionActivityTableError(error)) {
+    return SESSION_ACTIVITY_MISSING_TABLE_WARNING;
+  }
+
+  const errorText = getSupabaseFetchErrorText(error);
+  return errorText || "Unknown Supabase fetch error.";
+};
+
 const getFirstEnv = (...names: string[]): string | null => {
   for (const name of names) {
     const value = process.env[name]?.trim();
@@ -186,7 +232,7 @@ const loadProfiles = async (
     .in("user_id", userIds);
 
   return {
-    error: error?.message ?? null,
+    error: formatSupabaseFetchError(error),
     profiles: (data ?? []) as UserProfileRow[],
   };
 };
@@ -205,7 +251,7 @@ const loadLayoutRows = async (
     .in("user_id", userIds);
 
   return {
-    error: error?.message ?? null,
+    error: formatSupabaseFetchError(error),
     layouts: (data ?? []) as ChartLayoutRow[],
   };
 };
@@ -243,7 +289,7 @@ const loadSessionRows = async (
     .limit(userIds.length * SESSION_ROWS_PER_USER);
 
   return {
-    error: error?.message ?? null,
+    error: formatSupabaseFetchError(error),
     sessions: (data ?? []) as unknown as UserSessionActivityRow[],
   };
 };
