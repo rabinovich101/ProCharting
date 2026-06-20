@@ -1,3 +1,35 @@
+# TradingView-Style Indicator Panes
+
+## Goal
+Make oscillator indicators render in separate resizable panes below the main chart canvas, matching the TradingView behavior shown in the supplied screen recording.
+
+## Investigation / Decisions
+- Reference video shows a top price chart pane with lower indicator panes separated by horizontal resize handles.
+- `TEST/binance-chart-test/app/page.tsx` already has chart layout cells, per-pane canvas refs, and `IndicatorPaneKind = 'price' | 'volume' | 'oscillator'`.
+- Current oscillator indicators are drawn into `oscillatorPaneAreas` inside the same chart canvas, which creates visual bands but not independent canvas panes.
+- Keep the change app-local and simple: preserve existing multi-chart layout cells, price drawing tools, view range, and volume overlay; add an inner vertical pane stack only when oscillator indicators are visible.
+- Store pane heights as CSS percentages in React state and update them from pointer dragging. No server or layout persistence schema change is needed for this first TradingView-like resizing behavior.
+
+## Checklist
+- [x] Inspect the supplied TradingView recording and identify the expected pane behavior.
+- [x] Locate the current chart canvas, indicator, and visual layout code.
+- [x] Add indicator pane sizing state and divider drag handlers.
+- [x] Render one canvas per oscillator indicator below the main chart canvas.
+- [x] Refactor oscillator drawing out of the main canvas into the indicator canvas path.
+- [x] Update CSS for stacked chart panes and resize handles.
+- [x] Update `ARCHITECTURE.md` with the new chart pane architecture.
+- [x] Run type/build checks.
+- [x] Verify with Playwright or Camoufox and clean generated artifacts.
+- [ ] Commit, push, and review final git status.
+
+## Review
+- Added an internal `chart-pane-stack` inside each chart layout cell so the price canvas and oscillator indicator canvases are separate rows.
+- RSI/MACD-style oscillator indicators now paint on their own canvases below the main chart canvas; the main canvas no longer allocates oscillator bands.
+- Added row-resize handles that adjust adjacent pane percentages locally while preserving the outer chart layout grid.
+- Moved the shared time-axis labels to the bottom indicator canvas when oscillator panes exist, avoiding duplicate time labels between panes.
+- Updated `ARCHITECTURE.md` with the new standalone chart pane composition.
+- Verification passed: `npx tsc --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and Playwright browser check adding RSI + MACD and dragging a divider.
+
 # Icon Polish Pass
 
 ## Goal
@@ -9032,3 +9064,34 @@ Add the next TradingView left-rail utility: Magnet mode for chart drawings, plac
   - Playwright smoke on `http://127.0.0.1:3106`: isolated local Supabase session stub, mocked market data, clicked Magnet to Weak and Strong, selected Trendline, placed a drawing, verified persisted `strong` mode and candle-center snapped anchors.
 - Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.
 - Generated `.next`, `.serena`, and codegraph pid changes cleaned after verification.
+# Move Volume Indicator Into Main Chart
+
+## Goal
+Render the Volume indicator inside the main price chart area, TradingView-style, instead of reserving a separate volume pane below the candles.
+
+## Investigation / Decisions
+- `TEST/binance-chart-test/app/page.tsx` already draws volume bars on the main price canvas, but `getChartVisualLayout` reserves `volumeHeight` below `chartArea`, which makes volume behave like its own pane.
+- Oscillator indicators already use separate resizable canvases and should keep that behavior.
+- Keep the change small: make `volumeArea` a bottom overlay band inside `chartArea`, remove volume from separate crosshair pane calculations, and update UI/architecture copy that still calls it a pane.
+
+## Checklist
+- [x] Update `todo.md` checklist before code changes.
+- [x] Change chart layout math so volume uses an overlay area inside the main chart.
+- [x] Keep oscillator indicator pane sizing unaffected.
+- [x] Update volume legend/settings wording to match overlay behavior.
+- [x] Update `ARCHITECTURE.md` with the discovered chart layout behavior.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright or Camoufox and clean generated artifacts.
+- [x] Commit, push, and confirm clean git status.
+
+## Review
+- Changed `getChartVisualLayout` so Volume uses a lower overlay band inside `chartArea`, no longer subtracting volume height or gap from the main price chart layout.
+- Kept oscillator indicators as separate stacked canvases and verified adding RSI still creates exactly one lower indicator canvas.
+- Updated settings/legend copy from volume pane wording to on-chart/overlay wording and documented the architecture behavior.
+- Verification passed:
+  - `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`
+  - `npm --prefix TEST/binance-chart-test run build`
+  - Custom Playwright smoke on `http://127.0.0.1:3111` with mocked market data: Volume legend stayed inside price canvas, lower price-canvas volume pixels rendered, RSI rendered below price canvas, temporary screenshot cleaned.
+  - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
+  - `git diff --check`
+- Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.

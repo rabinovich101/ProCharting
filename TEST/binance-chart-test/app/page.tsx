@@ -543,6 +543,10 @@ interface ChartVisualLayout {
   compactChart: boolean;
   narrowChart: boolean;
 }
+interface ChartPaneStackSize {
+  id: string;
+  percent: number;
+}
 
 interface MenuOption<T extends string> {
   value: T;
@@ -2596,6 +2600,56 @@ const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
 ];
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const PRICE_PANE_STACK_ID = 'price';
+const DEFAULT_INDICATOR_PANE_PERCENT = 22;
+const MIN_PRICE_PANE_PERCENT = 36;
+const MIN_INDICATOR_PANE_PERCENT = 10;
+
+const createDefaultPaneStackSizes = (indicatorIds: string[]): ChartPaneStackSize[] => {
+  if (indicatorIds.length === 0) {
+    return [{ id: PRICE_PANE_STACK_ID, percent: 100 }];
+  }
+
+  const indicatorTotal = Math.min(100 - MIN_PRICE_PANE_PERCENT, indicatorIds.length * DEFAULT_INDICATOR_PANE_PERCENT);
+  const indicatorPercent = indicatorTotal / indicatorIds.length;
+
+  return [
+    { id: PRICE_PANE_STACK_ID, percent: 100 - indicatorTotal },
+    ...indicatorIds.map((id) => ({ id, percent: indicatorPercent })),
+  ];
+};
+
+const normalizePaneStackSizes = (
+  savedSizes: ChartPaneStackSize[] | undefined,
+  indicatorIds: string[]
+): ChartPaneStackSize[] => {
+  const defaults = createDefaultPaneStackSizes(indicatorIds);
+  const savedById = new Map(savedSizes?.map((size) => [size.id, size.percent]));
+  const sizes = defaults.map((defaultSize, index) => {
+    const savedPercent = savedById.get(defaultSize.id);
+    const minPercent = index === 0 ? MIN_PRICE_PANE_PERCENT : MIN_INDICATOR_PANE_PERCENT;
+
+    return {
+      id: defaultSize.id,
+      percent:
+        savedPercent !== undefined && Number.isFinite(savedPercent)
+          ? Math.max(minPercent, savedPercent)
+          : defaultSize.percent,
+    };
+  });
+  const total = sizes.reduce((sum, size) => sum + size.percent, 0) || 100;
+
+  return sizes.map((size) => ({ ...size, percent: (size.percent / total) * 100 }));
+};
+
+const getPaneStackGridTemplateRows = (sizes: ChartPaneStackSize[]) =>
+  sizes
+    .flatMap((size, index) => {
+      const rowMin = index === 0 ? '160px' : '54px';
+      const row = `minmax(${rowMin}, ${Math.max(1, size.percent).toFixed(3)}fr)`;
+      return index < sizes.length - 1 ? [row, '6px'] : [row];
+    })
+    .join(' ');
 const COLOR_INPUT_FALLBACK = '#2962ff';
 const colorToInputValue = (color: string | undefined, fallback = COLOR_INPUT_FALLBACK) => {
   if (!color) return fallback;
@@ -2697,11 +2751,7 @@ const getChartVisualLayout = ({
   const minMainChartHeight = width < 520 ? 176 : 220;
   const availableAuxHeight = Math.max(0, height - bottomAxisHeight - topPlotInset - minMainChartHeight);
   const paneGap = 10;
-  const volumeHeight = showVolume ? Math.min(requestedVolumeHeight, Math.max(42, availableAuxHeight * 0.38)) : 0;
-  const availablePaneHeight = Math.max(
-    0,
-    availableAuxHeight - volumeHeight - (showVolume && oscillatorCount > 0 ? paneGap : 0)
-  );
+  const availablePaneHeight = availableAuxHeight;
   const oscillatorPaneHeight =
     oscillatorCount > 0
       ? clamp(
@@ -2719,26 +2769,26 @@ const getChartVisualLayout = ({
     top: topPlotInset,
     width: Math.max(80, width - rightAxisWidth - (compactChart ? 10 : 18)),
     height: Math.max(
-      120,
-      height -
-        bottomAxisHeight -
-        topPlotInset -
-        volumeHeight -
-        oscillatorTotalHeight -
-        (showVolume ? paneGap : 0) -
-        (oscillatorCount > 0 ? paneGap : 0)
-    ),
+        120,
+        height -
+          bottomAxisHeight -
+          topPlotInset -
+          oscillatorTotalHeight -
+          (oscillatorCount > 0 ? paneGap : 0)
+      ),
   };
+  const volumeHeight = showVolume
+    ? Math.min(requestedVolumeHeight, Math.max(42, chartArea.height * 0.28))
+    : 0;
   const volumeArea = {
     left: chartArea.left,
-    top: chartArea.top + chartArea.height + paneGap,
+    top: chartArea.top + Math.max(0, chartArea.height - volumeHeight),
     width: chartArea.width,
-    height: Math.max(0, volumeHeight - 14),
+    height: volumeHeight,
   };
   const oscillatorStartTop =
     chartArea.top +
     chartArea.height +
-    (showVolume ? volumeHeight + paneGap : 0) +
     (oscillatorCount > 0 ? paneGap : 0);
   const oscillatorPaneAreas = oscillatorIndicators.map((indicator, index) => ({
     indicator,
@@ -2749,7 +2799,6 @@ const getChartVisualLayout = ({
   }));
   const crosshairAreas: ChartCanvasArea[] = [
     chartArea,
-    ...(showVolume && volumeArea.height > 0 ? [volumeArea] : []),
     ...oscillatorPaneAreas
       .filter((area) => area.height > 0)
       .map(({ left, top, width: areaWidth, height: areaHeight }) => ({
@@ -7146,9 +7195,12 @@ interface ChartPaneProps {
   onActivate: () => void;
   canvasRef: Ref<HTMLCanvasElement>;
   canvasProps: CanvasHTMLAttributes<HTMLCanvasElement> & Record<`data-${string}`, string | number | boolean | undefined>;
+  stackRef?: Ref<HTMLDivElement>;
   children: ReactNode;
+  indicatorPanes?: ReactNode;
   className?: string;
   style?: CSSProperties;
+  stackStyle?: CSSProperties;
 }
 
 function ChartPane({
@@ -7158,9 +7210,12 @@ function ChartPane({
   onActivate,
   canvasRef,
   canvasProps,
+  stackRef,
   children,
+  indicatorPanes,
   className = '',
   style,
+  stackStyle,
 }: ChartPaneProps) {
   const canvasClassName = ['chart-canvas', canvasProps.className].filter(Boolean).join(' ');
 
@@ -7178,8 +7233,13 @@ function ChartPane({
         gridRow: cell.row,
       }}
     >
-      <canvas {...canvasProps} ref={canvasRef} className={canvasClassName} />
-      {children}
+      <div className="chart-pane-stack" ref={stackRef} style={stackStyle}>
+        <div className="chart-pane-row chart-price-pane-row">
+          <canvas {...canvasProps} ref={canvasRef} className={canvasClassName} />
+          {children}
+        </div>
+        {indicatorPanes}
+      </div>
     </div>
   );
 }
@@ -7187,6 +7247,8 @@ function ChartPane({
 export default function Home() {
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
+  const indicatorCanvasRefs = useRef<Array<Record<string, HTMLCanvasElement | null>>>([]);
+  const indicatorPaneStackRefs = useRef<Array<HTMLDivElement | null>>([]);
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
@@ -7286,6 +7348,7 @@ export default function Home() {
     if (activeDrawingTool) setRailZoomActive(false);
   }, [activeDrawingTool]);
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>(createDefaultActiveIndicators);
+  const [indicatorPaneSizesByPane, setIndicatorPaneSizesByPane] = useState<Record<number, ChartPaneStackSize[]>>({});
   const [settingsTarget, setSettingsTarget] = useState<IndicatorLegendTarget | null>(null);
   const [moreTarget, setMoreTarget] = useState<IndicatorLegendTarget | null>(null);
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
@@ -7358,6 +7421,72 @@ export default function Home() {
   );
   const indicatorCount = activeIndicators.length;
   const showVolume = chartSettings.showVolumePane && visibleVolumeIndicator !== undefined;
+  const visibleOscillatorIndicatorIds = visibleOscillatorIndicators.map((indicator) => indicator.id);
+  const getPaneStackSizes = (paneIndex: number) =>
+    normalizePaneStackSizes(indicatorPaneSizesByPane[paneIndex], visibleOscillatorIndicatorIds);
+  const setIndicatorCanvasRef = (paneIndex: number, indicatorId: string, node: HTMLCanvasElement | null) => {
+    const paneRefs = indicatorCanvasRefs.current[paneIndex] ?? {};
+    if (node) {
+      paneRefs[indicatorId] = node;
+    } else {
+      delete paneRefs[indicatorId];
+    }
+    indicatorCanvasRefs.current[paneIndex] = paneRefs;
+  };
+  const handleIndicatorPaneResizeStart = (
+    paneIndex: number,
+    dividerIndex: number,
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) => {
+    const stack = indicatorPaneStackRefs.current[paneIndex];
+    if (!stack) return;
+
+    const rect = stack.getBoundingClientRect();
+    if (rect.height <= 0) return;
+
+    const startY = event.clientY;
+    const startSizes = getPaneStackSizes(paneIndex);
+    const beforeStart = startSizes[dividerIndex];
+    const afterStart = startSizes[dividerIndex + 1];
+    if (!beforeStart || !afterStart) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const pairTotal = beforeStart.percent + afterStart.percent;
+    const beforeMin = dividerIndex === 0 ? MIN_PRICE_PANE_PERCENT : MIN_INDICATOR_PANE_PERCENT;
+    const afterMin = MIN_INDICATOR_PANE_PERCENT;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const deltaPercent = ((moveEvent.clientY - startY) / rect.height) * 100;
+      const beforePercent = clamp(beforeStart.percent + deltaPercent, beforeMin, pairTotal - afterMin);
+
+      setIndicatorPaneSizesByPane((current) => {
+        const currentSizes = normalizePaneStackSizes(current[paneIndex], visibleOscillatorIndicatorIds);
+        const nextSizes = currentSizes.map((size) => ({ ...size }));
+        if (!nextSizes[dividerIndex] || !nextSizes[dividerIndex + 1]) return current;
+
+        nextSizes[dividerIndex].percent = beforePercent;
+        nextSizes[dividerIndex + 1].percent = pairTotal - beforePercent;
+
+        return {
+          ...current,
+          [paneIndex]: normalizePaneStackSizes(nextSizes, visibleOscillatorIndicatorIds),
+        };
+      });
+    };
+
+    const stopResize = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResize);
+      window.removeEventListener('pointercancel', stopResize);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize, { once: true });
+    window.addEventListener('pointercancel', stopResize, { once: true });
+  };
   const paneIndicatorSeries = useMemo(() => {
     const nextCache = chartPanes.map((pane, paneIndex) => {
       const cached = indicatorSeriesCacheRef.current[paneIndex];
@@ -7409,6 +7538,236 @@ export default function Home() {
     }
   };
 
+  const drawIndicatorPaneCanvas = (
+    canvas: HTMLCanvasElement,
+    paneIndex: number,
+    indicator: ActiveIndicator,
+    isLastIndicatorPane: boolean
+  ) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane) return;
+
+    const { candles, viewRange, timeframe } = pane;
+    const computed = paneIndicatorSeries[paneIndex]?.[indicator.id];
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const background = ctx.createLinearGradient(0, 0, 0, rect.height);
+    background.addColorStop(0, palette.canvasTop);
+    background.addColorStop(1, palette.canvasBottom);
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    const compactChart = rect.width < 520;
+    const rightAxisWidth = compactChart ? 82 : 102;
+    const bottomAxisHeight = isLastIndicatorPane ? (compactChart ? 31 : 38) : 0;
+    const axisFontSize = compactChart ? 13 : 14;
+    const indicatorPaneFontSize = compactChart ? 12 : 13;
+    const chartArea = {
+      left: compactChart ? 8 : 12,
+      top: 0,
+      width: Math.max(80, rect.width - rightAxisWidth - (compactChart ? 10 : 18)),
+      height: Math.max(36, rect.height - bottomAxisHeight),
+    };
+
+    if (!computed || candles.length === 0 || chartArea.width <= 0 || chartArea.height <= 0) return;
+
+    const visibleIndexedCandles: Array<{ candle: Candle; index: number }> = [];
+    const firstVisibleIndex = Math.max(0, Math.floor(viewRange.startIndex));
+    const lastVisibleIndex = Math.min(candles.length - 1, Math.ceil(viewRange.endIndex) - 1);
+    for (let index = firstVisibleIndex; index <= lastVisibleIndex; index += 1) {
+      if (index + 1 > viewRange.startIndex && index < viewRange.endIndex) {
+        const candle = candles[index];
+        if (candle) visibleIndexedCandles.push({ candle, index });
+      }
+    }
+
+    const candleSpacing = chartArea.width / Math.max(1, viewRange.candlesPerView);
+    const candleWidth = clamp(candleSpacing * 0.64, 1, 12);
+    const xForIndex = (index: number) => chartArea.left + (index - viewRange.startIndex + 0.5) * candleSpacing;
+    const visibleValues = [
+      ...computed.lines.flatMap((line) =>
+        visibleIndexedCandles
+          .map(({ index }) => line.values[index])
+          .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value))
+      ),
+      ...(computed.histogram
+        ? visibleIndexedCandles
+            .map(({ index }) => computed.histogram?.[index])
+            .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value))
+        : []),
+      ...(computed.guideLines?.map((guide) => guide.value) ?? []),
+    ];
+
+    if (computed.noData || visibleValues.length === 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+      ctx.clip();
+      ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
+      ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+
+      if (computed.noData) {
+        ctx.fillStyle = palette.text;
+        ctx.globalAlpha = 0.66;
+        ctx.font = getCanvasFont(indicatorPaneFontSize);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(
+          'No data available for symbol',
+          chartArea.left + chartArea.width / 2,
+          chartArea.top + chartArea.height / 2
+        );
+        ctx.globalAlpha = 1;
+      }
+
+      ctx.restore();
+      ctx.strokeStyle = palette.axisBorder;
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, chartArea.top);
+      ctx.lineTo(chartArea.left + chartArea.width, chartArea.top);
+      ctx.lineTo(chartArea.left + chartArea.width, chartArea.top + chartArea.height);
+      ctx.stroke();
+      return;
+    }
+
+    const rawMin = computed.min ?? Math.min(...visibleValues);
+    const rawMax = computed.max ?? Math.max(...visibleValues);
+    const range = rawMax - rawMin || Math.max(1, Math.abs(rawMax) * 0.1);
+    const minValue = rawMin - range * 0.08;
+    const maxValue = rawMax + range * 0.08;
+    const valueRange = maxValue - minValue || 1;
+    const valueToY = (value: number) => chartArea.top + ((maxValue - value) / valueRange) * chartArea.height;
+    const timeTicks = createTimelineTicks(viewRange, candles, timeframe, chartArea.width, compactChart)
+      .map((tick) => ({
+        ...tick,
+        x: xForIndex(tick.index),
+      }))
+      .filter((tick) => tick.x >= chartArea.left && tick.x <= chartArea.left + chartArea.width);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+    ctx.clip();
+    ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
+    ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
+
+    if (computed.guideBand) {
+      const bandTop = valueToY(Math.max(computed.guideBand.from, computed.guideBand.to));
+      const bandBottom = valueToY(Math.min(computed.guideBand.from, computed.guideBand.to));
+      ctx.fillStyle = computed.guideBand.color;
+      ctx.fillRect(chartArea.left, bandTop, chartArea.width, Math.max(1, bandBottom - bandTop));
+    }
+
+    const tickInfo = createPriceTicks(minValue, maxValue, chartArea.height);
+    if (chartSettings.showGridLines) {
+      tickInfo.ticks.forEach((tick) => {
+        const y = valueToY(tick);
+        if (y < chartArea.top || y > chartArea.top + chartArea.height) return;
+
+        ctx.strokeStyle = palette.grid;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, y);
+        ctx.lineTo(chartArea.left + chartArea.width, y);
+        ctx.stroke();
+      });
+
+      timeTicks.forEach((tick) => {
+        ctx.strokeStyle = tick.major ? palette.gridStrong : palette.grid;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tick.x, chartArea.top);
+        ctx.lineTo(tick.x, chartArea.top + chartArea.height);
+        ctx.stroke();
+      });
+    }
+
+    computed.guideLines?.forEach((guide) => {
+      const y = valueToY(guide.value);
+      ctx.strokeStyle = palette.gridStrong;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.left + chartArea.width, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    const paneEndIndex = lastDrawableIndex(computed, candles.length, viewRange.endIndex);
+    drawIndicatorFills(ctx, computed, firstVisibleIndex, paneEndIndex, xForIndex, valueToY);
+
+    if (computed.histogram) {
+      const zeroY = valueToY(0);
+      visibleIndexedCandles.forEach(({ index }) => {
+        const value = computed.histogram?.[index];
+        if (value === null || value === undefined) return;
+        const x = xForIndex(index);
+        const y = valueToY(value);
+        ctx.fillStyle =
+          computed.histogramColors?.[index] ??
+          (value >= 0 ? computed.histogramPositive ?? palette.greenSoft : computed.histogramNegative ?? palette.redSoft);
+        ctx.fillRect(
+          x - candleWidth / 2,
+          Math.min(zeroY, y),
+          Math.max(1, candleWidth),
+          Math.max(1, Math.abs(zeroY - y))
+        );
+      });
+    }
+
+    computed.lines.forEach((line) => {
+      drawIndicatorSeriesLine(ctx, line, firstVisibleIndex, paneEndIndex, xForIndex, valueToY, 1.35);
+    });
+    ctx.restore();
+
+    const definition = getIndicatorDefinition(indicator.definitionId);
+    ctx.strokeStyle = palette.axisBorder;
+    ctx.beginPath();
+    ctx.moveTo(chartArea.left, chartArea.top);
+    ctx.lineTo(chartArea.left + chartArea.width, chartArea.top);
+    ctx.lineTo(chartArea.left + chartArea.width, chartArea.top + chartArea.height);
+    ctx.stroke();
+
+    ctx.font = getCanvasFont(axisFontSize);
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = palette.text;
+    ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, chartArea.top + indicatorPaneFontSize + 5);
+    ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, chartArea.top + chartArea.height - 7);
+
+    if (definition.formula === 'rsi' || definition.formula === 'stochastic') {
+      const midLabelY = valueToY(50);
+      if (midLabelY > chartArea.top + indicatorPaneFontSize + 10 && midLabelY < chartArea.top + chartArea.height - 12) {
+        ctx.fillText('50.00', rect.width - 8, midLabelY);
+      }
+    }
+
+    if (isLastIndicatorPane && bottomAxisHeight > 0) {
+      const timeScaleTop = rect.height - bottomAxisHeight;
+      ctx.strokeStyle = palette.axisBorder;
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, timeScaleTop);
+      ctx.lineTo(chartArea.left + chartArea.width, timeScaleTop);
+      ctx.stroke();
+
+      ctx.font = getCanvasFont(axisFontSize);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = palette.text;
+      timeTicks.forEach((tick) => {
+        const labelWidth = ctx.measureText(tick.label).width;
+        if (tick.x - labelWidth / 2 < chartArea.left || tick.x + labelWidth / 2 > chartArea.left + chartArea.width) return;
+        ctx.fillText(tick.label, tick.x, timeScaleTop + 23);
+      });
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -7442,6 +7801,8 @@ export default function Home() {
 
   useEffect(() => {
     canvasRefs.current = canvasRefs.current.slice(0, paneCount);
+    indicatorCanvasRefs.current = indicatorCanvasRefs.current.slice(0, paneCount);
+    indicatorPaneStackRefs.current = indicatorPaneStackRefs.current.slice(0, paneCount);
     chartBoundsRefs.current = Array.from(
       { length: paneCount },
       (_unused, index) => chartBoundsRefs.current[index] ?? createDefaultChartBounds()
@@ -10306,6 +10667,8 @@ export default function Home() {
 
     if (candles.length === 0) return;
 
+    const hasExternalIndicatorPanes = visibleOscillatorIndicators.length > 0;
+    const externalIndicatorBottomAxisHeight = hasExternalIndicatorPanes ? (rect.width < 520 ? 31 : 38) : 0;
     const {
       chartArea,
       volumeArea,
@@ -10317,9 +10680,9 @@ export default function Home() {
       narrowChart,
     } = getChartVisualLayout({
       width: rect.width,
-      height: rect.height,
+      height: rect.height + externalIndicatorBottomAxisHeight,
       showVolume,
-      oscillatorIndicators: visibleOscillatorIndicators,
+      oscillatorIndicators: [],
     });
     const axisFontSize = compactChart ? 13 : 14;
     const indicatorPaneFontSize = compactChart ? 12 : 13;
@@ -12413,33 +12776,35 @@ export default function Home() {
       ctx.fillText(formatPrice(price), rect.width - 8, y + 5);
     }
 
-    ctx.textAlign = 'center';
-    ctx.fillStyle = palette.text;
-    for (const tick of timeTicks) {
-      const labelWidth = ctx.measureText(tick.label).width;
-      const labelX = clamp(
-        tick.x,
-        chartArea.left + labelWidth / 2,
-        chartArea.left + chartArea.width - labelWidth / 2
-      );
-      ctx.fillText(tick.label, labelX, rect.height - 10);
-    }
-
-    drawingTimeLabels.forEach((label) => {
-      if (label.x < chartArea.left || label.x > chartArea.left + chartArea.width || timeScaleArea.height <= 0) return;
-
-      const labelText = formatTime(label.time, true);
-      const labelWidth = ctx.measureText(labelText).width + 18;
-      const labelHeight = 22;
-      const labelX = clamp(label.x - labelWidth / 2, chartArea.left, chartArea.left + chartArea.width - labelWidth);
-      const labelY = timeScaleArea.top + 4;
-
-      ctx.fillStyle = label.color;
-      ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-      ctx.fillStyle = '#ffffff';
+    if (!hasExternalIndicatorPanes) {
       ctx.textAlign = 'center';
-      ctx.fillText(labelText, labelX + labelWidth / 2, labelY + 15);
-    });
+      ctx.fillStyle = palette.text;
+      for (const tick of timeTicks) {
+        const labelWidth = ctx.measureText(tick.label).width;
+        const labelX = clamp(
+          tick.x,
+          chartArea.left + labelWidth / 2,
+          chartArea.left + chartArea.width - labelWidth / 2
+        );
+        ctx.fillText(tick.label, labelX, rect.height - 10);
+      }
+
+      drawingTimeLabels.forEach((label) => {
+        if (label.x < chartArea.left || label.x > chartArea.left + chartArea.width || timeScaleArea.height <= 0) return;
+
+        const labelText = formatTime(label.time, true);
+        const labelWidth = ctx.measureText(labelText).width + 18;
+        const labelHeight = 22;
+        const labelX = clamp(label.x - labelWidth / 2, chartArea.left, chartArea.left + chartArea.width - labelWidth);
+        const labelY = timeScaleArea.top + 4;
+
+        ctx.fillStyle = label.color;
+        ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(labelText, labelX + labelWidth / 2, labelY + 15);
+      });
+    }
 
     const cursorToolShowsCrosshair =
       !isAuthenticated ||
@@ -12510,18 +12875,20 @@ export default function Home() {
         ctx.fillText(priceLabel, chartArea.left + chartArea.width + 7, crosshairPosition.y + 5);
       }
 
-      const timeLabel = formatTime(timeForIndex(crosshairLogicalIndex), true);
-      const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
-      const labelX = clamp(
-        crosshairPosition.x - timeLabelWidth / 2,
-        chartArea.left,
-        chartArea.left + chartArea.width - timeLabelWidth
-      );
-      ctx.fillStyle = palette.axisBg;
-      ctx.fillRect(labelX, timeScaleArea.top + 4, timeLabelWidth, 22);
-      ctx.fillStyle = palette.textBright;
-      ctx.textAlign = 'center';
-      ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, timeScaleArea.top + 19);
+      if (!hasExternalIndicatorPanes) {
+        const timeLabel = formatTime(timeForIndex(crosshairLogicalIndex), true);
+        const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
+        const labelX = clamp(
+          crosshairPosition.x - timeLabelWidth / 2,
+          chartArea.left,
+          chartArea.left + chartArea.width - timeLabelWidth
+        );
+        ctx.fillStyle = palette.axisBg;
+        ctx.fillRect(labelX, timeScaleArea.top + 4, timeLabelWidth, 22);
+        ctx.fillStyle = palette.textBright;
+        ctx.textAlign = 'center';
+        ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, timeScaleArea.top + 19);
+      }
     }
 
   };
@@ -12535,6 +12902,19 @@ export default function Home() {
             crosshairPosition: getCurrentHoverMousePosition(paneIndex),
           });
         }
+      });
+      indicatorCanvasRefs.current.forEach((canvasByIndicatorId, paneIndex) => {
+        visibleOscillatorIndicators.forEach((indicator, indicatorIndex) => {
+          const canvas = canvasByIndicatorId?.[indicator.id];
+          if (!canvas) return;
+
+          drawIndicatorPaneCanvas(
+            canvas,
+            paneIndex,
+            indicator,
+            indicatorIndex === visibleOscillatorIndicators.length - 1
+          );
+        });
       });
 
       animationRef.current = requestAnimationFrame(animate);
@@ -13853,7 +14233,7 @@ export default function Home() {
             className="indicator-legend-overlay indicator-legend-overlay-floating"
             data-visual-pane="volume"
             style={getLegendStyleForArea(visualLayout.volumeArea)}
-            aria-label={`Volume indicators pane ${paneIndex + 1}`}
+            aria-label={`Volume overlay pane ${paneIndex + 1}`}
           >
             {renderLegendRow(
               visibleVolumeIndicator,
@@ -17274,7 +17654,7 @@ export default function Home() {
                             checked={chartSettings.showVolumePane}
                             onChange={(event) => updateChartSetting('showVolumePane', event.target.checked)}
                           />
-                          <span>Volume pane</span>
+                          <span>Volume on chart</span>
                         </label>
                       </>
                     )}
@@ -17323,6 +17703,24 @@ export default function Home() {
           {selectedLayoutCells.map((cellSpec, paneIndex) => {
             const pane = chartPanes[paneIndex] ?? activePane;
             const hoverState = getPaneHoverState(paneIndex);
+            const paneStackSizes = getPaneStackSizes(paneIndex);
+            const indicatorPanes = visibleOscillatorIndicators.map((indicator, indicatorIndex) => (
+              <Fragment key={`${paneIndex}-${indicator.id}`}>
+                <button
+                  type="button"
+                  className="chart-pane-resize-handle"
+                  aria-label={`Resize ${getIndicatorLegendName(indicator, pane.symbol)} pane`}
+                  onPointerDown={(event) => handleIndicatorPaneResizeStart(paneIndex, indicatorIndex, event)}
+                />
+                <div className="chart-pane-row chart-indicator-pane-row" data-indicator-id={indicator.id}>
+                  <canvas
+                    ref={(node) => setIndicatorCanvasRef(paneIndex, indicator.id, node)}
+                    className="chart-canvas chart-indicator-canvas"
+                    aria-label={`${getIndicatorLegendName(indicator, pane.symbol)} indicator pane`}
+                  />
+                </div>
+              </Fragment>
+            ));
 
             return (
               <ChartPane
@@ -17331,9 +17729,14 @@ export default function Home() {
                 paneIndex={paneIndex}
                 active={activePaneIndex === paneIndex}
                 onActivate={() => setActivePaneIndex(paneIndex)}
+                stackRef={(node) => {
+                  indicatorPaneStackRefs.current[paneIndex] = node;
+                }}
                 canvasRef={(node) => {
                   canvasRefs.current[paneIndex] = node;
                 }}
+                stackStyle={{ gridTemplateRows: getPaneStackGridTemplateRows(paneStackSizes) }}
+                indicatorPanes={indicatorPanes}
                 canvasProps={{
                   'aria-label': `${formatSymbol(pane.symbol, symbolSearchOptions)} ${pane.timeframe} chart pane ${paneIndex + 1}`,
                   'data-active-pane': activePaneIndex === paneIndex ? 'true' : 'false',
