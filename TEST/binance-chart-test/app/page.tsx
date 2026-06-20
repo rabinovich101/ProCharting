@@ -578,6 +578,7 @@ interface PaneHoverState {
   pointerX: number | null;
   pointerY: number | null;
   drawingHoverTarget: DrawingHoverTarget;
+  indicatorId: string | null;
 }
 
 type HeaderPanelKey =
@@ -4260,6 +4261,7 @@ const createPaneHoverState = (): PaneHoverState => ({
   pointerX: null,
   pointerY: null,
   drawingHoverTarget: null,
+  indicatorId: null,
 });
 const createChartPaneState = (
   symbol = DEFAULT_ACCOUNT_LAYOUT_SYMBOL,
@@ -7538,11 +7540,32 @@ export default function Home() {
     }
   };
 
+  const getIndicatorPaneVisualLayout = (
+    width: number,
+    height: number,
+    isLastIndicatorPane: boolean
+  ) => {
+    const compactChart = width < 520;
+    const rightAxisWidth = compactChart ? 82 : 102;
+    const bottomAxisHeight = isLastIndicatorPane ? (compactChart ? 31 : 38) : 0;
+    const axisFontSize = compactChart ? 13 : 14;
+    const indicatorPaneFontSize = compactChart ? 12 : 13;
+    const chartArea = {
+      left: compactChart ? 8 : 12,
+      top: 0,
+      width: Math.max(80, width - rightAxisWidth - (compactChart ? 10 : 18)),
+      height: Math.max(36, height - bottomAxisHeight),
+    };
+
+    return { compactChart, rightAxisWidth, bottomAxisHeight, axisFontSize, indicatorPaneFontSize, chartArea };
+  };
+
   const drawIndicatorPaneCanvas = (
     canvas: HTMLCanvasElement,
     paneIndex: number,
     indicator: ActiveIndicator,
-    isLastIndicatorPane: boolean
+    isLastIndicatorPane: boolean,
+    crosshairPosition: MousePosition | null = null
   ) => {
     const pane = paneStatesRef.current[paneIndex];
     if (!pane) return;
@@ -7564,17 +7587,8 @@ export default function Home() {
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, rect.width, rect.height);
 
-    const compactChart = rect.width < 520;
-    const rightAxisWidth = compactChart ? 82 : 102;
-    const bottomAxisHeight = isLastIndicatorPane ? (compactChart ? 31 : 38) : 0;
-    const axisFontSize = compactChart ? 13 : 14;
-    const indicatorPaneFontSize = compactChart ? 12 : 13;
-    const chartArea = {
-      left: compactChart ? 8 : 12,
-      top: 0,
-      width: Math.max(80, rect.width - rightAxisWidth - (compactChart ? 10 : 18)),
-      height: Math.max(36, rect.height - bottomAxisHeight),
-    };
+    const { compactChart, rightAxisWidth, bottomAxisHeight, axisFontSize, indicatorPaneFontSize, chartArea } =
+      getIndicatorPaneVisualLayout(rect.width, rect.height, isLastIndicatorPane);
 
     if (!computed || candles.length === 0 || chartArea.width <= 0 || chartArea.height <= 0) return;
 
@@ -7749,6 +7763,49 @@ export default function Home() {
       }
     }
 
+    const cursorToolShowsCrosshair =
+      !isAuthenticated || activeDrawingTool !== null || !CURSOR_TOOLS_WITHOUT_CROSSHAIR.has(cursorTool);
+    const crosshairInside =
+      chartSettings.showCrosshair &&
+      cursorToolShowsCrosshair &&
+      crosshairPosition &&
+      crosshairPosition.x >= chartArea.left &&
+      crosshairPosition.x <= chartArea.left + chartArea.width;
+
+    if (crosshairInside && crosshairPosition) {
+      const hoveringThisIndicator = getPaneHoverState(paneIndex).indicatorId === indicator.id;
+      const crosshairYInside =
+        crosshairPosition.y >= chartArea.top && crosshairPosition.y <= chartArea.top + chartArea.height;
+
+      ctx.strokeStyle = palette.crosshair;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(crosshairPosition.x, chartArea.top);
+      ctx.lineTo(crosshairPosition.x, chartArea.top + chartArea.height);
+      ctx.stroke();
+
+      if (hoveringThisIndicator && crosshairYInside) {
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, crosshairPosition.y);
+        ctx.lineTo(chartArea.left + chartArea.width, crosshairPosition.y);
+        ctx.stroke();
+      }
+
+      ctx.setLineDash([]);
+
+      if (hoveringThisIndicator && crosshairYInside) {
+        const indicatorValue = maxValue - ((crosshairPosition.y - chartArea.top) / chartArea.height) * valueRange;
+        const valueLabel = formatIndicatorNumber(indicatorValue);
+        ctx.fillStyle = palette.axisBg;
+        ctx.fillRect(chartArea.left + chartArea.width + 1, crosshairPosition.y - 11, rightAxisWidth - 6, 22);
+        ctx.fillStyle = palette.textBright;
+        ctx.font = getCanvasFont(axisFontSize);
+        ctx.textAlign = 'left';
+        ctx.fillText(valueLabel, chartArea.left + chartArea.width + 8, crosshairPosition.y + 5);
+      }
+    }
+
     if (isLastIndicatorPane && bottomAxisHeight > 0) {
       const timeScaleTop = rect.height - bottomAxisHeight;
       ctx.strokeStyle = palette.axisBorder;
@@ -7765,6 +7822,24 @@ export default function Home() {
         if (tick.x - labelWidth / 2 < chartArea.left || tick.x + labelWidth / 2 > chartArea.left + chartArea.width) return;
         ctx.fillText(tick.label, tick.x, timeScaleTop + 23);
       });
+
+      if (crosshairInside && crosshairPosition) {
+        const timeLabel = formatTime(
+          getTimeAtVirtualIndex(crosshairPosition.logicalIndex, candles, timeframeToMilliseconds(timeframe)),
+          true
+        );
+        const timeLabelWidth = ctx.measureText(timeLabel).width + 18;
+        const labelX = clamp(
+          crosshairPosition.x - timeLabelWidth / 2,
+          chartArea.left,
+          chartArea.left + chartArea.width - timeLabelWidth
+        );
+        ctx.fillStyle = palette.axisBg;
+        ctx.fillRect(labelX, timeScaleTop + 4, timeLabelWidth, 22);
+        ctx.fillStyle = palette.textBright;
+        ctx.textAlign = 'center';
+        ctx.fillText(timeLabel, labelX + timeLabelWidth / 2, timeScaleTop + 19);
+      }
     }
   };
 
@@ -9267,6 +9342,7 @@ export default function Home() {
       pointerX: x,
       pointerY: y,
       drawingHoverTarget,
+      indicatorId: null,
     };
 
     if (canvas) {
@@ -9283,6 +9359,83 @@ export default function Home() {
     if (currentLegendIndex !== nextLegendIndex) {
       requestLegendRender();
     }
+  };
+
+  const updateIndicatorPaneHoverAtPoint = (
+    paneIndex: number,
+    indicatorId: string,
+    x: number,
+    y: number,
+    area: ChartPointerArea,
+    canvas: HTMLCanvasElement | null
+  ) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane) return;
+
+    const snappedCrosshair = getSnappedCrosshairPosition(paneIndex, x);
+    const nextMousePos = {
+      x: snappedCrosshair.x,
+      y,
+      dataY: 0,
+      logicalIndex: snappedCrosshair.logicalIndex,
+    };
+    const currentLegendIndex = getHoverLegendIndex(paneIndex, pane, getCurrentHoverMousePosition(paneIndex));
+    const nextLegendIndex =
+      area !== 'outside' && pane.candles.length > 0
+        ? Math.floor(clamp(nextMousePos.logicalIndex, 0, pane.candles.length - 1))
+        : null;
+
+    paneHoverStatesRef.current[paneIndex] = {
+      mousePos: nextMousePos,
+      pointerArea: area,
+      pointerX: x,
+      pointerY: y,
+      drawingHoverTarget: null,
+      indicatorId,
+    };
+
+    if (canvas) {
+      canvas.dataset.pointerArea = area;
+      canvas.dataset.drawingHoverTarget = 'none';
+      canvas.style.cursor = getCursorToolCanvasCursor();
+    }
+
+    if (currentLegendIndex !== nextLegendIndex) {
+      requestLegendRender();
+    }
+  };
+
+  const handleIndicatorPaneMouseMove = (
+    paneIndex: number,
+    indicatorId: string,
+    isLastIndicatorPane: boolean,
+    event: React.MouseEvent<HTMLCanvasElement>
+  ) => {
+    const pane = paneStatesRef.current[paneIndex];
+    if (!pane) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const { chartArea } = getIndicatorPaneVisualLayout(rect.width, rect.height, isLastIndicatorPane);
+    const insideX = x >= chartArea.left && x <= chartArea.left + chartArea.width;
+    const insideY = y >= chartArea.top && y <= chartArea.top + chartArea.height;
+    const area: ChartPointerArea =
+      insideX && insideY
+        ? 'plot'
+        : isLastIndicatorPane && insideX && y > chartArea.top + chartArea.height
+          ? 'time-scale'
+          : 'outside';
+
+    updateIndicatorPaneHoverAtPoint(paneIndex, indicatorId, x, y, area, event.currentTarget);
+    event.preventDefault();
+  };
+
+  const handleIndicatorPaneMouseLeave = (paneIndex: number, event: React.MouseEvent<HTMLCanvasElement>) => {
+    resetPaneHoverState(paneIndex);
+    event.currentTarget.dataset.pointerArea = 'outside';
+    event.currentTarget.dataset.drawingHoverTarget = 'none';
+    event.currentTarget.style.cursor = getCursorToolCanvasCursor();
   };
 
   const getCanvasTouchPoints = (event: React.TouchEvent<HTMLCanvasElement>): ChartTouchPoint[] => {
@@ -12810,6 +12963,9 @@ export default function Home() {
       !isAuthenticated ||
       activeDrawingTool !== null ||
       !CURSOR_TOOLS_WITHOUT_CROSSHAIR.has(cursorTool);
+    const activeHoverState = paneHoverStatesRef.current[paneIndex];
+    const crosshairFromIndicatorPane =
+      activeHoverState?.indicatorId !== null && activeHoverState?.indicatorId !== undefined;
     const crosshairXInside =
       chartSettings.showCrosshair &&
       cursorToolShowsCrosshair &&
@@ -12818,12 +12974,14 @@ export default function Home() {
       crosshairPosition.x <= chartArea.left + chartArea.width;
     const crosshairYInsidePane =
       crosshairPosition &&
-      crosshairAreas.some(
-        (area) =>
-          crosshairPosition.y >= area.top &&
-          crosshairPosition.y <= area.top + area.height
-      );
+      (crosshairFromIndicatorPane ||
+        crosshairAreas.some(
+          (area) =>
+            crosshairPosition.y >= area.top &&
+            crosshairPosition.y <= area.top + area.height
+        ));
     const crosshairInsidePricePane =
+      !crosshairFromIndicatorPane &&
       crosshairPosition &&
       crosshairPosition.y >= chartArea.top &&
       crosshairPosition.y <= chartArea.top + chartArea.height;
@@ -12832,7 +12990,7 @@ export default function Home() {
     if (crosshairInside && crosshairPosition) {
       const crosshairLogicalIndex = crosshairPosition.logicalIndex;
 
-      if (isAuthenticated && cursorTool === 'demonstration') {
+      if (isAuthenticated && cursorTool === 'demonstration' && !crosshairFromIndicatorPane) {
         const hoverState = paneHoverStatesRef.current[paneIndex];
         if (
           hoverState &&
@@ -12912,7 +13070,8 @@ export default function Home() {
             canvas,
             paneIndex,
             indicator,
-            indicatorIndex === visibleOscillatorIndicators.length - 1
+            indicatorIndex === visibleOscillatorIndicators.length - 1,
+            getCurrentHoverMousePosition(paneIndex)
           );
         });
       });
@@ -17717,6 +17876,18 @@ export default function Home() {
                     ref={(node) => setIndicatorCanvasRef(paneIndex, indicator.id, node)}
                     className="chart-canvas chart-indicator-canvas"
                     aria-label={`${getIndicatorLegendName(indicator, pane.symbol)} indicator pane`}
+                    data-cursor-tool={isAuthenticated ? cursorTool : 'cross'}
+                    data-pointer-area={hoverState.indicatorId === indicator.id ? hoverState.pointerArea : 'outside'}
+                    style={{ cursor: getCursorToolCanvasCursor() }}
+                    onMouseMove={(event) =>
+                      handleIndicatorPaneMouseMove(
+                        paneIndex,
+                        indicator.id,
+                        indicatorIndex === visibleOscillatorIndicators.length - 1,
+                        event
+                      )
+                    }
+                    onMouseLeave={(event) => handleIndicatorPaneMouseLeave(paneIndex, event)}
                   />
                 </div>
               </Fragment>

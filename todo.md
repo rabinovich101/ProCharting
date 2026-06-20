@@ -1,3 +1,31 @@
+# TradingView-Style Indicator Crosshair
+
+## Goal
+Make the mouse crosshair line visible and synchronized on oscillator indicator panes below the main chart, matching TradingView's multi-pane cursor behavior.
+
+## Investigation / Decisions
+- TradingView keeps cursor interaction synchronized across the chart surface, so moving over a lower pane still shows the same vertical time crosshair through the chart stack.
+- `TEST/binance-chart-test/app/page.tsx` renders oscillator indicators in separate canvases under the main price canvas.
+- The main price canvas owns `onMouseMove` / `onMouseLeave`; indicator canvases currently render passively, so hover state is not updated when the pointer enters them.
+- Keep the fix app-local and simple: forward indicator-canvas mouse coordinates into the existing pane hover state, map the x coordinate through the same logical-index model, and draw the vertical crosshair plus local horizontal/value label inside indicator canvases.
+
+## Checklist
+- [x] Inspect TradingView current chart interaction behavior.
+- [x] Locate local pane/crosshair/indicator rendering code.
+- [x] Add indicator-canvas hover handlers that share pane hover state.
+- [x] Render synchronized crosshair feedback in indicator canvases.
+- [x] Update `ARCHITECTURE.md` with the discovered split-canvas interaction rule.
+- [x] Run type/build checks.
+- [x] Verify in browser with Playwright.
+- [x] Clean generated verification artifacts.
+- [x] Commit, push, and confirm final git status.
+
+## Review
+- Added indicator-canvas hover forwarding in `TEST/binance-chart-test/app/page.tsx` so lower oscillator panes share the same snapped logical crosshair state as the main chart canvas.
+- Indicator canvases now draw the synchronized vertical time crosshair, local horizontal/value guide when hovered, and bottom time label on the last lower pane.
+- Main chart crosshair rendering now treats lower-pane hover as vertical-only on the price canvas, avoiding a false horizontal price guide when the pointer is over an indicator.
+- Verification passed: TypeScript, production Next build, custom Playwright pixel/screenshot smoke for RSI lower-pane crosshair, existing signed-out Playwright e2e suite.
+
 # TradingView-Style Indicator Panes
 
 ## Goal

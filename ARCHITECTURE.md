@@ -1,5 +1,13 @@
 # ProCharting Architecture
 
+## Recent Chart Interaction Note
+
+Oscillator indicator panes are separate stacked canvases below the main
+price canvas. Their mouse hover events feed the same ref-backed pane hover
+state as the main chart canvas, keeping the TradingView-style vertical
+crosshair synchronized across the full pane stack while horizontal value
+guides remain scoped to the hovered canvas.
+
 ## Overview
 
 ProCharting is a next-generation financial charting library built for extreme performance. It leverages WebGPU compute shaders, multi-threading, and GPU-accelerated data processing to achieve 10x better performance than existing solutions.
