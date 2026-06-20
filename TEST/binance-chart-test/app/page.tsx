@@ -13769,16 +13769,15 @@ export default function Home() {
           oscillatorIndicators: visibleOscillatorIndicators,
         })
       : null;
-    const visibleVolumeIndicatorId =
-      showVolume && visualLayout?.volumeArea.height ? visibleVolumeIndicator?.id ?? null : null;
     const visibleOscillatorIndicatorIds = new Set(
       visualLayout?.oscillatorPaneAreas
         .filter((area) => area.height > 0)
         .map((area) => area.indicator.id) ?? []
     );
+    // Oscillator pane legends only override the vertical anchor (top of their
+    // pane); left margin and max-width are inherited from `.indicator-legend-overlay`
+    // so they line up with the symbol/OHLC + price-indicator stack, like TradingView.
     const getLegendStyleForArea = (area: ChartCanvasArea): CSSProperties => ({
-      left: area.left + 2,
-      maxWidth: Math.max(168, area.width - 8),
       top: area.top + 4,
     });
     const getSettingsPlacementForArea = (area: ChartCanvasArea) =>
@@ -13792,12 +13791,14 @@ export default function Home() {
 
       if (definition.pane === 'price') return true;
       if (!indicator.visible) return true;
-      if (definition.pane === 'volume') return indicator.id !== visibleVolumeIndicatorId;
+      // Volume is overlaid on the price pane, so its legend belongs in the
+      // top-left price stack (under the OHLC legend) like TradingView — not as a
+      // floating label down where the volume bars are drawn.
+      if (definition.pane === 'volume') return true;
       if (definition.pane === 'oscillator') return !visibleOscillatorIndicatorIds.has(indicator.id);
       return false;
     });
     const priceIndicatorIds = priceIndicators.map((indicator) => indicator.id);
-    const volumeIndicatorIds = visibleVolumeIndicatorId ? [visibleVolumeIndicatorId] : [];
 
     const renderLegendRow = (
       indicator: ActiveIndicator,
@@ -14385,20 +14386,6 @@ export default function Home() {
             aria-label={`Price indicators pane ${paneIndex + 1}`}
           >
             {priceIndicators.map((indicator) => renderLegendRow(indicator, 'below', priceIndicatorIds))}
-          </div>
-        )}
-        {visualLayout && visibleVolumeIndicatorId && visibleVolumeIndicator && (
-          <div
-            className="indicator-legend-overlay indicator-legend-overlay-floating"
-            data-visual-pane="volume"
-            style={getLegendStyleForArea(visualLayout.volumeArea)}
-            aria-label={`Volume overlay pane ${paneIndex + 1}`}
-          >
-            {renderLegendRow(
-              visibleVolumeIndicator,
-              getSettingsPlacementForArea(visualLayout.volumeArea),
-              volumeIndicatorIds
-            )}
           </div>
         )}
         {visualLayout?.oscillatorPaneAreas
