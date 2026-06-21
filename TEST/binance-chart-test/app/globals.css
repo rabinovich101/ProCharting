@@ -2193,7 +2193,7 @@ summary {
   top: 64px;
 }
 
-.indicator-legend-overlay-floating {
+.indicator-legend-overlay-oscillator {
   max-width: 360px;
 }
 
@@ -2214,37 +2214,36 @@ summary {
 
 .indicator-legend-main {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 91%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent);
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  box-shadow: none;
   display: flex;
-  gap: 7px;
+  gap: 5px;
   max-width: 100%;
-  min-height: 26px;
-  padding: 2px 6px 2px 8px;
+  min-height: 22px;
+  padding: 1px 4px 1px 5px;
   transition:
+    background-color 120ms ease,
     border-color 120ms ease,
-    box-shadow 120ms ease,
     gap 120ms ease,
-    min-height 120ms ease,
     padding 120ms ease;
   white-space: nowrap;
 }
 
 .chart-terminal[data-theme="light"] .indicator-legend-main {
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 2px 9px rgba(20, 32, 51, 0.1);
+  background: transparent;
+  box-shadow: none;
 }
 
 .indicator-legend-row:hover .indicator-legend-main,
 .indicator-legend-row:focus-within .indicator-legend-main,
 .indicator-legend-row[data-settings-open="true"] .indicator-legend-main,
 .indicator-legend-row[data-more-open="true"] .indicator-legend-main {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-strong));
-  gap: 10px;
-  min-height: 34px;
-  padding: 5px 7px 5px 9px;
+  background: color-mix(in srgb, var(--surface-1) 82%, transparent);
+  border-color: color-mix(in srgb, var(--border-subtle) 58%, transparent);
+  gap: 6px;
+  padding: 1px 5px;
 }
 
 .indicator-legend-row[data-visible="false"] .indicator-legend-main {
@@ -2252,11 +2251,10 @@ summary {
 }
 
 .indicator-legend-title {
-  color: var(--text-strong);
+  color: color-mix(in srgb, var(--text-strong) 88%, transparent);
   flex: 0 1 auto;
-  font-weight: 760;
+  font-weight: 520;
   overflow: hidden;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
   text-overflow: ellipsis;
 }
 
@@ -2264,8 +2262,7 @@ summary {
   flex: 0 0 auto;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 12px;
-  font-weight: 760;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38);
+  font-weight: 520;
 }
 
 .chart-terminal[data-theme="light"] .indicator-legend-title,
@@ -2276,7 +2273,7 @@ summary {
 .indicator-legend-actions {
   align-items: center;
   display: inline-flex;
-  gap: 3px;
+  gap: 1px;
   max-width: 0;
   opacity: 0;
   overflow: hidden;
@@ -2290,7 +2287,7 @@ summary {
 .indicator-legend-row:focus-within .indicator-legend-actions,
 .indicator-legend-row[data-settings-open="true"] .indicator-legend-actions,
 .indicator-legend-row[data-more-open="true"] .indicator-legend-actions {
-  max-width: 132px;
+  max-width: 100px;
   opacity: 1;
   pointer-events: auto;
 }
@@ -2299,20 +2296,26 @@ summary {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--text-muted);
   display: inline-flex;
-  height: 28px;
+  height: 22px;
   justify-content: center;
   outline: 0;
   padding: 0;
-  width: 28px;
+  width: 22px;
 }
 
 .legend-action-button:hover,
 .legend-action-button:focus-visible {
   background: var(--surface-2);
   color: var(--text-strong);
+}
+
+.legend-action-button svg {
+  height: 14px;
+  stroke-width: 1.8;
+  width: 14px;
 }
 
 .legend-action-glyph {

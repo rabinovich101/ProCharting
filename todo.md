@@ -1,3 +1,50 @@
+# TradingView-Style Oscillator Indicator Labels
+
+## Goal
+Make the labels on indicator panes below the main chart match the supplied
+TradingView screenshot: compact inline indicator name/values at the pane's
+top-left, with small eye/settings/action controls appearing beside the label
+instead of a floating card.
+
+## Investigation / Decisions
+- The screenshot shows lower-pane labels such as `RSI 14 close` and
+  `MACD 12 26 close` drawn directly on the pane surface, not in a bordered card.
+- `TEST/binance-chart-test/app/page.tsx` already has indicator legend actions
+  and an in-progress row ref/portal change for oscillator panes.
+- Finish the existing portal approach rather than replacing it: price/volume
+  legends stay in the price pane, visible oscillator legends render in their own
+  pane row.
+- Keep controls accessible and simple: retain the existing eye/settings/remove
+  /more buttons, but reveal them on hover/focus/open like TradingView.
+- Keep the change scoped to chart legend JSX/CSS and the architecture note.
+
+## Checklist
+- [x] Inspect the screenshot target and current indicator legend code.
+- [x] Identify the existing in-progress oscillator legend portal work.
+- [x] Finish oscillator-pane legend rendering into each lower pane row.
+- [x] Flatten and tighten indicator label styling to match TradingView.
+- [x] Update `ARCHITECTURE.md` for the lower-pane legend placement rule.
+- [x] Run build/type checks.
+- [x] Verify in browser with Playwright and inspect the indicator labels.
+- [x] Clean generated verification artifacts and review git status.
+
+## Review
+- Finished the in-progress oscillator legend portal path so visible oscillator
+  labels render from their own lower-pane row refs inside the chart pane stack.
+- Restyled indicator legend rows from floating card badges to compact
+  TradingView-style inline labels with hover/focus-revealed Lucide eye,
+  settings, remove, and more controls.
+- Updated `ARCHITECTURE.md` with the lower-pane legend placement rule.
+- `npm --prefix TEST/binance-chart-test run build` passed. Existing warnings
+  remain: multiple lockfiles and missing Next ESLint plugin.
+- Direct Playwright desktop and mobile checks passed: RSI/MACD lower-pane labels
+  stayed inside their pane/viewport, MACD hover revealed actions, and the label
+  row had no box shadow. The only browser console issue was the pre-existing
+  Google Tag Manager DNS failure in this environment.
+- Targeted Playwright E2E wrapper for the lower-pane MACD test timed out waiting
+  for its own port-3100 web server; direct Playwright against the running app
+  completed successfully.
+
 # TradingView-Style Indicator Crosshair
 
 ## Goal
