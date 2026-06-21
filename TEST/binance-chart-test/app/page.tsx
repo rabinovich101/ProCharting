@@ -13,6 +13,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient, type Session, type SupabaseClient, type User } from '@supabase/supabase-js';
 import {
   INDICATOR_DEFINITIONS,
@@ -7251,6 +7252,10 @@ export default function Home() {
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const indicatorCanvasRefs = useRef<Array<Record<string, HTMLCanvasElement | null>>>([]);
   const indicatorPaneStackRefs = useRef<Array<HTMLDivElement | null>>([]);
+  // Per-oscillator-pane row nodes, so each oscillator legend can be portalled to
+  // the top-left of its OWN pane (the indicator panes render in a separate stack
+  // row below the price pane, outside the price pane's clipped legend layer).
+  const indicatorPaneRowRefs = useRef<Array<Record<string, HTMLDivElement | null>>>([]);
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
@@ -7878,6 +7883,7 @@ export default function Home() {
     canvasRefs.current = canvasRefs.current.slice(0, paneCount);
     indicatorCanvasRefs.current = indicatorCanvasRefs.current.slice(0, paneCount);
     indicatorPaneStackRefs.current = indicatorPaneStackRefs.current.slice(0, paneCount);
+    indicatorPaneRowRefs.current = indicatorPaneRowRefs.current.slice(0, paneCount);
     chartBoundsRefs.current = Array.from(
       { length: paneCount },
       (_unused, index) => chartBoundsRefs.current[index] ?? createDefaultChartBounds()
@@ -8362,6 +8368,7 @@ export default function Home() {
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
+      const targetElement = target instanceof Element ? target : null;
 
       if (!controlRackRef.current?.contains(target)) {
         setOpenMenu(null);
@@ -8372,7 +8379,7 @@ export default function Home() {
         setActiveDrawingMenu(null);
       }
 
-      if (!indicatorLegendRef.current?.contains(target)) {
+      if (!indicatorLegendRef.current?.contains(target) && !targetElement?.closest('.indicator-legend-overlay')) {
         setSettingsTarget(null);
         setMoreTarget(null);
       }
@@ -13759,45 +13766,27 @@ export default function Home() {
       return null;
     }
 
-    const canvas = canvasRefs.current[paneIndex];
-    const rect = canvas?.getBoundingClientRect();
-    const visualLayout = rect
-      ? getChartVisualLayout({
-          width: rect.width,
-          height: rect.height,
-          showVolume,
-          oscillatorIndicators: visibleOscillatorIndicators,
-        })
-      : null;
-    const visibleVolumeIndicatorId =
-      showVolume && visualLayout?.volumeArea.height ? visibleVolumeIndicator?.id ?? null : null;
-    const visibleOscillatorIndicatorIds = new Set(
-      visualLayout?.oscillatorPaneAreas
-        .filter((area) => area.height > 0)
-        .map((area) => area.indicator.id) ?? []
-    );
-    const getLegendStyleForArea = (area: ChartCanvasArea): CSSProperties => ({
-      left: area.left + 2,
-      maxWidth: Math.max(168, area.width - 8),
-      top: area.top + 4,
-    });
-    const getSettingsPlacementForArea = (area: ChartCanvasArea) =>
-      rect && area.top + 260 > rect.height ? 'above' : 'below';
-    const visibleOscillatorIndicatorOrder =
-      visualLayout?.oscillatorPaneAreas
-        .filter((area) => area.height > 0)
-        .map((area) => area.indicator.id) ?? [];
+    // Each visible oscillator renders in its OWN pane row below the price pane.
+    // Its legend is portalled into that pane's stack (see return) so it sits at
+    // the pane's top-left like TradingView — not floating in the price pane.
+    const oscillatorGroupIds = visibleOscillatorIndicators.map((indicator) => indicator.id);
+    const oscillatorIdSet = new Set(oscillatorGroupIds);
+    const indicatorPaneStack = indicatorPaneStackRefs.current[paneIndex] ?? null;
+    const oscillatorRowNodes = indicatorPaneRowRefs.current[paneIndex] ?? {};
     const priceIndicators = activeIndicators.filter((indicator) => {
       const definition = getIndicatorDefinition(indicator.definitionId);
 
       if (definition.pane === 'price') return true;
       if (!indicator.visible) return true;
-      if (definition.pane === 'volume') return indicator.id !== visibleVolumeIndicatorId;
-      if (definition.pane === 'oscillator') return !visibleOscillatorIndicatorIds.has(indicator.id);
+      // Volume is overlaid on the price pane, so its legend belongs in the
+      // top-left price stack (under the OHLC legend) like TradingView — not as a
+      // floating label down where the volume bars are drawn.
+      if (definition.pane === 'volume') return true;
+      // Visible oscillators get a legend in their own pane (portalled below).
+      if (definition.pane === 'oscillator') return !oscillatorIdSet.has(indicator.id);
       return false;
     });
     const priceIndicatorIds = priceIndicators.map((indicator) => indicator.id);
-    const volumeIndicatorIds = visibleVolumeIndicatorId ? [visibleVolumeIndicatorId] : [];
 
     const renderLegendRow = (
       indicator: ActiveIndicator,
@@ -13890,7 +13879,11 @@ export default function Home() {
                 title={indicator.visible ? 'Hide' : 'Show'}
                 onClick={() => toggleIndicatorVisibility(indicator.id)}
               >
-                <span className={`legend-action-glyph ${indicator.visible ? 'eye' : 'eye-off'}`} aria-hidden="true" />
+                {indicator.visible ? (
+                  <Eye aria-hidden="true" />
+                ) : (
+                  <EyeOff aria-hidden="true" />
+                )}
               </button>
               <button
                 type="button"
@@ -13906,12 +13899,7 @@ export default function Home() {
                   setMoreTarget(null);
                 }}
               >
-                <span className="legend-action-glyph settings" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" focusable="false">
-                    <path d="M10.4 3h3.2l.6 2.4c.5.2 1 .4 1.4.8l2.4-.8 1.6 2.8-1.8 1.7c.1.5.2 1.1.2 1.6s-.1 1.1-.2 1.6l1.8 1.7-1.6 2.8-2.4-.8c-.4.3-.9.6-1.4.8l-.6 2.4h-3.2l-.6-2.4c-.5-.2-1-.4-1.4-.8l-2.4.8-1.6-2.8 1.8-1.7c-.1-.5-.2-1.1-.2-1.6s.1-1.1.2-1.6L4.4 8.2 6 5.4l2.4.8c.4-.3.9-.6 1.4-.8L10.4 3Z" />
-                    <circle cx="12" cy="11.5" r="2.6" />
-                  </svg>
-                </span>
+                <Settings aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -13920,7 +13908,7 @@ export default function Home() {
                 title="Remove"
                 onClick={() => removeIndicator(indicator.id)}
               >
-                <span className="legend-action-glyph remove" aria-hidden="true" />
+                <Trash2 aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -13936,7 +13924,7 @@ export default function Home() {
                   setSettingsTarget(null);
                 }}
               >
-                <span className="legend-action-glyph more" aria-hidden="true" />
+                <MoreHorizontal aria-hidden="true" />
               </button>
             </span>
           </div>
@@ -14368,55 +14356,52 @@ export default function Home() {
               </button>
             </div>
           )}
-        </div>
-      );
-    };
+      </div>
+    );
+  };
 
-    return (
-      <div
-        ref={attachRef ? indicatorLegendRef : undefined}
-        className="indicator-legend-layer"
-        aria-label={`Active indicators pane ${paneIndex + 1}`}
+  const oscillatorLegendPortals = indicatorPaneStack
+    ? visibleOscillatorIndicators.map((indicator) => {
+        const rowNode = oscillatorRowNodes[indicator.id];
+        if (!rowNode) return null;
+
+        const settingsPlacement =
+          rowNode.offsetTop + 260 > indicatorPaneStack.clientHeight ? 'above' : 'below';
+
+        return createPortal(
+          <div
+            className="indicator-legend-overlay indicator-legend-overlay-oscillator"
+            data-visual-pane="oscillator"
+            style={{ top: rowNode.offsetTop + 4 }}
+            aria-label={`${getIndicatorDefinition(indicator.definitionId).name} pane ${paneIndex + 1}`}
+          >
+            {renderLegendRow(indicator, settingsPlacement, oscillatorGroupIds)}
+          </div>,
+          indicatorPaneStack,
+          `${paneIndex}-${indicator.id}-pane-legend`
+        );
+      })
+    : null;
+
+  return (
+    <div
+      ref={attachRef ? indicatorLegendRef : undefined}
+      className="indicator-legend-layer"
+      aria-label={`Active indicators pane ${paneIndex + 1}`}
       >
         {priceIndicators.length > 0 && (
           <div
             className="indicator-legend-overlay indicator-legend-overlay-price"
             data-visual-pane="price"
             aria-label={`Price indicators pane ${paneIndex + 1}`}
-          >
-            {priceIndicators.map((indicator) => renderLegendRow(indicator, 'below', priceIndicatorIds))}
-          </div>
-        )}
-        {visualLayout && visibleVolumeIndicatorId && visibleVolumeIndicator && (
-          <div
-            className="indicator-legend-overlay indicator-legend-overlay-floating"
-            data-visual-pane="volume"
-            style={getLegendStyleForArea(visualLayout.volumeArea)}
-            aria-label={`Volume overlay pane ${paneIndex + 1}`}
-          >
-            {renderLegendRow(
-              visibleVolumeIndicator,
-              getSettingsPlacementForArea(visualLayout.volumeArea),
-              volumeIndicatorIds
-            )}
-          </div>
-        )}
-        {visualLayout?.oscillatorPaneAreas
-          .filter((area) => area.height > 0)
-          .map((area) => (
-            <div
-              key={`${paneIndex}-${area.indicator.id}-pane-legend`}
-              className="indicator-legend-overlay indicator-legend-overlay-floating"
-              data-visual-pane="oscillator"
-              style={getLegendStyleForArea(area)}
-              aria-label={`${getIndicatorDefinition(area.indicator.definitionId).name} pane ${paneIndex + 1}`}
-            >
-              {renderLegendRow(area.indicator, getSettingsPlacementForArea(area), visibleOscillatorIndicatorOrder)}
-            </div>
-          ))}
-      </div>
-    );
-  };
+        >
+          {priceIndicators.map((indicator) => renderLegendRow(indicator, 'below', priceIndicatorIds))}
+        </div>
+      )}
+      {oscillatorLegendPortals}
+    </div>
+  );
+};
   const retryPane = (paneIndex: number) => {
     updatePaneState(paneIndex, (pane) => ({ ...pane, refreshNonce: pane.refreshNonce + 1 }));
   };
@@ -17871,7 +17856,15 @@ export default function Home() {
                   aria-label={`Resize ${getIndicatorLegendName(indicator, pane.symbol)} pane`}
                   onPointerDown={(event) => handleIndicatorPaneResizeStart(paneIndex, indicatorIndex, event)}
                 />
-                <div className="chart-pane-row chart-indicator-pane-row" data-indicator-id={indicator.id}>
+                <div
+                  className="chart-pane-row chart-indicator-pane-row"
+                  data-indicator-id={indicator.id}
+                  ref={(node) => {
+                    const store = (indicatorPaneRowRefs.current[paneIndex] ??= {});
+                    store[indicator.id] = node;
+                    if (node) requestLegendRender();
+                  }}
+                >
                   <canvas
                     ref={(node) => setIndicatorCanvasRef(paneIndex, indicator.id, node)}
                     className="chart-canvas chart-indicator-canvas"

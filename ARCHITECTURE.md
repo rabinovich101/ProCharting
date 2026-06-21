@@ -8,6 +8,11 @@ state as the main chart canvas, keeping the TradingView-style vertical
 crosshair synchronized across the full pane stack while horizontal value
 guides remain scoped to the hovered canvas.
 
+Visible oscillator indicator legend rows are portalled into each chart pane
+stack and positioned from their lower-pane row refs. This keeps the compact
+TradingView-style name/value/action label pinned to the top-left of the
+indicator pane instead of floating inside the price pane legend layer.
+
 ## Overview
 
 ProCharting is a next-generation financial charting library built for extreme performance. It leverages WebGPU compute shaders, multi-threading, and GPU-accelerated data processing to achieve 10x better performance than existing solutions.
