@@ -97,6 +97,13 @@ layout JSON may still contain a legacy `drawings` snapshot; the app migrates
 those drawings into `procharting.drawings` only when the standalone key does not
 already exist, so deleted drawings are not resurrected from old layouts.
 
+Active saved layout id is stored separately under
+`procharting.activeChartLayoutId` so refresh restores same saved layout
+snapshot. Layout indicators may carry optional `paneIndex`; missing
+`paneIndex` remains legacy/global and renders on every pane, while newly
+added indicators attach to active chart pane and are saved back into the
+active layout immediately.
+
 ### 1.1 VM Deployment
 
 The public app deployment for `procharts.thefiscalwire.com` serves the

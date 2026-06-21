@@ -500,8 +500,8 @@ test.describe('signed-out chart access', () => {
     await expect(header.getByRole('button', { name: 'Sign up' })).toBeVisible();
   });
 
-  test('allows signed-out users to change symbols, chart type, and indicators', async ({ page }) => {
-    await openApp(page);
+test('allows signed-out users to change symbols, chart type, and indicators', async ({ page }) => {
+  await openApp(page);
 
     await page.getByRole('button', { name: 'Symbol search' }).click();
     await page.getByLabel('Search symbols').fill('ETHBTC');
@@ -524,12 +524,53 @@ test.describe('signed-out chart access', () => {
     await expect(
       indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Relative Strength Index Momentum oscillator RSI' })
     ).toBeVisible();
-    await indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Relative Strength Index Momentum oscillator RSI' }).click();
-    await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
-  });
+  await indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Relative Strength Index Momentum oscillator RSI' }).click();
+  await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
+});
 
-  test('keeps TradingView-style drawing tools disabled for signed-out users', async ({ page }) => {
-    await openApp(page);
+test('persists added indicators in the active saved layout after refresh', async ({ page }) => {
+  await openApp(page);
+
+  await page.getByRole('button', { name: 'Indicators, 2 active' }).click();
+  const indicatorsMenu = page.locator('#indicators-menu');
+  await indicatorsMenu.getByRole('menuitemcheckbox', { name: 'Relative Strength Index Momentum oscillator RSI' }).click();
+  await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const rawLayouts = window.localStorage.getItem('procharting.chartLayouts');
+        const layouts = rawLayouts ? JSON.parse(rawLayouts) : [];
+        const activeLayoutId = window.localStorage.getItem('procharting.activeChartLayoutId');
+        const layout = Array.isArray(layouts)
+          ? layouts.find((item: { id?: string }) => item.id === activeLayoutId)
+          : null;
+        const rsi = layout?.indicators?.find(
+          (indicator: { definitionId?: string }) => indicator.definitionId === 'rsi'
+        );
+
+        return {
+          activeLayoutId,
+          indicatorIds: layout?.indicators?.map((indicator: { definitionId?: string }) => indicator.definitionId) ?? [],
+          rsiPaneIndex: rsi?.paneIndex ?? null,
+        };
+      })
+    )
+    .toEqual({
+      activeLayoutId: 'layout-default',
+      indicatorIds: ['volume', 'sma', 'rsi'],
+      rsiPaneIndex: 0,
+    });
+
+  await page.reload();
+
+  await expect(page.getByRole('button', { name: 'Indicators, 3 active' })).toBeVisible();
+  await page.getByRole('button', { name: 'Indicators, 3 active' }).click();
+  await expect(page.locator('.indicator-results').getByText('Relative Strength Index')).toBeVisible();
+});
+
+test('keeps TradingView-style drawing tools disabled for signed-out users', async ({ page }) => {
+  await openApp(page);
     const { box, canvas } = await getReadyCanvasBox(page);
 
     await expect(page.getByRole('toolbar', { name: 'Drawing tools' })).toHaveCount(0);

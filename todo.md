@@ -1,3 +1,33 @@
+# Indicator Layout Persistence
+
+## Goal
+Make indicators added to the chart stay after refresh by saving them automatically into the active saved layout, scoped to the chart pane/layer where they were added.
+
+## Investigation / Decisions
+- `TEST/binance-chart-test/app/page.tsx` stores saved layouts in `procharting.chartLayouts`, and saved layouts already include an `indicators` array.
+- Indicator actions currently update only `activeIndicators`; saved layouts are updated only by explicit save or the optional Auto-save toggle, so an added indicator can disappear after refresh.
+- The app does not persist the active layout id separately, so refresh can reload the layouts list while displaying the default in-memory chart state.
+- Add a backwards-compatible `paneIndex` on `ActiveIndicator`: old indicators without a pane index still render on every pane, while newly added indicators attach to the active pane.
+- Keep the fix local to chart layout/indicator state and localStorage; no Supabase or server schema change needed.
+
+## Checklist
+- [x] Add this plan before changing code.
+- [x] Persist and restore the active saved layout id.
+- [x] Rehydrate the active saved layout on startup.
+- [x] Scope newly added indicators to the active chart pane/layer.
+- [x] Autosave indicator mutations into the active saved layout.
+- [x] Add Playwright regression coverage for indicator persistence after refresh.
+- [x] Update `ARCHITECTURE.md` with the layout/indicator persistence rule.
+- [x] Run type/build/E2E/browser verification.
+- [x] Clean verification artifacts, commit, push, and review final git status.
+
+## Review
+- Added active saved layout id persistence under `procharting.activeChartLayoutId` and startup layout rehydration.
+- Added optional `paneIndex` indicator ownership: old saved indicators stay global, newly added indicators save to the active chart pane.
+- Routed indicator add/remove/visibility/settings/duplicate/move/template actions through active-layout persistence.
+- Added Playwright regression coverage for add RSI -> saved layout localStorage -> refresh persistence.
+- Verification: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and direct Playwright regression on `http://127.0.0.1:3109` passed with nonblank canvas and no browser errors. The configured Playwright spec wrapper timed out waiting for port `3100` because an existing `next-server` on that port was returning HTTP 500 before tests started.
+
 # TradingView-Style Oscillator Indicator Labels
 
 ## Goal
