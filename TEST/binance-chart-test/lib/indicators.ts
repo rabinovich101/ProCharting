@@ -151,6 +151,7 @@ export interface IndicatorDefinition {
 export interface ActiveIndicator {
   id: string;
   definitionId: string;
+  paneIndex?: number;
   visible: boolean;
   settings: IndicatorSettings;
 }

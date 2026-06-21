@@ -741,6 +741,7 @@ interface BinanceTickerOption {
 const BINANCE_TICKERS_ENDPOINT = '/api/binance/tickers';
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
 const CHART_LAYOUT_STORAGE_KEY = 'procharting.chartLayouts';
+const ACTIVE_CHART_LAYOUT_STORAGE_KEY = 'procharting.activeChartLayoutId';
 const CHART_DRAWINGS_STORAGE_KEY = 'procharting.drawings';
 const USER_TRACKING_DEVICE_STORAGE_KEY = 'procharting.userTrackingDevice';
 const MAX_SAVED_CHART_LAYOUTS = 12;
@@ -6307,12 +6308,17 @@ const formatCountdown = (timeframe: string, candleOpenTime: number) => {
 };
 
 
-const createActiveIndicator = (definitionId: string, suffix = `${Date.now()}`): ActiveIndicator => {
+const createActiveIndicator = (
+  definitionId: string,
+  suffix = `${Date.now()}`,
+  paneIndex?: number
+): ActiveIndicator => {
   const definition = getIndicatorDefinition(definitionId);
 
   return {
     id: `${definition.id}-${suffix}`,
     definitionId: definition.id,
+    ...(paneIndex !== undefined ? { paneIndex } : {}),
     visible: true,
     settings: { ...definition.defaults },
   };
@@ -6330,6 +6336,8 @@ const createDefaultActiveIndicators = () =>
     ...indicator,
     settings: { ...indicator.settings },
   }));
+const isIndicatorAssignedToPane = (indicator: ActiveIndicator, paneIndex: number) =>
+  typeof indicator.paneIndex !== 'number' || indicator.paneIndex === paneIndex;
 const createDefaultSavedChartLayout = (timestamp = Date.now()): SavedChartLayout => {
   const pane = createChartPaneState(DEFAULT_ACCOUNT_LAYOUT_SYMBOL, DEFAULT_ACCOUNT_LAYOUT_TIMEFRAME);
 
@@ -7418,19 +7426,26 @@ export default function Home() {
   const activeSymbol = activePane.symbol;
   const activeTimeframe = activePane.timeframe;
   const activeFeedStatus = activePane.feedStatus;
-  const visibleIndicators = activeIndicators.filter((indicator) => indicator.visible);
+  const paneIndicatorsByPane = useMemo(
+    () =>
+      Array.from({ length: paneCount }, (_unused, paneIndex) =>
+        activeIndicators.filter((indicator) => isIndicatorAssignedToPane(indicator, paneIndex))
+      ),
+    [activeIndicators, paneCount]
+  );
+  const getIndicatorsForPane = (paneIndex: number) => paneIndicatorsByPane[paneIndex] ?? [];
+  const getVisibleIndicatorsForPane = (paneIndex: number) =>
+    getIndicatorsForPane(paneIndex).filter((indicator) => indicator.visible);
+  const getVisibleOscillatorIndicatorsForPane = (paneIndex: number) =>
+    getVisibleIndicatorsForPane(paneIndex).filter(
+      (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'oscillator'
+    );
   const selectedSymbolOption = getSymbolSearchOption(activeSymbol, symbolSearchOptions);
-  const visibleVolumeIndicator = visibleIndicators.find(
-    (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
-  );
-  const visibleOscillatorIndicators = visibleIndicators.filter(
-    (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'oscillator'
-  );
-  const indicatorCount = activeIndicators.length;
-  const showVolume = chartSettings.showVolumePane && visibleVolumeIndicator !== undefined;
-  const visibleOscillatorIndicatorIds = visibleOscillatorIndicators.map((indicator) => indicator.id);
+  const indicatorCount = getIndicatorsForPane(activePaneIndex).length;
+  const getVisibleOscillatorIndicatorIdsForPane = (paneIndex: number) =>
+    getVisibleOscillatorIndicatorsForPane(paneIndex).map((indicator) => indicator.id);
   const getPaneStackSizes = (paneIndex: number) =>
-    normalizePaneStackSizes(indicatorPaneSizesByPane[paneIndex], visibleOscillatorIndicatorIds);
+    normalizePaneStackSizes(indicatorPaneSizesByPane[paneIndex], getVisibleOscillatorIndicatorIdsForPane(paneIndex));
   const setIndicatorCanvasRef = (paneIndex: number, indicatorId: string, node: HTMLCanvasElement | null) => {
     const paneRefs = indicatorCanvasRefs.current[paneIndex] ?? {};
     if (node) {
@@ -7451,6 +7466,7 @@ export default function Home() {
     const rect = stack.getBoundingClientRect();
     if (rect.height <= 0) return;
 
+    const visibleOscillatorIndicatorIds = getVisibleOscillatorIndicatorIdsForPane(paneIndex);
     const startY = event.clientY;
     const startSizes = getPaneStackSizes(paneIndex);
     const beforeStart = startSizes[dividerIndex];
@@ -7496,15 +7512,16 @@ export default function Home() {
   };
   const paneIndicatorSeries = useMemo(() => {
     const nextCache = chartPanes.map((pane, paneIndex) => {
+      const paneIndicators = paneIndicatorsByPane[paneIndex] ?? [];
       const cached = indicatorSeriesCacheRef.current[paneIndex];
-      if (cached?.candles === pane.candles && cached.indicators === activeIndicators) {
+      if (cached?.candles === pane.candles && cached.indicators === paneIndicators) {
         return cached;
       }
 
       return {
         candles: pane.candles,
-        indicators: activeIndicators,
-        seriesById: activeIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
+        indicators: paneIndicators,
+        seriesById: paneIndicators.reduce<Record<string, IndicatorComputedSeries>>((seriesById, indicator) => {
           seriesById[indicator.id] = computeIndicatorSeries(indicator, pane.candles);
           return seriesById;
         }, {}),
@@ -7513,7 +7530,7 @@ export default function Home() {
 
     indicatorSeriesCacheRef.current = nextCache;
     return nextCache.map((cache) => cache.seriesById);
-  }, [activeIndicators, chartPanes]);
+  }, [chartPanes, paneIndicatorsByPane]);
   paneStatesRef.current = chartPanes;
   drawingsRef.current = drawings;
   pendingDrawingRef.current = pendingDrawing;
@@ -8130,7 +8147,7 @@ export default function Home() {
       const defaultLayouts = [defaultLayout];
       window.localStorage.setItem(CHART_LAYOUT_STORAGE_KEY, JSON.stringify(defaultLayouts));
       setSavedChartLayouts(defaultLayouts);
-      setActiveSavedLayoutId(defaultLayout.id);
+      setPersistedActiveSavedLayoutId(defaultLayout.id);
       setLayoutName(defaultLayout.name);
     };
 
@@ -8158,10 +8175,19 @@ export default function Home() {
         )
         .slice(0, MAX_SAVED_CHART_LAYOUTS);
 
+      if (validLayouts.length === 0) {
+        seedDefaultSavedChartLayout();
+        return;
+      }
+
+      const storedActiveLayoutId = window.localStorage.getItem(ACTIVE_CHART_LAYOUT_STORAGE_KEY);
+      const layoutToRestore =
+        validLayouts.find((layout) => layout.id === storedActiveLayoutId) ??
+        validLayouts.find((layout) => layout.id === DEFAULT_ACCOUNT_LAYOUT_ID) ??
+        validLayouts[0]!;
+
       setSavedChartLayouts(validLayouts);
-      setActiveSavedLayoutId((current) =>
-        current && validLayouts.some((layout) => layout.id === current) ? current : null
-      );
+      restoreSavedChartLayout(layoutToRestore, false);
     } catch {
       seedDefaultSavedChartLayout();
     }
@@ -8292,37 +8318,44 @@ export default function Home() {
   const addIndicator = (definitionId: string) => {
     const definition = getIndicatorDefinition(definitionId);
 
-    setActiveIndicators((current) => {
-      if (definition.singleton) {
-        const existing = current.find((indicator) => indicator.definitionId === definition.id);
-        if (existing) {
-          return current.map((indicator) =>
+    if (definition.singleton) {
+      const existing = activeIndicators.find(
+        (indicator) =>
+          indicator.definitionId === definition.id && isIndicatorAssignedToPane(indicator, activePaneIndex)
+      );
+      if (existing) {
+        setAndPersistActiveIndicators(
+          activeIndicators.map((indicator) =>
             indicator.id === existing.id ? { ...indicator, visible: true } : indicator
-          );
-        }
+          )
+        );
+        return;
       }
+    }
 
-      return [...current, createActiveIndicator(definition.id, `${Date.now()}-${current.length}`)];
-    });
+    setAndPersistActiveIndicators([
+      ...activeIndicators,
+      createActiveIndicator(definition.id, `${Date.now()}-${activeIndicators.length}`, activePaneIndex),
+    ]);
   };
 
   const removeIndicator = (indicatorId: string) => {
-    setActiveIndicators((current) => current.filter((indicator) => indicator.id !== indicatorId));
+    setAndPersistActiveIndicators(activeIndicators.filter((indicator) => indicator.id !== indicatorId));
     setSettingsTarget((current) => (current?.indicatorId === indicatorId ? null : current));
     setMoreTarget((current) => (current?.indicatorId === indicatorId ? null : current));
   };
 
   const toggleIndicatorVisibility = (indicatorId: string) => {
-    setActiveIndicators((current) =>
-      current.map((indicator) =>
+    setAndPersistActiveIndicators(
+      activeIndicators.map((indicator) =>
         indicator.id === indicatorId ? { ...indicator, visible: !indicator.visible } : indicator
       )
     );
   };
 
   const updateIndicatorSettings = (indicatorId: string, settings: IndicatorSettings) => {
-    setActiveIndicators((current) =>
-      current.map((indicator) =>
+    setAndPersistActiveIndicators(
+      activeIndicators.map((indicator) =>
         indicator.id === indicatorId
           ? { ...indicator, settings: { ...indicator.settings, ...settings } }
           : indicator
@@ -8331,37 +8364,34 @@ export default function Home() {
   };
 
   const duplicateIndicator = (indicatorId: string) => {
-    setActiveIndicators((current) => {
-      const sourceIndicator = current.find((indicator) => indicator.id === indicatorId);
-      if (!sourceIndicator) return current;
+    const sourceIndicator = activeIndicators.find((indicator) => indicator.id === indicatorId);
+    if (!sourceIndicator) return;
 
-      return [
-        ...current,
-        {
-          ...sourceIndicator,
-          id: `${sourceIndicator.definitionId}-${Date.now()}-${current.length}`,
-        },
-      ];
-    });
+    setAndPersistActiveIndicators([
+      ...activeIndicators,
+      {
+        ...sourceIndicator,
+        id: `${sourceIndicator.definitionId}-${Date.now()}-${activeIndicators.length}`,
+      },
+    ]);
     setMoreTarget(null);
   };
 
   const moveIndicator = (indicatorId: string, direction: -1 | 1, visualGroupIds?: string[]) => {
-    setActiveIndicators((current) => {
-      const orderedGroupIds = (visualGroupIds && visualGroupIds.length > 0 ? visualGroupIds : current.map((indicator) => indicator.id))
-        .filter((id) => current.some((indicator) => indicator.id === id));
-      const groupIndex = orderedGroupIds.indexOf(indicatorId);
-      const targetId = orderedGroupIds[groupIndex + direction];
-      if (groupIndex < 0 || !targetId) return current;
+    const orderedGroupIds = (
+      visualGroupIds && visualGroupIds.length > 0 ? visualGroupIds : activeIndicators.map((indicator) => indicator.id)
+    ).filter((id) => activeIndicators.some((indicator) => indicator.id === id));
+    const groupIndex = orderedGroupIds.indexOf(indicatorId);
+    const targetId = orderedGroupIds[groupIndex + direction];
+    if (groupIndex < 0 || !targetId) return;
 
-      const index = current.findIndex((indicator) => indicator.id === indicatorId);
-      const targetIndex = current.findIndex((indicator) => indicator.id === targetId);
-      if (index < 0 || targetIndex < 0) return current;
+    const index = activeIndicators.findIndex((indicator) => indicator.id === indicatorId);
+    const targetIndex = activeIndicators.findIndex((indicator) => indicator.id === targetId);
+    if (index < 0 || targetIndex < 0) return;
 
-      const next = [...current];
-      [next[index], next[targetIndex]] = [next[targetIndex]!, next[index]!];
-      return next;
-    });
+    const next = [...activeIndicators];
+    [next[index], next[targetIndex]] = [next[targetIndex]!, next[index]!];
+    setAndPersistActiveIndicators(next);
     setMoreTarget(null);
   };
 
@@ -10827,7 +10857,13 @@ export default function Home() {
 
     if (candles.length === 0) return;
 
-    const hasExternalIndicatorPanes = visibleOscillatorIndicators.length > 0;
+    const paneVisibleIndicators = getVisibleIndicatorsForPane(paneIndex);
+    const paneVisibleVolumeIndicator = paneVisibleIndicators.find(
+      (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'volume'
+    );
+    const paneVisibleOscillatorIndicators = getVisibleOscillatorIndicatorsForPane(paneIndex);
+    const paneShowVolume = chartSettings.showVolumePane && paneVisibleVolumeIndicator !== undefined;
+    const hasExternalIndicatorPanes = paneVisibleOscillatorIndicators.length > 0;
     const externalIndicatorBottomAxisHeight = hasExternalIndicatorPanes ? (rect.width < 520 ? 31 : 38) : 0;
     const {
       chartArea,
@@ -10841,7 +10877,7 @@ export default function Home() {
     } = getChartVisualLayout({
       width: rect.width,
       height: rect.height + externalIndicatorBottomAxisHeight,
-      showVolume,
+      showVolume: paneShowVolume,
       oscillatorIndicators: [],
     });
     const axisFontSize = compactChart ? 13 : 14;
@@ -10861,7 +10897,7 @@ export default function Home() {
     const priceSource = visibleIndexedCandles.length > 0
       ? visibleIndexedCandles.map(({ candle }) => candle)
       : [latestCandle!];
-    const visiblePriceIndicators = visibleIndicators.filter(
+    const visiblePriceIndicators = paneVisibleIndicators.filter(
       (indicator) => getIndicatorDefinition(indicator.definitionId).pane === 'price'
     );
     const indicatorPrices = visiblePriceIndicators.flatMap((indicator) => {
@@ -12721,15 +12757,15 @@ export default function Home() {
       ctx.fillText(labelText, chartArea.left + chartArea.width + 7, labelY + 15);
     });
 
-    if (showVolume && volumeArea.height > 0) {
+    if (paneShowVolume && volumeArea.height > 0) {
       const maxVolume = Math.max(...visibleIndexedCandles.map(({ candle }) => candle.volume), 1);
-      const volumeDefinition = visibleVolumeIndicator
-        ? getIndicatorDefinition(visibleVolumeIndicator.definitionId)
+      const volumeDefinition = paneVisibleVolumeIndicator
+        ? getIndicatorDefinition(paneVisibleVolumeIndicator.definitionId)
         : getIndicatorDefinition('volume');
       const volumeUpColor =
-        visibleVolumeIndicator?.settings.color ?? volumeDefinition.defaults.color ?? palette.greenSoft;
+        paneVisibleVolumeIndicator?.settings.color ?? volumeDefinition.defaults.color ?? palette.greenSoft;
       const volumeDownColor =
-        visibleVolumeIndicator?.settings.secondaryColor ?? volumeDefinition.defaults.secondaryColor ?? palette.redSoft;
+        paneVisibleVolumeIndicator?.settings.secondaryColor ?? volumeDefinition.defaults.secondaryColor ?? palette.redSoft;
       ctx.strokeStyle = palette.grid;
       ctx.beginPath();
       ctx.moveTo(volumeArea.left, volumeArea.top);
@@ -13067,20 +13103,21 @@ export default function Home() {
             crosshairPosition: getCurrentHoverMousePosition(paneIndex),
           });
         }
-      });
-      indicatorCanvasRefs.current.forEach((canvasByIndicatorId, paneIndex) => {
-        visibleOscillatorIndicators.forEach((indicator, indicatorIndex) => {
-          const canvas = canvasByIndicatorId?.[indicator.id];
-          if (!canvas) return;
+    });
+    indicatorCanvasRefs.current.forEach((canvasByIndicatorId, paneIndex) => {
+      const paneVisibleOscillatorIndicators = getVisibleOscillatorIndicatorsForPane(paneIndex);
+      paneVisibleOscillatorIndicators.forEach((indicator, indicatorIndex) => {
+        const canvas = canvasByIndicatorId?.[indicator.id];
+        if (!canvas) return;
 
           drawIndicatorPaneCanvas(
-            canvas,
-            paneIndex,
-            indicator,
-            indicatorIndex === visibleOscillatorIndicators.length - 1,
-            getCurrentHoverMousePosition(paneIndex)
-          );
-        });
+          canvas,
+          paneIndex,
+          indicator,
+          indicatorIndex === paneVisibleOscillatorIndicators.length - 1,
+          getCurrentHoverMousePosition(paneIndex)
+        );
+      });
       });
 
       animationRef.current = requestAnimationFrame(animate);
@@ -13104,7 +13141,6 @@ export default function Home() {
     drawingTextEditor,
     activeIndicators,
     paneIndicatorSeries,
-    showVolume,
     theme,
     chartSettings,
     paneCount,
@@ -13400,12 +13436,24 @@ export default function Home() {
     setSavedChartLayouts(nextLayouts);
     window.localStorage.setItem(CHART_LAYOUT_STORAGE_KEY, JSON.stringify(nextLayouts));
   };
+  const setPersistedActiveSavedLayoutId = (layoutId: string | null) => {
+    setActiveSavedLayoutId(layoutId);
+    if (layoutId) {
+      window.localStorage.setItem(ACTIVE_CHART_LAYOUT_STORAGE_KEY, layoutId);
+    } else {
+      window.localStorage.removeItem(ACTIVE_CHART_LAYOUT_STORAGE_KEY);
+    }
+  };
   const copyIndicatorsForSnapshot = (indicators: ActiveIndicator[]) =>
     indicators.map((indicator) => ({
       ...indicator,
       settings: { ...indicator.settings },
     }));
-  const buildSavedChartLayout = (name: string, existingLayout?: SavedChartLayout): SavedChartLayout => {
+  const buildSavedChartLayout = (
+    name: string,
+    existingLayout?: SavedChartLayout,
+    indicatorsSnapshot = activeIndicators
+  ): SavedChartLayout => {
     const now = Date.now();
     const visiblePaneSnapshots = chartPanes.slice(0, paneCount).map(createSavedPaneSnapshot);
 
@@ -13420,9 +13468,29 @@ export default function Home() {
       theme,
       layoutSync: { ...layoutSync },
       chartSettings: { ...chartSettings },
-      indicators: copyIndicatorsForSnapshot(activeIndicators),
+      indicators: copyIndicatorsForSnapshot(indicatorsSnapshot),
       panes: visiblePaneSnapshots.length > 0 ? visiblePaneSnapshots : [createSavedPaneSnapshot(activePane)],
     };
+  };
+  const persistActiveSavedChartLayout = (indicatorsSnapshot = activeIndicators) => {
+    if (!activeSavedLayoutId) return;
+
+    setSavedChartLayouts((current) => {
+      const existingLayout = current.find((layout) => layout.id === activeSavedLayoutId);
+      if (!existingLayout) return current;
+
+      const nextLayout = buildSavedChartLayout(existingLayout.name, existingLayout, indicatorsSnapshot);
+      const nextLayouts = [nextLayout, ...current.filter((layout) => layout.id !== nextLayout.id)].slice(
+        0,
+        MAX_SAVED_CHART_LAYOUTS
+      );
+      window.localStorage.setItem(CHART_LAYOUT_STORAGE_KEY, JSON.stringify(nextLayouts));
+      return nextLayouts;
+    });
+  };
+  const setAndPersistActiveIndicators = (nextIndicators: ActiveIndicator[]) => {
+    setActiveIndicators(nextIndicators);
+    persistActiveSavedChartLayout(nextIndicators);
   };
   const openSaveLayoutDialog = (nameOverride?: string, targetLayoutId = activeSavedLayoutId) => {
     if (!requireAuthenticatedAction('save')) return;
@@ -13449,28 +13517,26 @@ export default function Home() {
     const nextLayout = buildSavedChartLayout(name, existingLayout);
     const otherLayouts = savedChartLayouts.filter((layout) => layout.id !== nextLayout.id);
 
-    persistSavedChartLayouts([nextLayout, ...otherLayouts]);
-    setActiveSavedLayoutId(nextLayout.id);
-    setLayoutName(name);
-    closeHeaderOverlays();
-  };
-  const copyCurrentChartLayout = () => {
+  persistSavedChartLayouts([nextLayout, ...otherLayouts]);
+  setPersistedActiveSavedLayoutId(nextLayout.id);
+  setLayoutName(name);
+  closeHeaderOverlays();
+};
+const copyCurrentChartLayout = () => {
     if (!requireAuthenticatedAction('manageLayouts')) return;
 
     const sourceName = activeSavedLayout?.name ?? (layoutName.trim() || `Chart layout ${savedChartLayouts.length + 1}`);
     const nextLayout = buildSavedChartLayout(`${sourceName} copy`);
 
-    persistSavedChartLayouts([nextLayout, ...savedChartLayouts]);
-    setActiveSavedLayoutId(nextLayout.id);
-    setLayoutName(nextLayout.name);
-    setLayoutSaveStatus('Saved copy');
-  };
-  const applySavedChartLayout = (layout: SavedChartLayout) => {
-    if (!requireAuthenticatedAction('manageLayouts')) return;
-
-    const layoutOption = getLayoutOptionById(layout.selectedLayoutId);
-    const paneSnapshots = layout.panes.length > 0 ? layout.panes : [createSavedPaneSnapshot(createChartPaneState())];
-    const restoreNonce = Date.now();
+  persistSavedChartLayouts([nextLayout, ...savedChartLayouts]);
+  setPersistedActiveSavedLayoutId(nextLayout.id);
+  setLayoutName(nextLayout.name);
+  setLayoutSaveStatus('Saved copy');
+};
+const restoreSavedChartLayout = (layout: SavedChartLayout, closeOverlays = true) => {
+  const layoutOption = getLayoutOptionById(layout.selectedLayoutId);
+  const paneSnapshots = layout.panes.length > 0 ? layout.panes : [createSavedPaneSnapshot(createChartPaneState())];
+  const restoreNonce = Date.now();
     const restoredPanes = Array.from({ length: layoutOption.cells.length }, (_unused, index) =>
       createChartPaneStateFromSnapshot(paneSnapshots[index] ?? paneSnapshots[0], restoreNonce)
     );
@@ -13491,20 +13557,28 @@ export default function Home() {
     setSelectedDrawingId(null);
     setActiveDrawingToolbarMenu(null);
     setDrawingToolbarStatus('');
-    setPendingDrawing(null);
-    setActiveDrawingTool(null);
-    setChartPanes(restoredPanes);
-    setActivePaneIndex(clamp(layout.activePaneIndex, 0, Math.max(0, layoutOption.cells.length - 1)));
-    setActiveSavedLayoutId(layout.id);
-    setLayoutName(layout.name);
-    closeHeaderOverlays();
-  };
-  const removeSavedChartLayout = (layoutId: string) => {
-    if (!requireAuthenticatedAction('manageLayouts')) return;
+setPendingDrawing(null);
+setActiveDrawingTool(null);
+setChartPanes(restoredPanes);
+setActivePaneIndex(clamp(layout.activePaneIndex, 0, Math.max(0, layoutOption.cells.length - 1)));
+setPersistedActiveSavedLayoutId(layout.id);
+setLayoutName(layout.name);
+if (closeOverlays) closeHeaderOverlays();
+};
+const applySavedChartLayout = (layout: SavedChartLayout) => {
+  if (!requireAuthenticatedAction('manageLayouts')) return;
 
-    persistSavedChartLayouts(savedChartLayouts.filter((layout) => layout.id !== layoutId));
-    setActiveSavedLayoutId((current) => (current === layoutId ? null : current));
-  };
+  restoreSavedChartLayout(layout);
+};
+const removeSavedChartLayout = (layoutId: string) => {
+  if (!requireAuthenticatedAction('manageLayouts')) return;
+
+  const nextLayouts = savedChartLayouts.filter((layout) => layout.id !== layoutId);
+  persistSavedChartLayouts(nextLayouts);
+  if (activeSavedLayoutId === layoutId) {
+    setPersistedActiveSavedLayoutId(nextLayouts[0]?.id ?? null);
+  }
+};
   const formatSavedLayoutMetadata = (layout: SavedChartLayout) => {
     const layoutOption = getLayoutOptionById(layout.selectedLayoutId);
     const updatedAt = Number.isFinite(layout.updatedAt) ? layout.updatedAt : layout.createdAt;
@@ -13577,18 +13651,18 @@ export default function Home() {
     saveIndicatorTemplate();
     closeHeaderOverlays();
   };
-  const applyIndicatorTemplate = (template: IndicatorTemplate) => {
-    if (!requireAuthenticatedAction('templates')) return;
+const applyIndicatorTemplate = (template: IndicatorTemplate) => {
+  if (!requireAuthenticatedAction('templates')) return;
 
-    setActiveIndicators(
-      template.indicators.map((indicator, index) => ({
-        ...indicator,
-        id: `${indicator.definitionId}-${Date.now()}-${index}`,
-        settings: { ...indicator.settings },
-      }))
-    );
-    closeHeaderOverlays();
-  };
+  setAndPersistActiveIndicators(
+    template.indicators.map((indicator, index) => ({
+      ...indicator,
+      id: `${indicator.definitionId}-${Date.now()}-${index}`,
+      settings: { ...indicator.settings },
+    }))
+  );
+  closeHeaderOverlays();
+};
   const removeIndicatorTemplate = (templateId: string) => {
     if (!requireAuthenticatedAction('templates')) return;
 
@@ -13761,19 +13835,21 @@ export default function Home() {
   const renderIndicatorLegend = (paneIndex: number, attachRef: boolean) => {
     const { pane, legendIndex, legendCandle } = getPaneLegendSnapshot(paneIndex);
     const activeIndicatorSeries = paneIndicatorSeries[paneIndex] ?? {};
+    const paneIndicators = getIndicatorsForPane(paneIndex);
 
-    if (!chartSettings.showIndicatorLegend || activeIndicators.length === 0 || !pane || !legendCandle) {
+    if (!chartSettings.showIndicatorLegend || paneIndicators.length === 0 || !pane || !legendCandle) {
       return null;
     }
 
     // Each visible oscillator renders in its OWN pane row below the price pane.
     // Its legend is portalled into that pane's stack (see return) so it sits at
     // the pane's top-left like TradingView — not floating in the price pane.
-    const oscillatorGroupIds = visibleOscillatorIndicators.map((indicator) => indicator.id);
+    const visiblePaneOscillatorIndicators = getVisibleOscillatorIndicatorsForPane(paneIndex);
+    const oscillatorGroupIds = visiblePaneOscillatorIndicators.map((indicator) => indicator.id);
     const oscillatorIdSet = new Set(oscillatorGroupIds);
     const indicatorPaneStack = indicatorPaneStackRefs.current[paneIndex] ?? null;
     const oscillatorRowNodes = indicatorPaneRowRefs.current[paneIndex] ?? {};
-    const priceIndicators = activeIndicators.filter((indicator) => {
+    const priceIndicators = paneIndicators.filter((indicator) => {
       const definition = getIndicatorDefinition(indicator.definitionId);
 
       if (definition.pane === 'price') return true;
@@ -14361,7 +14437,7 @@ export default function Home() {
   };
 
   const oscillatorLegendPortals = indicatorPaneStack
-    ? visibleOscillatorIndicators.map((indicator) => {
+    ? visiblePaneOscillatorIndicators.map((indicator) => {
         const rowNode = oscillatorRowNodes[indicator.id];
         if (!rowNode) return null;
 
@@ -17844,11 +17920,12 @@ export default function Home() {
             gridTemplateRows: selectedLayout.templateRows,
           }}
         >
-          {selectedLayoutCells.map((cellSpec, paneIndex) => {
-            const pane = chartPanes[paneIndex] ?? activePane;
-            const hoverState = getPaneHoverState(paneIndex);
-            const paneStackSizes = getPaneStackSizes(paneIndex);
-            const indicatorPanes = visibleOscillatorIndicators.map((indicator, indicatorIndex) => (
+            {selectedLayoutCells.map((cellSpec, paneIndex) => {
+              const pane = chartPanes[paneIndex] ?? activePane;
+              const hoverState = getPaneHoverState(paneIndex);
+              const paneStackSizes = getPaneStackSizes(paneIndex);
+              const visiblePaneOscillatorIndicators = getVisibleOscillatorIndicatorsForPane(paneIndex);
+              const indicatorPanes = visiblePaneOscillatorIndicators.map((indicator, indicatorIndex) => (
               <Fragment key={`${paneIndex}-${indicator.id}`}>
                 <button
                   type="button"
@@ -17873,12 +17950,12 @@ export default function Home() {
                     data-pointer-area={hoverState.indicatorId === indicator.id ? hoverState.pointerArea : 'outside'}
                     style={{ cursor: getCursorToolCanvasCursor() }}
                     onMouseMove={(event) =>
-                      handleIndicatorPaneMouseMove(
-                        paneIndex,
-                        indicator.id,
-                        indicatorIndex === visibleOscillatorIndicators.length - 1,
-                        event
-                      )
+                        handleIndicatorPaneMouseMove(
+                          paneIndex,
+                          indicator.id,
+                          indicatorIndex === visiblePaneOscillatorIndicators.length - 1,
+                          event
+                        )
                     }
                     onMouseLeave={(event) => handleIndicatorPaneMouseLeave(paneIndex, event)}
                   />
