@@ -1,3 +1,28 @@
+# Port 3000 Internal Server Error
+
+## Goal
+Restore the local `TEST/binance-chart-test` Next.js app on port `3000` from a bare `500 Internal Server Error`.
+
+## Investigation / Decisions
+- Port `3000` was served by an old `next dev --turbopack` process started on June 17.
+- `dev.log` showed repeated `ENOENT` errors for missing files under `TEST/binance-chart-test/.next`, including app manifests.
+- `TEST/binance-chart-test/.next` was absent, so the stale server was trying to serve deleted build artifacts.
+- No source-code fix is needed unless a clean restart still fails; restart the stale process and let Next regenerate `.next`.
+
+## Checklist
+- [x] Confirm the failing HTTP response on `127.0.0.1:3000`.
+- [x] Identify the process listening on port `3000`.
+- [x] Inspect recent Next dev logs for the root cause.
+- [x] Restart the stale Next dev server on port `3000`.
+- [x] Verify `/` and API routes return non-500 responses.
+- [x] Review final status and clean only artifacts created during this check.
+
+## Review
+- Stopped stale June 17 `next dev --turbopack` process that was serving deleted `.next` artifacts and returning bare 500 responses.
+- Restarted `TEST/binance-chart-test` on `127.0.0.1:3000`; current listener is a fresh Next dev server.
+- Verified `http://127.0.0.1:3000/` returns `200`, `/api/binance?symbol=BTCUSDT&interval=1d&limit=5` returns `200`, and Playwright loads the page with title `ProCharting Market Desk` and no page errors.
+- No source-code fix was needed; root cause was a stale dev server after `.next` cleanup.
+
 # Indicator Layout Persistence
 
 ## Goal
