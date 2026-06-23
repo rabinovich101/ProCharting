@@ -9307,3 +9307,28 @@ Render the Volume indicator inside the main price chart area, TradingView-style,
   - `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts`
   - `git diff --check`
 - Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.
+
+# Remove Left Rail Chart Gap
+
+## Goal
+Remove the visible gap between the left drawing tool layer and the chart canvas layer.
+
+## Investigation / Decisions
+- The chart stage already uses two CSS grid columns, but the authenticated rail column is wider than the rail buttons and also paints a right border/inset shadow.
+- Keep the fix CSS-only: make the rail column match the tool button width and remove the visual separator treatment so the chart grid starts flush against the rail layer.
+- No architecture update needed because the chart-stage layer contract remains the same.
+
+## Checklist
+- [x] Inspect rail/grid boundary CSS.
+- [x] Add this task plan before code changes.
+- [x] Tighten desktop/mobile rail column width to remove the visual gap.
+- [x] Remove rail separator styling that reads as a gap.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright/devtools and clean generated artifacts.
+- [x] Commit, push, confirm final git status.
+
+## Review
+- Changed authenticated desktop rail column from 58px to 52px so it matches the drawing tool button width exactly.
+- Removed the rail's right border and inset shadow that read as a visible separator/gap between the rail layer and chart canvas.
+- Set desktop drawing tool flyouts to open from the same 52px rail edge; mobile remains a 50px rail with zero gap.
+- Verification passed: `git diff --check`, `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, and direct Playwright/devtools geometry on `http://127.0.0.1:3114` confirmed desktop gap `0`, mobile gap `0`, rail border `0px`, and box shadow `none`.
