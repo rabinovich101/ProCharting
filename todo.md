@@ -9325,7 +9325,7 @@ Remove the visible gap between the left drawing tool layer and the chart canvas 
 - [x] Remove rail separator styling that reads as a gap.
 - [x] Run type/build checks.
 - [x] Verify visually with Playwright/devtools and clean generated artifacts.
-- [ ] Commit, push, confirm final git status.
+- [x] Commit, push, confirm final git status.
 
 ## Review
 - Changed authenticated desktop rail column from 58px to 52px so it matches the drawing tool button width exactly.
