@@ -9213,7 +9213,7 @@ Move the authenticated left drawing tool rail into its own fixed-width chart-sta
 - [x] Update `ARCHITECTURE.md` with the new chart-stage layer contract.
 - [x] Run type/build checks.
 - [x] Verify visually with Playwright/devtools and clean generated artifacts.
-- [ ] Commit, push, confirm final git status.
+- [x] Commit, push, confirm final git status.
 
 ## Review
 - Added `data-has-drawing-rail` to `.chart-stage` so signed-out charts keep the full-width canvas while signed-in charts reserve a left rail layer.
