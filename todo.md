@@ -9332,3 +9332,30 @@ Remove the visible gap between the left drawing tool layer and the chart canvas 
 - Removed the rail's right border and inset shadow that read as a visible separator/gap between the rail layer and chart canvas.
 - Set desktop drawing tool flyouts to open from the same 52px rail edge; mobile remains a 50px rail with zero gap.
 - Verification passed: `git diff --check`, `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, and direct Playwright/devtools geometry on `http://127.0.0.1:3114` confirmed desktop gap `0`, mobile gap `0`, rail border `0px`, and box shadow `none`.
+
+# TradingView Plot Gutter
+
+## Goal
+Add a TradingView-style internal chart gutter so moving candle/grid/crosshair lines do not run directly against the left drawing tool layer.
+
+## Investigation / Decisions
+- The outer left rail should remain its own layer, but the visual gap should live inside the canvas plot area.
+- `getChartVisualLayout` and `getIndicatorPaneVisualLayout` both drive x positions from `chartArea.left`, so increasing that left inset clips grid, candles, drawings, crosshair, volume, oscillator panes, and time labels consistently.
+- Preserve the right price scale boundary by subtracting the new left inset from chart plot width instead of simply shifting the plot area right.
+- Update architecture because the chart layout contract now includes an explicit left plot gutter inside the chart layer.
+
+## Checklist
+- [x] Inspect chart visual layout and crosshair/grid draw path.
+- [x] Add this task plan before code changes.
+- [x] Add shared plot gutter constants.
+- [x] Apply the gutter to main and indicator chart areas.
+- [x] Update `ARCHITECTURE.md` with the plot-gutter contract.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright/devtools and clean generated artifacts.
+- [ ] Commit, push, confirm final git status.
+
+## Review
+- Added shared chart plot-gutter constants: 18px desktop, 12px compact/mobile, with matching right-side inset constants.
+- Applied the gutter to `getChartVisualLayout` and `getIndicatorPaneVisualLayout` so price candles, grid lines, crosshair, volume, indicator panes, drawings, and time labels all start away from the left rail boundary.
+- Updated `ARCHITECTURE.md` with the internal left plot-gutter contract.
+- Verification passed: `git diff --check`, `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, and direct Playwright/devtools on `http://127.0.0.1:3117` confirmed desktop gutter edge `18` and mobile gutter edge `12` while the gutter stayed visually clear of the crosshair line.

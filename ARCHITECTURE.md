@@ -617,6 +617,10 @@ The chart app supports:
   OHLC area crisp and readable over the dark grid. The canvas plot/grid begins
   at the top of the chart stage behind this overlay instead of reserving a blank
   legend strip, matching TradingView's floating-legend layout.
+- Chart canvas layout keeps an internal left plot gutter inside the chart layer
+  so moving candle, grid, drawing, volume, indicator, and crosshair lines start
+  away from the drawing-tool rail boundary, matching TradingView's visual
+  separation without making the outer rail/chart CSS layers overlap.
 - The chart stage also owns the authenticated TradingView-style drawing-tool
   rail. As of June 23, 2026, that rail is a dedicated chart-stage CSS grid
   column: signed-in chart grids render beside it instead of underneath it,

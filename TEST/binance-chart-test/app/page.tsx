@@ -2732,6 +2732,16 @@ const MIN_VISIBLE_BARS = 18;
 const MAX_VISIBLE_BARS = 420;
 const MAX_FUTURE_BARS = 120;
 const Y_AXIS_SCALE_SPEED = 1.7;
+const CHART_LEFT_PLOT_GUTTER = 18;
+const COMPACT_CHART_LEFT_PLOT_GUTTER = 12;
+const CHART_RIGHT_PLOT_INSET = 6;
+const COMPACT_CHART_RIGHT_PLOT_INSET = 2;
+
+const getChartLeftPlotGutter = (compactChart: boolean) =>
+  compactChart ? COMPACT_CHART_LEFT_PLOT_GUTTER : CHART_LEFT_PLOT_GUTTER;
+
+const getChartRightPlotInset = (compactChart: boolean) =>
+  compactChart ? COMPACT_CHART_RIGHT_PLOT_INSET : CHART_RIGHT_PLOT_INSET;
 
 const getChartVisualLayout = ({
   width,
@@ -2749,6 +2759,8 @@ const getChartVisualLayout = ({
   const rightAxisWidth = compactChart ? 82 : 102;
   const bottomAxisHeight = compactChart ? 31 : 38;
   const topPlotInset = 0;
+  const leftPlotGutter = getChartLeftPlotGutter(compactChart);
+  const rightPlotInset = getChartRightPlotInset(compactChart);
   const oscillatorCount = oscillatorIndicators.length;
   const requestedVolumeHeight = showVolume ? clamp(height * 0.15, 46, 96) : 0;
   const minMainChartHeight = width < 520 ? 176 : 220;
@@ -2768,11 +2780,11 @@ const getChartVisualLayout = ({
       ? oscillatorPaneHeight * oscillatorCount + paneGap * Math.max(0, oscillatorCount - 1)
       : 0;
   const chartArea = {
-    left: compactChart ? 8 : 12,
+    left: leftPlotGutter,
     top: topPlotInset,
-    width: Math.max(80, width - rightAxisWidth - (compactChart ? 10 : 18)),
+    width: Math.max(80, width - rightAxisWidth - leftPlotGutter - rightPlotInset),
     height: Math.max(
-        120,
+      120,
         height -
           bottomAxisHeight -
           topPlotInset -
@@ -7572,10 +7584,12 @@ export default function Home() {
     const bottomAxisHeight = isLastIndicatorPane ? (compactChart ? 31 : 38) : 0;
     const axisFontSize = compactChart ? 13 : 14;
     const indicatorPaneFontSize = compactChart ? 12 : 13;
+    const leftPlotGutter = getChartLeftPlotGutter(compactChart);
+    const rightPlotInset = getChartRightPlotInset(compactChart);
     const chartArea = {
-      left: compactChart ? 8 : 12,
+      left: leftPlotGutter,
       top: 0,
-      width: Math.max(80, width - rightAxisWidth - (compactChart ? 10 : 18)),
+      width: Math.max(80, width - rightAxisWidth - leftPlotGutter - rightPlotInset),
       height: Math.max(36, height - bottomAxisHeight),
     };
 
