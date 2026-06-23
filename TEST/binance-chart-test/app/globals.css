@@ -2540,25 +2540,35 @@ summary {
 .chart-stage {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface-1) 70%, var(--surface-0)), var(--surface-0));
+  display: grid;
   flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   overscroll-behavior: contain;
   position: relative;
 }
 
+.chart-stage[data-has-drawing-rail="true"] {
+  grid-template-columns: 58px minmax(0, 1fr);
+}
+
 .drawing-tool-rail {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
-  border: 1px solid var(--border-subtle);
-  border-radius: 7px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  align-self: stretch;
+  background: color-mix(in srgb, var(--surface-1) 94%, var(--surface-0));
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, #ffffff 4%, transparent);
   display: flex;
   flex-direction: column;
   gap: 0;
-  left: 8px;
-  padding: 3px 0;
-  position: absolute;
-  top: 10px;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: stretch;
+  min-height: 0;
+  overflow: visible;
+  padding: 10px 3px;
+  position: relative;
   z-index: 42;
 }
 
@@ -4241,9 +4251,17 @@ summary {
   background: color-mix(in srgb, var(--border-strong) 82%, var(--accent) 8%);
   display: grid;
   gap: 2px;
-  inset: 0;
+  grid-column: 1;
+  grid-row: 1;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
-  position: absolute;
+  position: relative;
+}
+
+.chart-stage[data-has-drawing-rail="true"] .chart-layout-grid {
+  grid-column: 2;
 }
 
 .chart-stage[data-layout-count="1"] .chart-layout-grid {
@@ -4424,6 +4442,23 @@ summary {
   .chart-terminal {
     overflow-x: hidden;
     overflow-y: auto;
+  }
+
+  .chart-stage[data-has-drawing-rail="true"] {
+    grid-template-columns: 50px minmax(0, 1fr);
+  }
+
+  .drawing-tool-rail {
+    padding: 8px 0;
+  }
+
+  .drawing-tool-rail > .drawing-tool-group > button {
+    width: 50px;
+  }
+
+  .drawing-tool-menu {
+    left: 50px;
+    max-width: calc(100vw - 58px);
   }
 
   .chart-topbar {

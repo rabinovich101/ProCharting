@@ -618,7 +618,10 @@ The chart app supports:
   at the top of the chart stage behind this overlay instead of reserving a blank
   legend strip, matching TradingView's floating-legend layout.
 - The chart stage also owns the authenticated TradingView-style drawing-tool
-  rail. Logged-in users get the recorded Cursor group with Cross/Dot modes and
+  rail. As of June 23, 2026, that rail is a dedicated chart-stage CSS grid
+  column: signed-in chart grids render beside it instead of underneath it,
+  while signed-out chart grids keep a single full-width column. Logged-in users
+  get the recorded Cursor group with Cross/Dot modes and
   the Trend Line Tools group with implemented Trendline, Ray, Info line,
   Extended line, Trend angle, Horizontal line, Horizontal ray, Vertical line,
   Cross line, Parallel channel, Regression trend, Flat top/bottom, and Disjoint

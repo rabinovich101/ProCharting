@@ -9194,6 +9194,35 @@ Add the next TradingView left-rail utility: Magnet mode for chart drawings, plac
   - Playwright smoke on `http://127.0.0.1:3106`: isolated local Supabase session stub, mocked market data, clicked Magnet to Weak and Strong, selected Trendline, placed a drawing, verified persisted `strong` mode and candle-center snapped anchors.
 - Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.
 
+# Separate Left Drawing Tool Layer
+
+## Goal
+Move the authenticated left drawing tool rail into its own fixed-width chart-stage layer, TradingView-style, so it no longer sits on top of the main chart canvas.
+
+## Investigation / Decisions
+- `TEST/binance-chart-test/app/page.tsx` already renders `renderDrawingToolRail()` as a sibling before `.chart-layout-grid`.
+- `TEST/binance-chart-test/app/globals.css` currently makes both `.drawing-tool-rail` and `.chart-layout-grid` absolute inside `.chart-stage`, so the grid/canvas occupies the full stage underneath the rail.
+- Keep the fix CSS-only and simple: make `.chart-stage` a two-column layout, keep the rail in the left column, and let `.chart-layout-grid` own only the chart column.
+- Keep drawing tool menus anchored from the rail and allowed to extend over the chart column, like TradingView flyouts.
+
+## Checklist
+- [x] Inspect current chart stage, canvas grid, and left drawing rail composition.
+- [x] Add this task plan before code changes.
+- [x] Convert chart stage to separate left tool layer plus chart canvas layer.
+- [x] Update responsive behavior so small/mobile viewports still keep the canvas clear of the rail.
+- [x] Update `ARCHITECTURE.md` with the new chart-stage layer contract.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright/devtools and clean generated artifacts.
+- [ ] Commit, push, confirm final git status.
+
+## Review
+- Added `data-has-drawing-rail` to `.chart-stage` so signed-out charts keep the full-width canvas while signed-in charts reserve a left rail layer.
+- Converted `.chart-stage` to a CSS grid and moved `.chart-layout-grid` out of absolute full-stage positioning; authenticated chart grids now render beside the rail instead of underneath it.
+- Restyled `.drawing-tool-rail` as a full-height left layer with menu overflow preserved, plus a 50px mobile rail column.
+- Updated `ARCHITECTURE.md` to document the chart-stage rail column contract.
+- Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and direct Playwright/devtools geometry on `http://127.0.0.1:3112` for desktop/mobile canvas offsets and nonblank chart pixels.
+- Existing E2E anomaly: `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts:655` still fails expecting the MACD oscillator row, while direct Playwright DOM inspection on the same app renders `RSI` then `MACD`; this is not tied to the left rail layer.
+
 # Admin User Session Activity Schema Cache Error
 
 ## Goal
