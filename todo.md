@@ -9352,7 +9352,7 @@ Add a TradingView-style internal chart gutter so moving candle/grid/crosshair li
 - [x] Update `ARCHITECTURE.md` with the plot-gutter contract.
 - [x] Run type/build checks.
 - [x] Verify visually with Playwright/devtools and clean generated artifacts.
-- [ ] Commit, push, confirm final git status.
+- [x] Commit, push, confirm final git status.
 
 ## Review
 - Added shared chart plot-gutter constants: 18px desktop, 12px compact/mobile, with matching right-side inset constants.
