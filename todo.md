@@ -1,3 +1,28 @@
+# Port 3000 Internal Server Error
+
+## Goal
+Restore the local `TEST/binance-chart-test` Next.js app on port `3000` from a bare `500 Internal Server Error`.
+
+## Investigation / Decisions
+- Port `3000` was served by an old `next dev --turbopack` process started on June 17.
+- `dev.log` showed repeated `ENOENT` errors for missing files under `TEST/binance-chart-test/.next`, including app manifests.
+- `TEST/binance-chart-test/.next` was absent, so the stale server was trying to serve deleted build artifacts.
+- No source-code fix is needed unless a clean restart still fails; restart the stale process and let Next regenerate `.next`.
+
+## Checklist
+- [x] Confirm the failing HTTP response on `127.0.0.1:3000`.
+- [x] Identify the process listening on port `3000`.
+- [x] Inspect recent Next dev logs for the root cause.
+- [x] Restart the stale Next dev server on port `3000`.
+- [x] Verify `/` and API routes return non-500 responses.
+- [x] Review final status and clean only artifacts created during this check.
+
+## Review
+- Stopped stale June 17 `next dev --turbopack` process that was serving deleted `.next` artifacts and returning bare 500 responses.
+- Restarted `TEST/binance-chart-test` on `127.0.0.1:3000`; current listener is a fresh Next dev server.
+- Verified `http://127.0.0.1:3000/` returns `200`, `/api/binance?symbol=BTCUSDT&interval=1d&limit=5` returns `200`, and Playwright loads the page with title `ProCharting Market Desk` and no page errors.
+- No source-code fix was needed; root cause was a stale dev server after `.next` cleanup.
+
 # Indicator Layout Persistence
 
 ## Goal
@@ -9168,6 +9193,35 @@ Add the next TradingView left-rail utility: Magnet mode for chart drawings, plac
   - `npm --prefix TEST/binance-chart-test run build`
   - Playwright smoke on `http://127.0.0.1:3106`: isolated local Supabase session stub, mocked market data, clicked Magnet to Weak and Strong, selected Trendline, placed a drawing, verified persisted `strong` mode and candle-center snapped anchors.
 - Build warnings remain existing multiple-lockfile warning and missing Next ESLint plugin warning.
+
+# Separate Left Drawing Tool Layer
+
+## Goal
+Move the authenticated left drawing tool rail into its own fixed-width chart-stage layer, TradingView-style, so it no longer sits on top of the main chart canvas.
+
+## Investigation / Decisions
+- `TEST/binance-chart-test/app/page.tsx` already renders `renderDrawingToolRail()` as a sibling before `.chart-layout-grid`.
+- `TEST/binance-chart-test/app/globals.css` currently makes both `.drawing-tool-rail` and `.chart-layout-grid` absolute inside `.chart-stage`, so the grid/canvas occupies the full stage underneath the rail.
+- Keep the fix CSS-only and simple: make `.chart-stage` a two-column layout, keep the rail in the left column, and let `.chart-layout-grid` own only the chart column.
+- Keep drawing tool menus anchored from the rail and allowed to extend over the chart column, like TradingView flyouts.
+
+## Checklist
+- [x] Inspect current chart stage, canvas grid, and left drawing rail composition.
+- [x] Add this task plan before code changes.
+- [x] Convert chart stage to separate left tool layer plus chart canvas layer.
+- [x] Update responsive behavior so small/mobile viewports still keep the canvas clear of the rail.
+- [x] Update `ARCHITECTURE.md` with the new chart-stage layer contract.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright/devtools and clean generated artifacts.
+- [x] Commit, push, confirm final git status.
+
+## Review
+- Added `data-has-drawing-rail` to `.chart-stage` so signed-out charts keep the full-width canvas while signed-in charts reserve a left rail layer.
+- Converted `.chart-stage` to a CSS grid and moved `.chart-layout-grid` out of absolute full-stage positioning; authenticated chart grids now render beside the rail instead of underneath it.
+- Restyled `.drawing-tool-rail` as a full-height left layer with menu overflow preserved, plus a 50px mobile rail column.
+- Updated `ARCHITECTURE.md` to document the chart-stage rail column contract.
+- Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and direct Playwright/devtools geometry on `http://127.0.0.1:3112` for desktop/mobile canvas offsets and nonblank chart pixels.
+- Existing E2E anomaly: `npm --prefix TEST/binance-chart-test run test:e2e -- tests/e2e/signed-out-auth.spec.ts:655` still fails expecting the MACD oscillator row, while direct Playwright DOM inspection on the same app renders `RSI` then `MACD`; this is not tied to the left rail layer.
 
 # Admin User Session Activity Schema Cache Error
 

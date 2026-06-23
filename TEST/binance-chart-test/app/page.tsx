@@ -17908,6 +17908,7 @@ const applyIndicatorTemplate = (template: IndicatorTemplate) => {
 
       <section
         className="chart-stage"
+        data-has-drawing-rail={isAuthenticated ? 'true' : 'false'}
         data-layout-count={selectedLayout.count}
         data-layout-id={selectedLayout.id}
         data-legend-version={legendRenderVersion}
