@@ -9379,7 +9379,7 @@ Remove the one-pixel vertical rendering flash on the left edge of the chart canv
 - [x] Update `ARCHITECTURE.md` with the canvas rasterization rule discovered here.
 - [x] Run type/build checks and Playwright browser verification.
 - [x] Clean generated verification artifacts.
-- [ ] Commit, push, and review final git status.
+- [x] Commit, push, and review final git status.
 
 ## Review
 - Added shared canvas preparation in `TEST/binance-chart-test/app/page.tsx` so chart canvases allocate backing stores with ceiling device-pixel dimensions and draw against the backing-store-derived CSS size.
@@ -9387,3 +9387,29 @@ Remove the one-pixel vertical rendering flash on the left edge of the chart canv
 - Applied the sizing and clipping rule to main price canvas, oscillator pane canvases, and the legacy embedded oscillator clip path.
 - Updated `ARCHITECTURE.md` with the canvas rasterization rule.
 - Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and in-app Playwright browser/devtools panning smoke on `http://127.0.0.1:3112` with clean left-edge crops and no app console errors.
+
+# Canvas Left-Edge Pan Artifact Follow-Up
+
+## Goal
+Fix the left-edge vertical artifact that is still visible during horizontal panning after the initial canvas backing-store/clip alignment pass.
+
+## Investigation / Decisions
+- The first pass removed backing-store undersizing and exact plot-edge time-grid strokes, but the issue is still visible to the user, so the remaining artifact is likely another pan-time overlay or drawable that still paints on the left boundary.
+- Re-check `drawChart`, `handleMouseMove`, hover/crosshair rendering, candle inclusion, and plot-edge strokes while panning.
+- Keep this second fix local to pan/render behavior; do not change data, saved layouts, Supabase, or unrelated UI.
+
+## Checklist
+- [x] Confirm current branch and clean tracked worktree.
+- [x] Add follow-up plan before editing code.
+- [x] Re-inspect panning render path and edge overlays.
+- [x] Patch remaining left-boundary artifact root cause.
+- [x] Update `ARCHITECTURE.md` if the render rule changes.
+- [x] Run type/build checks and browser panning verification.
+- [x] Clean generated verification artifacts.
+- [ ] Commit, push, and review final git status.
+
+## Review
+- Reproduced the remaining artifact with a Playwright pixel probe: near-left chart-pan samples showed full-height vertical columns around `x=21-22px`.
+- Increased the vertical plot-edge stroke guard and applied it to crosshair visibility in both main and oscillator canvas renderers.
+- Suppressed hover/crosshair rendering while a chart-pan drag is active, so panning does not draw a snapped vertical cursor near the left edge.
+- Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and Playwright pixel panning smoke on `http://127.0.0.1:3113` with zero flagged near-left vertical columns. Console capture had no page errors; one external resource DNS failure remained unrelated.
