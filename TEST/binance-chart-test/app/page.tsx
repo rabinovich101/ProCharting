@@ -2742,6 +2742,7 @@ const CHART_LEFT_PLOT_GUTTER = 18;
 const COMPACT_CHART_LEFT_PLOT_GUTTER = 12;
 const CHART_RIGHT_PLOT_INSET = 6;
 const COMPACT_CHART_RIGHT_PLOT_INSET = 2;
+const PLOT_EDGE_STROKE_GUARD = 6;
 
 const getChartLeftPlotGutter = (compactChart: boolean) =>
   compactChart ? COMPACT_CHART_LEFT_PLOT_GUTTER : CHART_LEFT_PLOT_GUTTER;
@@ -2794,7 +2795,7 @@ const clipToPlotArea = (ctx: CanvasRenderingContext2D, area: ChartCanvasArea, dp
 };
 
 const isVerticalPlotStrokeVisible = (x: number, area: ChartCanvasArea, dpr: number) => {
-  const edgeGuard = 1 / dpr;
+  const edgeGuard = Math.max(PLOT_EDGE_STROKE_GUARD, 1 / dpr);
   return x > area.left + edgeGuard && x < area.left + area.width - edgeGuard;
 };
 
@@ -7854,8 +7855,7 @@ export default function Home() {
       chartSettings.showCrosshair &&
       cursorToolShowsCrosshair &&
       crosshairPosition &&
-      crosshairPosition.x >= chartArea.left &&
-      crosshairPosition.x <= chartArea.left + chartArea.width;
+      isVerticalPlotStrokeVisible(crosshairPosition.x, chartArea, dpr);
 
     if (crosshairInside && crosshairPosition) {
       const hoveringThisIndicator = getPaneHoverState(paneIndex).indicatorId === indicator.id;
@@ -8308,6 +8308,16 @@ export default function Home() {
   };
 
   const getCurrentHoverMousePosition = (paneIndex: number): MousePosition | null => {
+    const activeDragState = dragStateRef.current;
+    const pane = paneStatesRef.current[paneIndex];
+
+    if (
+      (activeDragState.mode === 'chart-pan' && activeDragState.paneIndex === paneIndex) ||
+      pane?.dragMode === 'chart-pan'
+    ) {
+      return null;
+    }
+
     const hoverState = getPaneHoverState(paneIndex);
     if (hoverState.pointerX === null || hoverState.pointerY === null) {
       return hoverState.mousePos;
@@ -13068,8 +13078,7 @@ export default function Home() {
       chartSettings.showCrosshair &&
       cursorToolShowsCrosshair &&
       crosshairPosition &&
-      crosshairPosition.x >= chartArea.left &&
-      crosshairPosition.x <= chartArea.left + chartArea.width;
+      isVerticalPlotStrokeVisible(crosshairPosition.x, chartArea, dpr);
     const crosshairYInsidePane =
       crosshairPosition &&
       (crosshairFromIndicatorPane ||
