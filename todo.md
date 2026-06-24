@@ -9413,3 +9413,27 @@ Fix the left-edge vertical artifact that is still visible during horizontal pann
 - Increased the vertical plot-edge stroke guard and applied it to crosshair visibility in both main and oscillator canvas renderers.
 - Suppressed hover/crosshair rendering while a chart-pan drag is active, so panning does not draw a snapped vertical cursor near the left edge.
 - Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and Playwright pixel panning smoke on `http://127.0.0.1:3113` with zero flagged near-left vertical columns. Console capture had no page errors; one external resource DNS failure remained unrelated.
+# Open Design Companion Install
+## Goal
+Evaluate `nexu-io/open-design` for ProCharting and install it only if it can be used without changing ProCharting runtime architecture or package dependencies.
+## Investigation / Decisions
+- ProCharting is a pnpm `10.17.0` monorepo with a standalone Next.js chart app under `TEST/binance-chart-test`.
+- Open Design is useful for design/prototype workflows, but it is its own private pnpm monorepo and not a charting/runtime package.
+- Open Design source install requires Node `~24` and pnpm `10.33.x`; local ProCharting currently uses Node `22.22.2` and pnpm `10.17.0`.
+- Docker is available, so the safest install path is the official Open Design container on localhost, kept outside ProCharting's production dependency graph.
+- Do not modify `.env`; create any Open Design environment in the external Open Design checkout only.
+## Checklist
+- [x] Inspect ProCharting package/workspace and architecture notes.
+- [x] Inspect Open Design repo purpose, license, runtime requirements, and install paths.
+- [x] Install Open Design as a local companion service outside ProCharting package dependencies.
+- [x] Verify Open Design health endpoint and browser UI with Playwright.
+- [x] Update `ARCHITECTURE.md` only if ProCharting architecture changes.
+- [x] Clean generated verification artifacts.
+- [x] Review final git status and document outcome.
+## Review
+- Installed Open Design outside the ProCharting repository at `/Users/olegrabinovich/Documents/ooo/open-design`.
+- Built and started the official Docker service locally; `open-design` is healthy at `http://127.0.0.1:7456` and reports version `0.11.1`.
+- Installed Node `24.18.0` through `nvm` for the Open Design checkout and installed the repo with its pinned `pnpm@10.33.2`, leaving ProCharting on its existing Node/pnpm toolchain.
+- Added `/Users/olegrabinovich/.local/bin/od` as an explicit Open Design CLI shim and registered Codex MCP server `open-design` with `/Users/olegrabinovich/.local/bin/od mcp --daemon-url http://127.0.0.1:7456`.
+- Playwright verified the Open Design onboarding UI loads at `http://127.0.0.1:7456/onboarding`; remaining console errors are optional external onboarding integrations (`/api/amr/models`, Composio config, Discord community), not a local server failure.
+- No ProCharting runtime architecture changed, so `ARCHITECTURE.md` did not need an update.
