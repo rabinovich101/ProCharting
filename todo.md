@@ -150,7 +150,7 @@ Make oscillator indicators render in separate resizable panes below the main cha
 - [x] Update `ARCHITECTURE.md` with the new chart pane architecture.
 - [x] Run type/build checks.
 - [x] Verify with Playwright or Camoufox and clean generated artifacts.
-- [ ] Commit, push, and review final git status.
+- [x] Commit, push, and review final git status.
 
 ## Review
 - Added an internal `chart-pane-stack` inside each chart layout cell so the price canvas and oscillator indicator canvases are separate rows.
@@ -9359,3 +9359,31 @@ Add a TradingView-style internal chart gutter so moving candle/grid/crosshair li
 - Applied the gutter to `getChartVisualLayout` and `getIndicatorPaneVisualLayout` so price candles, grid lines, crosshair, volume, indicator panes, drawings, and time labels all start away from the left rail boundary.
 - Updated `ARCHITECTURE.md` with the internal left plot-gutter contract.
 - Verification passed: `git diff --check`, `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, and direct Playwright/devtools on `http://127.0.0.1:3117` confirmed desktop gutter edge `18` and mobile gutter edge `12` while the gutter stayed visually clear of the crosshair line.
+# Canvas Left-Edge Pan Artifact
+
+## Goal
+Remove the one-pixel vertical rendering flash on the left edge of the chart canvas during horizontal panning.
+
+## Investigation / Decisions
+- The active chart UI is the standalone `TEST/binance-chart-test` Next.js app.
+- Main and oscillator canvases redraw every frame with `canvas.width/height` based on `Math.floor(rect.size * devicePixelRatio)`, while drawing uses CSS-pixel `rect.width/height`. Fractional layout sizes can leave the backing store one device pixel short and let the browser resample a stale edge during rapid pan redraws.
+- The plot clip starts exactly at `chartArea.left`, and grid/candle/indicator strokes are allowed exactly on the clip boundary while `viewRange.startIndex` moves fractionally. During panning, a vertical stroke at that boundary can appear as a one-pixel flash.
+- Keep the fix local to canvas sizing and plot-edge drawing helpers; no data, layout persistence, or Supabase architecture changes are needed.
+
+## Checklist
+- [x] Inspect recording and relevant chart canvas render/pan code.
+- [x] Write a scoped plan before code changes.
+- [x] Add shared canvas sizing helper using ceiling backing-store dimensions.
+- [x] Add shared plot clipping helper that aligns/guards the left edge.
+- [x] Apply helpers to main and oscillator canvas render paths.
+- [x] Update `ARCHITECTURE.md` with the canvas rasterization rule discovered here.
+- [x] Run type/build checks and Playwright browser verification.
+- [x] Clean generated verification artifacts.
+- [ ] Commit, push, and review final git status.
+
+## Review
+- Added shared canvas preparation in `TEST/binance-chart-test/app/page.tsx` so chart canvases allocate backing stores with ceiling device-pixel dimensions and draw against the backing-store-derived CSS size.
+- Added device-pixel-aligned plot clipping plus guarded vertical time-grid stroke visibility to keep fractional horizontal panning from painting exactly on the left plot boundary.
+- Applied the sizing and clipping rule to main price canvas, oscillator pane canvases, and the legacy embedded oscillator clip path.
+- Updated `ARCHITECTURE.md` with the canvas rasterization rule.
+- Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and in-app Playwright browser/devtools panning smoke on `http://127.0.0.1:3112` with clean left-edge crops and no app console errors.

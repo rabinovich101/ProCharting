@@ -341,6 +341,12 @@ interface ChartCanvasArea {
   height: number;
 }
 
+interface CanvasDrawSize {
+  width: number;
+  height: number;
+  dpr: number;
+}
+
 interface DrawingRenderedSegment {
   start: { x: number; y: number };
   end: { x: number; y: number };
@@ -2742,6 +2748,55 @@ const getChartLeftPlotGutter = (compactChart: boolean) =>
 
 const getChartRightPlotInset = (compactChart: boolean) =>
   compactChart ? COMPACT_CHART_RIGHT_PLOT_INSET : CHART_RIGHT_PLOT_INSET;
+
+const prepareCanvasForDraw = (canvas: HTMLCanvasElement, rect: DOMRect): CanvasDrawSize => {
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const widthPixels = Math.max(1, Math.ceil(rect.width * dpr));
+  const heightPixels = Math.max(1, Math.ceil(rect.height * dpr));
+
+  if (canvas.width !== widthPixels) {
+    canvas.width = widthPixels;
+  }
+
+  if (canvas.height !== heightPixels) {
+    canvas.height = heightPixels;
+  }
+
+  return {
+    width: widthPixels / dpr,
+    height: heightPixels / dpr,
+    dpr,
+  };
+};
+
+const alignPlotAreaToDevicePixels = (area: ChartCanvasArea, dpr: number): ChartCanvasArea => {
+  const left = Math.ceil(area.left * dpr) / dpr;
+  const top = Math.ceil(area.top * dpr) / dpr;
+  const right = Math.floor((area.left + area.width) * dpr) / dpr;
+  const bottom = Math.floor((area.top + area.height) * dpr) / dpr;
+
+  return {
+    left,
+    top,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
+};
+
+const clipToPlotArea = (ctx: CanvasRenderingContext2D, area: ChartCanvasArea, dpr: number) => {
+  const alignedArea = alignPlotAreaToDevicePixels(area, dpr);
+
+  ctx.beginPath();
+  ctx.rect(alignedArea.left, alignedArea.top, alignedArea.width, alignedArea.height);
+  ctx.clip();
+
+  return alignedArea;
+};
+
+const isVerticalPlotStrokeVisible = (x: number, area: ChartCanvasArea, dpr: number) => {
+  const edgeGuard = 1 / dpr;
+  return x > area.left + edgeGuard && x < area.left + area.width - edgeGuard;
+};
 
 const getChartVisualLayout = ({
   width,
@@ -7612,19 +7667,17 @@ export default function Home() {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    const { width: canvasWidth, height: canvasHeight, dpr } = prepareCanvasForDraw(canvas, rect);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const background = ctx.createLinearGradient(0, 0, 0, rect.height);
+    const background = ctx.createLinearGradient(0, 0, 0, canvasHeight);
     background.addColorStop(0, palette.canvasTop);
     background.addColorStop(1, palette.canvasBottom);
     ctx.fillStyle = background;
-    ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     const { compactChart, rightAxisWidth, bottomAxisHeight, axisFontSize, indicatorPaneFontSize, chartArea } =
-      getIndicatorPaneVisualLayout(rect.width, rect.height, isLastIndicatorPane);
+      getIndicatorPaneVisualLayout(canvasWidth, canvasHeight, isLastIndicatorPane);
 
     if (!computed || candles.length === 0 || chartArea.width <= 0 || chartArea.height <= 0) return;
 
@@ -7657,9 +7710,7 @@ export default function Home() {
 
     if (computed.noData || visibleValues.length === 0) {
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
-      ctx.clip();
+      clipToPlotArea(ctx, chartArea, dpr);
       ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
       ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
 
@@ -7699,12 +7750,10 @@ export default function Home() {
         ...tick,
         x: xForIndex(tick.index),
       }))
-      .filter((tick) => tick.x >= chartArea.left && tick.x <= chartArea.left + chartArea.width);
+      .filter((tick) => isVerticalPlotStrokeVisible(tick.x, chartArea, dpr));
 
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
-    ctx.clip();
+    clipToPlotArea(ctx, chartArea, dpr);
     ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
     ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
 
@@ -7789,13 +7838,13 @@ export default function Home() {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = palette.text;
-    ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, chartArea.top + indicatorPaneFontSize + 5);
-    ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, chartArea.top + chartArea.height - 7);
+    ctx.fillText(formatIndicatorNumber(rawMax), canvasWidth - 8, chartArea.top + indicatorPaneFontSize + 5);
+    ctx.fillText(formatIndicatorNumber(rawMin), canvasWidth - 8, chartArea.top + chartArea.height - 7);
 
     if (definition.formula === 'rsi' || definition.formula === 'stochastic') {
       const midLabelY = valueToY(50);
       if (midLabelY > chartArea.top + indicatorPaneFontSize + 10 && midLabelY < chartArea.top + chartArea.height - 12) {
-        ctx.fillText('50.00', rect.width - 8, midLabelY);
+        ctx.fillText('50.00', canvasWidth - 8, midLabelY);
       }
     }
 
@@ -7843,7 +7892,7 @@ export default function Home() {
     }
 
     if (isLastIndicatorPane && bottomAxisHeight > 0) {
-      const timeScaleTop = rect.height - bottomAxisHeight;
+      const timeScaleTop = canvasHeight - bottomAxisHeight;
       ctx.strokeStyle = palette.axisBorder;
       ctx.beginPath();
       ctx.moveTo(chartArea.left, timeScaleTop);
@@ -10858,16 +10907,14 @@ export default function Home() {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    const { width: canvasWidth, height: canvasHeight, dpr } = prepareCanvasForDraw(canvas, rect);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const background = ctx.createLinearGradient(0, 0, 0, rect.height);
+    const background = ctx.createLinearGradient(0, 0, 0, canvasHeight);
     background.addColorStop(0, palette.canvasTop);
     background.addColorStop(1, palette.canvasBottom);
     ctx.fillStyle = background;
-    ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     if (candles.length === 0) return;
 
@@ -10878,7 +10925,7 @@ export default function Home() {
     const paneVisibleOscillatorIndicators = getVisibleOscillatorIndicatorsForPane(paneIndex);
     const paneShowVolume = chartSettings.showVolumePane && paneVisibleVolumeIndicator !== undefined;
     const hasExternalIndicatorPanes = paneVisibleOscillatorIndicators.length > 0;
-    const externalIndicatorBottomAxisHeight = hasExternalIndicatorPanes ? (rect.width < 520 ? 31 : 38) : 0;
+    const externalIndicatorBottomAxisHeight = hasExternalIndicatorPanes ? (canvasWidth < 520 ? 31 : 38) : 0;
     const {
       chartArea,
       volumeArea,
@@ -10889,8 +10936,8 @@ export default function Home() {
       compactChart,
       narrowChart,
     } = getChartVisualLayout({
-      width: rect.width,
-      height: rect.height + externalIndicatorBottomAxisHeight,
+      width: canvasWidth,
+      height: canvasHeight + externalIndicatorBottomAxisHeight,
       showVolume: paneShowVolume,
       oscillatorIndicators: [],
     });
@@ -10971,14 +11018,12 @@ export default function Home() {
         ...tick,
         x: xForIndex(tick.index),
       }))
-      .filter((tick) => tick.x >= chartArea.left && tick.x <= chartArea.left + chartArea.width);
+      .filter((tick) => isVerticalPlotStrokeVisible(tick.x, chartArea, dpr));
     const drawingPriceLabels: Array<{ y: number; price: number; color: string; selected: boolean }> = [];
     const drawingTimeLabels: Array<{ x: number; time: number; color: string }> = [];
 
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
-    ctx.clip();
+    clipToPlotArea(ctx, chartArea, dpr);
 
     ctx.font = getCanvasFont(axisFontSize);
     ctx.lineWidth = 1;
@@ -12817,9 +12862,7 @@ export default function Home() {
 
       if (computed.noData || visibleValues.length === 0) {
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(pane.left, pane.top, pane.width, pane.height);
-        ctx.clip();
+        clipToPlotArea(ctx, pane, dpr);
         ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
         ctx.fillRect(pane.left, pane.top, pane.width, pane.height);
 
@@ -12855,9 +12898,7 @@ export default function Home() {
       const valueToY = (value: number) => pane.top + ((maxValue - value) / valueRange) * pane.height;
 
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(pane.left, pane.top, pane.width, pane.height);
-      ctx.clip();
+      clipToPlotArea(ctx, pane, dpr);
 
       ctx.fillStyle = theme === 'dark' ? 'rgba(13, 18, 27, 0.46)' : 'rgba(255, 255, 255, 0.42)';
       ctx.fillRect(pane.left, pane.top, pane.width, pane.height);
@@ -12935,13 +12976,13 @@ export default function Home() {
 
       ctx.textAlign = 'right';
       ctx.fillStyle = palette.text;
-      ctx.fillText(formatIndicatorNumber(rawMax), rect.width - 8, pane.top + indicatorPaneFontSize + 5);
-      ctx.fillText(formatIndicatorNumber(rawMin), rect.width - 8, pane.top + pane.height - 7);
+      ctx.fillText(formatIndicatorNumber(rawMax), canvasWidth - 8, pane.top + indicatorPaneFontSize + 5);
+      ctx.fillText(formatIndicatorNumber(rawMin), canvasWidth - 8, pane.top + pane.height - 7);
 
       if (definition.formula === 'rsi' || definition.formula === 'stochastic') {
         const midLabelY = valueToY(50) + 4;
         if (midLabelY > pane.top + indicatorPaneFontSize + 10 && midLabelY < pane.top + pane.height - 12) {
-          ctx.fillText('50.00', rect.width - 8, midLabelY);
+          ctx.fillText('50.00', canvasWidth - 8, midLabelY);
         }
       }
     });
@@ -12983,7 +13024,7 @@ export default function Home() {
     for (const price of priceTickInfo.ticks) {
       const y = priceToY(price);
       if (y < chartArea.top + 8 || y > chartArea.top + chartArea.height - 8) continue;
-      ctx.fillText(formatPrice(price), rect.width - 8, y + 5);
+      ctx.fillText(formatPrice(price), canvasWidth - 8, y + 5);
     }
 
     if (!hasExternalIndicatorPanes) {
@@ -12996,7 +13037,7 @@ export default function Home() {
           chartArea.left + labelWidth / 2,
           chartArea.left + chartArea.width - labelWidth / 2
         );
-        ctx.fillText(tick.label, labelX, rect.height - 10);
+        ctx.fillText(tick.label, labelX, canvasHeight - 10);
       }
 
       drawingTimeLabels.forEach((label) => {

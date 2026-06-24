@@ -996,3 +996,7 @@ Current performance vs TradingView lightweight-charts:
 - Content Security Policy compatible
 - CORS-aware networking
 - Sandboxed worker execution
+
+## Canvas Rasterization Note
+
+`TEST/binance-chart-test/app/page.tsx` sizes chart canvas backing stores with ceiling device-pixel dimensions and derives draw-space dimensions from that backing store. Plot clips are aligned to device pixels, and vertical time-grid strokes are filtered away from exact plot edges so fractional horizontal panning cannot expose a one-pixel boundary flash.
