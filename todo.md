@@ -9413,3 +9413,55 @@ Fix the left-edge vertical artifact that is still visible during horizontal pann
 - Increased the vertical plot-edge stroke guard and applied it to crosshair visibility in both main and oscillator canvas renderers.
 - Suppressed hover/crosshair rendering while a chart-pan drag is active, so panning does not draw a snapped vertical cursor near the left edge.
 - Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, `git diff --check`, and Playwright pixel panning smoke on `http://127.0.0.1:3113` with zero flagged near-left vertical columns. Console capture had no page errors; one external resource DNS failure remained unrelated.
+# Open Design Companion Install
+## Goal
+Evaluate `nexu-io/open-design` for ProCharting and install it only if it can be used without changing ProCharting runtime architecture or package dependencies.
+## Investigation / Decisions
+- ProCharting is a pnpm `10.17.0` monorepo with a standalone Next.js chart app under `TEST/binance-chart-test`.
+- Open Design is useful for design/prototype workflows, but it is its own private pnpm monorepo and not a charting/runtime package.
+- Open Design source install requires Node `~24` and pnpm `10.33.x`; local ProCharting currently uses Node `22.22.2` and pnpm `10.17.0`.
+- Docker is available, so the safest install path is the official Open Design container on localhost, kept outside ProCharting's production dependency graph.
+- Do not modify `.env`; create any Open Design environment in the external Open Design checkout only.
+## Checklist
+- [x] Inspect ProCharting package/workspace and architecture notes.
+- [x] Inspect Open Design repo purpose, license, runtime requirements, and install paths.
+- [x] Install Open Design as a local companion service outside ProCharting package dependencies.
+- [x] Verify Open Design health endpoint and browser UI with Playwright.
+- [x] Update `ARCHITECTURE.md` only if ProCharting architecture changes.
+- [x] Clean generated verification artifacts.
+- [x] Review final git status and document outcome.
+## Review
+- Installed Open Design outside the ProCharting repository at `/Users/olegrabinovich/Documents/ooo/open-design`.
+- Built and started the official Docker service locally; `open-design` is healthy at `http://127.0.0.1:7456` and reports version `0.11.1`.
+- Installed Node `24.18.0` through `nvm` for the Open Design checkout and installed the repo with its pinned `pnpm@10.33.2`, leaving ProCharting on its existing Node/pnpm toolchain.
+- Added `/Users/olegrabinovich/.local/bin/od` as an explicit Open Design CLI shim and registered Codex MCP server `open-design` with `/Users/olegrabinovich/.local/bin/od mcp --daemon-url http://127.0.0.1:7456`.
+- Playwright verified the Open Design onboarding UI loads at `http://127.0.0.1:7456/onboarding`; remaining console errors are optional external onboarding integrations (`/api/amr/models`, Composio config, Discord community), not a local server failure.
+- No ProCharting runtime architecture changed, so `ARCHITECTURE.md` did not need an update.
+
+# Phosphor Icon Library Pass
+
+## Goal
+Improve the visual quality and consistency of the chart drawing Icons tab by replacing the hand-authored vector glyph set with a curated set sourced from a dedicated icon library, while preserving existing picker behavior, saved drawing tokens, and canvas rendering.
+
+## Investigation / Decisions
+- Open Design is installed, but no Open Design project is active on the local daemon and there are no Open Design projects to pull from, so this pass will use the installed design workflow direction locally instead of commissioning a long-running OD generation.
+- The active icon pain point is `TEST/binance-chart-test/app/icon-data.ts`: it contains hand-written monochrome SVG strings used by both the Icons picker and canvas drawing data URLs.
+- App chrome already uses `lucide-react`; this pass should target the drawing glyph catalog rather than reworking unrelated header or rail button logic.
+- Use `@phosphor-icons/core` as a source library because it is a smaller, public raw-SVG package with a more polished filled regular style that reads well at small picker sizes.
+- Keep runtime simple: generate static `icon-data.ts` from Phosphor SVG assets, keep the existing `IconGlyph`/`ICON_CATEGORIES` API, and do not change `.env`.
+
+## Checklist
+- [x] Add Phosphor source dependency and an app-local icon-data generator.
+- [x] Regenerate `icon-data.ts` with curated Phosphor-based glyphs and preserve existing icon IDs.
+- [x] Update `ARCHITECTURE.md` if the icon data architecture changes.
+- [x] Run type/build checks.
+- [x] Verify visually with Playwright/devtools and clean generated artifacts.
+- [x] Commit, push, and confirm final git status.
+
+## Review
+- Added `@phosphor-icons/core` as an app-local dev/source dependency and `npm run gen:icons` for repeatable icon catalog generation.
+- Added `scripts/gen-icon-data.mjs`, which reads Phosphor regular SVG assets, scales their 256 viewBox paths into the existing 0 0 24 SVG contract, and emits static `app/icon-data.ts`.
+- Regenerated all 76 existing drawing Icons tab glyph IDs, preserving saved `icon:` token compatibility while making the visual set fuller and more consistent.
+- Updated `ARCHITECTURE.md` to document the generated Phosphor icon catalog boundary.
+- Verification passed so far: `git diff --check`, `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, local Playwright visual fixture decoded 76/76 generated SVG data URLs with 0 blank images and inspected light-theme screenshot.
+- Build warning remains pre-existing: multiple lockfiles / missing Next ESLint plugin. Playwright ignored an unrelated Google Tag Manager DNS resource failure.
