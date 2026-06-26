@@ -1,3 +1,31 @@
+# TradingView-Style Pane Gaps
+
+## Goal
+Make stacked chart layers/panes read as clearly separated TradingView-style surfaces, especially when oscillator indicators render below the price chart.
+
+## Investigation / Decisions
+- TradingView reference inspection shows restrained separation: compact rows/panes, crisp dividers, and light gutters instead of large decorative cards.
+- Local chart panes are rendered by `TEST/binance-chart-test/app/page.tsx` as a `chart-pane-stack` grid: price pane row, 6px resize handle row, then indicator pane row.
+- The safest implementation point is the existing resize handle/gutter row plus adjacent pane edge styling. This avoids changing candle/indicator canvas drawing, data mapping, or pane resize logic.
+- Keep the change scoped to pane gap presentation and matching grid row height; no server, storage, or architecture-level data model change needed.
+
+## Checklist
+- [x] Inspect TradingView chart/object tree spacing behavior.
+- [x] Locate local chart pane stack and resize handle implementation.
+- [x] Add a clearer pane gutter/divider between stacked price and indicator panes.
+- [x] Update `ARCHITECTURE.md` with pane gap styling rule.
+- [x] Update checklist/review notes after implementation.
+- [x] Run type/build checks for `TEST/binance-chart-test`.
+- [x] Verify visually with Playwright/Camoufox and clean generated screenshots.
+- [x] Commit, push, and confirm final git status.
+
+## Review
+- Replaced the hardcoded 6px pane divider row with `var(--chart-pane-gap-height)` so layout and CSS styling stay in sync.
+- Added a 10px pane gutter with subtle top/bottom divider lines and a visible resize handle affordance between price and oscillator panes.
+- Updated `ARCHITECTURE.md` with the pane gutter/resize-handle ownership rule.
+- Verification passed: `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `git diff --check`, `npm --prefix TEST/binance-chart-test run build`.
+- Playwright browser verification on `http://127.0.0.1:3110/` added RSI and measured `gridTemplateRows` as `515.578px 10px 145.422px`; local console showed only normal React/Fast Refresh dev messages.
+
 # Port 3000 Internal Server Error
 
 ## Goal

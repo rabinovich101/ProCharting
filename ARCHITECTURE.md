@@ -13,6 +13,11 @@ stack and positioned from their lower-pane row refs. This keeps the compact
 TradingView-style name/value/action label pinned to the top-left of the
 indicator pane instead of floating inside the price pane legend layer.
 
+Pane separation lives in `chart-pane-stack` as a real grid gutter track
+controlled by `--chart-pane-gap-height`. The gutter row doubles as resize
+handle, so price and oscillator canvases stay separate rows with visible
+TradingView-style divider instead canvas-drawn whitespace.
+
 ## Overview
 
 ProCharting is a next-generation financial charting library built for extreme performance. It leverages WebGPU compute shaders, multi-threading, and GPU-accelerated data processing to achieve 10x better performance than existing solutions.
