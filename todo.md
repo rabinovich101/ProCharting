@@ -1,3 +1,31 @@
+# TradingView-Style Legend Left Alignment
+
+## Goal
+Move the chart status/OHLC legend and indicator legend labels farther left to match TradingView's top-left chart legend placement while preserving the existing compact inline label styling and hover controls.
+
+## Investigation / Decisions
+- TradingView inspection on `https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT` shows the chart container starts around `x=56` and the main legend starts around `x=60`, about 4px inside the chart pane.
+- Local legend ownership is in `TEST/binance-chart-test/app/page.tsx`; placement is CSS-only in `TEST/binance-chart-test/app/globals.css` via `.instrument-legend-overlay` and `.indicator-legend-overlay`.
+- Keep the fix simple and scoped: adjust legend overlay left offsets and responsive max-width math only, without changing candle rendering, indicator calculations, pane sizing, saved layout data, or app architecture.
+
+## Checklist
+- [x] Inspect TradingView legend placement and measure reference offsets.
+- [x] Locate local OHLC and indicator legend render/CSS ownership.
+- [x] Measure current local legend boxes in browser.
+- [x] Move OHLC and indicator legend overlays left using scoped CSS.
+- [x] Update review notes and architecture note if needed.
+- [x] Run type/build checks.
+- [x] Verify visually with browser automation and inspect DOM boxes.
+- [x] Clean generated verification artifacts.
+- [x] Commit, push, and confirm final git status.
+
+## Review
+- Moved `.instrument-legend-overlay` and `.indicator-legend-overlay` from a 58px desktop inset to an 8px chart-pane inset, matching TradingView's chart-relative top-left legend placement.
+- Updated mobile overrides from 52px to the same 8px inset and widened max-width calculations to preserve right-side breathing room.
+- Updated `ARCHITECTURE.md` to document that legend left alignment is owned by `TEST/binance-chart-test/app/globals.css`.
+- Verification passed: `npm run build`, `npx tsc --noEmit --pretty false` after build regenerated `.next/types`, `git diff --check`, browser/DevTools visual measurement on `http://127.0.0.1:3100`.
+- Browser verification measured OHLC, price indicator, and oscillator indicator overlays all at `x=8`; local DevTools logs showed no app errors.
+
 # TradingView-Style Pane Gaps
 
 ## Goal
