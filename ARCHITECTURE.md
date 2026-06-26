@@ -13,6 +13,10 @@ stack and positioned from their lower-pane row refs. This keeps the compact
 TradingView-style name/value/action label pinned to the top-left of the
 indicator pane instead of floating inside the price pane legend layer.
 
+Status/OHLC and indicator legend left alignment is owned by
+`TEST/binance-chart-test/app/globals.css`; both overlays use a tight
+pane-edge inset to mirror TradingView's chart-relative legend placement.
+
 Pane separation lives in `chart-pane-stack` as a real grid gutter track
 controlled by `--chart-pane-gap-height`. The gutter row doubles as resize
 handle, so price and oscillator canvases stay separate rows with visible

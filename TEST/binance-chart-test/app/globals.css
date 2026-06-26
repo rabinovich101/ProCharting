@@ -2127,9 +2127,9 @@ summary {
   font-size: 14px;
   font-weight: 730;
   gap: 8px 13px;
-  left: 58px;
+  left: 8px;
   line-height: 1.35;
-  max-width: min(850px, calc(100vw - 132px));
+  max-width: min(850px, calc(100vw - 82px));
   min-height: 40px;
   padding: 7px 10px;
   pointer-events: none;
@@ -2186,8 +2186,8 @@ summary {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  left: 58px;
-  max-width: min(760px, calc(100vw - 132px));
+  left: 8px;
+  max-width: min(760px, calc(100vw - 82px));
   pointer-events: auto;
   position: absolute;
   top: 64px;
@@ -4699,8 +4699,8 @@ summary {
   .instrument-legend-overlay {
     font-size: 12px;
     gap: 5px 8px;
-    left: 52px;
-    max-width: calc(100vw - 88px);
+    left: 8px;
+    max-width: calc(100vw - 44px);
     min-height: 34px;
     padding: 5px 7px;
     top: 8px;
@@ -4711,8 +4711,8 @@ summary {
   }
 
   .indicator-legend-overlay {
-    left: 52px;
-    max-width: calc(100vw - 88px);
+    left: 8px;
+    max-width: calc(100vw - 44px);
     top: 108px;
   }
 
