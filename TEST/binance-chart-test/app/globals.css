@@ -4298,6 +4298,8 @@ summary {
 }
 
 .chart-pane-stack {
+  --chart-pane-gap-height: 10px;
+  background: var(--surface-0);
   display: grid;
   inset: 0;
   min-height: 0;
@@ -4307,24 +4309,39 @@ summary {
 }
 
 .chart-pane-row {
+  background: var(--surface-0);
   min-height: 0;
   min-width: 0;
   overflow: hidden;
   position: relative;
 }
 
+.chart-price-pane-row {
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--border-subtle) 84%, transparent);
+}
+
 .chart-indicator-pane-row {
   background: var(--surface-0);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface-light) 5%, transparent);
 }
 
 .chart-pane-resize-handle {
   align-items: center;
-  background: color-mix(in srgb, var(--border-subtle) 72%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--border-subtle) 92%, transparent) 0,
+      color-mix(in srgb, var(--border-subtle) 92%, transparent) 1px,
+      color-mix(in srgb, var(--surface-1) 88%, var(--surface-0)) 1px,
+      color-mix(in srgb, var(--surface-1) 88%, var(--surface-0)) calc(100% - 1px),
+      color-mix(in srgb, var(--border-subtle) 92%, transparent) calc(100% - 1px),
+      color-mix(in srgb, var(--border-subtle) 92%, transparent) 100%
+    );
   border: 0;
   cursor: row-resize;
   display: flex;
   justify-content: center;
-  min-height: 6px;
+  min-height: var(--chart-pane-gap-height);
   outline: 0;
   padding: 0;
   position: relative;
@@ -4333,13 +4350,13 @@ summary {
 }
 
 .chart-pane-resize-handle::before {
-  background: color-mix(in srgb, var(--text-muted) 42%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 52%, transparent);
   border-radius: 999px;
   content: "";
   height: 2px;
-  opacity: 0;
+  opacity: 0.42;
   transition: opacity 120ms ease, background 120ms ease;
-  width: 42px;
+  width: 46px;
 }
 
 .chart-pane-resize-handle:hover::before,

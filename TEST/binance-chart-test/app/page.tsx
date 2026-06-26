@@ -2656,7 +2656,7 @@ const getPaneStackGridTemplateRows = (sizes: ChartPaneStackSize[]) =>
     .flatMap((size, index) => {
       const rowMin = index === 0 ? '160px' : '54px';
       const row = `minmax(${rowMin}, ${Math.max(1, size.percent).toFixed(3)}fr)`;
-      return index < sizes.length - 1 ? [row, '6px'] : [row];
+      return index < sizes.length - 1 ? [row, 'var(--chart-pane-gap-height)'] : [row];
     })
     .join(' ');
 const COLOR_INPUT_FALLBACK = '#2962ff';
