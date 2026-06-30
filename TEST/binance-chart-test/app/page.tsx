@@ -723,7 +723,17 @@ interface PasswordSecurityReport {
   requirements: PasswordSecurityRequirement[];
 }
 
-type SymbolSearchCategory = 'all' | 'favorites' | 'spot' | 'layer1' | 'defi' | 'meme';
+type SymbolSearchCategory =
+  | 'all'
+  | 'stocks'
+  | 'funds'
+  | 'futures'
+  | 'forex'
+  | 'crypto'
+  | 'indices'
+  | 'bonds'
+  | 'economy'
+  | 'options';
 
 interface SymbolSearchOption {
   symbol: string;
@@ -2418,11 +2428,15 @@ const createDefaultDrawingTimeframeVisibility = () =>
   }, {});
 const SYMBOL_SEARCH_TABS: Array<{ id: SymbolSearchCategory; label: string }> = [
   { id: 'all', label: 'All' },
-  { id: 'favorites', label: 'Favorites' },
-  { id: 'spot', label: 'Spot' },
-  { id: 'layer1', label: 'Layer 1' },
-  { id: 'defi', label: 'DeFi' },
-  { id: 'meme', label: 'Meme' },
+  { id: 'stocks', label: 'Stocks' },
+  { id: 'funds', label: 'Funds' },
+  { id: 'futures', label: 'Futures' },
+  { id: 'forex', label: 'Forex' },
+  { id: 'crypto', label: 'Crypto' },
+  { id: 'indices', label: 'Indices' },
+  { id: 'bonds', label: 'Bonds' },
+  { id: 'economy', label: 'Economy' },
+  { id: 'options', label: 'Options' },
 ];
 
 const SYMBOL_ICON_BASE_URL = 'https://assets.coincap.io/assets/icons/';
@@ -2459,7 +2473,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Bitcoin / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto', 'defi'],
-    categories: ['favorites', 'spot', 'layer1'],
+    categories: ['crypto'],
     color: '#f7931a',
   },
   {
@@ -2469,7 +2483,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Ethereum / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto', 'defi'],
-    categories: ['favorites', 'spot', 'layer1', 'defi'],
+    categories: ['crypto'],
     color: '#627eea',
   },
   {
@@ -2479,7 +2493,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Solana / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['favorites', 'spot', 'layer1'],
+    categories: ['crypto'],
     color: '#14f195',
   },
   {
@@ -2489,7 +2503,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'BNB / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['favorites', 'spot', 'layer1'],
+    categories: ['crypto'],
     color: '#f3ba2f',
   },
   {
@@ -2499,7 +2513,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'XRP / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['spot', 'layer1'],
+    categories: ['crypto'],
     color: '#23292f',
   },
   {
@@ -2509,7 +2523,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Cardano / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['spot', 'layer1'],
+    categories: ['crypto'],
     color: '#3468d1',
   },
   {
@@ -2519,7 +2533,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Dogecoin / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['spot', 'meme'],
+    categories: ['crypto'],
     color: '#c2a633',
   },
   {
@@ -2529,7 +2543,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Avalanche / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto', 'defi'],
-    categories: ['spot', 'layer1', 'defi'],
+    categories: ['crypto'],
     color: '#e84142',
   },
   {
@@ -2539,7 +2553,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Chainlink / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto', 'oracle'],
-    categories: ['spot', 'defi'],
+    categories: ['crypto'],
     color: '#2a5ada',
   },
   {
@@ -2549,7 +2563,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Polkadot / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['spot', 'layer1'],
+    categories: ['crypto'],
     color: '#e6007a',
   },
   {
@@ -2559,7 +2573,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'Litecoin / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['spot', 'layer1'],
+    categories: ['crypto'],
     color: '#345d9d',
   },
   {
@@ -2569,7 +2583,7 @@ const SYMBOL_SEARCH_OPTIONS: SymbolSearchOption[] = ([
     name: 'TRON / TetherUS',
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['spot', 'layer1'],
+    categories: ['crypto'],
     color: '#ff0013',
   },
 ] satisfies SymbolSearchOption[]).map(withSymbolIcon);
@@ -6023,7 +6037,7 @@ const createFallbackSymbolSearchOption = (symbol: string): SymbolSearchOption =>
     name: quote ? `${base} / ${quote}` : symbol,
     exchange: 'Binance',
     tags: ['spot', 'crypto'],
-    categories: ['spot'],
+    categories: ['crypto'],
     color: getGeneratedSymbolColor(symbol),
     iconUrl: getSymbolIconUrl(base),
   };
@@ -6074,7 +6088,7 @@ const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] =
       name: `${ticker.base} / ${ticker.quote}`,
       exchange: 'Binance',
       tags: ['spot', 'crypto', ticker.quote.toLowerCase()],
-      categories: ['spot'],
+      categories: ['crypto'],
       color: getGeneratedSymbolColor(ticker.symbol),
       iconUrl: getTickerIconUrl(ticker, iconsByBase),
     });
