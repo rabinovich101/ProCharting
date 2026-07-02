@@ -754,7 +754,15 @@ interface BinanceTickerOption {
   iconUrl?: string;
 }
 
+interface BybitTickerOption {
+  symbol: string;
+  base: string;
+  quote: string;
+}
+
 const BINANCE_TICKERS_ENDPOINT = '/api/binance/tickers';
+const BYBIT_TICKERS_ENDPOINT = '/api/bybit/tickers';
+const BYBIT_SYMBOL_PREFIX = 'BYBIT:';
 const INDICATOR_TEMPLATE_STORAGE_KEY = 'procharting.indicatorTemplates';
 const CHART_LAYOUT_STORAGE_KEY = 'procharting.chartLayouts';
 const ACTIVE_CHART_LAYOUT_STORAGE_KEY = 'procharting.activeChartLayoutId';
@@ -2616,6 +2624,7 @@ const BINANCE_QUOTE_SUFFIXES = [
   'RON',
   'VAI',
 ] as const;
+const BYBIT_QUOTE_SUFFIXES = ['USDT', 'USDC', 'DAI', 'BTC', 'ETH', 'EUR'] as const;
 const CHART_STYLE_OPTIONS: Array<MenuOption<ChartStyle>> = [
   { value: 'candles', label: 'Candles', shortLabel: 'Candle', description: 'OHLC candles' },
   { value: 'line', label: 'Line', description: 'Close price line' },
@@ -4399,6 +4408,23 @@ const cloneChartPaneState = (source: ChartPaneState): ChartPaneState => ({
 });
 const getStreamKey = (symbol: string, timeframe: string) => `${symbol.toLowerCase()}@kline_${timeframe}`;
 
+const OUR_TO_BYBIT_INTERVAL: Record<string, string> = {
+  '1m': '1',
+  '5m': '5',
+  '15m': '15',
+  '30m': '30',
+  '1h': '60',
+  '4h': '240',
+  '1d': 'D',
+  '1w': 'W',
+  '1M': 'M',
+};
+const BYBIT_TO_OUR_INTERVAL: Record<string, string> = Object.fromEntries(
+  Object.entries(OUR_TO_BYBIT_INTERVAL).map(([ours, bybit]) => [bybit, ours])
+);
+const getBybitStreamTopic = (symbol: string, timeframe: string) =>
+  `kline.${OUR_TO_BYBIT_INTERVAL[timeframe] ?? timeframe}.${stripExchangePrefix(symbol)}`;
+
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
@@ -6000,6 +6026,11 @@ const parseCandles = (payload: unknown): Candle[] => {
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const isBybitSymbol = (symbol: string) => symbol.startsWith(BYBIT_SYMBOL_PREFIX);
+
+const stripExchangePrefix = (symbol: string) =>
+  isBybitSymbol(symbol) ? symbol.slice(BYBIT_SYMBOL_PREFIX.length) : symbol;
+
 const isBinanceTickerOption = (value: unknown): value is BinanceTickerOption =>
   isObjectRecord(value) &&
   typeof value.symbol === 'string' &&
@@ -6013,8 +6044,17 @@ const isBinanceTickerOption = (value: unknown): value is BinanceTickerOption =>
 const getTickerIconUrl = (ticker: BinanceTickerOption, iconsByBase: ReadonlyMap<string, string>) =>
   iconsByBase.get(ticker.base) ?? getSymbolIconUrl(ticker.base);
 
-const findSymbolQuote = (symbol: string) =>
-  BINANCE_QUOTE_SUFFIXES.find((quote) => symbol.endsWith(quote) && symbol.length > quote.length);
+const isBybitTickerOption = (value: unknown): value is BybitTickerOption =>
+  isObjectRecord(value) &&
+  typeof value.symbol === 'string' &&
+  typeof value.base === 'string' &&
+  typeof value.quote === 'string' &&
+  value.symbol.length > 0 &&
+  value.base.length > 0 &&
+  value.quote.length > 0;
+
+const findSymbolQuote = (symbol: string, suffixes: readonly string[] = BINANCE_QUOTE_SUFFIXES) =>
+  suffixes.find((quote) => symbol.endsWith(quote) && symbol.length > quote.length);
 
 const getGeneratedSymbolColor = (symbol: string) => {
   let hash = 0;
@@ -6027,15 +6067,17 @@ const getGeneratedSymbolColor = (symbol: string) => {
 };
 
 const createFallbackSymbolSearchOption = (symbol: string): SymbolSearchOption => {
-  const quote = findSymbolQuote(symbol);
-  const base = quote ? symbol.slice(0, -quote.length) : symbol;
+  const bybit = isBybitSymbol(symbol);
+  const ticker = stripExchangePrefix(symbol);
+  const quote = findSymbolQuote(ticker, bybit ? BYBIT_QUOTE_SUFFIXES : BINANCE_QUOTE_SUFFIXES);
+  const base = quote ? ticker.slice(0, -quote.length) : ticker;
 
   return {
     symbol,
     base,
     quote: quote ?? '',
-    name: quote ? `${base} / ${quote}` : symbol,
-    exchange: 'Binance',
+    name: quote ? `${base} / ${quote}` : ticker,
+    exchange: bybit ? 'Bybit' : 'Binance',
     tags: ['spot', 'crypto'],
     categories: ['crypto'],
     color: getGeneratedSymbolColor(symbol),
@@ -6097,6 +6139,38 @@ const normalizeBinanceSymbolOptions = (payload: unknown): SymbolSearchOption[] =
   }, []);
 };
 
+const normalizeBybitSymbolOptions = (payload: unknown): SymbolSearchOption[] => {
+  if (!isObjectRecord(payload) || !Array.isArray(payload.tickers)) {
+    return [];
+  }
+
+  const seenSymbols = new Set<string>();
+
+  return payload.tickers.reduce<SymbolSearchOption[]>((options, ticker) => {
+    if (!isBybitTickerOption(ticker) || seenSymbols.has(ticker.symbol)) {
+      return options;
+    }
+
+    seenSymbols.add(ticker.symbol);
+
+    const symbol = `${BYBIT_SYMBOL_PREFIX}${ticker.symbol}`;
+
+    options.push({
+      symbol,
+      base: ticker.base,
+      quote: ticker.quote,
+      name: `${ticker.base} / ${ticker.quote}`,
+      exchange: 'Bybit',
+      tags: ['spot', 'crypto', ticker.quote.toLowerCase()],
+      categories: ['crypto'],
+      color: getGeneratedSymbolColor(symbol),
+      iconUrl: getSymbolIconUrl(ticker.base),
+    });
+
+    return options;
+  }, []);
+};
+
 const formatSymbol = (symbol: string, options: readonly SymbolSearchOption[] = SYMBOL_SEARCH_OPTIONS) => {
   const option = options.find((searchOption) => searchOption.symbol === symbol);
 
@@ -6104,8 +6178,10 @@ const formatSymbol = (symbol: string, options: readonly SymbolSearchOption[] = S
     return `${option.base}/${option.quote}`;
   }
 
-  const quote = findSymbolQuote(symbol);
-  return quote ? `${symbol.slice(0, -quote.length)}/${quote}` : symbol;
+  const bybit = isBybitSymbol(symbol);
+  const ticker = stripExchangePrefix(symbol);
+  const quote = findSymbolQuote(ticker, bybit ? BYBIT_QUOTE_SUFFIXES : BINANCE_QUOTE_SUFFIXES);
+  return quote ? `${ticker.slice(0, -quote.length)}/${quote}` : ticker;
 };
 
 const getSymbolSearchOption = (
@@ -7348,12 +7424,14 @@ export default function Home() {
   const indicatorPaneRowRefs = useRef<Array<Record<string, HTMLDivElement | null>>>([]);
   const animationRef = useRef<number | undefined>(undefined);
   const socketRef = useRef<WebSocket | null>(null);
+  const bybitSocketRef = useRef<WebSocket | null>(null);
   const controlRackRef = useRef<HTMLDivElement>(null);
   const drawingToolsRef = useRef<HTMLDivElement>(null);
   const selectedDrawingToolbarRef = useRef<HTMLDivElement>(null);
   const symbolSearchInputRef = useRef<HTMLInputElement>(null);
   const indicatorLegendRef = useRef<HTMLDivElement>(null);
   const activeStreamsRef = useRef<Set<string>>(new Set());
+  const bybitActiveStreamsRef = useRef<Set<string>>(new Set());
   const paneStatesRef = useRef<ChartPaneState[]>([]);
   const chartBoundsRefs = useRef<ChartInteractionBounds[]>([createDefaultChartBounds()]);
   const dragStateRef = useRef<ChartDragState>(createDragState());
@@ -7945,28 +8023,35 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadBinanceTickers = async () => {
-      try {
-        const response = await fetch(BINANCE_TICKERS_ENDPOINT, { cache: 'no-store' });
+    const loadExchangeTickers = async (endpoint: string, normalize: (payload: unknown) => SymbolSearchOption[]) => {
+      const response = await fetch(endpoint, { cache: 'no-store' });
 
-        if (!response.ok) {
-          throw new Error('Binance ticker list unavailable.');
-        }
-
-        const data = await response.json();
-        const nextOptions = normalizeBinanceSymbolOptions(data);
-
-        if (!cancelled && nextOptions.length > 0) {
-          setSymbolSearchOptions(nextOptions);
-        }
-      } catch {
-        if (!cancelled) {
-          setSymbolSearchOptions(SYMBOL_SEARCH_OPTIONS);
-        }
+      if (!response.ok) {
+        throw new Error(`Ticker list unavailable for ${endpoint}.`);
       }
+
+      return normalize(await response.json());
     };
 
-    void loadBinanceTickers();
+    const loadAllTickers = async () => {
+      const [binanceResult, bybitResult] = await Promise.allSettled([
+        loadExchangeTickers(BINANCE_TICKERS_ENDPOINT, normalizeBinanceSymbolOptions),
+        loadExchangeTickers(BYBIT_TICKERS_ENDPOINT, normalizeBybitSymbolOptions),
+      ]);
+
+      const nextOptions = [
+        ...(binanceResult.status === 'fulfilled' ? binanceResult.value : []),
+        ...(bybitResult.status === 'fulfilled' ? bybitResult.value : []),
+      ];
+
+      if (cancelled) {
+        return;
+      }
+
+      setSymbolSearchOptions(nextOptions.length > 0 ? nextOptions : SYMBOL_SEARCH_OPTIONS);
+    };
+
+    void loadAllTickers();
 
     return () => {
       cancelled = true;
@@ -8687,8 +8772,9 @@ export default function Home() {
 
       const fetchData = async () => {
         try {
+          const marketDataEndpoint = isBybitSymbol(request.symbol) ? '/api/bybit' : '/api/binance';
           const response = await fetch(
-            `/api/binance?symbol=${request.symbol}&interval=${request.timeframe}&limit=1000`,
+            `${marketDataEndpoint}?symbol=${stripExchangePrefix(request.symbol)}&interval=${request.timeframe}&limit=1000`,
             { signal: controller.signal }
           );
           const payload = await response.json();
@@ -8760,20 +8846,30 @@ export default function Home() {
       if (!isActive) return;
 
       const streams = Array.from(
-        new Set(paneStatesRef.current.map((pane) => getStreamKey(pane.symbol, pane.timeframe)))
+        new Set(
+          paneStatesRef.current
+            .filter((pane) => !isBybitSymbol(pane.symbol))
+            .map((pane) => getStreamKey(pane.symbol, pane.timeframe))
+        )
       );
       activeStreamsRef.current = new Set(streams);
       sendStreamRequest('SUBSCRIBE', streams);
-      setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'live' })));
+      setChartPanes((current) =>
+        current.map((pane) => (isBybitSymbol(pane.symbol) ? pane : { ...pane, feedStatus: 'live' }))
+      );
     };
     ws.onerror = () => {
       if (isActive) {
-        setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'offline' })));
+        setChartPanes((current) =>
+          current.map((pane) => (isBybitSymbol(pane.symbol) ? pane : { ...pane, feedStatus: 'offline' }))
+        );
       }
     };
     ws.onclose = () => {
       if (isActive) {
-        setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'offline' })));
+        setChartPanes((current) =>
+          current.map((pane) => (isBybitSymbol(pane.symbol) ? pane : { ...pane, feedStatus: 'offline' }))
+        );
       }
     };
 
@@ -8846,11 +8942,17 @@ export default function Home() {
 
   useEffect(() => {
     const ws = socketRef.current;
-    const nextStreams = new Set(paneStatesRef.current.map((pane) => getStreamKey(pane.symbol, pane.timeframe)));
+    const nextStreams = new Set(
+      paneStatesRef.current
+        .filter((pane) => !isBybitSymbol(pane.symbol))
+        .map((pane) => getStreamKey(pane.symbol, pane.timeframe))
+    );
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       setChartPanes((current) =>
-        current.map((pane) => (pane.feedStatus === 'offline' ? pane : { ...pane, feedStatus: 'connecting' }))
+        current.map((pane) =>
+          isBybitSymbol(pane.symbol) || pane.feedStatus === 'offline' ? pane : { ...pane, feedStatus: 'connecting' }
+        )
       );
       return;
     }
@@ -8880,7 +8982,166 @@ export default function Home() {
     }
 
     activeStreamsRef.current = nextStreams;
-    setChartPanes((current) => current.map((pane) => ({ ...pane, feedStatus: 'live' })));
+    setChartPanes((current) =>
+      current.map((pane) => (isBybitSymbol(pane.symbol) ? pane : { ...pane, feedStatus: 'live' }))
+    );
+  }, [paneMarketRequestKey]);
+
+  useEffect(() => {
+    let isActive = true;
+    const ws = new WebSocket('wss://stream.bybit.com/v5/public/spot');
+    bybitSocketRef.current = ws;
+
+    const sendTopicRequest = (op: 'subscribe' | 'unsubscribe', topics: string[]) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      if (topics.length === 0) return;
+
+      ws.send(JSON.stringify({ op, args: topics, req_id: String(Date.now()) }));
+    };
+
+    ws.onopen = () => {
+      if (!isActive) return;
+
+      const topics = Array.from(
+        new Set(
+          paneStatesRef.current
+            .filter((pane) => isBybitSymbol(pane.symbol))
+            .map((pane) => getBybitStreamTopic(pane.symbol, pane.timeframe))
+        )
+      );
+      bybitActiveStreamsRef.current = new Set(topics);
+      sendTopicRequest('subscribe', topics);
+      setChartPanes((current) =>
+        current.map((pane) => (isBybitSymbol(pane.symbol) ? { ...pane, feedStatus: 'live' } : pane))
+      );
+    };
+    ws.onerror = () => {
+      if (isActive) {
+        setChartPanes((current) =>
+          current.map((pane) => (isBybitSymbol(pane.symbol) ? { ...pane, feedStatus: 'offline' } : pane))
+        );
+      }
+    };
+    ws.onclose = () => {
+      if (isActive) {
+        setChartPanes((current) =>
+          current.map((pane) => (isBybitSymbol(pane.symbol) ? { ...pane, feedStatus: 'offline' } : pane))
+        );
+      }
+    };
+
+    ws.onmessage = (event) => {
+      if (!isActive) return;
+
+      const data = JSON.parse(event.data);
+      const topic = typeof data.topic === 'string' ? data.topic : '';
+      if (!topic.startsWith('kline.') || !Array.isArray(data.data) || data.data.length === 0) return;
+
+      const tick = data.data[0];
+      const topicSymbol = topic.split('.')[2];
+      const eventTimeframe = BYBIT_TO_OUR_INTERVAL[String(tick.interval)];
+      if (!topicSymbol || !eventTimeframe) return;
+
+      const eventSymbol = `${BYBIT_SYMBOL_PREFIX}${topicSymbol}`;
+
+      const newCandle: Candle = {
+        time: Number(tick.start),
+        open: Number(tick.open),
+        high: Number(tick.high),
+        low: Number(tick.low),
+        close: Number(tick.close),
+        volume: Number(tick.volume),
+      };
+
+      if (Object.values(newCandle).some((value) => !Number.isFinite(value))) return;
+
+      setChartPanes((previous) =>
+        previous.map((pane) => {
+          if (pane.symbol !== eventSymbol || pane.timeframe !== eventTimeframe) return pane;
+
+          const updated = [...pane.candles];
+          const lastCandle = updated[updated.length - 1];
+          const currentRange = pane.viewRange;
+          const wasPinnedToLatest = currentRange.endIndex >= pane.candles.length;
+          const futureBars = Math.max(0, currentRange.endIndex - pane.candles.length);
+          let nextViewRange = currentRange;
+
+          if (lastCandle && lastCandle.time === newCandle.time) {
+            updated[updated.length - 1] = newCandle;
+          } else if (!lastCandle || newCandle.time > lastCandle.time) {
+            updated.push(newCandle);
+
+            if (wasPinnedToLatest) {
+              const nextStartIndex = clamp(
+                updated.length + futureBars - currentRange.candlesPerView,
+                0,
+                getMaxStartIndex(updated.length, currentRange.candlesPerView)
+              );
+
+              nextViewRange = {
+                ...currentRange,
+                startIndex: nextStartIndex,
+                endIndex: nextStartIndex + currentRange.candlesPerView,
+              };
+            }
+          }
+
+          return {
+            ...pane,
+            candles: updated,
+            viewRange: nextViewRange,
+          };
+        })
+      );
+    };
+
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ op: 'ping' }));
+      }
+    }, 20000);
+
+    return () => {
+      isActive = false;
+      clearInterval(pingInterval);
+      bybitActiveStreamsRef.current = new Set();
+      ws.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    const ws = bybitSocketRef.current;
+    const nextTopics = new Set(
+      paneStatesRef.current
+        .filter((pane) => isBybitSymbol(pane.symbol))
+        .map((pane) => getBybitStreamTopic(pane.symbol, pane.timeframe))
+    );
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setChartPanes((current) =>
+        current.map((pane) =>
+          !isBybitSymbol(pane.symbol) || pane.feedStatus === 'offline' ? pane : { ...pane, feedStatus: 'connecting' }
+        )
+      );
+      return;
+    }
+
+    const currentTopics = bybitActiveStreamsRef.current;
+    const topicsToUnsubscribe = Array.from(currentTopics).filter((topic) => !nextTopics.has(topic));
+    const topicsToSubscribe = Array.from(nextTopics).filter((topic) => !currentTopics.has(topic));
+
+    if (topicsToUnsubscribe.length > 0) {
+      ws.send(JSON.stringify({ op: 'unsubscribe', args: topicsToUnsubscribe, req_id: String(Date.now()) }));
+    }
+
+    if (topicsToSubscribe.length > 0) {
+      ws.send(JSON.stringify({ op: 'subscribe', args: topicsToSubscribe, req_id: String(Date.now()) }));
+    }
+
+    bybitActiveStreamsRef.current = nextTopics;
+    setChartPanes((current) =>
+      current.map((pane) => (isBybitSymbol(pane.symbol) ? { ...pane, feedStatus: 'live' } : pane))
+    );
   }, [paneMarketRequestKey]);
 
   const formatTime = (timestamp: number, detailed = false) => {
