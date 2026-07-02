@@ -9521,3 +9521,35 @@ Improve the visual quality and consistency of the chart drawing Icons tab by rep
 - Updated `ARCHITECTURE.md` to document the generated Phosphor icon catalog boundary.
 - Verification passed so far: `git diff --check`, `npm --prefix TEST/binance-chart-test exec tsc -- --noEmit --pretty false`, `npm --prefix TEST/binance-chart-test run build`, local Playwright visual fixture decoded 76/76 generated SVG data URLs with 0 blank images and inspected light-theme screenshot.
 - Build warning remains pre-existing: multiple lockfiles / missing Next ESLint plugin. Playwright ignored an unrelated Google Tag Manager DNS resource failure.
+
+# FreeCAD MCP Codex Install
+
+## Goal
+Install `neka-nat/freecad-mcp` so Codex can control the local FreeCAD app through MCP.
+
+## Investigation / Decisions
+- Codex already supports stdio MCP servers through `~/.codex/config.toml`.
+- Local `uvx` is available at `/Users/olegrabinovich/.local/bin/uvx`, so use that explicit path for reliable Codex startup.
+- FreeCAD is installed at `/Applications/FreeCAD.app`.
+- FreeCAD 1.1 support data exists under `/Users/olegrabinovich/Library/Application Support/FreeCAD/v1-1`.
+- Install the FreeCAD add-on into the FreeCAD user support directory and keep the MCP server runtime launched by Codex through `uvx`.
+- Do not modify `.env`.
+- This is a global developer-tool install, not a ProCharting runtime architecture change; update `ARCHITECTURE.md` only if that changes during execution.
+
+## Checklist
+- [x] Inspect current Codex MCP config and avoid duplicate `freecad` entry.
+- [x] Locate local FreeCAD support directory and `uvx`.
+- [x] Install FreeCADMCP add-on into the FreeCAD Mod directory.
+- [x] Register the `freecad` MCP server in Codex config.
+- [x] Verify the MCP server starts.
+- [x] Check whether FreeCAD RPC server is ready or requires user UI action.
+- [x] Clean temporary install files and verification artifacts.
+- [x] Review final status.
+
+## Review
+- Installed the FreeCADMCP add-on into `/Users/olegrabinovich/Library/Application Support/FreeCAD/v1-1/Mod/FreeCADMCP`.
+- Registered Codex MCP server `freecad` in `/Users/olegrabinovich/.codex/config.toml`, using `/Users/olegrabinovich/.local/bin/uvx freecad-mcp`.
+- Enabled FreeCAD MCP auto-start with localhost-only settings in `/Users/olegrabinovich/Library/Application Support/FreeCAD/v1-1/freecad_mcp_settings.json`.
+- Verified Codex sees the `freecad` MCP server, the MCP server initializes and lists tools, FreeCAD RPC `ping` returns `True`, and MCP `list_documents` succeeds through the full bridge.
+- Cleaned temporary clone at `/tmp/freecad-mcp-install.vTkrhI`.
+- No ProCharting runtime architecture changed, so `ARCHITECTURE.md` was left unchanged.
